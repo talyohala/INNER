@@ -8,7 +8,7 @@ import postRoutes from './routes/posts';
 import notifRoutes from './routes/notifications';
 import profileRoutes from './routes/profile';
 import walletRoutes from './routes/wallet';
-import studioRoutes from './routes/studio'; // <-- הוספנו את הסטודיו
+import studioRoutes from './routes/studio';
 
 const app = express();
 app.use(cors());
@@ -22,11 +22,18 @@ app.use('/api/posts', postRoutes);
 app.use('/api/notifications', notifRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/wallet', walletRoutes);
-app.use('/api/studio', studioRoutes); // <-- חיברנו את הסטודיו
+app.use('/api/studio', studioRoutes);
 
-app.get('/api/health', (req, res) => res.json({ status: 'ok', port: 8080 }));
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', port: Number(process.env.PORT) || 8080 });
+});
 
-const PORT = 8080;
+app.get('/api/debug', (_req, res) => {
+  res.json({ status: 'Server is reaching here!' });
+});
+
+const PORT = Number(process.env.PORT) || 8080;
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
