@@ -1,9 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const authRoutes = require('./routes/auth');
-const circleRoutes = require('./routes/circles');
-const feedRoutes = require('./routes/feed');
-const profileRoutes = require('./routes/profile');
 
 const app = express();
 app.use(cors());
@@ -13,10 +9,9 @@ app.get('/api/debug', (req, res) => {
   res.json({ status: 'Server is reaching here!' });
 });
 
-app.use('/api/auth', authRoutes);
-app.use('/api/circles', circleRoutes);
-app.use('/api/feed', feedRoutes);
-app.use('/api/profile', profileRoutes);
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true });
+});
 
 const PORT = process.env.PORT || 8080;
 
