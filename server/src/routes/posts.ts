@@ -104,7 +104,8 @@ router.post('/:postId/comments', async (req, res) => {
 
     const { data: post } = await supabase.from('posts').select('user_id').eq('id', postId).maybeSingle();
     if (post && post.user_id !== userId && data?.profiles) {
-      const senderName = data.profiles.full_name || data.profiles.username || 'משתמש';
+      const profile = Array.isArray(data.profiles) ? data.profiles[0] : data.profiles;
+      const senderName = profile?.full_name || profile?.username || 'משתמש';
       await createNotification(post.user_id, userId, 'comment', 'תגובה חדשה 💬', `${senderName} הגיב/ה: "${content.substring(0, 20)}${content.length > 20 ? '...' : ''}"`, `/`);
     }
 
