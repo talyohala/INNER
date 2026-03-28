@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://YOUR_BACKEND_URL';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8080';
 
 export async function apiFetch(path: string, options: RequestInit = {}) {
   const res = await fetch(`${BASE_URL}${path}`, {
