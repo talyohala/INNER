@@ -133,20 +133,20 @@ export const HomePage: React.FC = () => {
     try {
       const { data: authData } = await supabase.auth.getUser();
       await apiFetch(`/api/posts/${activePost.id}/comments`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': authData.user?.id || '' }, body: JSON.stringify({ content: newComment.trim() }) });
-      const fallbackComment = { id: Date.now().toString(), content: newComment.trim(), user_id: authData.user?.id, profiles: { full_name: 'אני', avatar_url: '', id: authData.user?.id } };
+      const fallbackComment = { id: Date.now().toString(), content: newComment.trim(), user_id: authData.user?.id, profiles: { full_name: 'אני', avatar_url: '', username: authData.user?.user_metadata?.username, id: authData.user?.id } };
       setComments(prev => [...prev, fallbackComment]); setNewComment(''); setPosts(curr => curr.map(p => p.id === activePost.id ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p)); triggerFeedback('coin'); fetchData(true);
     } catch (err) { toast.error('שגיאה בשליחת תגובה'); }
   };
 
-  // ניווט מבוסס תעודת זהות (ID) בלבד למניעת תקלות!
-  const goToProfile = (userId: string | undefined) => {
-    if (!userId) {
+  // הניווט החדש - קולט כל מזהה שיש (שם משתמש או ID)
+  const goToProfile = (identifier: string | undefined) => {
+    if (!identifier) {
       toast.error('פרטי המשתמש חסרים', { style: { background: '#111', color: '#ef4444' } });
       return;
     }
     triggerFeedback('pop');
     setActivePost(null);
-    navigate(`/profile/${userId}`);
+    navigate(`/profile/${encodeURIComponent(identifier)}`);
   };
 
   const commentsModal = (
@@ -162,15 +162,17 @@ export const HomePage: React.FC = () => {
             <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 scrollbar-hide touch-pan-y" onPointerDown={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }} onTouchStart={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}>
               {loadingComments ? <Loader2 className="animate-spin mx-auto text-white/40 mt-10" /> : 
                 (Array.isArray(comments) ? comments : []).map((comment, idx) => {
+                  // מחפש את המזהה הטוב ביותר שיש לנו
+                  const targetIdentifier = comment.profiles?.username || comment.profiles?.id || comment.user_id;
                   return (
                     <div key={comment?.id || idx} className="flex gap-4">
-                      <div className="w-10 h-10 rounded-[16px] bg-black shrink-0 overflow-hidden border border-white/10 shadow-inner p-0.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => goToProfile(comment.user_id)}>
+                      <div className="w-10 h-10 rounded-[16px] bg-black shrink-0 overflow-hidden border border-white/10 shadow-inner p-0.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => goToProfile(targetIdentifier)}>
                         <div className="w-full h-full rounded-[12px] overflow-hidden bg-[#111]">
                           {comment.profiles?.avatar_url ? <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={18} className="text-white/20" /></div>}
                         </div>
                       </div>
                       <div className="flex flex-col flex-1 bg-white/[0.04] p-4 rounded-[24px] rounded-tr-sm border border-white/5 shadow-sm">
-                        <span className="text-white font-black text-[13px] mb-1.5 text-right w-fit cursor-pointer hover:text-[#e5e4e2] transition-colors" onClick={() => goToProfile(comment.user_id)}>{comment.profiles?.full_name || 'אנונימי'}</span>
+                        <span className="text-white font-black text-[13px] mb-1.5 text-right w-fit cursor-pointer hover:text-[#e5e4e2] transition-colors" onClick={() => goToProfile(targetIdentifier)}>{comment.profiles?.full_name || 'אנונימי'}</span>
                         <p className="text-white/80 text-[14px] text-right leading-relaxed">{comment?.content || ''}</p>
                       </div>
                     </div>
@@ -274,9 +276,12 @@ export const HomePage: React.FC = () => {
           <div className="flex flex-col gap-6 relative z-10">
             {loading ? (<><PostSkeleton /><PostSkeleton /><PostSkeleton /></>) : (
               posts.map((post) => {
+                // המזהה החזק שלנו לניווט
+                const targetIdentifier = post.profiles?.username || post.profiles?.id || post.user_id;
+                
                 return (
                   <div key={post.id} className="p-6 rounded-[36px] bg-white/[0.04] backdrop-blur-2xl border border-white/10 relative overflow-hidden shadow-2xl">
-                    <div className="flex items-center gap-4 mb-5 cursor-pointer w-fit group" onClick={() => goToProfile(post.user_id)}>
+                    <div className="flex items-center gap-4 mb-5 cursor-pointer w-fit group" onClick={() => goToProfile(targetIdentifier)}>
                       <div className="w-12 h-12 rounded-[20px] bg-black border border-white/10 overflow-hidden shrink-0 shadow-inner p-0.5 group-hover:opacity-80 transition-opacity">
                         <div className="w-full h-full rounded-[16px] overflow-hidden bg-[#111]">
                           {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={24} className="text-white/20" /></div>}
