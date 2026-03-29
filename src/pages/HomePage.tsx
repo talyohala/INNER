@@ -57,27 +57,17 @@ export const HomePage: React.FC = () => {
     try {
       const { data: authData } = await supabase.auth.getUser();
       if (!authData.user) return;
-      const { count } = await supabase
-        .from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', authData.user.id)
-        .eq('is_read', false);
+      const { count } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', authData.user.id).eq('is_read', false);
       setUnreadCount(count || 0);
-    } catch (e) { console.error(e); }
+    } catch (e) {}
   };
 
   useEffect(() => {
     setMounted(true);
     fetchData(false);
     checkUnreadNotifications();
-    
     const interval = setInterval(() => setOnlineUsers(prev => prev + Math.floor(Math.random() * 5) - 2), 5000);
-    
-    const channel = supabase.channel('global_feed')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts', filter: 'circle_id=is.null' }, () => fetchData(true))
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, () => checkUnreadNotifications())
-      .subscribe();
-      
+    const channel = supabase.channel('global_feed').on('postgres_changes', { event: '*', schema: 'public', table: 'posts', filter: 'circle_id=is.null' }, () => fetchData(true)).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, () => checkUnreadNotifications()).subscribe();
     return () => { supabase.removeChannel(channel); clearInterval(interval); };
   }, []);
 
@@ -86,29 +76,15 @@ export const HomePage: React.FC = () => {
     try {
       const { data: authData } = await supabase.auth.getUser();
       const headers = authData.user ? { 'x-user-id': authData.user.id } : {};
-      
-      const [circlesData, postsData] = await Promise.all([
-        apiFetch<any[]>('/api/circles', { headers }), 
-        apiFetch<any[]>('/api/feed', { headers })
-      ]);
+      const [circlesData, postsData] = await Promise.all([ apiFetch<any[]>('/api/circles', { headers }), apiFetch<any[]>('/api/feed', { headers }) ]);
       setCircles((Array.isArray(circlesData) ? circlesData : []).sort((a, b) => (b.members_count || 0) - (a.members_count || 0)));
       setPosts(Array.isArray(postsData) ? postsData : []);
     } catch (err) { } finally { setLoading(false); setRefreshing(false); }
   };
 
   const handleTouchStart = (e: React.TouchEvent) => { if (window.scrollY <= 0) pullStartY.current = e.touches[0].clientY; };
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (pullStartY.current > 0 && window.scrollY <= 0) {
-      const y = e.touches[0].clientY - pullStartY.current;
-      if (y > 0) setPullY(Math.min(y, 120));
-    }
-  };
-  const handleTouchEnd = async () => {
-    if (pullY > 60) {
-      setRefreshing(true); setPullY(0); triggerFeedback('coin'); await fetchData(true); await checkUnreadNotifications();
-    } else { setPullY(0); }
-    pullStartY.current = 0;
-  };
+  const handleTouchMove = (e: React.TouchEvent) => { if (pullStartY.current > 0 && window.scrollY <= 0) { const y = e.touches[0].clientY - pullStartY.current; if (y > 0) setPullY(Math.min(y, 120)); } };
+  const handleTouchEnd = async () => { if (pullY > 60) { setRefreshing(true); setPullY(0); triggerFeedback('coin'); await fetchData(true); await checkUnreadNotifications(); } else { setPullY(0); } pullStartY.current = 0; };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -122,24 +98,17 @@ export const HomePage: React.FC = () => {
     try {
       const { data: authData } = await supabase.auth.getUser();
       if (!authData.user) throw new Error('משתמש לא מחובר.');
-
       let media_url = null;
       if (selectedFile) {
         setUploadingImage(true);
         const fileExt = selectedFile.name.split('.').pop();
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
         const { data: uploadData, error: uploadError } = await supabase.storage.from('feed_images').upload(fileName, selectedFile);
-        if (uploadError) throw new Error(`שגיאת אחסון: ${uploadError.message}`);
+        if (uploadError) throw new Error(`שגיאת אחסון`);
         media_url = supabase.storage.from('feed_images').getPublicUrl(uploadData.path).data.publicUrl;
         setUploadingImage(false);
       }
-      
-      await apiFetch<any>('/api/feed', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json', 'x-user-id': authData.user.id },
-        body: JSON.stringify({ content: newPost.trim(), media_url }) 
-      });
-      
+      await apiFetch<any>('/api/feed', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': authData.user.id }, body: JSON.stringify({ content: newPost.trim(), media_url }) });
       setNewPost(''); setSelectedFile(null); triggerFeedback('pop'); fetchData(true);
     } catch (err: any) { setUploadingImage(false); toast.error(err.message || 'שגיאה בשליחה'); } finally { setPosting(false); }
   };
@@ -147,24 +116,14 @@ export const HomePage: React.FC = () => {
   const handleLike = async (postId: string, isLiked: boolean) => {
     triggerFeedback('pop');
     setPosts(curr => curr.map(p => p.id === postId ? { ...p, is_liked: !isLiked, likes_count: isLiked ? p.likes_count - 1 : p.likes_count + 1 } : p));
-    try { 
-      const { data: authData } = await supabase.auth.getUser();
-      await apiFetch(`/api/posts/${postId}/like`, { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': authData.user?.id || '' }
-      }); 
-    } catch (err) { fetchData(true); }
+    try { const { data: authData } = await supabase.auth.getUser(); await apiFetch(`/api/posts/${postId}/like`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': authData.user?.id || '' } }); } catch (err) { fetchData(true); }
   };
 
   const openComments = async (post: any) => {
-    triggerFeedback('pop');
-    setActivePost(post);
-    setLoadingComments(true);
+    triggerFeedback('pop'); setActivePost(post); setLoadingComments(true);
     try {
       const { data: authData } = await supabase.auth.getUser();
-      const data = await apiFetch<any[]>(`/api/posts/${post.id}/comments`, {
-        headers: { 'x-user-id': authData.user?.id || '' }
-      });
+      const data = await apiFetch<any[]>(`/api/posts/${post.id}/comments`, { headers: { 'x-user-id': authData.user?.id || '' } });
       setComments(Array.isArray(data) ? data : []);
     } catch (err) { toast.error('שגיאה בטעינת תגובות'); setComments([]); } finally { setLoadingComments(false); }
   };
@@ -173,106 +132,45 @@ export const HomePage: React.FC = () => {
     if (!newComment.trim() || !activePost) return;
     try {
       const { data: authData } = await supabase.auth.getUser();
-      await apiFetch(`/api/posts/${activePost.id}/comments`, { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json', 'x-user-id': authData.user?.id || '' },
-        body: JSON.stringify({ content: newComment.trim() }) 
-      });
-      
-      const fallbackComment = {
-        id: Date.now().toString(),
-        content: newComment.trim(),
-        profiles: { full_name: 'אני', avatar_url: '', username: authData.user?.user_metadata?.username || authData.user?.id }
-      };
-      
-      setComments(prev => [...prev, fallbackComment]);
-      setNewComment('');
-      setPosts(curr => curr.map(p => p.id === activePost.id ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p));
-      triggerFeedback('coin');
-      fetchData(true);
+      await apiFetch(`/api/posts/${activePost.id}/comments`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': authData.user?.id || '' }, body: JSON.stringify({ content: newComment.trim() }) });
+      const fallbackComment = { id: Date.now().toString(), content: newComment.trim(), user_id: authData.user?.id, profiles: { full_name: 'אני', avatar_url: '', id: authData.user?.id } };
+      setComments(prev => [...prev, fallbackComment]); setNewComment(''); setPosts(curr => curr.map(p => p.id === activePost.id ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p)); triggerFeedback('coin'); fetchData(true);
     } catch (err) { toast.error('שגיאה בשליחת תגובה'); }
   };
 
-  // התיקון הקריטי למעבר פרופילים - גיבוי מזהים וחיווי
-  const goToProfile = (identifier: string | undefined) => {
-    if (!identifier) {
-      toast.error('פרטי המשתמש חסרים', { style: { background: '#111', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' } });
+  // ניווט מבוסס תעודת זהות (ID) בלבד למניעת תקלות!
+  const goToProfile = (userId: string | undefined) => {
+    if (!userId) {
+      toast.error('פרטי המשתמש חסרים', { style: { background: '#111', color: '#ef4444' } });
       return;
     }
     triggerFeedback('pop');
-    setActivePost(null); // במידה וזה הגיע מתוך הבוטום שיט, תסגור אותו
-    navigate(`/profile/${identifier}`);
+    setActivePost(null);
+    navigate(`/profile/${userId}`);
   };
 
   const commentsModal = (
     <AnimatePresence>
       {activePost && (
         <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
-          <motion.div 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            exit={{ opacity: 0 }} 
-            className="absolute inset-0 bg-black/80 backdrop-blur-sm" 
-            onClick={() => setActivePost(null)} 
-          />
-          
-          <motion.div 
-            drag="y" 
-            dragControls={dragControls}
-            dragListener={false}
-            dragConstraints={{ top: 0, bottom: 0 }} 
-            dragElastic={0.2} 
-            onDragEnd={(e, { offset, velocity }) => { 
-              if (offset.y > 100 || velocity.y > 400) setActivePost(null); 
-            }} 
-            initial={{ y: "100%" }} 
-            animate={{ y: 0 }} 
-            exit={{ y: "100%" }} 
-            transition={{ type: "spring", damping: 25, stiffness: 200 }} 
-            className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[85vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden"
-          >
-            <div 
-              className="w-full flex justify-center pt-5 pb-3 cursor-grab active:cursor-grabbing bg-white/[0.02]"
-              onPointerDown={(e) => dragControls.start(e)}
-              style={{ touchAction: "none" }}
-            >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setActivePost(null)} />
+          <motion.div drag="y" dragControls={dragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, { offset, velocity }) => { if (offset.y > 100 || velocity.y > 400) setActivePost(null); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[85vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
+            <div className="w-full flex justify-center pt-5 pb-3 cursor-grab active:cursor-grabbing bg-white/[0.02]" onPointerDown={(e) => dragControls.start(e)} style={{ touchAction: "none" }}>
               <div className="w-16 h-1.5 bg-white/20 rounded-full"></div>
             </div>
-            
-            <div className="flex justify-start items-center px-6 pb-4 border-b border-white/10">
-              <h2 className="text-white font-black text-[16px]">תגובות ({activePost?.comments_count || 0})</h2>
-            </div>
-            
-            <div 
-              className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 scrollbar-hide touch-pan-y"
-              onPointerDown={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}
-              onTouchStart={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}
-            >
+            <div className="flex justify-start items-center px-6 pb-4 border-b border-white/10"><h2 className="text-white font-black text-[16px]">תגובות ({activePost?.comments_count || 0})</h2></div>
+            <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 scrollbar-hide touch-pan-y" onPointerDown={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }} onTouchStart={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}>
               {loadingComments ? <Loader2 className="animate-spin mx-auto text-white/40 mt-10" /> : 
                 (Array.isArray(comments) ? comments : []).map((comment, idx) => {
-                  const profile = comment?.profiles || {};
-                  const avatarUrl = profile?.avatar_url;
-                  const fullName = profile?.full_name || 'אנונימי';
-                  // שולף קודם Username, ואם אין אז שולף את ה-ID של המשתמש
-                  const targetIdentifier = profile?.username || comment?.user_id || profile?.id;
-                  
                   return (
                     <div key={comment?.id || idx} className="flex gap-4">
-                      <div 
-                        className="w-10 h-10 rounded-[16px] bg-black shrink-0 overflow-hidden border border-white/10 shadow-inner p-0.5 cursor-pointer hover:opacity-80 transition-opacity"
-                        onClick={() => goToProfile(targetIdentifier)}
-                      >
+                      <div className="w-10 h-10 rounded-[16px] bg-black shrink-0 overflow-hidden border border-white/10 shadow-inner p-0.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => goToProfile(comment.user_id)}>
                         <div className="w-full h-full rounded-[12px] overflow-hidden bg-[#111]">
-                          {avatarUrl ? <img src={avatarUrl} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={18} className="text-white/20" /></div>}
+                          {comment.profiles?.avatar_url ? <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={18} className="text-white/20" /></div>}
                         </div>
                       </div>
                       <div className="flex flex-col flex-1 bg-white/[0.04] p-4 rounded-[24px] rounded-tr-sm border border-white/5 shadow-sm">
-                        <span 
-                          className="text-white font-black text-[13px] mb-1.5 text-right w-fit cursor-pointer hover:text-[#e5e4e2] transition-colors"
-                          onClick={() => goToProfile(targetIdentifier)}
-                        >
-                          {fullName}
-                        </span>
+                        <span className="text-white font-black text-[13px] mb-1.5 text-right w-fit cursor-pointer hover:text-[#e5e4e2] transition-colors" onClick={() => goToProfile(comment.user_id)}>{comment.profiles?.full_name || 'אנונימי'}</span>
                         <p className="text-white/80 text-[14px] text-right leading-relaxed">{comment?.content || ''}</p>
                       </div>
                     </div>
@@ -280,17 +178,10 @@ export const HomePage: React.FC = () => {
                 })
               }
             </div>
-            
-            <div 
-              className="p-5 border-t border-white/10 bg-black/90 backdrop-blur-2xl mt-auto pb-8"
-              onPointerDown={e => e.stopPropagation()}
-              onTouchStart={e => e.stopPropagation()}
-            >
+            <div className="p-5 border-t border-white/10 bg-black/90 backdrop-blur-2xl mt-auto pb-8" onPointerDown={e => e.stopPropagation()} onTouchStart={e => e.stopPropagation()}>
               <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-full pr-2 pl-5 h-14 shadow-inner">
                 <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="הוסף תגובה..." className="flex-1 bg-transparent border-none text-white text-[15px] text-right outline-none placeholder:text-white/30" />
-                <button onClick={submitComment} disabled={!newComment.trim()} className="w-11 h-11 rounded-full bg-white text-black flex items-center justify-center shrink-0 active:scale-95 disabled:opacity-50 transition-opacity shadow-[0_0_15px_rgba(255,255,255,0.2)]">
-                  <Send size={18} className="rtl:-scale-x-100 -ml-0.5 text-[#2196f3]" />
-                </button>
+                <button onClick={submitComment} disabled={!newComment.trim()} className="w-11 h-11 rounded-full bg-white text-black flex items-center justify-center shrink-0 active:scale-95 disabled:opacity-50 transition-opacity shadow-[0_0_15px_rgba(255,255,255,0.2)]"><Send size={18} className="rtl:-scale-x-100 -ml-0.5 text-[#2196f3]" /></button>
               </div>
             </div>
           </motion.div>
@@ -383,15 +274,9 @@ export const HomePage: React.FC = () => {
           <div className="flex flex-col gap-6 relative z-10">
             {loading ? (<><PostSkeleton /><PostSkeleton /><PostSkeleton /></>) : (
               posts.map((post) => {
-                // המזהה הסופי: קודם שם משתמש, אם אין אז ID של משתמש.
-                const targetIdentifier = post.profiles?.username || post.user_id || post.profiles?.id;
-                
                 return (
                   <div key={post.id} className="p-6 rounded-[36px] bg-white/[0.04] backdrop-blur-2xl border border-white/10 relative overflow-hidden shadow-2xl">
-                    <div 
-                      className="flex items-center gap-4 mb-5 cursor-pointer w-fit group"
-                      onClick={() => goToProfile(targetIdentifier)}
-                    >
+                    <div className="flex items-center gap-4 mb-5 cursor-pointer w-fit group" onClick={() => goToProfile(post.user_id)}>
                       <div className="w-12 h-12 rounded-[20px] bg-black border border-white/10 overflow-hidden shrink-0 shadow-inner p-0.5 group-hover:opacity-80 transition-opacity">
                         <div className="w-full h-full rounded-[16px] overflow-hidden bg-[#111]">
                           {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={24} className="text-white/20" /></div>}
