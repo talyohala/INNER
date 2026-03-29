@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { apiFetch } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { FadeIn, Button } from '../components/ui';
@@ -30,6 +30,8 @@ const PostSkeleton = () => (
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragControls = useDragControls();
+  const [mounted, setMounted] = useState(false);
 
   const [circles, setCircles] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
@@ -65,6 +67,7 @@ export const HomePage: React.FC = () => {
   };
 
   useEffect(() => {
+    setMounted(true);
     fetchData(false);
     checkUnreadNotifications();
     
@@ -179,7 +182,7 @@ export const HomePage: React.FC = () => {
       const fallbackComment = {
         id: Date.now().toString(),
         content: newComment.trim(),
-        profiles: { full_name: 'אני', avatar_url: '' }
+        profiles: { full_name: 'אני', avatar_url: '', username: authData.user?.user_metadata?.username }
       };
       
       setComments(prev => [...prev, fallbackComment]);
@@ -188,6 +191,13 @@ export const HomePage: React.FC = () => {
       triggerFeedback('coin');
       fetchData(true);
     } catch (err) { toast.error('שגיאה בשליחת תגובה'); }
+  };
+
+  const goToProfile = (username: string | undefined) => {
+    if (!username) return;
+    triggerFeedback('pop');
+    setActivePost(null); // במידה וזה הגיע מתוך הבוטום שיט, תסגור אותו
+    navigate(`/profile/${username}`);
   };
 
   const commentsModal = (
@@ -204,6 +214,8 @@ export const HomePage: React.FC = () => {
           
           <motion.div 
             drag="y" 
+            dragControls={dragControls}
+            dragListener={false}
             dragConstraints={{ top: 0, bottom: 0 }} 
             dragElastic={0.2} 
             onDragEnd={(e, { offset, velocity }) => { 
@@ -215,43 +227,48 @@ export const HomePage: React.FC = () => {
             transition={{ type: "spring", damping: 25, stiffness: 200 }} 
             className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[85vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden"
           >
-            <div className="w-full flex justify-center pt-5 pb-3">
+            <div 
+              className="w-full flex justify-center pt-5 pb-3 cursor-grab active:cursor-grabbing bg-white/[0.02]"
+              onPointerDown={(e) => dragControls.start(e)}
+              style={{ touchAction: "none" }}
+            >
               <div className="w-16 h-1.5 bg-white/20 rounded-full"></div>
             </div>
             
             <div className="flex justify-start items-center px-6 pb-4 border-b border-white/10">
               <h2 className="text-white font-black text-[16px]">תגובות ({activePost?.comments_count || 0})</h2>
-              {/* כפתור ה-X הוסר לבקשתך! */}
             </div>
             
-            {/* הקוד החכם: 
-              אם המשתמש גלל למטה לתוך התגובות, אנחנו עוצרים את הגרירה כדי שיוכל לגלול חופשי.
-              אם הוא בראש הרשימה, ההחלקה כלפי מטה תגרור ותסגור את כל החלון בצורה טבעית!
-            */}
             <div 
               className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 scrollbar-hide touch-pan-y"
-              onPointerDown={(e) => {
-                if (e.currentTarget.scrollTop > 0) e.stopPropagation();
-              }}
-              onTouchStart={(e) => {
-                if (e.currentTarget.scrollTop > 0) e.stopPropagation();
-              }}
+              onPointerDown={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}
+              onTouchStart={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}
             >
               {loadingComments ? <Loader2 className="animate-spin mx-auto text-white/40 mt-10" /> : 
                 (Array.isArray(comments) ? comments : []).map((comment, idx) => {
                   const profile = comment?.profiles || {};
                   const avatarUrl = profile?.avatar_url;
                   const fullName = profile?.full_name || 'אנונימי';
+                  const username = profile?.username;
                   
                   return (
                     <div key={comment?.id || idx} className="flex gap-4">
-                      <div className="w-10 h-10 rounded-[16px] bg-black shrink-0 overflow-hidden border border-white/10 shadow-inner p-0.5">
+                      {/* הפיכת תמונת הפרופיל ושם המשתמש בתגובה ללחיצים */}
+                      <div 
+                        className="w-10 h-10 rounded-[16px] bg-black shrink-0 overflow-hidden border border-white/10 shadow-inner p-0.5 cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => goToProfile(username)}
+                      >
                         <div className="w-full h-full rounded-[12px] overflow-hidden bg-[#111]">
                           {avatarUrl ? <img src={avatarUrl} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={18} className="text-white/20" /></div>}
                         </div>
                       </div>
                       <div className="flex flex-col flex-1 bg-white/[0.04] p-4 rounded-[24px] rounded-tr-sm border border-white/5 shadow-sm">
-                        <span className="text-white font-black text-[13px] mb-1.5 text-right">{fullName}</span>
+                        <span 
+                          className="text-white font-black text-[13px] mb-1.5 text-right w-fit cursor-pointer hover:text-[#e5e4e2] transition-colors"
+                          onClick={() => goToProfile(username)}
+                        >
+                          {fullName}
+                        </span>
                         <p className="text-white/80 text-[14px] text-right leading-relaxed">{comment?.content || ''}</p>
                       </div>
                     </div>
@@ -363,14 +380,19 @@ export const HomePage: React.FC = () => {
             {loading ? (<><PostSkeleton /><PostSkeleton /><PostSkeleton /></>) : (
               posts.map((post) => (
                 <div key={post.id} className="p-6 rounded-[36px] bg-white/[0.04] backdrop-blur-2xl border border-white/10 relative overflow-hidden shadow-2xl">
-                  <div className="flex items-center gap-4 mb-5">
-                    <div className="w-12 h-12 rounded-[20px] bg-black border border-white/10 overflow-hidden shrink-0 shadow-inner p-0.5">
+                  
+                  {/* הפיכת תמונת הפרופיל והשם בפוסט ללחיצים */}
+                  <div 
+                    className="flex items-center gap-4 mb-5 cursor-pointer w-fit group"
+                    onClick={() => goToProfile(post.profiles?.username)}
+                  >
+                    <div className="w-12 h-12 rounded-[20px] bg-black border border-white/10 overflow-hidden shrink-0 shadow-inner p-0.5 group-hover:opacity-80 transition-opacity">
                       <div className="w-full h-full rounded-[16px] overflow-hidden bg-[#111]">
                         {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={24} className="text-white/20" /></div>}
                       </div>
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-white font-black text-[16px] drop-shadow-sm">{post.profiles?.full_name || 'אנונימי'}</span>
+                      <span className="text-white font-black text-[16px] drop-shadow-sm group-hover:text-[#e5e4e2] transition-colors">{post.profiles?.full_name || 'אנונימי'}</span>
                       <span className="text-white/40 text-[11px] font-bold mt-0.5">{new Date(post.created_at).toLocaleDateString('he-IL')}</span>
                     </div>
                   </div>
@@ -402,7 +424,7 @@ export const HomePage: React.FC = () => {
         </FadeIn>
       </div>
 
-      {typeof document !== 'undefined' && createPortal(commentsModal, document.body)}
+      {mounted && typeof document !== 'undefined' ? createPortal(commentsModal, document.body) : null}
     </>
   );
 };
