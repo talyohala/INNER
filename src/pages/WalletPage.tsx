@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
-import { Wallet, Lock, Loader2, ArrowDownLeft, ArrowUpRight, ArrowRight, Zap, History, ShieldCheck, SmartphoneNfc, ChevronDown, Send, Tag } from 'lucide-react';
+import { Wallet, Lock, Loader2, ArrowDownLeft, ArrowUpRight, ArrowRight, Zap, History, ShieldCheck, SmartphoneNfc, ChevronDown, Send, Tag, Banknote } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { supabase } from '../lib/supabase';
-import { FadeIn, Button } from '../components/ui';
+import { FadeIn, Button, Input } from '../components/ui';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 
@@ -12,14 +12,28 @@ export const WalletPage: React.FC = () => {
   const navigate = useNavigate();
   const historyDragControls = useDragControls();
   const paymentDragControls = useDragControls();
+  const transferDragControls = useDragControls();
+  const redeemDragControls = useDragControls();
 
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // States for actions
   const [adding, setAdding] = useState(false);
+  const [transferring, setTransferring] = useState(false);
+  const [redeeming, setRedeeming] = useState(false);
 
+  // Sheets visibility
   const [selectedPackage, setSelectedPackage] = useState<{ amount: number, price: number, id: string, discount?: number } | null>(null);
   const [showAllTx, setShowAllTx] = useState(false);
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [showRedeem, setShowRedeem] = useState(false);
+
+  // Transfer & Redeem form states
+  const [transferUsername, setTransferUsername] = useState('');
+  const [transferAmount, setTransferAmount] = useState<number | ''>('');
+  const [redeemAmount, setRedeemAmount] = useState<number | ''>('');
 
   const fetchWallet = async () => {
     try {
@@ -45,11 +59,6 @@ export const WalletPage: React.FC = () => {
     setSelectedPackage(pkg);
   };
 
-  const closePaymentSheet = () => {
-    triggerFeedback('pop');
-    setSelectedPackage(null);
-  };
-
   const processNativePayment = async () => {
     if (!selectedPackage) return;
     setAdding(true);
@@ -63,10 +72,7 @@ export const WalletPage: React.FC = () => {
 
         const data = await apiFetch<any>('/api/wallet/add', {
           method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'x-user-id': authData.user.id 
-          },
+          headers: { 'Content-Type': 'application/json', 'x-user-id': authData.user.id },
           body: JSON.stringify({ amount: selectedPackage.amount })
         });
 
@@ -75,13 +81,57 @@ export const WalletPage: React.FC = () => {
         
         triggerFeedback('coin');
         toast.success(`רכשת ${selectedPackage.amount} CRD בהצלחה! 💎`, { id: tid, style: { background: '#111', color: '#00d4ff', border: '1px solid rgba(0,212,255,0.2)' } });
-        closePaymentSheet();
+        setSelectedPackage(null);
       } catch (err) {
         triggerFeedback('error');
         toast.error('התשלום נכשל', { id: tid, style: { background: '#111', color: '#ef4444' } });
       } finally {
         setAdding(false);
       }
+    }, 1500);
+  };
+
+  const handleTransfer = async () => {
+    if (!transferUsername || !transferAmount || transferAmount <= 0) return toast.error('אנא הזן פרטים תקינים');
+    if (transferAmount > balance) return toast.error('אין לך מספיק יתרה בארנק');
+    
+    setTransferring(true);
+    triggerFeedback('pop');
+    const tid = toast.loading(`מעביר ${transferAmount} CRD...`, { style: { background: '#111', color: '#fff' } });
+
+    // סימולציית העברה (עד שנבנה את הראוט בשרת)
+    setTimeout(() => {
+      setBalance(prev => prev - Number(transferAmount));
+      setTransactions(prev => [{ id: Date.now(), type: 'withdrawal', amount: transferAmount, description: `העברה ל-@${transferUsername}`, created_at: new Date().toISOString() }, ...prev]);
+      
+      triggerFeedback('success');
+      toast.success('ההעברה בוצעה בהצלחה!', { id: tid, style: { background: '#111', color: '#d500f9', border: '1px solid rgba(213,0,249,0.2)' } });
+      setTransferring(false);
+      setShowTransfer(false);
+      setTransferUsername('');
+      setTransferAmount('');
+    }, 1500);
+  };
+
+  const handleRedeem = async () => {
+    if (!redeemAmount || redeemAmount <= 0) return toast.error('אנא הזן סכום תקין');
+    if (redeemAmount > balance) return toast.error('אין לך מספיק יתרה למשיכה');
+    if (redeemAmount < 100) return toast.error('מינימום למשיכה הוא 100 CRD');
+    
+    setRedeeming(true);
+    triggerFeedback('pop');
+    const tid = toast.loading(`מכין בקשת פדיון...`, { style: { background: '#111', color: '#fff' } });
+
+    // סימולציית משיכה לבנק
+    setTimeout(() => {
+      setBalance(prev => prev - Number(redeemAmount));
+      setTransactions(prev => [{ id: Date.now(), type: 'withdrawal', amount: redeemAmount, description: 'משיכה לחשבון בנק', created_at: new Date().toISOString() }, ...prev]);
+      
+      triggerFeedback('success');
+      toast.success('בקשת הפדיון נשלחה לאישור!', { id: tid, style: { background: '#111', color: '#4ade80', border: '1px solid rgba(74,222,128,0.2)' } });
+      setRedeeming(false);
+      setShowRedeem(false);
+      setRedeemAmount('');
     }, 1500);
   };
 
@@ -113,7 +163,8 @@ export const WalletPage: React.FC = () => {
       </div>
 
       <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: "spring", stiffness: 100, damping: 20 }}>
-        <div className="bg-black border border-white/10 p-8 rounded-[36px] flex flex-col items-center text-center shadow-2xl relative overflow-hidden z-10">
+        {/* כרטיס בולט עם גרדיאנט יוקרתי מאפור לשחור, מסגרת חזקה והצללה עמוקה */}
+        <div className="bg-gradient-to-br from-[#1a1a1a] to-[#050505] border border-white/20 p-8 rounded-[36px] flex flex-col items-center text-center shadow-[0_25px_60px_rgba(0,0,0,0.8)] relative overflow-hidden z-10">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-[#00d4ff]/10 blur-[80px] rounded-full pointer-events-none"></div>
           
           <div className="absolute top-5 left-6 opacity-40 flex items-center gap-1">
@@ -133,16 +184,16 @@ export const WalletPage: React.FC = () => {
 
       <div className="grid grid-cols-2 gap-3 z-10 mt-2">
         <button 
-          onClick={() => { triggerFeedback('error'); toast('פיצ׳ר משיכה לחשבון בנק ייפתח בקרוב!', { icon: '🔒', style: { background: '#111', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' } }); }}
-          className="h-14 bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-[20px] flex items-center justify-center gap-2 text-white/60 font-black text-[12px] uppercase tracking-widest hover:bg-white/[0.06] active:scale-95 transition-all shadow-lg"
+          onClick={() => { triggerFeedback('pop'); setShowRedeem(true); }}
+          className="h-14 bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-[20px] flex items-center justify-center gap-2 text-white/80 font-black text-[12px] uppercase tracking-widest hover:bg-white/[0.06] active:scale-95 transition-all shadow-lg"
         >
-          <ArrowUpRight size={16} className="text-[#2196f3]" /> פדיון CRD
+          <ArrowUpRight size={16} className="text-[#4ade80]" /> פדיון CRD
         </button>
         <button 
-          onClick={() => { triggerFeedback('error'); toast('פיצ׳ר העברת קרדיטים לחברים ייפתח בקרוב!', { icon: '🤝', style: { background: '#111', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' } }); }}
-          className="h-14 bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-[20px] flex items-center justify-center gap-2 text-white/60 font-black text-[12px] uppercase tracking-widest hover:bg-white/[0.06] active:scale-95 transition-all shadow-lg"
+          onClick={() => { triggerFeedback('pop'); setShowTransfer(true); }}
+          className="h-14 bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-[20px] flex items-center justify-center gap-2 text-white/80 font-black text-[12px] uppercase tracking-widest hover:bg-white/[0.06] active:scale-95 transition-all shadow-lg"
         >
-          <Send size={16} className="text-[#00d4ff]" /> העברה לחבר
+          <Send size={16} className="text-[#d500f9]" /> העברה לחבר
         </button>
       </div>
 
@@ -167,7 +218,8 @@ export const WalletPage: React.FC = () => {
                   <motion.span 
                     animate={pkg.popular ? { scale: [1, 1.05, 1], opacity: [0.8, 1, 0.8] } : {}} 
                     transition={{ repeat: Infinity, duration: 2 }}
-                    className="bg-[#00d4ff]/20 text-[#00d4ff] text-[9px] font-black uppercase tracking-wider py-0.5 px-2 rounded-full border border-[#00d4ff]/30 shadow-[0_0_8px_rgba(0,212,255,0.3)] flex items-center gap-1"
+                    // צבע כתום-אדום אש להנחות!
+                    className="bg-[#ff5722]/10 text-[#ff5722] text-[9px] font-black uppercase tracking-wider py-0.5 px-2 rounded-full border border-[#ff5722]/30 shadow-[0_0_8px_rgba(255,87,34,0.3)] flex items-center gap-1"
                   >
                     <Tag size={8} /> {pkg.discount}% הנחה
                   </motion.span>
@@ -205,12 +257,14 @@ export const WalletPage: React.FC = () => {
                       {tx.type === 'deposit' ? <ArrowDownLeft size={18} className="text-white/80" /> : <ArrowUpRight size={18} className="text-white/40" />}
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-white text-[14px] font-black">{tx.description}</span>
+                      <span className="text-white/90 text-[14px] font-black">{tx.description}</span>
                       <span className="text-white/40 text-[10px] font-bold mt-1 tracking-widest" dir="ltr">{new Date(tx.created_at).toLocaleDateString('he-IL', { hour: '2-digit', minute:'2-digit' })}</span>
                     </div>
                   </div>
-                  <span className={`font-black text-[18px] ${tx.type === 'deposit' ? 'text-[#00d4ff]' : 'text-white/50'}`} dir="ltr">
-                    {tx.type === 'deposit' ? '+' : '-'}{tx.amount}
+                  {/* המספר בלבן נקי, רק המינוס/פלוס מקבלים צבע קל להבנה קלה */}
+                  <span className="font-black text-[18px] text-white tracking-wide" dir="ltr">
+                    <span className={tx.type === 'deposit' ? 'text-[#00d4ff] pl-0.5' : 'text-white/30 pl-0.5'}>{tx.type === 'deposit' ? '+' : '-'}</span>
+                    {tx.amount}
                   </span>
                 </div>
               ))}
@@ -233,33 +287,23 @@ export const WalletPage: React.FC = () => {
         <span className="text-[9px] font-black uppercase tracking-widest">עסקאות מאובטחות מוצפנות</span>
       </div>
 
-      {/* ================= בוטום שיט: היסטוריית פעולות ================= */}
+      {/* ================= מגירת כל הקבלות ================= */}
       <AnimatePresence>
         {showAllTx && (
           <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowAllTx(false)} />
-            
             <motion.div
-              drag="y"
-              dragControls={historyDragControls}
-              dragListener={false}
-              dragConstraints={{ top: 0 }}
-              dragElastic={0.2}
+              drag="y" dragControls={historyDragControls} dragListener={false} dragConstraints={{ top: 0 }} dragElastic={0.2}
               onDragEnd={(e, { offset, velocity }) => { if (offset.y > 100 || velocity.y > 400) setShowAllTx(false); }}
               initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[90vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative z-10 overflow-hidden"
+              className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[90vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden"
             >
-              <div 
-                className="w-full flex flex-col items-center pt-5 pb-4 cursor-grab active:cursor-grabbing bg-white/[0.02]"
-                onPointerDown={(e) => historyDragControls.start(e)}
-                style={{ touchAction: "none" }}
-              >
+              <div onPointerDown={(e) => historyDragControls.start(e)} style={{ touchAction: "none" }} className="w-full flex flex-col items-center pt-5 pb-4 cursor-grab active:cursor-grabbing bg-white/[0.02]">
                 <div className="w-16 h-1.5 bg-white/20 rounded-full mb-4 pointer-events-none"></div>
                 <div className="px-6 pb-2 flex items-center justify-start w-full">
                   <h3 className="text-[16px] font-black text-white">היסטוריית פעולות ({transactions.length})</h3>
                 </div>
               </div>
-              
               <div 
                 className="flex-1 overflow-y-auto p-4 flex flex-col scrollbar-hide touch-pan-y"
                 onPointerDown={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}
@@ -272,12 +316,13 @@ export const WalletPage: React.FC = () => {
                         {tx.type === 'deposit' ? <ArrowDownLeft size={18} className="text-white/80" /> : <ArrowUpRight size={18} className="text-white/40" />}
                       </div>
                       <div className="flex flex-col">
-                        <span className="text-white text-[15px] font-black">{tx.description}</span>
+                        <span className="text-white/90 text-[15px] font-black">{tx.description}</span>
                         <span className="text-white/40 text-[10px] font-bold mt-1 tracking-widest" dir="ltr">{new Date(tx.created_at).toLocaleDateString('he-IL', { hour: '2-digit', minute:'2-digit' })}</span>
                       </div>
                     </div>
-                    <span className={`font-black text-[18px] ${tx.type === 'deposit' ? 'text-[#00d4ff]' : 'text-white/50'}`} dir="ltr">
-                      {tx.type === 'deposit' ? '+' : '-'}{tx.amount}
+                    <span className="font-black text-[18px] text-white tracking-wide" dir="ltr">
+                      <span className={tx.type === 'deposit' ? 'text-[#00d4ff] pl-0.5' : 'text-white/30 pl-0.5'}>{tx.type === 'deposit' ? '+' : '-'}</span>
+                      {tx.amount}
                     </span>
                   </div>
                 ))}
@@ -287,78 +332,118 @@ export const WalletPage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* ================= בוטום שיט: אישור רכישה ================= */}
+      {/* ================= אישור רכישה ================= */}
       <AnimatePresence>
         {selectedPackage && (
           <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closePaymentSheet} />
-            
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedPackage(null)} />
             <motion.div
-              drag="y"
-              dragControls={paymentDragControls}
-              dragListener={false}
-              dragConstraints={{ top: 0 }}
-              dragElastic={0.2}
-              onDragEnd={(e, { offset, velocity }) => { if (offset.y > 100 || velocity.y > 400) closePaymentSheet(); }}
+              drag="y" dragControls={paymentDragControls} dragListener={false} dragConstraints={{ top: 0 }} dragElastic={0.2}
+              onDragEnd={(e, { offset, velocity }) => { if (offset.y > 100 || velocity.y > 400) setSelectedPackage(null); }}
               initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative z-10 pb-12 overflow-hidden"
+              className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative pb-12 overflow-hidden"
             >
-              <div 
-                className="w-full flex flex-col items-center pt-5 pb-4 cursor-grab active:cursor-grabbing bg-white/[0.02]"
-                onPointerDown={(e) => paymentDragControls.start(e)}
-                style={{ touchAction: "none" }}
-              >
+              <div onPointerDown={(e) => paymentDragControls.start(e)} style={{ touchAction: "none" }} className="w-full flex flex-col items-center pt-5 pb-4 cursor-grab active:cursor-grabbing bg-white/[0.02]">
                 <div className="w-16 h-1.5 bg-white/20 rounded-full mb-4 pointer-events-none"></div>
                 <div className="flex justify-start items-center w-full px-6">
                   <h2 className="text-[16px] font-black text-white">רכישת קרדיטים</h2>
                 </div>
               </div>
-              
-              <div 
-                className="p-6 flex flex-col items-center text-center gap-6 overflow-y-auto scrollbar-hide"
-                onPointerDown={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}
-                onTouchStart={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}
-              >
+              <div className="p-6 flex flex-col items-center text-center gap-6 overflow-y-auto scrollbar-hide">
                 <div className="w-20 h-20 rounded-[28px] bg-[#00d4ff]/10 border-2 border-[#00d4ff]/30 flex items-center justify-center shadow-[0_0_30px_rgba(0,212,255,0.2)]">
                   <SmartphoneNfc size={32} className="text-[#00d4ff]" />
                 </div>
-                
-                <div>
-                  <p className="text-white/50 text-[13px] font-medium mt-2">הוספת {selectedPackage.amount} CRD לארנק שלך בחנות האפליקציות.</p>
-                </div>
-                
                 <div className="w-full bg-white/[0.03] border border-white/5 rounded-[24px] p-5 flex flex-col gap-4 shadow-inner">
                   <div className="flex justify-between items-center pb-4 border-b border-white/5">
                     <span className="text-white/50 text-[11px] font-black uppercase tracking-widest">פריט</span>
                     <span className="text-white font-black text-[16px]">{selectedPackage.amount} CRD</span>
                   </div>
-                  {selectedPackage.discount && selectedPackage.discount > 0 ? (
-                    <div className="flex justify-between items-center pb-4 border-b border-white/5">
-                      <span className="text-white/50 text-[11px] font-black uppercase tracking-widest">הנחה</span>
-                      <span className="text-[#00d4ff] font-black text-[14px]">{selectedPackage.discount}% חיסכון</span>
-                    </div>
-                  ) : null}
                   <div className="flex justify-between items-center pt-1">
                     <span className="text-white/50 text-[11px] font-black uppercase tracking-widest">סה"כ לתשלום</span>
                     <span className="text-[#00d4ff] font-black text-2xl">₪{selectedPackage.price}</span>
                   </div>
                 </div>
-                
-                <div className="w-full flex flex-col gap-4 mt-2">
-                  <Button
-                    onClick={processNativePayment}
-                    disabled={adding}
-                    className="w-full h-14 bg-white text-black font-black text-[14px] uppercase tracking-widest rounded-[20px] flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all active:scale-95 disabled:opacity-50"
-                  >
-                    {adding ? <Loader2 size={24} className="animate-spin text-black/50" /> : 'אשר רכישה'}
-                  </Button>
-                  
-                  <div className="flex items-center justify-center gap-4 text-white/30 text-[10px] font-black uppercase tracking-widest mt-2">
-                    <span className="flex items-center gap-1"> Pay</span>
-                    <span className="w-1 h-1 bg-white/10 rounded-full"></span>
-                    <span className="flex items-center gap-1">G Pay</span>
-                  </div>
+                <Button onClick={processNativePayment} disabled={adding} className="w-full h-14 bg-white text-black font-black text-[14px] uppercase tracking-widest rounded-[20px] flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all active:scale-95 disabled:opacity-50">
+                  {adding ? <Loader2 size={24} className="animate-spin text-black/50" /> : 'אשר רכישה'}
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ================= העברה לחבר ================= */}
+      <AnimatePresence>
+        {showTransfer && (
+          <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowTransfer(false)} />
+            <motion.div
+              drag="y" dragControls={transferDragControls} dragListener={false} dragConstraints={{ top: 0 }} dragElastic={0.2}
+              onDragEnd={(e, { offset, velocity }) => { if (offset.y > 100 || velocity.y > 400) setShowTransfer(false); }}
+              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative pb-12 overflow-hidden"
+            >
+              <div onPointerDown={(e) => transferDragControls.start(e)} style={{ touchAction: "none" }} className="w-full flex flex-col items-center pt-5 pb-4 cursor-grab active:cursor-grabbing bg-white/[0.02]">
+                <div className="w-16 h-1.5 bg-white/20 rounded-full mb-4 pointer-events-none"></div>
+                <div className="flex justify-start items-center w-full px-6">
+                  <h2 className="text-[16px] font-black text-white">העברה לחבר</h2>
                 </div>
+              </div>
+              <div 
+                className="p-6 flex flex-col gap-6 overflow-y-auto scrollbar-hide"
+                onPointerDown={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}
+                onTouchStart={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}
+              >
+                <div className="flex flex-col gap-2">
+                  <label className="text-white/40 text-[11px] font-black uppercase px-2 tracking-widest text-right">שם המשתמש (@)</label>
+                  <Input value={transferUsername} onChange={(e: any) => setTransferUsername(e.target.value)} placeholder="username" dir="ltr" className="bg-black/40 text-white font-medium h-14 border border-white/10 shadow-inner focus:border-[#d500f9]/50 transition-all rounded-[20px] px-4" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-white/40 text-[11px] font-black uppercase px-2 tracking-widest text-right">סכום ב-CRD</label>
+                  <Input type="number" value={transferAmount} onChange={(e: any) => setTransferAmount(e.target.value)} placeholder="100..." dir="ltr" className="bg-black/40 text-white font-black h-14 border border-white/10 shadow-inner focus:border-[#d500f9]/50 transition-all rounded-[20px] px-4 text-xl" />
+                </div>
+                <Button onClick={handleTransfer} disabled={transferring} className="w-full h-14 mt-4 bg-[#d500f9] text-white font-black text-[14px] uppercase tracking-widest rounded-[20px] flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(213,0,249,0.3)] transition-all active:scale-95 disabled:opacity-50">
+                  {transferring ? <Loader2 size={24} className="animate-spin text-white" /> : 'שלח קרדיטים'}
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ================= פדיון CRD ================= */}
+      <AnimatePresence>
+        {showRedeem && (
+          <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowRedeem(false)} />
+            <motion.div
+              drag="y" dragControls={redeemDragControls} dragListener={false} dragConstraints={{ top: 0 }} dragElastic={0.2}
+              onDragEnd={(e, { offset, velocity }) => { if (offset.y > 100 || velocity.y > 400) setShowRedeem(false); }}
+              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative pb-12 overflow-hidden"
+            >
+              <div onPointerDown={(e) => redeemDragControls.start(e)} style={{ touchAction: "none" }} className="w-full flex flex-col items-center pt-5 pb-4 cursor-grab active:cursor-grabbing bg-white/[0.02]">
+                <div className="w-16 h-1.5 bg-white/20 rounded-full mb-4 pointer-events-none"></div>
+                <div className="flex justify-start items-center w-full px-6">
+                  <h2 className="text-[16px] font-black text-white">פדיון כספים לבנק</h2>
+                </div>
+              </div>
+              <div 
+                className="p-6 flex flex-col gap-6 overflow-y-auto scrollbar-hide"
+                onPointerDown={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}
+                onTouchStart={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}
+              >
+                <div className="bg-[#4ade80]/10 border border-[#4ade80]/20 p-4 rounded-[20px] flex items-start gap-3">
+                  <Banknote size={20} className="text-[#4ade80] shrink-0 mt-0.5" />
+                  <p className="text-white/70 text-[11px] font-medium leading-relaxed">משוך את הקרדיטים שהרווחת במועדונים שלך ישירות לחשבון הבנק המקושר. מינימום למשיכה: 100 CRD.</p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-white/40 text-[11px] font-black uppercase px-2 tracking-widest text-right">סכום למשיכה (CRD)</label>
+                  <Input type="number" value={redeemAmount} onChange={(e: any) => setRedeemAmount(e.target.value)} placeholder="0" dir="ltr" className="bg-black/40 text-white font-black h-14 border border-white/10 shadow-inner focus:border-[#4ade80]/50 transition-all rounded-[20px] px-4 text-xl" />
+                </div>
+                <Button onClick={handleRedeem} disabled={redeeming} className="w-full h-14 mt-4 bg-white text-black font-black text-[14px] uppercase tracking-widest rounded-[20px] flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all active:scale-95 disabled:opacity-50">
+                  {redeeming ? <Loader2 size={24} className="animate-spin text-black" /> : 'בקש פדיון'}
+                </Button>
               </div>
             </motion.div>
           </div>
