@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { UserCircle, Edit2, Zap, ChevronLeft, ChevronDown, Loader2, Award, Flame, Wallet, Users, Crown, Activity, Heart, MessageSquare, ShoppingBag, Link as LinkIcon, UserPlus, UserCheck } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence, useDragControls } from 'framer-motion';
+import { UserCircle, Edit2, Zap, ChevronLeft, ChevronDown, Loader2, Award, Flame, Wallet, Users, Crown, Activity, Heart, MessageSquare, ShoppingBag, Link as LinkIcon, UserPlus, UserCheck, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
 import { supabase } from '../lib/supabase';
-import { FadeIn, Button } from '../components/ui';
+import { FadeIn, Button, GlassCard } from '../components/ui';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 
@@ -14,23 +15,35 @@ export const ProfilePage: React.FC = () => {
   const { username } = useParams<{ username?: string }>();
   const { user, profile: authProfile, loading: authLoading } = useAuth();
 
+  const [mounted, setMounted] = useState(false);
+  
+  const followersDragControls = useDragControls();
+  const followingDragControls = useDragControls();
+
   const [data, setData] = useState<any>({ profile: {}, memberships: [], ownedCircles: [] });
   const [loadingData, setLoadingData] = useState(true);
   const [isBioExpanded, setIsBioExpanded] = useState(false);
   
+  // States for Following System
   const [isFollowing, setIsFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [followLoading, setFollowLoading] = useState(false);
 
+  // States for User List Sheets
+  const [showFollowersList, setShowFollowersList] = useState(false);
+  const [showFollowingList, setShowFollowingList] = useState(false);
+  const [usersListData, setUsersListData] = useState<any[]>([]);
+  const [loadingUsersList, setLoadingUsersList] = useState(false);
+
+  // האם אני צופה בפרופיל שלי או של מישהו אחר?
   const isMyProfile = !username || username === authProfile?.username;
 
   useEffect(() => {
+    setMounted(true);
     const loadProfileData = async () => {
       try {
         setLoadingData(true);
-        
-        // התיקון: שולפים את המזהה ושולחים אותו לשרת!
         const { data: authData } = await supabase.auth.getUser();
         const headers = authData.user ? { 'x-user-id': authData.user.id } : {};
 
@@ -63,6 +76,7 @@ export const ProfilePage: React.FC = () => {
     setFollowLoading(true);
     triggerFeedback('pop');
     
+    // סימולציית מעקב עד לחיבור לשרת
     setTimeout(() => {
       if (isFollowing) {
         setIsFollowing(false);
@@ -72,10 +86,34 @@ export const ProfilePage: React.FC = () => {
         setIsFollowing(true);
         setFollowersCount(prev => prev + 1);
         triggerFeedback('success');
-        toast.success(`אתה עוקב אחרי ${data.profile?.username} עכשיו!`, { style: { background: '#111', color: '#e5e4e2', border: '1px solid rgba(229,228,226,0.2)' } });
+        toast.success(`אתה עוקב אחרי ${data.profile?.username} עכשיו! 💎`, { style: { background: '#111', color: '#e5e4e2', border: '1px solid rgba(229,228,226,0.2)' } });
       }
       setFollowLoading(false);
     }, 800);
+  };
+
+  const openUsersListSheet = async (type: 'followers' | 'following') => {
+    triggerFeedback('pop');
+    setLoadingUsersList(true);
+    setUsersListData([]); // ניקוי רשימה קודמת
+    
+    if (type === 'followers') setShowFollowersList(true);
+    else setShowFollowingList(true);
+
+    try {
+      // כאן תבוא משיכת המשתמשים מהשרת, כרגע סימולציה
+      setTimeout(() => {
+        setUsersListData([
+          { id: 1, username: 'user1', full_name: 'ישראל ישראלי', avatar_url: '' },
+          { id: 2, username: 'user2', full_name: 'יוסף כהן', avatar_url: '' },
+          { id: 3, username: 'user3', full_name: 'רחל לוי', avatar_url: '' },
+        ]);
+        setLoadingUsersList(false);
+      }, 1000);
+    } catch (err) {
+      toast.error('שגיאה בטעינת רשימת המשתמשים');
+      setLoadingUsersList(false);
+    }
   };
 
   if (authLoading || loadingData) return <div className="min-h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-white/20" /></div>;
@@ -92,10 +130,95 @@ export const ProfilePage: React.FC = () => {
   const ownedCircles = data.ownedCircles || [];
 
   const statsGrid = [
-    { label: 'עוקבים', value: followersCount, icon: Users, color: 'text-[#e5e4e2]' },
-    { label: 'נעקבים', value: followingCount, icon: Zap, color: 'text-[#2196f3]' },
-    { label: 'מוניטין', value: currentLevel * 3, icon: Award, color: 'text-[#ffc107]' }
+    // לחיצה על עוקבים/נעקבים פותחת בוטום שיט
+    { label: 'עוקבים', value: followersCount, icon: UserCheck, color: 'text-[#e5e4e2]', onClick: () => openUsersListSheet('followers') },
+    { label: 'נעקבים', value: followingCount, icon: Users, color: 'text-[#2196f3]', onClick: () => openUsersListSheet('following') },
+    { label: 'מוניטין', value: currentLevel * 3, icon: Award, color: 'text-[#ffc107]', onClick: null }
   ];
+
+  const userListsSheets = mounted && typeof document !== 'undefined' ? createPortal(
+    <AnimatePresence>
+      {/* ================= מגירת רשימת עוקבים ================= */}
+      {showFollowersList && (
+        <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowFollowersList(false)} />
+          <motion.div
+            drag="y" dragControls={followersDragControls} dragListener={false} dragConstraints={{ top: 0 }} dragElastic={0.2}
+            onDragEnd={(e, { offset, velocity }) => { if (offset.y > 100 || velocity.y > 400) setShowFollowersList(false); }}
+            initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[90vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden"
+          >
+            <div onPointerDown={(e) => followersDragControls.start(e)} style={{ touchAction: "none" }} className="w-full flex flex-col items-center pt-5 pb-4 cursor-grab active:cursor-grabbing bg-white/[0.02]">
+              <div className="w-16 h-1.5 bg-white/20 rounded-full mb-4 pointer-events-none"></div>
+              <div className="px-6 pb-2 flex items-center justify-start w-full">
+                <h3 className="text-[16px] font-black text-white">עוקבים ({followersCount})</h3>
+              </div>
+            </div>
+            <div 
+              className="flex-1 overflow-y-auto p-4 flex flex-col scrollbar-hide touch-pan-y"
+              onPointerDown={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}
+              onTouchStart={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}
+            >
+              {loadingUsersList ? <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-white/20" /></div> : usersListData.map((u) => (
+                <div key={u.id} className="flex items-center justify-between p-4 border-b border-white/5 cursor-pointer hover:bg-white/[0.03]" onClick={() => { triggerFeedback('pop'); setShowFollowersList(false); navigate(`/profile/${u.username}`); }}>
+                  <div className="flex items-center gap-4 text-right">
+                    <motion.div whileHover={{ scale: 1.05 }} className="w-12 h-12 rounded-full bg-black border border-white/10 overflow-hidden shrink-0 shadow-inner">
+                      {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={20} className="text-white/20" /></div>}
+                    </motion.div>
+                    <div className="flex flex-col">
+                      <span className="text-white text-[15px] font-black">{u.full_name || 'משתמש'}</span>
+                      <span className="text-white/40 text-[10px] font-bold mt-1 tracking-widest" dir="ltr">@{u.username || 'user'}</span>
+                    </div>
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center border border-white/5"><ChevronLeft size={16} className="text-white/60" /></div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* ================= מגירת רשימת נעקבים ================= */}
+      {showFollowingList && (
+        <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowFollowingList(false)} />
+          <motion.div
+            drag="y" dragControls={followingDragControls} dragListener={false} dragConstraints={{ top: 0 }} dragElastic={0.2}
+            onDragEnd={(e, { offset, velocity }) => { if (offset.y > 100 || velocity.y > 400) setShowFollowingList(false); }}
+            initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[90vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden"
+          >
+            <div onPointerDown={(e) => followingDragControls.start(e)} style={{ touchAction: "none" }} className="w-full flex flex-col items-center pt-5 pb-4 cursor-grab active:cursor-grabbing bg-white/[0.02]">
+              <div className="w-16 h-1.5 bg-white/20 rounded-full mb-4 pointer-events-none"></div>
+              <div className="px-6 pb-2 flex items-center justify-start w-full">
+                <h3 className="text-[16px] font-black text-white">נעקבים ({followingCount})</h3>
+              </div>
+            </div>
+            <div 
+              className="flex-1 overflow-y-auto p-4 flex flex-col scrollbar-hide touch-pan-y"
+              onPointerDown={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}
+              onTouchStart={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}
+            >
+              {loadingUsersList ? <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-white/20" /></div> : usersListData.map((u) => (
+                <div key={u.id} className="flex items-center justify-between p-4 border-b border-white/5 cursor-pointer hover:bg-white/[0.03]" onClick={() => { triggerFeedback('pop'); setShowFollowingList(false); navigate(`/profile/${u.username}`); }}>
+                  <div className="flex items-center gap-4 text-right">
+                    <motion.div whileHover={{ scale: 1.05 }} className="w-12 h-12 rounded-full bg-black border border-white/10 overflow-hidden shrink-0 shadow-inner">
+                      {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={20} className="text-white/20" /></div>}
+                    </motion.div>
+                    <div className="flex flex-col">
+                      <span className="text-white text-[15px] font-black">{u.full_name || 'משתמש'}</span>
+                      <span className="text-white/40 text-[10px] font-bold mt-1 tracking-widest" dir="ltr">@{u.username || 'user'}</span>
+                    </div>
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center border border-white/5"><ChevronLeft size={16} className="text-white/60" /></div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  , document.body) : null;
 
   return (
     <FadeIn className="px-4 pt-8 pb-32 bg-black min-h-screen flex flex-col gap-6 relative overflow-x-hidden" dir="rtl">
@@ -104,7 +227,7 @@ export const ProfilePage: React.FC = () => {
         <div className="absolute top-[-10%] left-[-20%] w-[60%] h-[40%] bg-white/10 blur-[120px] rounded-full mix-blend-screen"></div>
       </div>
 
-      <div className="flex items-center justify-between relative z-10 px-1">
+      <div className="flex items-center justify-between relative z-10 mb-2 px-1">
         <div className="w-10">
           {!isMyProfile && (
             <button onClick={() => { triggerFeedback('pop'); navigate(-1); }} className="w-10 h-10 flex justify-center items-center bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-full shadow-lg active:scale-90 transition-all hover:bg-white/10">
@@ -200,7 +323,7 @@ export const ProfilePage: React.FC = () => {
                   className="overflow-hidden"
                 >
                   <p className="text-white/80 text-[14px] font-medium leading-relaxed max-w-[280px] mx-auto pb-2">
-                    {userProfile.bio}
+                    {userBio}
                   </p>
                 </motion.div>
               )}
@@ -210,13 +333,13 @@ export const ProfilePage: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-2 gap-4 z-10 w-full mb-2">
+        {/* הוסר הפס הדק */}
         <div className="bg-white/[0.03] backdrop-blur-xl border border-white/10 py-5 rounded-[28px] shadow-2xl flex flex-col items-center justify-center relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-1.5 h-full bg-[#e5e4e2]/50"></div>
           <span className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-1.5 block">רמת משתמש</span>
           <span className="text-white font-black text-[28px] drop-shadow-[0_0_12px_rgba(255,255,255,0.2)] leading-none">LVL {currentLevel}</span>
         </div>
+        {/* הוסר הפס הדק */}
         <div className="bg-white/[0.03] backdrop-blur-xl border border-white/10 py-5 rounded-[28px] shadow-2xl flex flex-col items-center justify-center relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-1.5 h-full bg-[#ff5722]/50"></div>
           <div className="flex items-center gap-1.5 mb-1.5">
             <Flame size={14} className="text-[#ff5722]" />
             <span className="text-white/40 text-[10px] font-black uppercase tracking-widest">רצף פעילות</span>
@@ -227,7 +350,8 @@ export const ProfilePage: React.FC = () => {
 
       <div className="grid grid-cols-3 gap-3 z-10">
         {statsGrid.map((stat, i) => (
-          <div key={i} className="flex flex-col items-center justify-center bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-[28px] py-6 shadow-2xl relative overflow-hidden group">
+          // הכרטיס כולו לחיץ
+          <div key={i} className="flex flex-col items-center justify-center bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-[28px] py-6 shadow-2xl relative overflow-hidden group cursor-pointer hover:bg-white/[0.05] transition-all" onClick={stat.onClick}>
             <stat.icon size={22} className={`${stat.color} mb-3 drop-shadow-[0_0_8px_currentColor]`} />
             <span className="text-white font-black text-[22px] mb-0.5 leading-none">{stat.value}</span>
             <span className="text-white/40 text-[9px] font-black uppercase tracking-widest mt-1">{stat.label}</span>
@@ -325,6 +449,9 @@ export const ProfilePage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {userListsSheets}
+
     </FadeIn>
   );
 };
