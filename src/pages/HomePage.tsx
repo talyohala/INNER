@@ -1,25 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { FadeIn, GlassCard, Button } from '../components/ui';
-import { Loader2, Bell, Users, Lock, Flame, Heart, MessageSquare, Send, X } from 'lucide-react';
+import { Loader2, Bell, Users, Lock, Flame, Heart, MessageSquare, Send, X, Image as ImageIcon } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [circles, setCircles] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // States for new post
   const [newPost, setNewPost] = useState('');
   const [posting, setPosting] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   
+  // States for comments
   const [activePost, setActivePost] = useState<any>(null);
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState('');
   const [loadingComments, setLoadingComments] = useState(false);
+  
   const [onlineUsers, setOnlineUsers] = useState(3420);
 
   useEffect(() => {
@@ -37,15 +45,56 @@ export const HomePage: React.FC = () => {
     } catch (err) { } finally { setLoading(false); }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      setSelectedFile(file);
+    } else if (file) {
+      toast.error('אנא בחר קובץ תמונה תקין');
+    }
+  };
+
   const handlePost = async () => {
-    if (!newPost.trim()) return;
+    if (!newPost.trim() && !selectedFile) return;
     setPosting(true);
     try {
-      await apiFetch<any>('/api/feed', { method: 'POST', body: JSON.stringify({ content: newPost }) });
+      let media_url = null;
+      
+      if (selectedFile) {
+        setUploadingImage(true);
+        const fileExt = selectedFile.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('feed_images')
+          .upload(fileName, selectedFile);
+        
+        if (uploadError) {
+          console.error("Storage upload error:", uploadError);
+          throw new Error(`שגיאת אחסון (Storage): ${uploadError.message}`);
+        }
+        
+        media_url = supabase.storage.from('feed_images').getPublicUrl(uploadData.path).data.publicUrl;
+        setUploadingImage(false);
+      }
+
+      await apiFetch<any>('/api/feed', { 
+        method: 'POST', 
+        body: JSON.stringify({ content: newPost, media_url }) 
+      });
+      
       setNewPost('');
+      setSelectedFile(null);
       triggerFeedback('pop');
       fetchData();
-    } catch (err) { toast.error('שגיאה בשליחה'); } finally { setPosting(false); }
+    } catch (err: any) { 
+      setUploadingImage(false);
+      console.error("Post Error:", err);
+      // עכשיו נראה בדיוק מה הודעת השגיאה!
+      toast.error(err.message || 'שגיאה לא ידועה בשליחה', { duration: 5000 }); 
+    } finally { 
+      setPosting(false); 
+    }
   };
 
   const handleLike = async (postId: string, isLiked: boolean) => {
@@ -79,6 +128,8 @@ export const HomePage: React.FC = () => {
 
   return (
     <FadeIn className="px-5 pt-8 pb-32 bg-[#030303] min-h-screen relative overflow-x-hidden" dir="rtl">
+      
+      {/* Header */}
       <div className="flex justify-between items-start relative z-10 mb-8 h-12">
         <div className="w-10"></div>
         <div className="flex flex-col items-center absolute left-1/2 -translate-x-1/2">
@@ -93,6 +144,7 @@ export const HomePage: React.FC = () => {
         </button>
       </div>
 
+      {/* Circles Horizontal List */}
       <div className="mb-8">
         <h3 className="text-white/50 text-[10px] font-black uppercase tracking-[0.2em] mb-3 px-1 flex items-center gap-1.5"><Flame size={12} className="text-yellow-500" /> מועדונים חמים</h3>
         <div className="flex gap-4 overflow-x-auto scrollbar-hide -mx-5 px-5 pb-4">
@@ -114,15 +166,37 @@ export const HomePage: React.FC = () => {
         </div>
       </div>
 
+      {/* Composer (New Post) */}
       <GlassCard className="p-3 rounded-[24px] mb-6 border-white/5 bg-white/[0.02]">
-        <textarea value={newPost} onChange={(e) => setNewPost(e.target.value)} placeholder="שדר משהו לכולם..." className="w-full bg-transparent border-none text-white text-sm font-medium focus:outline-none h-12 resize-none placeholder:text-white/20 px-2 mt-1" />
-        <div className="flex justify-end border-t border-white/5 pt-2">
-          <Button onClick={handlePost} disabled={posting || !newPost.trim()} className="px-6 h-8 rounded-full text-[10px] uppercase tracking-widest bg-white text-black active:scale-95">
-            {posting ? <Loader2 size={14} className="animate-spin" /> : <><Send size={12} className="ml-1" /> שדר</>}
+        <textarea 
+          value={newPost} 
+          onChange={(e) => setNewPost(e.target.value)} 
+          placeholder="שדר משהו לכולם..." 
+          className="w-full bg-transparent border-none text-white text-sm font-medium focus:outline-none h-12 resize-none placeholder:text-white/20 px-2 mt-1" 
+        />
+        
+        {/* תצוגה מקדימה של תמונה */}
+        {selectedFile && (
+          <div className="relative mt-2 mb-2 px-2">
+            <img src={URL.createObjectURL(selectedFile)} alt="Preview" className="w-24 h-24 rounded-xl object-cover border border-white/10 shadow-lg" />
+            <button onClick={() => setSelectedFile(null)} className="absolute -top-2 -right-1 w-6 h-6 bg-red-500 rounded-full text-white flex items-center justify-center text-xs shadow-md">X</button>
+          </div>
+        )}
+
+        <div className="flex justify-end items-center gap-3 border-t border-white/5 pt-3 mt-1">
+          <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
+          
+          <button onClick={() => fileInputRef.current?.click()} className="w-10 h-10 flex items-center justify-center text-white/40 hover:text-white transition-colors bg-white/5 rounded-full">
+            <ImageIcon size={18} />
+          </button>
+          
+          <Button onClick={handlePost} disabled={posting || uploadingImage || (!newPost.trim() && !selectedFile)} className="w-10 h-10 p-0 rounded-full bg-white text-black active:scale-95 flex items-center justify-center shrink-0">
+            {posting || uploadingImage ? <Loader2 size={18} className="animate-spin text-black" /> : <Send size={16} className="rtl:-scale-x-100 -ml-0.5" />}
           </Button>
         </div>
       </GlassCard>
 
+      {/* Feed List */}
       <div className="flex flex-col gap-4">
         {posts.map((post) => (
           <GlassCard key={post.id} className="p-4 rounded-[24px] bg-[#0A0A0A] border-white/5 relative overflow-hidden">
@@ -134,7 +208,16 @@ export const HomePage: React.FC = () => {
                 <span className="text-white font-black text-sm">{post.profiles?.full_name || 'אנונימי'}</span>
               </div>
             </div>
+            
+            {/* הצגת תמונה במידה ויש בפוסט */}
+            {post.media_url && (
+              <div className="mb-4 rounded-2xl overflow-hidden border border-white/5 bg-black/50">
+                <img src={post.media_url} alt="Drop media" className="w-full h-auto object-cover max-h-[400px]" />
+              </div>
+            )}
+
             <p className="text-white/80 text-sm leading-relaxed font-medium mb-4 text-right px-1">{post.content}</p>
+            
             <div className="flex items-center gap-5 border-t border-white/5 pt-3">
               <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-1.5 transition-all ${post.is_liked ? 'text-red-500' : 'text-white/30 hover:text-red-400'}`}>
                 <Heart size={16} fill={post.is_liked ? "currentColor" : "none"} /> <span className="text-[10px] font-black">{post.likes_count}</span>
@@ -147,7 +230,7 @@ export const HomePage: React.FC = () => {
         ))}
       </div>
 
-      {/* מגירת תגובות - שינוי קריטי: z-[999] עוקף את התפריט התחתון */}
+      {/* מגירת תגובות (Comments Drawer) */}
       <AnimatePresence>
         {activePost && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[999] flex flex-col justify-end bg-black/80 backdrop-blur-sm">

@@ -9,7 +9,7 @@ router.get('/', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('posts')
-      .select('id, content, created_at, profiles!inner (id, full_name, username, avatar_url), likes (user_id), comments (id)')
+      .select('id, content, media_url, created_at, profiles!inner (id, full_name, username, avatar_url), likes (user_id), comments (id)')
       .is('circle_id', null)
       .order('created_at', { ascending: false })
       .limit(30);
@@ -29,19 +29,29 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   const userId = req.headers['x-user-id'] as string;
-  const { content } = req.body;
-  if (!userId || !content) return res.status(400).json({ error: 'שגיאה בנתונים' });
+  const { content, media_url } = req.body;
+  
+  // כאן התיקון: מאפשרים להעלות אם יש תוכן *או* תמונה
+  if (!userId || (!content && !media_url)) {
+    return res.status(400).json({ error: 'חובה להזין טקסט או תמונה' });
+  }
 
   try {
-    const { data, error } = await supabase.from('posts').insert({ user_id: userId, content }).select().single();
+    const { data, error } = await supabase.from('posts').insert({ 
+      user_id: userId, 
+      content: content || '', // אם אין טקסט, נכניס מחרוזת ריקה
+      media_url: media_url || null
+    }).select().single();
+    
     if (error) throw error;
     
-    // מנוע ההתמכרות: מחלקים 50 XP על פרסום פוסט בלובי!
+    // מנוע ההתמכרות: מחלקים 50 XP על פרסום פוסט בלובי
     const xpReward = await rewardXP(userId, 50);
 
-    // מחזירים ללקוח גם את הפוסט וגם את הבונוס שקיבל
     res.json({ ...data, xpReward });
-  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+  } catch (err: any) { 
+    res.status(500).json({ error: err.message || 'Server error' }); 
+  }
 });
 
 export default router;
