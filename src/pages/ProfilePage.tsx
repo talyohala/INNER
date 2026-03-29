@@ -108,7 +108,8 @@ export const ProfilePage: React.FC = () => {
         if (error) throw error;
         
         setIsFollowing(false);
-        setFollowersCount(prev => prev - 1);
+        // תיקון למניעת מספרים שליליים!
+        setFollowersCount(prev => Math.max(0, prev - 1));
         toast.success(`הפסקת לעקוב אחרי @${data.profile?.username || 'המשתמש'}`, { style: { background: '#111', color: '#fff' } });
       } else {
         const { error } = await supabase.from('followers').insert({ follower_id: myId, following_id: targetId });
@@ -172,7 +173,7 @@ export const ProfilePage: React.FC = () => {
   const joinedCircles = data.memberships?.map((m: any) => m?.circle).filter(Boolean) || [];
   const ownedCircles = data.ownedCircles || [];
 
-  // עיצוב הלינק - מוריד את ה- https:// בשביל תצוגה נקייה
+  // הורדת http בשביל תצוגה נקייה
   const displayLink = userProfile?.social_link ? userProfile.social_link.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '') : '';
 
   const userListsSheets = mounted && typeof document !== 'undefined' ? createPortal(
@@ -267,6 +268,13 @@ export const ProfilePage: React.FC = () => {
       </div>
 
       <div className="p-6 bg-white/[0.04] backdrop-blur-3xl border border-white/10 rounded-[36px] flex flex-col items-center text-center relative overflow-hidden z-10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] gap-4">
+        
+        {/* ===== רמת משתמש הועברה לפינה השמאלית העליונה ===== */}
+        <div className="absolute top-5 left-6 flex flex-col items-center pointer-events-none">
+          <span className="text-white/40 text-[9px] font-black uppercase tracking-widest mb-0.5">רמה</span>
+          <span className="text-[#e5e4e2] font-black text-[20px] leading-none drop-shadow-[0_0_8px_rgba(229,228,226,0.3)]">{currentLevel}</span>
+        </div>
+
         <motion.div whileHover={{ scale: 1.05 }} className="w-32 h-32 rounded-full bg-black shadow-2xl overflow-hidden p-1.5 border border-white/10 mb-2 mt-2">
           <div className="w-full h-full rounded-full overflow-hidden bg-[#111] relative">
             {userProfile?.avatar_url ? (
@@ -284,7 +292,6 @@ export const ProfilePage: React.FC = () => {
           </h2>
           <p className="text-white/40 font-bold text-[13px] tracking-widest mb-4" dir="ltr">@{userProfile?.username || 'user'}</p>
 
-          {/* ===== שורת הסטטיסטיקות החדשה שמרחפת למעלה ===== */}
           <div className="flex items-center justify-center gap-8 mb-6">
             <div className="flex flex-col items-center cursor-pointer active:scale-95 transition-transform" onClick={() => openUsersListSheet('followers')}>
               <span className="text-white font-black text-[22px] leading-none">{followersCount}</span>
@@ -319,11 +326,11 @@ export const ProfilePage: React.FC = () => {
             </div>
           )}
 
-          {/* ===== מזל וקישור נקיים ללא מסגרות ===== */}
+          {/* ===== קישור ומזל בצבע פלטינום ונקיים ===== */}
           {(userProfile?.zodiac || userProfile?.social_link) && (
-            <div className="flex flex-wrap items-center justify-center gap-3 mb-2 px-4">
+            <div className="flex flex-wrap items-center justify-center gap-3 mb-2 px-4 mt-2">
               {userProfile?.zodiac && (
-                <span className="text-white/60 text-[13px] font-bold flex items-center gap-1.5">
+                <span className="text-[#e5e4e2] text-[13px] font-bold flex items-center gap-1.5 drop-shadow-md">
                   <span className="text-white/30 text-[10px] uppercase tracking-widest">מזל</span> {userProfile.zodiac}
                 </span>
               )}
@@ -333,9 +340,9 @@ export const ProfilePage: React.FC = () => {
                   href={userProfile.social_link.startsWith('http') ? userProfile.social_link : `https://${userProfile.social_link}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[#2196f3] text-[13px] font-bold flex items-center gap-1.5 hover:text-white transition-colors"
+                  className="text-[#e5e4e2] text-[13px] font-bold flex items-center gap-1.5 hover:text-white transition-colors drop-shadow-md"
                 >
-                  <LinkIcon size={14} /> <span dir="ltr" className="tracking-wide">{displayLink}</span>
+                  <LinkIcon size={14} className="text-white/60" /> <span dir="ltr" className="tracking-wide">{displayLink}</span>
                 </a>
               )}
             </div>
@@ -371,31 +378,31 @@ export const ProfilePage: React.FC = () => {
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4 z-10 w-full mb-2">
-        <div className="bg-white/[0.03] backdrop-blur-xl border border-white/10 py-5 rounded-[28px] shadow-2xl flex flex-col items-center justify-center relative overflow-hidden">
-          <span className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-1.5 block">רמת משתמש</span>
-          <span className="text-white font-black text-[28px] drop-shadow-[0_0_12px_rgba(255,255,255,0.2)] leading-none">LVL {currentLevel}</span>
-        </div>
-        <div className="bg-white/[0.03] backdrop-blur-xl border border-white/10 py-5 rounded-[28px] shadow-2xl flex flex-col items-center justify-center relative overflow-hidden">
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <Flame size={14} className="text-[#ff5722]" />
-            <span className="text-white/40 text-[10px] font-black uppercase tracking-widest">רצף פעילות</span>
+      {/* ===== רצף פעילות ו-XP מאוחדים בבלוק אחד יוקרתי ועדין ===== */}
+      <div className="w-full bg-white/[0.02] backdrop-blur-xl border border-white/5 rounded-[32px] p-5 flex flex-col gap-4 shadow-2xl z-10 mb-2">
+        <div className="flex justify-between items-center px-1">
+          <div className="flex items-center gap-2">
+            <Flame size={16} className="text-[#ff5722] drop-shadow-[0_0_8px_rgba(255,87,34,0.4)]" />
+            <span className="text-white/60 text-[12px] font-black uppercase tracking-widest">רצף פעילות</span>
           </div>
-          <span className="text-white font-black text-[28px] drop-shadow-[0_0_12px_rgba(255,255,255,0.2)] leading-none">{streak} <span className="text-[12px] text-white/60">ימים</span></span>
+          <span className="text-white font-black text-[18px] tracking-wide">{streak} <span className="text-[12px] text-white/40">ימים</span></span>
         </div>
-      </div>
 
-      {isMyProfile && (
-        <div className="w-full bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-[32px] p-6 text-right shadow-2xl z-10 mt-2">
-          <div className="flex justify-between items-end mb-4 px-1">
-            <span className="text-white/40 text-[10px] font-black uppercase">השלב הבא: {xpToNextLevel}</span>
-            <span className="text-white text-[13px] font-black flex items-center gap-1.5 drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]"><Zap size={14} className="text-[#e5e4e2]" /> {currentXP} XP</span>
-          </div>
-          <div className="w-full h-3 bg-black/40 rounded-full overflow-hidden shadow-inner border border-white/5 relative">
-            <motion.div initial={{ width: 0 }} animate={{ width: `${xpProgress}%` }} transition={{ duration: 1.5, ease: "easeOut", delay: 0.3 }} className="absolute top-0 right-0 h-full bg-[#e5e4e2] rounded-full shadow-[0_0_15px_rgba(229,228,226,0.6)]" />
-          </div>
-        </div>
-      )}
+        {isMyProfile && (
+          <>
+            <div className="w-full h-px bg-white/5"></div>
+            <div className="flex flex-col gap-2.5">
+              <div className="flex justify-between items-end px-1">
+                <span className="text-white/40 text-[10px] font-black uppercase">השלב הבא: {xpToNextLevel}</span>
+                <span className="text-white text-[13px] font-black flex items-center gap-1.5 drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]"><Zap size={14} className="text-[#e5e4e2]" /> {currentXP} XP</span>
+              </div>
+              <div className="w-full h-2.5 bg-black/40 rounded-full overflow-hidden shadow-inner border border-white/5 relative">
+                <motion.div initial={{ width: 0 }} animate={{ width: `${xpProgress}%` }} transition={{ duration: 1.5, ease: "easeOut", delay: 0.3 }} className="absolute top-0 right-0 h-full bg-[#e5e4e2] rounded-full shadow-[0_0_15px_rgba(229,228,226,0.6)]" />
+              </div>
+            </div>
+          </>
+        )}
+      </div>
 
       {isMyProfile && (
         <div className="grid grid-cols-2 gap-3 mt-2 z-10">
