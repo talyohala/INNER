@@ -6,7 +6,7 @@ import { UserCircle, Edit2, Zap, ChevronLeft, ChevronDown, Loader2, Award, Flame
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
 import { supabase } from '../lib/supabase';
-import { FadeIn, Button, GlassCard } from '../components/ui';
+import { FadeIn, Button } from '../components/ui';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 
@@ -91,7 +91,6 @@ export const ProfilePage: React.FC = () => {
     if (user && !authLoading) loadProfileData();
   }, [user, routeId, isMyProfile, authLoading, navigate]);
 
-  // חיבור אמיתי של כפתור המעקב
   const handleFollowToggle = async () => {
     if (followLoading) return;
     setFollowLoading(true);
@@ -105,22 +104,20 @@ export const ProfilePage: React.FC = () => {
       if (!myId || !targetId) throw new Error('חסרים פרטים לביצוע הפעולה');
 
       if (isFollowing) {
-        // הסרת מעקב
         const { error } = await supabase.from('followers').delete().eq('follower_id', myId).eq('following_id', targetId);
         if (error) throw error;
         
         setIsFollowing(false);
         setFollowersCount(prev => prev - 1);
-        toast.success(`הפסקת לעקוב אחרי ${data.profile?.username || 'המשתמש'}`, { style: { background: '#111', color: '#fff' } });
+        toast.success(`הפסקת לעקוב אחרי @${data.profile?.username || 'המשתמש'}`, { style: { background: '#111', color: '#fff' } });
       } else {
-        // הוספת מעקב
         const { error } = await supabase.from('followers').insert({ follower_id: myId, following_id: targetId });
         if (error) throw error;
 
         setIsFollowing(true);
         setFollowersCount(prev => prev + 1);
         triggerFeedback('success');
-        toast.success(`אתה עוקב אחרי ${data.profile?.username || 'המשתמש'} עכשיו! 💎`, { style: { background: '#111', color: '#e5e4e2', border: '1px solid rgba(229,228,226,0.2)' } });
+        toast.success(`אתה עוקב אחרי @${data.profile?.username || 'המשתמש'} עכשיו! 💎`, { style: { background: '#111', color: '#e5e4e2', border: '1px solid rgba(229,228,226,0.2)' } });
       }
     } catch (err: any) {
       toast.error('שגיאה בביצוע הפעולה', { style: { background: '#111', color: '#ef4444' } });
@@ -129,7 +126,6 @@ export const ProfilePage: React.FC = () => {
     }
   };
 
-  // שליפה אמיתית של רשימות עוקבים/נעקבים
   const openUsersListSheet = async (type: 'followers' | 'following') => {
     triggerFeedback('pop');
     setLoadingUsersList(true);
@@ -145,11 +141,9 @@ export const ProfilePage: React.FC = () => {
       let userIds: string[] = [];
 
       if (type === 'followers') {
-        // מי עוקב אחרי המשתמש הזה?
         const { data: followersData } = await supabase.from('followers').select('follower_id').eq('following_id', targetId);
         userIds = followersData ? followersData.map(d => d.follower_id) : [];
       } else {
-        // אחרי מי המשתמש הזה עוקב?
         const { data: followingData } = await supabase.from('followers').select('following_id').eq('follower_id', targetId);
         userIds = followingData ? followingData.map(d => d.following_id) : [];
       }
@@ -178,11 +172,8 @@ export const ProfilePage: React.FC = () => {
   const joinedCircles = data.memberships?.map((m: any) => m?.circle).filter(Boolean) || [];
   const ownedCircles = data.ownedCircles || [];
 
-  const statsGrid = [
-    { label: 'עוקבים', value: followersCount, icon: UserCheck, color: 'text-[#e5e4e2]', onClick: () => openUsersListSheet('followers') },
-    { label: 'נעקבים', value: followingCount, icon: Users, color: 'text-[#2196f3]', onClick: () => openUsersListSheet('following') },
-    { label: 'מוניטין', value: currentLevel * 3, icon: Award, color: 'text-[#ffc107]', onClick: undefined }
-  ];
+  // עיצוב הלינק - מוריד את ה- https:// בשביל תצוגה נקייה
+  const displayLink = userProfile?.social_link ? userProfile.social_link.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '') : '';
 
   const userListsSheets = mounted && typeof document !== 'undefined' ? createPortal(
     <AnimatePresence>
@@ -276,7 +267,7 @@ export const ProfilePage: React.FC = () => {
       </div>
 
       <div className="p-6 bg-white/[0.04] backdrop-blur-3xl border border-white/10 rounded-[36px] flex flex-col items-center text-center relative overflow-hidden z-10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] gap-4">
-        <motion.div whileHover={{ scale: 1.05 }} className="w-32 h-32 rounded-full bg-black shadow-2xl overflow-hidden p-1.5 border border-white/10 mb-2">
+        <motion.div whileHover={{ scale: 1.05 }} className="w-32 h-32 rounded-full bg-black shadow-2xl overflow-hidden p-1.5 border border-white/10 mb-2 mt-2">
           <div className="w-full h-full rounded-full overflow-hidden bg-[#111] relative">
             {userProfile?.avatar_url ? (
               <img src={userProfile.avatar_url} className="w-full h-full object-cover" alt="" />
@@ -291,40 +282,60 @@ export const ProfilePage: React.FC = () => {
             {userProfile?.full_name || 'משתמש'}
             {currentLevel >= 5 && <Crown size={18} className="text-[#ffc107] drop-shadow-[0_0_8px_rgba(255,193,7,0.5)]" />}
           </h2>
-          <p className="text-white/40 font-bold text-sm tracking-widest mb-3" dir="ltr">@{userProfile?.username || 'user'}</p>
+          <p className="text-white/40 font-bold text-[13px] tracking-widest mb-4" dir="ltr">@{userProfile?.username || 'user'}</p>
+
+          {/* ===== שורת הסטטיסטיקות החדשה שמרחפת למעלה ===== */}
+          <div className="flex items-center justify-center gap-8 mb-6">
+            <div className="flex flex-col items-center cursor-pointer active:scale-95 transition-transform" onClick={() => openUsersListSheet('followers')}>
+              <span className="text-white font-black text-[22px] leading-none">{followersCount}</span>
+              <span className="text-white/40 text-[10px] font-black uppercase tracking-widest mt-1.5">עוקבים</span>
+            </div>
+            <div className="w-px h-8 bg-white/10"></div>
+            <div className="flex flex-col items-center cursor-pointer active:scale-95 transition-transform" onClick={() => openUsersListSheet('following')}>
+              <span className="text-white font-black text-[22px] leading-none">{followingCount}</span>
+              <span className="text-white/40 text-[10px] font-black uppercase tracking-widest mt-1.5">נעקבים</span>
+            </div>
+            <div className="w-px h-8 bg-white/10"></div>
+            <div className="flex flex-col items-center">
+              <span className="text-[#ffc107] font-black text-[22px] leading-none drop-shadow-[0_0_8px_rgba(255,193,7,0.4)]">{currentLevel * 3}</span>
+              <span className="text-white/40 text-[10px] font-black uppercase tracking-widest mt-1.5">מוניטין</span>
+            </div>
+          </div>
 
           {!isMyProfile && (
-            <div className="flex justify-center mb-4">
+            <div className="flex justify-center mb-5">
               <Button
                 onClick={handleFollowToggle}
                 disabled={followLoading}
-                className={`h-12 px-8 rounded-[20px] font-black text-[13px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 ${
+                className={`h-12 px-10 rounded-[20px] font-black text-[13px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 ${
                   isFollowing 
                     ? 'bg-white/[0.05] border border-white/10 text-white hover:bg-white/[0.08]' 
                     : 'bg-[#e5e4e2] text-black shadow-[0_0_20px_rgba(229,228,226,0.3)]'
                 }`}
               >
                 {followLoading ? <Loader2 size={16} className="animate-spin" /> : 
-                 isFollowing ? <><UserCheck size={16} /> בטל מעקב</> : <><UserPlus size={16} /> עקוב</>}
+                 isFollowing ? <><UserCheck size={16} /> עוקב</> : <><UserPlus size={16} /> עקוב</>}
               </Button>
             </div>
           )}
 
+          {/* ===== מזל וקישור נקיים ללא מסגרות ===== */}
           {(userProfile?.zodiac || userProfile?.social_link) && (
-            <div className="flex items-center justify-center gap-2 mb-2">
+            <div className="flex flex-wrap items-center justify-center gap-3 mb-2 px-4">
               {userProfile?.zodiac && (
-                <span className="bg-black/40 border border-white/10 px-4 py-1.5 rounded-full text-white/80 text-[11px] font-black shadow-inner">
-                  {userProfile.zodiac}
+                <span className="text-white/60 text-[13px] font-bold flex items-center gap-1.5">
+                  <span className="text-white/30 text-[10px] uppercase tracking-widest">מזל</span> {userProfile.zodiac}
                 </span>
               )}
+              {userProfile?.zodiac && userProfile?.social_link && <span className="text-white/20">•</span>}
               {userProfile?.social_link && (
                 <a
                   href={userProfile.social_link.startsWith('http') ? userProfile.social_link : `https://${userProfile.social_link}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="bg-black/40 border border-white/10 px-4 py-1.5 rounded-full text-[#e5e4e2] text-[11px] font-black shadow-inner flex items-center gap-1.5 hover:bg-white/10 transition-colors"
+                  className="text-[#2196f3] text-[13px] font-bold flex items-center gap-1.5 hover:text-white transition-colors"
                 >
-                  <LinkIcon size={12} /> קישור חיצוני
+                  <LinkIcon size={14} /> <span dir="ltr" className="tracking-wide">{displayLink}</span>
                 </a>
               )}
             </div>
@@ -332,7 +343,7 @@ export const ProfilePage: React.FC = () => {
         </div>
 
         {userProfile?.bio && (
-          <div className="w-full mt-2">
+          <div className="w-full mt-4 border-t border-white/5 pt-4">
             <button
               onClick={() => { triggerFeedback('pop'); setIsBioExpanded(!isBioExpanded); }}
               className="mx-auto flex flex-col items-center justify-center gap-1 text-white/30 hover:text-white/60 transition-colors"
@@ -372,16 +383,6 @@ export const ProfilePage: React.FC = () => {
           </div>
           <span className="text-white font-black text-[28px] drop-shadow-[0_0_12px_rgba(255,255,255,0.2)] leading-none">{streak} <span className="text-[12px] text-white/60">ימים</span></span>
         </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-3 z-10">
-        {statsGrid.map((stat, i) => (
-          <div key={i} className="flex flex-col items-center justify-center bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-[28px] py-6 shadow-2xl relative overflow-hidden group cursor-pointer hover:bg-white/[0.05] transition-all" onClick={stat.onClick}>
-            <stat.icon size={22} className={`${stat.color} mb-3 drop-shadow-[0_0_8px_currentColor]`} />
-            <span className="text-white font-black text-[22px] mb-0.5 leading-none">{stat.value}</span>
-            <span className="text-white/40 text-[9px] font-black uppercase tracking-widest mt-1">{stat.label}</span>
-          </div>
-        ))}
       </div>
 
       {isMyProfile && (
