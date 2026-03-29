@@ -1,8 +1,12 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import { supabase } from '../lib/supabase';
 import { rewardXP } from '../lib/gamification';
 
 const router = Router();
+
+// התיקון הקריטי: מכריחים את השרת לפענח JSON בכל בקשה שמגיעה לכאן!
+router.use(express.json());
+router.use(express.urlencoded({ extended: true }));
 
 router.get('/', async (req, res) => {
   const userId = req.headers['x-user-id'] as string;
@@ -29,25 +33,41 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   const userId = req.headers['x-user-id'] as string;
-  const { content, media_url } = req.body;
-  
-  // כאן התיקון: מאפשרים להעלות אם יש תוכן *או* תמונה
-  if (!userId || (!content && !media_url)) {
-    return res.status(400).json({ error: 'חובה להזין טקסט או תמונה' });
+  if (!userId) return res.status(401).json({ error: 'משתמש לא מחובר' });
+
+  // שאיבת הנתונים אחרי שהם פוענחו בהצלחה
+  let content = req.body?.content || '';
+  let media_url = req.body?.media_url || null;
+
+  // גיבוי קשוח: אם זה הגיע כטקסט מלוכלך, נפרסס את זה בכוח
+  if (typeof req.body === 'string') {
+    try {
+      const parsed = JSON.parse(req.body);
+      content = parsed.content || '';
+      media_url = parsed.media_url || null;
+    } catch (e) { console.error("Parse Error:", e); }
+  }
+
+  const cleanContent = content.trim();
+
+  // אם השרת עדיין חושב שזה ריק, הוא ישלח לנו חזרה בדיוק מה הוא "ראה" כדי שנדע למה
+  if (!cleanContent && !media_url) {
+    return res.status(400).json({ 
+      error: 'חובה להזין טקסט או תמונה',
+      debug_body_received: req.body 
+    });
   }
 
   try {
     const { data, error } = await supabase.from('posts').insert({ 
       user_id: userId, 
-      content: content || '', // אם אין טקסט, נכניס מחרוזת ריקה
-      media_url: media_url || null
+      content: cleanContent,
+      media_url: media_url
     }).select().single();
     
     if (error) throw error;
     
-    // מנוע ההתמכרות: מחלקים 50 XP על פרסום פוסט בלובי
     const xpReward = await rewardXP(userId, 50);
-
     res.json({ ...data, xpReward });
   } catch (err: any) { 
     res.status(500).json({ error: err.message || 'Server error' }); 
