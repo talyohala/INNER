@@ -43,14 +43,12 @@ export const ProfilePage: React.FC = () => {
         const { data: authData } = await supabase.auth.getUser();
         
         if (isMyProfile) {
-          // משיכת נתונים פרטיים דרך השרת (כולל ארנק)
           const headers = authData.user ? { 'x-user-id': authData.user.id } : {};
           const result = await apiFetch<any>('/api/profile/collection', { headers });
           setData(result);
           setFollowersCount(result.profile?.followers_count || 0);
           setFollowingCount(result.profile?.following_count || 0);
         } else {
-          // הפתרון מהשורש: עוקפים את השרת, מושכים ישירות מ-DB פומבי
           const identifier = routeId || '';
           const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
           
@@ -93,26 +91,45 @@ export const ProfilePage: React.FC = () => {
     if (user && !authLoading) loadProfileData();
   }, [user, routeId, isMyProfile, authLoading, navigate]);
 
+  // חיבור אמיתי של כפתור המעקב
   const handleFollowToggle = async () => {
     if (followLoading) return;
     setFollowLoading(true);
     triggerFeedback('pop');
     
-    setTimeout(() => {
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      const myId = authData.user?.id;
+      const targetId = data.profile?.id;
+
+      if (!myId || !targetId) throw new Error('חסרים פרטים לביצוע הפעולה');
+
       if (isFollowing) {
+        // הסרת מעקב
+        const { error } = await supabase.from('followers').delete().eq('follower_id', myId).eq('following_id', targetId);
+        if (error) throw error;
+        
         setIsFollowing(false);
         setFollowersCount(prev => prev - 1);
-        toast.success(`הפסקת לעקוב אחרי ${data.profile?.username}`, { style: { background: '#111', color: '#fff' } });
+        toast.success(`הפסקת לעקוב אחרי ${data.profile?.username || 'המשתמש'}`, { style: { background: '#111', color: '#fff' } });
       } else {
+        // הוספת מעקב
+        const { error } = await supabase.from('followers').insert({ follower_id: myId, following_id: targetId });
+        if (error) throw error;
+
         setIsFollowing(true);
         setFollowersCount(prev => prev + 1);
         triggerFeedback('success');
-        toast.success(`אתה עוקב אחרי ${data.profile?.username} עכשיו! 💎`, { style: { background: '#111', color: '#e5e4e2', border: '1px solid rgba(229,228,226,0.2)' } });
+        toast.success(`אתה עוקב אחרי ${data.profile?.username || 'המשתמש'} עכשיו! 💎`, { style: { background: '#111', color: '#e5e4e2', border: '1px solid rgba(229,228,226,0.2)' } });
       }
+    } catch (err: any) {
+      toast.error('שגיאה בביצוע הפעולה', { style: { background: '#111', color: '#ef4444' } });
+    } finally {
       setFollowLoading(false);
-    }, 800);
+    }
   };
 
+  // שליפה אמיתית של רשימות עוקבים/נעקבים
   const openUsersListSheet = async (type: 'followers' | 'following') => {
     triggerFeedback('pop');
     setLoadingUsersList(true);
@@ -122,12 +139,30 @@ export const ProfilePage: React.FC = () => {
     else setShowFollowingList(true);
 
     try {
-      setTimeout(() => {
-        setUsersListData([{ id: '1', username: 'user1', full_name: 'משתמש לדוגמה', avatar_url: '' }]);
-        setLoadingUsersList(false);
-      }, 1000);
+      const targetId = data.profile?.id;
+      if (!targetId) throw new Error('No target ID');
+
+      let userIds: string[] = [];
+
+      if (type === 'followers') {
+        // מי עוקב אחרי המשתמש הזה?
+        const { data: followersData } = await supabase.from('followers').select('follower_id').eq('following_id', targetId);
+        userIds = followersData ? followersData.map(d => d.follower_id) : [];
+      } else {
+        // אחרי מי המשתמש הזה עוקב?
+        const { data: followingData } = await supabase.from('followers').select('following_id').eq('follower_id', targetId);
+        userIds = followingData ? followingData.map(d => d.following_id) : [];
+      }
+
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase.from('profiles').select('*').in('id', userIds);
+        setUsersListData(profilesData || []);
+      } else {
+        setUsersListData([]);
+      }
     } catch (err) {
       toast.error('שגיאה בטעינת רשימת המשתמשים');
+    } finally {
       setLoadingUsersList(false);
     }
   };
@@ -160,7 +195,9 @@ export const ProfilePage: React.FC = () => {
               <div className="px-6 pb-2 flex items-center justify-start w-full"><h3 className="text-[16px] font-black text-white">עוקבים ({followersCount})</h3></div>
             </div>
             <div className="flex-1 overflow-y-auto p-4 flex flex-col scrollbar-hide touch-pan-y" onPointerDown={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }} onTouchStart={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}>
-              {loadingUsersList ? <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-white/20" /></div> : usersListData.map((u) => (
+              {loadingUsersList ? <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-white/20" /></div> : 
+               usersListData.length === 0 ? <div className="text-center text-white/40 text-xs py-10 font-bold uppercase tracking-widest">אין עוקבים עדיין</div> :
+               usersListData.map((u) => (
                 <div key={u.id} className="flex items-center justify-between p-4 border-b border-white/5 cursor-pointer hover:bg-white/[0.03]" onClick={() => { triggerFeedback('pop'); setShowFollowersList(false); navigate(`/profile/${u.id}`); }}>
                   <div className="flex items-center gap-4 text-right">
                     <motion.div whileHover={{ scale: 1.05 }} className="w-12 h-12 rounded-full bg-black border border-white/10 overflow-hidden shrink-0 shadow-inner">
@@ -188,7 +225,9 @@ export const ProfilePage: React.FC = () => {
               <div className="px-6 pb-2 flex items-center justify-start w-full"><h3 className="text-[16px] font-black text-white">נעקבים ({followingCount})</h3></div>
             </div>
             <div className="flex-1 overflow-y-auto p-4 flex flex-col scrollbar-hide touch-pan-y" onPointerDown={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }} onTouchStart={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}>
-              {loadingUsersList ? <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-white/20" /></div> : usersListData.map((u) => (
+              {loadingUsersList ? <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-white/20" /></div> : 
+               usersListData.length === 0 ? <div className="text-center text-white/40 text-xs py-10 font-bold uppercase tracking-widest">לא עוקב אחרי אף אחד</div> :
+               usersListData.map((u) => (
                 <div key={u.id} className="flex items-center justify-between p-4 border-b border-white/5 cursor-pointer hover:bg-white/[0.03]" onClick={() => { triggerFeedback('pop'); setShowFollowingList(false); navigate(`/profile/${u.id}`); }}>
                   <div className="flex items-center gap-4 text-right">
                     <motion.div whileHover={{ scale: 1.05 }} className="w-12 h-12 rounded-full bg-black border border-white/10 overflow-hidden shrink-0 shadow-inner">
