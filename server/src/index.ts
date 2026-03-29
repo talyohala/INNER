@@ -1,39 +1,35 @@
 import express from 'express';
 import cors from 'cors';
+import dotenv from 'dotenv';
 import authRoutes from './routes/auth';
-import circleRoutes from './routes/circles';
-import circlePostsRoutes from './routes/circlePosts';
+import circlesRoutes from './routes/circles';
 import feedRoutes from './routes/feed';
-import postRoutes from './routes/posts';
-import notifRoutes from './routes/notifications';
+import postsRoutes from './routes/posts';
 import profileRoutes from './routes/profile';
-import walletRoutes from './routes/wallet';
-import studioRoutes from './routes/studio';
+import searchRoutes from './routes/search';
+
+dotenv.config();
 
 const app = express();
+
 app.use(cors());
+
+// --- הפתרון הקריטי! ---
+// חובה לשים את הפקודות האלו *כאן*, לפני כל הראוטים, 
+// כדי שכל בקשה שנכנסת לשרת תפוענח אוטומטית כ-JSON.
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+// -----------------------
 
 app.use('/api/auth', authRoutes);
-app.use('/api/circles', circleRoutes);
-app.use('/api/circles', circlePostsRoutes);
+app.use('/api/circles', circlesRoutes);
 app.use('/api/feed', feedRoutes);
-app.use('/api/posts', postRoutes);
-app.use('/api/notifications', notifRoutes);
+app.use('/api/posts', postsRoutes);
 app.use('/api/profile', profileRoutes);
-app.use('/api/wallet', walletRoutes);
-app.use('/api/studio', studioRoutes);
+app.use('/api/search', searchRoutes);
 
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', port: Number(process.env.PORT) || 8080 });
-});
+const PORT = process.env.PORT || 8080;
 
-app.get('/api/debug', (_req, res) => {
-  res.json({ status: 'Server is reaching here!' });
-});
-
-const PORT = Number(process.env.PORT) || 8080;
-
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+app.listen(PORT, () => {
+  console.  log(`Server running on port ${PORT}`);
 });
