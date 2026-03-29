@@ -47,12 +47,36 @@ export const HomePage: React.FC = () => {
   const [onlineUsers, setOnlineUsers] = useState(3420);
   const [pullY, setPullY] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const pullStartY = useRef(0);
+
+  const checkUnreadNotifications = async () => {
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (!authData.user) return;
+      const { count } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', authData.user.id)
+        .eq('is_read', false);
+      setUnreadCount(count || 0);
+    } catch (e) { console.error(e); }
+  };
 
   useEffect(() => {
     fetchData(false);
+    checkUnreadNotifications();
+    
     const interval = setInterval(() => setOnlineUsers(prev => prev + Math.floor(Math.random() * 5) - 2), 5000);
-    const channel = supabase.channel('global_feed').on('postgres_changes', { event: '*', schema: 'public', table: 'posts', filter: 'circle_id=is.null' }, () => fetchData(true)).subscribe();
+    
+    // האזנה חיה גם לפוסטים וגם להתראות
+    const channel = supabase.channel('global_feed')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts', filter: 'circle_id=is.null' }, () => fetchData(true))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload) => {
+        checkUnreadNotifications();
+      })
+      .subscribe();
+      
     return () => { supabase.removeChannel(channel); clearInterval(interval); };
   }, []);
 
@@ -80,7 +104,7 @@ export const HomePage: React.FC = () => {
   };
   const handleTouchEnd = async () => {
     if (pullY > 60) {
-      setRefreshing(true); setPullY(0); triggerFeedback('coin'); await fetchData(true);
+      setRefreshing(true); setPullY(0); triggerFeedback('coin'); await fetchData(true); await checkUnreadNotifications();
     } else { setPullY(0); }
     pullStartY.current = 0;
   };
@@ -119,7 +143,6 @@ export const HomePage: React.FC = () => {
     } catch (err: any) { setUploadingImage(false); toast.error(err.message || 'שגיאה בשליחה'); } finally { setPosting(false); }
   };
 
-  // התיקון הקריטי ללייקים: הוספנו את ה-ID לבקשה
   const handleLike = async (postId: string, isLiked: boolean) => {
     triggerFeedback('pop');
     setPosts(curr => curr.map(p => p.id === postId ? { ...p, is_liked: !isLiked, likes_count: isLiked ? p.likes_count - 1 : p.likes_count + 1 } : p));
@@ -185,8 +208,13 @@ export const HomePage: React.FC = () => {
               <span className="text-[10px] font-black text-white/80 tracking-widest">{onlineUsers.toLocaleString()}</span>
             </div>
           </div>
-          <button onClick={() => { triggerFeedback('pop'); navigate('/notifications'); }} className="w-10 h-10 flex justify-center items-center bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-full shadow-lg active:scale-90 transition-transform">
+          
+          <button onClick={() => { triggerFeedback('pop'); navigate('/notifications'); }} className="w-10 h-10 flex justify-center items-center bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-full shadow-lg active:scale-90 transition-transform relative">
             <Bell size={18} className="text-[#3f51b5] drop-shadow-[0_0_8px_rgba(63,81,181,0.5)]" />
+            {/* הנקודה האדומה החיה! */}
+            {unreadCount > 0 && (
+              <span className="absolute top-2 right-2.5 w-2 h-2 bg-[#e91e63] rounded-full shadow-[0_0_10px_#e91e63] border border-black animate-pulse"></span>
+            )}
           </button>
         </div>
 
@@ -280,16 +308,39 @@ export const HomePage: React.FC = () => {
         </div>
       </FadeIn>
 
+      {/* הבוטום שיט המעודכן! פותר את ההיתקעות ויושב מעל התפריט התחתון */}
       <AnimatePresence>
         {activePost && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[999] flex flex-col justify-end bg-black/80 backdrop-blur-lg">
-            <div className="absolute inset-0" onClick={() => setActivePost(null)}></div>
-            <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.8 }} onDragEnd={(e, { offset, velocity }) => { if (offset.y > 100 || velocity.y > 500) setActivePost(null); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-white/[0.06] backdrop-blur-3xl border-t border-white/20 rounded-t-[40px] h-[85vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative z-10 pb-8 overflow-hidden">
-              <div className="w-full flex justify-center pt-5 pb-3 cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/20 rounded-full"></div></div>
+          <div className="fixed inset-0 z-[9999] flex flex-col justify-end">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="absolute inset-0 bg-black/70 backdrop-blur-sm" 
+              onClick={() => setActivePost(null)} 
+            />
+            <motion.div 
+              drag="y" 
+              dragConstraints={{ top: 0 }} 
+              dragElastic={0.2} 
+              onDragEnd={(e, { offset, velocity }) => { 
+                if (offset.y > 100 || velocity.y > 400) setActivePost(null); 
+              }} 
+              initial={{ y: "100%" }} 
+              animate={{ y: 0 }} 
+              exit={{ y: "100%" }} 
+              transition={{ type: "spring", damping: 25, stiffness: 200 }} 
+              className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[85vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative z-10 overflow-hidden"
+            >
+              <div className="w-full flex justify-center pt-5 pb-3 cursor-grab active:cursor-grabbing">
+                <div className="w-16 h-1.5 bg-white/20 rounded-full"></div>
+              </div>
+              
               <div className="flex justify-between items-center px-6 pb-4 border-b border-white/10">
                 <h2 className="text-white font-black text-[16px]">תגובות ({activePost.comments_count})</h2>
                 <button onClick={() => setActivePost(null)} className="text-white/40 hover:text-white transition-colors bg-white/5 p-2.5 rounded-full"><X size={18} /></button>
               </div>
+              
               <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 scrollbar-hide">
                 {loadingComments ? <Loader2 className="animate-spin mx-auto text-white/40 mt-10" /> : comments.map((comment, idx) => (
                   <div key={idx} className="flex gap-4">
@@ -298,14 +349,15 @@ export const HomePage: React.FC = () => {
                         {comment.profiles?.avatar_url ? <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={18} className="text-white/20" /></div>}
                       </div>
                     </div>
-                    <div className="flex flex-col flex-1 bg-white/[0.04] p-4.5 rounded-[24px] rounded-tr-sm border border-white/5 shadow-sm">
+                    <div className="flex flex-col flex-1 bg-white/[0.04] p-4 rounded-[24px] rounded-tr-sm border border-white/5 shadow-sm">
                       <span className="text-white font-black text-[13px] mb-1.5 text-right">{comment.profiles?.full_name || 'אנונימי'}</span>
                       <p className="text-white/80 text-[14px] text-right leading-relaxed">{comment.content}</p>
                     </div>
                   </div>
                 ))}
               </div>
-              <div className="p-5 border-t border-white/10 bg-black/60 backdrop-blur-2xl relative z-10 mt-auto">
+              
+              <div className="p-5 border-t border-white/10 bg-black/90 backdrop-blur-2xl relative z-10 mt-auto pb-8">
                 <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-full pr-2 pl-5 h-14 shadow-inner">
                   <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="הוסף תגובה..." className="flex-1 bg-transparent border-none text-white text-[15px] text-right outline-none placeholder:text-white/30" />
                   <button onClick={submitComment} disabled={!newComment.trim()} className="w-11 h-11 rounded-full bg-white text-black flex items-center justify-center shrink-0 active:scale-95 disabled:opacity-50 transition-opacity shadow-[0_0_15px_rgba(255,255,255,0.2)]">
@@ -314,7 +366,7 @@ export const HomePage: React.FC = () => {
                 </div>
               </div>
             </motion.div>
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>
