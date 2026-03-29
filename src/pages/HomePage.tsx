@@ -190,7 +190,6 @@ export const HomePage: React.FC = () => {
     } catch (err) { toast.error('שגיאה בשליחת תגובה'); }
   };
 
-  // מודל התגובות הבטוח - יישתל בפורטל
   const commentsModal = (
     <AnimatePresence>
       {activePost && (
@@ -216,20 +215,27 @@ export const HomePage: React.FC = () => {
             transition={{ type: "spring", damping: 25, stiffness: 200 }} 
             className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[85vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden"
           >
-            <div className="w-full flex justify-center pt-5 pb-3 cursor-grab active:cursor-grabbing">
+            <div className="w-full flex justify-center pt-5 pb-3">
               <div className="w-16 h-1.5 bg-white/20 rounded-full"></div>
             </div>
             
-            <div className="flex justify-between items-center px-6 pb-4 border-b border-white/10">
+            <div className="flex justify-start items-center px-6 pb-4 border-b border-white/10">
               <h2 className="text-white font-black text-[16px]">תגובות ({activePost?.comments_count || 0})</h2>
-              <button onClick={() => setActivePost(null)} className="text-white/40 hover:text-white transition-colors bg-white/5 p-2.5 rounded-full"><X size={18} /></button>
+              {/* כפתור ה-X הוסר לבקשתך! */}
             </div>
             
-            {/* onPointerDownCapture חוסם מהטלפון לבלבל בין גלילת התגובות לגרירת החלון כולו */}
+            {/* הקוד החכם: 
+              אם המשתמש גלל למטה לתוך התגובות, אנחנו עוצרים את הגרירה כדי שיוכל לגלול חופשי.
+              אם הוא בראש הרשימה, ההחלקה כלפי מטה תגרור ותסגור את כל החלון בצורה טבעית!
+            */}
             <div 
-              className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 scrollbar-hide"
-              onPointerDownCapture={e => e.stopPropagation()}
-              onTouchStartCapture={e => e.stopPropagation()}
+              className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 scrollbar-hide touch-pan-y"
+              onPointerDown={(e) => {
+                if (e.currentTarget.scrollTop > 0) e.stopPropagation();
+              }}
+              onTouchStart={(e) => {
+                if (e.currentTarget.scrollTop > 0) e.stopPropagation();
+              }}
             >
               {loadingComments ? <Loader2 className="animate-spin mx-auto text-white/40 mt-10" /> : 
                 (Array.isArray(comments) ? comments : []).map((comment, idx) => {
@@ -256,7 +262,8 @@ export const HomePage: React.FC = () => {
             
             <div 
               className="p-5 border-t border-white/10 bg-black/90 backdrop-blur-2xl mt-auto pb-8"
-              onPointerDownCapture={e => e.stopPropagation()}
+              onPointerDown={e => e.stopPropagation()}
+              onTouchStart={e => e.stopPropagation()}
             >
               <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-full pr-2 pl-5 h-14 shadow-inner">
                 <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="הוסף תגובה..." className="flex-1 bg-transparent border-none text-white text-[15px] text-right outline-none placeholder:text-white/30" />
@@ -395,7 +402,6 @@ export const HomePage: React.FC = () => {
         </FadeIn>
       </div>
 
-      {/* השתלה בטוחה מעל כל האפליקציה (Portal) */}
       {typeof document !== 'undefined' && createPortal(commentsModal, document.body)}
     </>
   );
