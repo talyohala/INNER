@@ -41,19 +41,46 @@ export const ProfilePage: React.FC = () => {
       try {
         setLoadingData(true);
         const { data: authData } = await supabase.auth.getUser();
-        const headers = authData.user ? { 'x-user-id': authData.user.id } : {};
+        
+        if (isMyProfile) {
+          // משיכת נתונים פרטיים דרך השרת (כולל ארנק)
+          const headers = authData.user ? { 'x-user-id': authData.user.id } : {};
+          const result = await apiFetch<any>('/api/profile/collection', { headers });
+          setData(result);
+          setFollowersCount(result.profile?.followers_count || 0);
+          setFollowingCount(result.profile?.following_count || 0);
+        } else {
+          // הפתרון מהשורש: עוקפים את השרת, מושכים ישירות מ-DB פומבי
+          const identifier = routeId || '';
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+          
+          let query = supabase.from('profiles').select('*');
+          if (isUuid) query = query.eq('id', identifier);
+          else query = query.eq('username', identifier);
 
-        const endpoint = isMyProfile ? '/api/profile/collection' : `/api/profile/public/${routeId}`;
-        const result = await apiFetch<any>(endpoint, { headers });
-        
-        setData(result);
-        
-        if (!isMyProfile) {
-          setIsFollowing(result.is_following || false);
+          const { data: publicProfile, error: profileErr } = await query.maybeSingle();
+          if (!publicProfile || profileErr) throw new Error('Profile not found');
+
+          const targetId = publicProfile.id;
+
+          const [{ data: memberships }, { data: ownedCircles }] = await Promise.all([
+            supabase.from('circle_members').select('circle:circles(*)').eq('user_id', targetId).neq('role', 'admin'),
+            supabase.from('circles').select('*').eq('owner_id', targetId)
+          ]);
+
+          let isFollowingUser = false;
+          if (authData.user) {
+            try {
+              const { data: followData } = await supabase.from('followers').select('*').eq('follower_id', authData.user.id).eq('following_id', targetId).maybeSingle();
+              if (followData) isFollowingUser = true;
+            } catch(e) {}
+          }
+
+          setData({ profile: publicProfile, memberships: memberships || [], ownedCircles: ownedCircles || [] });
+          setIsFollowing(isFollowingUser);
+          setFollowersCount(publicProfile.followers_count || 0);
+          setFollowingCount(publicProfile.following_count || 0);
         }
-        setFollowersCount(result.profile?.followers_count || 0);
-        setFollowingCount(result.profile?.following_count || 0);
-
       } catch (err) { 
         console.error(err);
         toast.error('הפרופיל לא נמצא', { style: { background: '#111', color: '#ef4444' } });
@@ -96,10 +123,7 @@ export const ProfilePage: React.FC = () => {
 
     try {
       setTimeout(() => {
-        setUsersListData([
-          { id: '1', username: 'user1', full_name: 'ישראל ישראלי', avatar_url: '' },
-          { id: '2', username: 'user2', full_name: 'יוסף כהן', avatar_url: '' }
-        ]);
+        setUsersListData([{ id: '1', username: 'user1', full_name: 'משתמש לדוגמה', avatar_url: '' }]);
         setLoadingUsersList(false);
       }, 1000);
     } catch (err) {
@@ -111,13 +135,11 @@ export const ProfilePage: React.FC = () => {
   if (authLoading || loadingData) return <div className="min-h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-white/20" /></div>;
 
   const userProfile = isMyProfile ? { ...(authProfile || {}), ...(data?.profile || {}) } : data?.profile || {};
-
   const currentLevel = userProfile.level || 1;
   const currentXP = userProfile.xp || 0;
   const streak = userProfile.streak || 0;
   const xpToNextLevel = currentLevel * 1000;
   const xpProgress = Math.min((currentXP / xpToNextLevel) * 100, 100);
-
   const joinedCircles = data.memberships?.map((m: any) => m?.circle).filter(Boolean) || [];
   const ownedCircles = data.ownedCircles || [];
 
