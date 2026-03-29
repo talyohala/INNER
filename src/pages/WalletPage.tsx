@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
-import { Wallet, Lock, Loader2, ArrowDownLeft, ArrowUpRight, ArrowRight, Zap, History, ShieldCheck, SmartphoneNfc, ChevronDown } from 'lucide-react';
+import { Wallet, Lock, Loader2, ArrowDownLeft, ArrowUpRight, ArrowRight, Zap, History, ShieldCheck, SmartphoneNfc, ChevronDown, Send, Tag } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { FadeIn, Button } from '../components/ui';
@@ -18,10 +18,9 @@ export const WalletPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
 
-  const [selectedPackage, setSelectedPackage] = useState<{ amount: number, price: number, id: string } | null>(null);
+  const [selectedPackage, setSelectedPackage] = useState<{ amount: number, price: number, id: string, discount?: number } | null>(null);
   const [showAllTx, setShowAllTx] = useState(false);
 
-  // התיקון הענק: הוספנו את המשיכה של ה-ID ושליחה שלו לשרת
   const fetchWallet = async () => {
     try {
       const { data: authData } = await supabase.auth.getUser();
@@ -41,7 +40,7 @@ export const WalletPage: React.FC = () => {
 
   useEffect(() => { fetchWallet(); }, []);
 
-  const openPaymentSheet = (pkg: { amount: number, price: number, id: string }) => {
+  const openPaymentSheet = (pkg: { amount: number, price: number, id: string, discount?: number }) => {
     triggerFeedback('pop');
     setSelectedPackage(pkg);
   };
@@ -75,7 +74,7 @@ export const WalletPage: React.FC = () => {
         await fetchWallet();
         
         triggerFeedback('coin');
-        toast.success(`רכשת ${selectedPackage.amount} CRD בהצלחה! 💸`, { id: tid, style: { background: '#111', color: '#4ade80' } });
+        toast.success(`רכשת ${selectedPackage.amount} CRD בהצלחה! 💎`, { id: tid, style: { background: '#111', color: '#00d4ff', border: '1px solid rgba(0,212,255,0.2)' } });
         closePaymentSheet();
       } catch (err) {
         triggerFeedback('error');
@@ -87,9 +86,9 @@ export const WalletPage: React.FC = () => {
   };
 
   const PACKAGES = [
-    { id: 'crd_100', amount: 100, price: 10, popular: false },
-    { id: 'crd_500', amount: 500, price: 45, popular: true },
-    { id: 'crd_1200', amount: 1200, price: 100, popular: false }
+    { id: 'crd_100', amount: 100, price: 10, popular: false, discount: 0 },
+    { id: 'crd_500', amount: 500, price: 45, popular: true, discount: 10 },
+    { id: 'crd_1200', amount: 1200, price: 100, popular: false, discount: 17 }
   ];
 
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-white/20" /></div>;
@@ -115,8 +114,7 @@ export const WalletPage: React.FC = () => {
 
       <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: "spring", stiffness: 100, damping: 20 }}>
         <div className="bg-black border border-white/10 p-8 rounded-[36px] flex flex-col items-center text-center shadow-2xl relative overflow-hidden z-10">
-          {/* הילה ירוקה מאחורי היתרה */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-[#8bc34a]/10 blur-[80px] rounded-full pointer-events-none"></div>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-[#00d4ff]/10 blur-[80px] rounded-full pointer-events-none"></div>
           
           <div className="absolute top-5 left-6 opacity-40 flex items-center gap-1">
             <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white">VIP MEMBER</span>
@@ -126,16 +124,31 @@ export const WalletPage: React.FC = () => {
           
           <div className="flex flex-col items-center justify-center mt-2 mb-6 z-10 relative">
             <span className="text-[72px] font-black text-white tracking-tighter drop-shadow-[0_0_20px_rgba(255,255,255,0.1)] leading-none">{balance.toLocaleString()}</span>
-            <span className="text-[10px] font-black text-[#ff9800] uppercase tracking-[0.3em] mt-4 drop-shadow-[0_0_10px_rgba(255,152,0,0.4)] bg-[#ff9800]/10 px-4 py-1.5 rounded-full border border-[#ff9800]/20">
+            <span className="text-[10px] font-black text-[#00d4ff] uppercase tracking-[0.3em] mt-4 drop-shadow-[0_0_10px_rgba(0,212,255,0.4)] bg-[#00d4ff]/10 px-4 py-1.5 rounded-full border border-[#00d4ff]/20">
               CRD COIN
             </span>
           </div>
         </div>
       </motion.div>
 
-      <div className="flex flex-col gap-3 z-10 mt-2">
+      <div className="grid grid-cols-2 gap-3 z-10 mt-2">
+        <button 
+          onClick={() => { triggerFeedback('error'); toast('פיצ׳ר משיכה לחשבון בנק ייפתח בקרוב!', { icon: '🔒', style: { background: '#111', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' } }); }}
+          className="h-14 bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-[20px] flex items-center justify-center gap-2 text-white/60 font-black text-[12px] uppercase tracking-widest hover:bg-white/[0.06] active:scale-95 transition-all shadow-lg"
+        >
+          <ArrowUpRight size={16} className="text-[#2196f3]" /> פדיון CRD
+        </button>
+        <button 
+          onClick={() => { triggerFeedback('error'); toast('פיצ׳ר העברת קרדיטים לחברים ייפתח בקרוב!', { icon: '🤝', style: { background: '#111', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' } }); }}
+          className="h-14 bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-[20px] flex items-center justify-center gap-2 text-white/60 font-black text-[12px] uppercase tracking-widest hover:bg-white/[0.06] active:scale-95 transition-all shadow-lg"
+        >
+          <Send size={16} className="text-[#00d4ff]" /> העברה לחבר
+        </button>
+      </div>
+
+      <div className="flex flex-col gap-3 z-10 mt-4">
         <h3 className="text-white/40 text-[10px] font-black tracking-[0.2em] uppercase text-right px-2 flex items-center gap-1.5 drop-shadow-md">
-          <Zap size={12} className="text-[#8bc34a]" /> טעינה מהירה
+          <Zap size={12} className="text-[#00d4ff]" /> טעינה מהירה
         </h3>
         
         <div className="grid grid-cols-3 gap-3">
@@ -143,39 +156,36 @@ export const WalletPage: React.FC = () => {
             <button
               key={idx}
               onClick={() => openPaymentSheet(pkg)}
-              className={`relative flex flex-col items-center justify-center gap-1 h-28 rounded-[24px] transition-all active:scale-95 overflow-hidden shadow-xl ${
+              className={`relative flex flex-col items-center justify-center gap-1 h-32 rounded-[24px] transition-all active:scale-95 overflow-hidden shadow-xl ${
                 pkg.popular
-                  ? 'bg-gradient-to-br from-[#111] to-black border border-[#8bc34a]/40 shadow-[0_0_15px_rgba(139,195,74,0.1)]'
+                  ? 'bg-gradient-to-br from-[#111] to-black border border-[#00d4ff]/40 shadow-[0_0_20px_rgba(0,212,255,0.15)]'
                   : 'bg-white/[0.03] backdrop-blur-md border border-white/10 hover:bg-white/[0.06]'
               }`}
             >
-              {pkg.popular && (
-                <div className="absolute top-0 w-full bg-[#8bc34a]/20 text-[#8bc34a] text-[9px] font-black uppercase tracking-widest py-1.5 text-center backdrop-blur-md border-b border-[#8bc34a]/30">
-                  משתלם
-                </div>
-              )}
-              <span className={`text-[22px] font-black mt-2 ${pkg.popular ? 'text-[#8bc34a]' : 'text-white'}`}>{pkg.amount}</span>
-              <span className="text-white/40 text-[11px] font-bold tracking-wider">₪{pkg.price}</span>
+              <div className="absolute top-2 w-full flex justify-center px-2 pointer-events-none">
+                {pkg.discount > 0 ? (
+                  <motion.span 
+                    animate={pkg.popular ? { scale: [1, 1.05, 1], opacity: [0.8, 1, 0.8] } : {}} 
+                    transition={{ repeat: Infinity, duration: 2 }}
+                    className="bg-[#00d4ff]/20 text-[#00d4ff] text-[9px] font-black uppercase tracking-wider py-0.5 px-2 rounded-full border border-[#00d4ff]/30 shadow-[0_0_8px_rgba(0,212,255,0.3)] flex items-center gap-1"
+                  >
+                    <Tag size={8} /> {pkg.discount}% הנחה
+                  </motion.span>
+                ) : (
+                  <span className="h-4"></span>
+                )}
+              </div>
+
+              <span className={`text-[24px] font-black mt-4 ${pkg.popular ? 'text-[#00d4ff]' : 'text-white'}`}>{pkg.amount}</span>
+              <span className="text-white/50 text-[11px] font-bold tracking-wider">₪{pkg.price}</span>
             </button>
           ))}
         </div>
       </div>
 
-      <div className="bg-white/[0.02] backdrop-blur-xl border border-white/5 p-5 rounded-[28px] flex items-center justify-between z-10 shadow-xl mt-2">
-        <div className="flex items-center gap-4 text-right">
-          <div className="w-12 h-12 rounded-[20px] bg-black border border-white/10 flex items-center justify-center shrink-0 shadow-inner">
-            <Lock size={18} className="text-[#f44336] drop-shadow-[0_0_8px_rgba(244,67,54,0.5)]" />
-          </div>
-          <div>
-            <h3 className="text-white font-black text-[15px]">משיכת כספים ליוצרים</h3>
-            <p className="text-white/40 text-[10px] font-bold mt-1 uppercase tracking-widest">פיצ'ר זה ייפתח למשתמשי PRO</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3 mt-4 z-10 mb-6">
+      <div className="flex flex-col gap-3 mt-6 z-10 mb-6">
         <h3 className="text-white/40 text-[10px] font-black tracking-[0.2em] uppercase text-right px-2 flex items-center gap-1.5">
-          <History size={12} className="text-[#2196f3]" /> פעולות אחרונות
+          <History size={12} className="text-white/60" /> פעולות אחרונות
         </h3>
         
         <div className="bg-white/[0.03] backdrop-blur-2xl border border-white/10 rounded-[32px] shadow-2xl overflow-hidden">
@@ -191,17 +201,15 @@ export const WalletPage: React.FC = () => {
               {transactions.slice(0, 3).map((tx, idx) => (
                 <div key={tx.id} className={`flex items-center justify-between p-5 ${idx !== 2 && idx !== transactions.length - 1 ? 'border-b border-white/5' : ''}`}>
                   <div className="flex items-center gap-4 text-right">
-                    <div className={`w-12 h-12 rounded-[20px] flex items-center justify-center shrink-0 shadow-inner ${
-                      tx.type === 'deposit' ? 'bg-[#8bc34a]/10 border border-[#8bc34a]/20' : 'bg-black border border-white/10'
-                    }`}>
-                      {tx.type === 'deposit' ? <ArrowDownLeft size={18} className="text-[#8bc34a]" /> : <ArrowUpRight size={18} className="text-white/40" />}
+                    <div className="w-12 h-12 rounded-[20px] bg-white/[0.02] border border-white/5 flex items-center justify-center shrink-0 shadow-inner">
+                      {tx.type === 'deposit' ? <ArrowDownLeft size={18} className="text-white/80" /> : <ArrowUpRight size={18} className="text-white/40" />}
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-white/90 text-[15px] font-black">{tx.description}</span>
+                      <span className="text-white text-[14px] font-black">{tx.description}</span>
                       <span className="text-white/40 text-[10px] font-bold mt-1 tracking-widest" dir="ltr">{new Date(tx.created_at).toLocaleDateString('he-IL', { hour: '2-digit', minute:'2-digit' })}</span>
                     </div>
                   </div>
-                  <span className={`font-black text-[18px] ${tx.type === 'deposit' ? 'text-[#8bc34a]' : 'text-white/50'}`} dir="ltr">
+                  <span className={`font-black text-[18px] ${tx.type === 'deposit' ? 'text-[#00d4ff]' : 'text-white/50'}`} dir="ltr">
                     {tx.type === 'deposit' ? '+' : '-'}{tx.amount}
                   </span>
                 </div>
@@ -225,7 +233,7 @@ export const WalletPage: React.FC = () => {
         <span className="text-[9px] font-black uppercase tracking-widest">עסקאות מאובטחות מוצפנות</span>
       </div>
 
-      {/* בוטום שיט: היסטוריית פעולות (חסין קריסות כמו בפיד) */}
+      {/* ================= בוטום שיט: היסטוריית פעולות ================= */}
       <AnimatePresence>
         {showAllTx && (
           <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
@@ -247,9 +255,8 @@ export const WalletPage: React.FC = () => {
                 style={{ touchAction: "none" }}
               >
                 <div className="w-16 h-1.5 bg-white/20 rounded-full mb-4 pointer-events-none"></div>
-                <div className="px-6 pb-2 flex items-center justify-between w-full">
-                  <h3 className="text-xl font-black text-white">היסטוריית פעולות</h3>
-                  <span className="text-white/40 text-xs font-bold bg-white/5 px-3 py-1 rounded-full">{transactions.length} רשומות</span>
+                <div className="px-6 pb-2 flex items-center justify-start w-full">
+                  <h3 className="text-[16px] font-black text-white">היסטוריית פעולות ({transactions.length})</h3>
                 </div>
               </div>
               
@@ -261,17 +268,15 @@ export const WalletPage: React.FC = () => {
                 {transactions.map((tx) => (
                   <div key={tx.id} className="flex items-center justify-between p-4 border-b border-white/5">
                     <div className="flex items-center gap-4 text-right">
-                      <div className={`w-12 h-12 rounded-[20px] flex items-center justify-center shrink-0 shadow-inner ${
-                        tx.type === 'deposit' ? 'bg-[#8bc34a]/10 border border-[#8bc34a]/20' : 'bg-black border border-white/10'
-                      }`}>
-                        {tx.type === 'deposit' ? <ArrowDownLeft size={18} className="text-[#8bc34a]" /> : <ArrowUpRight size={18} className="text-white/40" />}
+                      <div className="w-12 h-12 rounded-[20px] bg-white/[0.02] border border-white/5 flex items-center justify-center shrink-0 shadow-inner">
+                        {tx.type === 'deposit' ? <ArrowDownLeft size={18} className="text-white/80" /> : <ArrowUpRight size={18} className="text-white/40" />}
                       </div>
                       <div className="flex flex-col">
-                        <span className="text-white/90 text-[15px] font-black">{tx.description}</span>
+                        <span className="text-white text-[15px] font-black">{tx.description}</span>
                         <span className="text-white/40 text-[10px] font-bold mt-1 tracking-widest" dir="ltr">{new Date(tx.created_at).toLocaleDateString('he-IL', { hour: '2-digit', minute:'2-digit' })}</span>
                       </div>
                     </div>
-                    <span className={`font-black text-[18px] ${tx.type === 'deposit' ? 'text-[#8bc34a]' : 'text-white/50'}`} dir="ltr">
+                    <span className={`font-black text-[18px] ${tx.type === 'deposit' ? 'text-[#00d4ff]' : 'text-white/50'}`} dir="ltr">
                       {tx.type === 'deposit' ? '+' : '-'}{tx.amount}
                     </span>
                   </div>
@@ -282,7 +287,7 @@ export const WalletPage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* בוטום שיט: אישור רכישה (חסין קריסות כמו בפיד) */}
+      {/* ================= בוטום שיט: אישור רכישה ================= */}
       <AnimatePresence>
         {selectedPackage && (
           <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
@@ -299,21 +304,27 @@ export const WalletPage: React.FC = () => {
               className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative z-10 pb-12 overflow-hidden"
             >
               <div 
-                className="w-full flex flex-col items-center pt-5 pb-2 cursor-grab active:cursor-grabbing bg-white/[0.02]"
+                className="w-full flex flex-col items-center pt-5 pb-4 cursor-grab active:cursor-grabbing bg-white/[0.02]"
                 onPointerDown={(e) => paymentDragControls.start(e)}
                 style={{ touchAction: "none" }}
               >
-                <div className="w-16 h-1.5 bg-white/20 rounded-full"></div>
+                <div className="w-16 h-1.5 bg-white/20 rounded-full mb-4 pointer-events-none"></div>
+                <div className="flex justify-start items-center w-full px-6">
+                  <h2 className="text-[16px] font-black text-white">רכישת קרדיטים</h2>
+                </div>
               </div>
               
-              <div className="p-6 flex flex-col items-center text-center gap-6">
-                <div className="w-20 h-20 rounded-[28px] bg-[#8bc34a]/10 border-2 border-[#8bc34a]/30 flex items-center justify-center shadow-[0_0_30px_rgba(139,195,74,0.2)]">
-                  <SmartphoneNfc size={32} className="text-[#8bc34a]" />
+              <div 
+                className="p-6 flex flex-col items-center text-center gap-6 overflow-y-auto scrollbar-hide"
+                onPointerDown={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}
+                onTouchStart={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}
+              >
+                <div className="w-20 h-20 rounded-[28px] bg-[#00d4ff]/10 border-2 border-[#00d4ff]/30 flex items-center justify-center shadow-[0_0_30px_rgba(0,212,255,0.2)]">
+                  <SmartphoneNfc size={32} className="text-[#00d4ff]" />
                 </div>
                 
                 <div>
-                  <h3 className="text-2xl font-black text-white mb-1">רכישת קרדיטים</h3>
-                  <p className="text-white/50 text-[13px] font-medium">הוספת CRD לארנק שלך בחנות האפליקציות</p>
+                  <p className="text-white/50 text-[13px] font-medium mt-2">הוספת {selectedPackage.amount} CRD לארנק שלך בחנות האפליקציות.</p>
                 </div>
                 
                 <div className="w-full bg-white/[0.03] border border-white/5 rounded-[24px] p-5 flex flex-col gap-4 shadow-inner">
@@ -321,9 +332,15 @@ export const WalletPage: React.FC = () => {
                     <span className="text-white/50 text-[11px] font-black uppercase tracking-widest">פריט</span>
                     <span className="text-white font-black text-[16px]">{selectedPackage.amount} CRD</span>
                   </div>
+                  {selectedPackage.discount && selectedPackage.discount > 0 ? (
+                    <div className="flex justify-between items-center pb-4 border-b border-white/5">
+                      <span className="text-white/50 text-[11px] font-black uppercase tracking-widest">הנחה</span>
+                      <span className="text-[#00d4ff] font-black text-[14px]">{selectedPackage.discount}% חיסכון</span>
+                    </div>
+                  ) : null}
                   <div className="flex justify-between items-center pt-1">
                     <span className="text-white/50 text-[11px] font-black uppercase tracking-widest">סה"כ לתשלום</span>
-                    <span className="text-[#8bc34a] font-black text-2xl">₪{selectedPackage.price}</span>
+                    <span className="text-[#00d4ff] font-black text-2xl">₪{selectedPackage.price}</span>
                   </div>
                 </div>
                 
@@ -333,7 +350,7 @@ export const WalletPage: React.FC = () => {
                     disabled={adding}
                     className="w-full h-14 bg-white text-black font-black text-[14px] uppercase tracking-widest rounded-[20px] flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all active:scale-95 disabled:opacity-50"
                   >
-                    {adding ? <Loader2 size={24} className="animate-spin text-black/50" /> : 'רכוש עכשיו'}
+                    {adding ? <Loader2 size={24} className="animate-spin text-black/50" /> : 'אשר רכישה'}
                   </Button>
                   
                   <div className="flex items-center justify-center gap-4 text-white/30 text-[10px] font-black uppercase tracking-widest mt-2">
