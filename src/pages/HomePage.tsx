@@ -182,7 +182,7 @@ export const HomePage: React.FC = () => {
       const fallbackComment = {
         id: Date.now().toString(),
         content: newComment.trim(),
-        profiles: { full_name: 'אני', avatar_url: '', username: authData.user?.user_metadata?.username }
+        profiles: { full_name: 'אני', avatar_url: '', username: authData.user?.user_metadata?.username || authData.user?.id }
       };
       
       setComments(prev => [...prev, fallbackComment]);
@@ -193,11 +193,15 @@ export const HomePage: React.FC = () => {
     } catch (err) { toast.error('שגיאה בשליחת תגובה'); }
   };
 
-  const goToProfile = (username: string | undefined) => {
-    if (!username) return;
+  // התיקון הקריטי למעבר פרופילים - גיבוי מזהים וחיווי
+  const goToProfile = (identifier: string | undefined) => {
+    if (!identifier) {
+      toast.error('פרטי המשתמש חסרים', { style: { background: '#111', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' } });
+      return;
+    }
     triggerFeedback('pop');
     setActivePost(null); // במידה וזה הגיע מתוך הבוטום שיט, תסגור אותו
-    navigate(`/profile/${username}`);
+    navigate(`/profile/${identifier}`);
   };
 
   const commentsModal = (
@@ -249,14 +253,14 @@ export const HomePage: React.FC = () => {
                   const profile = comment?.profiles || {};
                   const avatarUrl = profile?.avatar_url;
                   const fullName = profile?.full_name || 'אנונימי';
-                  const username = profile?.username;
+                  // שולף קודם Username, ואם אין אז שולף את ה-ID של המשתמש
+                  const targetIdentifier = profile?.username || comment?.user_id || profile?.id;
                   
                   return (
                     <div key={comment?.id || idx} className="flex gap-4">
-                      {/* הפיכת תמונת הפרופיל ושם המשתמש בתגובה ללחיצים */}
                       <div 
                         className="w-10 h-10 rounded-[16px] bg-black shrink-0 overflow-hidden border border-white/10 shadow-inner p-0.5 cursor-pointer hover:opacity-80 transition-opacity"
-                        onClick={() => goToProfile(username)}
+                        onClick={() => goToProfile(targetIdentifier)}
                       >
                         <div className="w-full h-full rounded-[12px] overflow-hidden bg-[#111]">
                           {avatarUrl ? <img src={avatarUrl} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={18} className="text-white/20" /></div>}
@@ -265,7 +269,7 @@ export const HomePage: React.FC = () => {
                       <div className="flex flex-col flex-1 bg-white/[0.04] p-4 rounded-[24px] rounded-tr-sm border border-white/5 shadow-sm">
                         <span 
                           className="text-white font-black text-[13px] mb-1.5 text-right w-fit cursor-pointer hover:text-[#e5e4e2] transition-colors"
-                          onClick={() => goToProfile(username)}
+                          onClick={() => goToProfile(targetIdentifier)}
                         >
                           {fullName}
                         </span>
@@ -378,47 +382,50 @@ export const HomePage: React.FC = () => {
 
           <div className="flex flex-col gap-6 relative z-10">
             {loading ? (<><PostSkeleton /><PostSkeleton /><PostSkeleton /></>) : (
-              posts.map((post) => (
-                <div key={post.id} className="p-6 rounded-[36px] bg-white/[0.04] backdrop-blur-2xl border border-white/10 relative overflow-hidden shadow-2xl">
-                  
-                  {/* הפיכת תמונת הפרופיל והשם בפוסט ללחיצים */}
-                  <div 
-                    className="flex items-center gap-4 mb-5 cursor-pointer w-fit group"
-                    onClick={() => goToProfile(post.profiles?.username)}
-                  >
-                    <div className="w-12 h-12 rounded-[20px] bg-black border border-white/10 overflow-hidden shrink-0 shadow-inner p-0.5 group-hover:opacity-80 transition-opacity">
-                      <div className="w-full h-full rounded-[16px] overflow-hidden bg-[#111]">
-                        {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={24} className="text-white/20" /></div>}
+              posts.map((post) => {
+                // המזהה הסופי: קודם שם משתמש, אם אין אז ID של משתמש.
+                const targetIdentifier = post.profiles?.username || post.user_id || post.profiles?.id;
+                
+                return (
+                  <div key={post.id} className="p-6 rounded-[36px] bg-white/[0.04] backdrop-blur-2xl border border-white/10 relative overflow-hidden shadow-2xl">
+                    <div 
+                      className="flex items-center gap-4 mb-5 cursor-pointer w-fit group"
+                      onClick={() => goToProfile(targetIdentifier)}
+                    >
+                      <div className="w-12 h-12 rounded-[20px] bg-black border border-white/10 overflow-hidden shrink-0 shadow-inner p-0.5 group-hover:opacity-80 transition-opacity">
+                        <div className="w-full h-full rounded-[16px] overflow-hidden bg-[#111]">
+                          {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={24} className="text-white/20" /></div>}
+                        </div>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-white font-black text-[16px] drop-shadow-sm group-hover:text-[#e5e4e2] transition-colors">{post.profiles?.full_name || 'אנונימי'}</span>
+                        <span className="text-white/40 text-[11px] font-bold mt-0.5">{new Date(post.created_at).toLocaleDateString('he-IL')}</span>
                       </div>
                     </div>
-                    <div className="flex flex-col">
-                      <span className="text-white font-black text-[16px] drop-shadow-sm group-hover:text-[#e5e4e2] transition-colors">{post.profiles?.full_name || 'אנונימי'}</span>
-                      <span className="text-white/40 text-[11px] font-bold mt-0.5">{new Date(post.created_at).toLocaleDateString('he-IL')}</span>
-                    </div>
-                  </div>
-                  
-                  {post.media_url && (
-                    <div className="mb-5 rounded-[24px] overflow-hidden border border-white/10 bg-[#050505] shadow-inner">
-                      {post.media_url.match(/\.(mp4|webm|mov)$/i) ? (
-                        <video src={post.media_url} controls playsInline preload="metadata" className="w-full h-auto max-h-[450px] object-cover" />
-                      ) : (
-                        <img src={post.media_url} alt="Drop media" className="w-full h-auto object-cover max-h-[450px]" />
-                      )}
-                    </div>
-                  )}
+                    
+                    {post.media_url && (
+                      <div className="mb-5 rounded-[24px] overflow-hidden border border-white/10 bg-[#050505] shadow-inner">
+                        {post.media_url.match(/\.(mp4|webm|mov)$/i) ? (
+                          <video src={post.media_url} controls playsInline preload="metadata" className="w-full h-auto max-h-[450px] object-cover" />
+                        ) : (
+                          <img src={post.media_url} alt="Drop media" className="w-full h-auto object-cover max-h-[450px]" />
+                        )}
+                      </div>
+                    )}
 
-                  <p className="text-white/90 text-[15px] leading-relaxed font-medium mb-6 text-right px-1">{post.content}</p>
-                  
-                  <div className="flex items-center gap-6 pt-4 border-t border-white/5">
-                    <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-2 transition-all active:scale-90 ${post.is_liked ? 'text-[#e91e63] drop-shadow-[0_0_10px_rgba(233,30,99,0.5)]' : 'text-white/30 hover:text-[#e91e63]'}`}>
-                      <Heart size={20} fill={post.is_liked ? "currentColor" : "none"} /> <span className="text-[13px] font-black">{post.likes_count}</span>
-                    </button>
-                    <button onClick={() => openComments(post)} className="flex items-center gap-2 text-white/30 hover:text-[#2196f3] transition-all active:scale-90">
-                      <MessageSquare size={20} /> <span className="text-[13px] font-black">{post.comments_count}</span>
-                    </button>
+                    <p className="text-white/90 text-[15px] leading-relaxed font-medium mb-6 text-right px-1">{post.content}</p>
+                    
+                    <div className="flex items-center gap-6 pt-4 border-t border-white/5">
+                      <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-2 transition-all active:scale-90 ${post.is_liked ? 'text-[#e91e63] drop-shadow-[0_0_10px_rgba(233,30,99,0.5)]' : 'text-white/30 hover:text-[#e91e63]'}`}>
+                        <Heart size={20} fill={post.is_liked ? "currentColor" : "none"} /> <span className="text-[13px] font-black">{post.likes_count}</span>
+                      </button>
+                      <button onClick={() => openComments(post)} className="flex items-center gap-2 text-white/30 hover:text-[#2196f3] transition-all active:scale-90">
+                        <MessageSquare size={20} /> <span className="text-[13px] font-black">{post.comments_count}</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </FadeIn>
