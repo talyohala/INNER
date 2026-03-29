@@ -133,20 +133,20 @@ export const HomePage: React.FC = () => {
     try {
       const { data: authData } = await supabase.auth.getUser();
       await apiFetch(`/api/posts/${activePost.id}/comments`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': authData.user?.id || '' }, body: JSON.stringify({ content: newComment.trim() }) });
-      const fallbackComment = { id: Date.now().toString(), content: newComment.trim(), user_id: authData.user?.id, profiles: { full_name: 'אני', avatar_url: '', username: authData.user?.user_metadata?.username, id: authData.user?.id } };
+      const fallbackComment = { id: Date.now().toString(), content: newComment.trim(), user_id: authData.user?.id, profiles: { full_name: 'אני', avatar_url: '', id: authData.user?.id } };
       setComments(prev => [...prev, fallbackComment]); setNewComment(''); setPosts(curr => curr.map(p => p.id === activePost.id ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p)); triggerFeedback('coin'); fetchData(true);
     } catch (err) { toast.error('שגיאה בשליחת תגובה'); }
   };
 
-  // הניווט החדש - קולט כל מזהה שיש (שם משתמש או ID)
-  const goToProfile = (identifier: string | undefined) => {
-    if (!identifier) {
+  // הניווט מתבצע עכשיו במאה אחוז על ידי ID (תעודת זהות של המסד נתונים)
+  const goToProfile = (userId: string | undefined) => {
+    if (!userId) {
       toast.error('פרטי המשתמש חסרים', { style: { background: '#111', color: '#ef4444' } });
       return;
     }
     triggerFeedback('pop');
     setActivePost(null);
-    navigate(`/profile/${encodeURIComponent(identifier)}`);
+    navigate(`/profile/${userId}`);
   };
 
   const commentsModal = (
@@ -162,8 +162,7 @@ export const HomePage: React.FC = () => {
             <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 scrollbar-hide touch-pan-y" onPointerDown={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }} onTouchStart={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}>
               {loadingComments ? <Loader2 className="animate-spin mx-auto text-white/40 mt-10" /> : 
                 (Array.isArray(comments) ? comments : []).map((comment, idx) => {
-                  // מחפש את המזהה הטוב ביותר שיש לנו
-                  const targetIdentifier = comment.profiles?.username || comment.profiles?.id || comment.user_id;
+                  const targetIdentifier = comment.user_id || comment.profiles?.id;
                   return (
                     <div key={comment?.id || idx} className="flex gap-4">
                       <div className="w-10 h-10 rounded-[16px] bg-black shrink-0 overflow-hidden border border-white/10 shadow-inner p-0.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => goToProfile(targetIdentifier)}>
@@ -276,8 +275,8 @@ export const HomePage: React.FC = () => {
           <div className="flex flex-col gap-6 relative z-10">
             {loading ? (<><PostSkeleton /><PostSkeleton /><PostSkeleton /></>) : (
               posts.map((post) => {
-                // המזהה החזק שלנו לניווט
-                const targetIdentifier = post.profiles?.username || post.profiles?.id || post.user_id;
+                // המזהה הבטוח לניווט
+                const targetIdentifier = post.user_id || post.profiles?.id;
                 
                 return (
                   <div key={post.id} className="p-6 rounded-[36px] bg-white/[0.04] backdrop-blur-2xl border border-white/10 relative overflow-hidden shadow-2xl">
