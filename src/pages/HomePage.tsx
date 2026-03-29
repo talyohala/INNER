@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { apiFetch } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { FadeIn, Button } from '../components/ui';
@@ -29,6 +30,8 @@ const PostSkeleton = () => (
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragControls = useDragControls();
+  const [mounted, setMounted] = useState(false);
 
   const [circles, setCircles] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
@@ -64,6 +67,7 @@ export const HomePage: React.FC = () => {
   };
 
   useEffect(() => {
+    setMounted(true);
     fetchData(false);
     checkUnreadNotifications();
     
@@ -181,6 +185,79 @@ export const HomePage: React.FC = () => {
       fetchData(true);
     } catch (err) { toast.error('שגיאה בשליחת תגובה'); }
   };
+
+  // מודל התגובות מופרד כדי שנוכל להשתמש בו בפורטל הבטוח
+  const bottomSheetModal = (
+    <AnimatePresence>
+      {activePost && (
+        <div className="fixed inset-0 z-[999999] flex flex-col justify-end" dir="rtl">
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }} 
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm" 
+            onClick={() => setActivePost(null)} 
+          />
+          <motion.div 
+            drag="y" 
+            dragControls={dragControls}
+            dragListener={false} // התיקון הקריטי לתקיעות: מבטל האזנה לגרירה על כל החלון!
+            dragConstraints={{ top: 0 }} 
+            dragElastic={0.2} 
+            onDragEnd={(e, { offset, velocity }) => { 
+              if (offset.y > 100 || velocity.y > 400) setActivePost(null); 
+            }} 
+            initial={{ y: "100%" }} 
+            animate={{ y: 0 }} 
+            exit={{ y: "100%" }} 
+            transition={{ type: "spring", damping: 25, stiffness: 200 }} 
+            className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[85vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative z-10 overflow-hidden"
+          >
+            {/* אזור הגרירה היחיד! רק אם תמשוך מפה החלון ירד */}
+            <div 
+              className="w-full flex flex-col items-center pt-5 pb-4 cursor-grab active:cursor-grabbing bg-white/[0.02]"
+              onPointerDown={(e) => dragControls.start(e)}
+              style={{ touchAction: "none" }}
+            >
+              <div className="w-16 h-1.5 bg-white/20 rounded-full mb-4 pointer-events-none"></div>
+              <div className="flex justify-between items-center w-full px-6">
+                <h2 className="text-white font-black text-[16px]">תגובות ({activePost.comments_count})</h2>
+                <button onClick={() => setActivePost(null)} className="text-white/40 hover:text-white transition-colors bg-white/5 p-2.5 rounded-full"><X size={18} /></button>
+              </div>
+            </div>
+            
+            {/* גלילה חופשית לחלוטין - אפס תקיעות */}
+            <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 scrollbar-hide">
+              {loadingComments ? <Loader2 className="animate-spin mx-auto text-white/40 mt-10" /> : comments.map((comment, idx) => (
+                <div key={idx} className="flex gap-4">
+                  <div className="w-10 h-10 rounded-[16px] bg-black shrink-0 overflow-hidden border border-white/10 shadow-inner p-0.5">
+                    <div className="w-full h-full rounded-[12px] overflow-hidden bg-[#111]">
+                      {comment.profiles?.avatar_url ? <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={18} className="text-white/20" /></div>}
+                    </div>
+                  </div>
+                  <div className="flex flex-col flex-1 bg-white/[0.04] p-4 rounded-[24px] rounded-tr-sm border border-white/5 shadow-sm">
+                    <span className="text-white font-black text-[13px] mb-1.5 text-right">{comment.profiles?.full_name || 'אנונימי'}</span>
+                    <p className="text-white/80 text-[14px] text-right leading-relaxed">{comment.content}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div className="p-5 border-t border-white/10 bg-black/90 backdrop-blur-2xl relative z-10 mt-auto pb-8">
+              <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-full pr-2 pl-5 h-14 shadow-inner">
+                <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="הוסף תגובה..." className="flex-1 bg-transparent border-none text-white text-[15px] text-right outline-none placeholder:text-white/30" />
+                <button onClick={submitComment} disabled={!newComment.trim()} className="w-11 h-11 rounded-full bg-white text-black flex items-center justify-center shrink-0 active:scale-95 disabled:opacity-50 transition-opacity shadow-[0_0_15px_rgba(255,255,255,0.2)]">
+                  <Send size={18} className="rtl:-scale-x-100 -ml-0.5 text-[#2196f3]" />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  );
+
+  const portalTarget = typeof document !== 'undefined' ? document.getElementById('root') || document.body : null;
 
   return (
     <>
@@ -306,75 +383,8 @@ export const HomePage: React.FC = () => {
         </FadeIn>
       </div>
 
-      {/* העברנו את הבוטום שיט מחוץ למיכל הראשי עם z-index מטורף כדי שיסתיר את הכל */}
-      <AnimatePresence>
-        {activePost && (
-          <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
-            <motion.div 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
-              exit={{ opacity: 0 }} 
-              className="absolute inset-0 bg-black/70 backdrop-blur-sm" 
-              onClick={() => setActivePost(null)} 
-            />
-            <motion.div 
-              drag="y" 
-              dragConstraints={{ top: 0 }} 
-              dragElastic={0.2} 
-              onDragEnd={(e, { offset, velocity }) => { 
-                if (offset.y > 100 || velocity.y > 400) setActivePost(null); 
-              }} 
-              initial={{ y: "100%" }} 
-              animate={{ y: 0 }} 
-              exit={{ y: "100%" }} 
-              transition={{ type: "spring", damping: 25, stiffness: 200 }} 
-              className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[85vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative z-10 overflow-hidden"
-            >
-              <div className="w-full flex justify-center pt-5 pb-3 cursor-grab active:cursor-grabbing">
-                <div className="w-16 h-1.5 bg-white/20 rounded-full"></div>
-              </div>
-              
-              <div className="flex justify-between items-center px-6 pb-4 border-b border-white/10">
-                <h2 className="text-white font-black text-[16px]">תגובות ({activePost.comments_count})</h2>
-                <button onClick={() => setActivePost(null)} className="text-white/40 hover:text-white transition-colors bg-white/5 p-2.5 rounded-full"><X size={18} /></button>
-              </div>
-              
-              <div 
-                className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 scrollbar-hide"
-                onPointerDownCapture={e => e.stopPropagation()}
-                onTouchStartCapture={e => e.stopPropagation()}
-              >
-                {loadingComments ? <Loader2 className="animate-spin mx-auto text-white/40 mt-10" /> : comments.map((comment, idx) => (
-                  <div key={idx} className="flex gap-4">
-                    <div className="w-10 h-10 rounded-[16px] bg-black shrink-0 overflow-hidden border border-white/10 shadow-inner p-0.5">
-                      <div className="w-full h-full rounded-[12px] overflow-hidden bg-[#111]">
-                        {comment.profiles?.avatar_url ? <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={18} className="text-white/20" /></div>}
-                      </div>
-                    </div>
-                    <div className="flex flex-col flex-1 bg-white/[0.04] p-4 rounded-[24px] rounded-tr-sm border border-white/5 shadow-sm">
-                      <span className="text-white font-black text-[13px] mb-1.5 text-right">{comment.profiles?.full_name || 'אנונימי'}</span>
-                      <p className="text-white/80 text-[14px] text-right leading-relaxed">{comment.content}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              <div 
-                className="p-5 border-t border-white/10 bg-black/90 backdrop-blur-2xl relative z-10 mt-auto pb-8"
-                onPointerDownCapture={e => e.stopPropagation()}
-                onTouchStartCapture={e => e.stopPropagation()}
-              >
-                <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-full pr-2 pl-5 h-14 shadow-inner">
-                  <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="הוסף תגובה..." className="flex-1 bg-transparent border-none text-white text-[15px] text-right outline-none placeholder:text-white/30" />
-                  <button onClick={submitComment} disabled={!newComment.trim()} className="w-11 h-11 rounded-full bg-white text-black flex items-center justify-center shrink-0 active:scale-95 disabled:opacity-50 transition-opacity shadow-[0_0_15px_rgba(255,255,255,0.2)]">
-                    <Send size={18} className="rtl:-scale-x-100 -ml-0.5 text-[#2196f3]" />
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* שתילת המודל בעזרת Portal מאובטח - מנטרל כל אפשרות שהמודל יוסתר על ידי ה-BottomNav */}
+      {mounted && portalTarget ? createPortal(bottomSheetModal, portalTarget) : bottomSheetModal}
     </>
   );
 };
