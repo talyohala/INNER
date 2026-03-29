@@ -4,39 +4,41 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { UserCircle, Edit2, Zap, ChevronLeft, ChevronDown, Loader2, Award, Flame, Wallet, Users, Crown, Activity, Heart, MessageSquare, ShoppingBag, Link as LinkIcon, UserPlus, UserCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import { FadeIn, Button } from '../components/ui';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 
 export const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
-  const { username } = useParams<{ username?: string }>(); // שולף מזהה אם קיים
+  const { username } = useParams<{ username?: string }>();
   const { user, profile: authProfile, loading: authLoading } = useAuth();
 
   const [data, setData] = useState<any>({ profile: {}, memberships: [], ownedCircles: [] });
   const [loadingData, setLoadingData] = useState(true);
   const [isBioExpanded, setIsBioExpanded] = useState(false);
   
-  // States for Following System
   const [isFollowing, setIsFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [followLoading, setFollowLoading] = useState(false);
 
-  // האם אני צופה בפרופיל שלי או של מישהו אחר?
   const isMyProfile = !username || username === authProfile?.username;
 
   useEffect(() => {
     const loadProfileData = async () => {
       try {
         setLoadingData(true);
-        // אם זה אני, תביא את הדאטה הפרטי והמלא שלי. אם זה מישהו אחר, תביא פרופיל ציבורי
+        
+        // התיקון: שולפים את המזהה ושולחים אותו לשרת!
+        const { data: authData } = await supabase.auth.getUser();
+        const headers = authData.user ? { 'x-user-id': authData.user.id } : {};
+
         const endpoint = isMyProfile ? '/api/profile/collection' : `/api/profile/public/${username}`;
-        const result = await apiFetch<any>(endpoint);
+        const result = await apiFetch<any>(endpoint, { headers });
         
         setData(result);
         
-        // כאן נטען את נתוני המעקב (זמני עד שנקים את הראוט בשרת)
         if (!isMyProfile) {
           setIsFollowing(result.is_following || false);
         }
@@ -45,7 +47,7 @@ export const ProfilePage: React.FC = () => {
 
       } catch (err) { 
         console.error(err);
-        toast.error('הפרופיל לא נמצא');
+        toast.error('הפרופיל לא נמצא', { style: { background: '#111', color: '#ef4444' } });
         navigate('/');
       } finally { 
         setLoadingData(false); 
@@ -61,12 +63,11 @@ export const ProfilePage: React.FC = () => {
     setFollowLoading(true);
     triggerFeedback('pop');
     
-    // סימולציית מעקב עד לחיבור לשרת
     setTimeout(() => {
       if (isFollowing) {
         setIsFollowing(false);
         setFollowersCount(prev => prev - 1);
-        toast.success(`הפסקת לעקוב אחרי ${data.profile?.username}`);
+        toast.success(`הפסקת לעקוב אחרי ${data.profile?.username}`, { style: { background: '#111', color: '#fff' } });
       } else {
         setIsFollowing(true);
         setFollowersCount(prev => prev + 1);
@@ -79,7 +80,6 @@ export const ProfilePage: React.FC = () => {
 
   if (authLoading || loadingData) return <div className="min-h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-white/20" /></div>;
 
-  // אם זה הפרופיל שלי, נשלב עם ה-Auth, אחרת נשתמש רק במה שחזר מהשרת (Public)
   const userProfile = isMyProfile ? { ...(authProfile || {}), ...(data?.profile || {}) } : data?.profile || {};
 
   const currentLevel = userProfile.level || 1;
@@ -142,7 +142,6 @@ export const ProfilePage: React.FC = () => {
           </h2>
           <p className="text-white/40 font-bold text-sm tracking-widest mb-3" dir="ltr">@{userProfile?.username || 'user'}</p>
 
-          {/* כפתור מעקב יוקרתי (רק אם זה לא הפרופיל שלי) */}
           {!isMyProfile && (
             <div className="flex justify-center mb-4">
               <Button
