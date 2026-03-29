@@ -13,7 +13,6 @@ export const ExplorePage: React.FC = () => {
   const [activeVibe, setActiveVibe] = useState('הכל');
   const [loading, setLoading] = useState(true);
 
-  // אייקונים מקבלים צבעים חיים ובוהקים, השאר נשאר מונוכרומטי
   const VIBES = [
     { id: 'הכל', icon: Target, color: 'text-[#2196f3]' },
     { id: 'דרמה', icon: Flame, color: 'text-[#e91e63]' },
@@ -56,7 +55,6 @@ export const ExplorePage: React.FC = () => {
   return (
     <FadeIn className="px-4 pt-8 pb-32 bg-black min-h-screen font-sans flex flex-col gap-6 overflow-x-hidden relative" dir="rtl">
       
-      {/* תאורת אווירה כסופה ברקע */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden flex justify-center">
         <div className="absolute top-[-5%] left-[-10%] w-[50%] h-[40%] bg-white/10 blur-[100px] rounded-full mix-blend-screen"></div>
       </div>
@@ -73,17 +71,16 @@ export const ExplorePage: React.FC = () => {
               animate={{ scale: [1, 2.2], opacity: [0.6, 0] }}
               transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }}
             />
-            {/* אייקון רדאר צבעוני */}
             <Radio size={22} className="text-[#8bc34a] relative z-10 drop-shadow-[0_0_8px_rgba(139,195,74,0.5)]" />
           </motion.div>
           <h1 className="text-2xl font-black text-white tracking-tight flex items-center gap-2 drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
             הרדאר
           </h1>
         </div>
-        <span className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">איתור קהילות בזמן אמת</span>
+        {/* העדכון הקטן והקריטי פה */}
+        <span className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">איתור מועדון בזמן אמת</span>
       </div>
 
-      {/* שורת חיפוש זכוכית */}
       <div className="relative z-10">
         <div className="absolute inset-y-0 right-0 pr-5 flex items-center pointer-events-none">
           <Search size={18} className="text-[#2196f3] drop-shadow-[0_0_5px_rgba(33,150,243,0.4)]" />
@@ -97,7 +94,6 @@ export const ExplorePage: React.FC = () => {
         />
       </div>
 
-      {/* תגיות Vibe */}
       <div className="flex items-center gap-3 overflow-x-auto pb-4 scrollbar-hide z-10 -mx-4 px-4">
         {VIBES.map(vibe => (
           <motion.button
@@ -110,7 +106,6 @@ export const ExplorePage: React.FC = () => {
                 : 'bg-white/[0.02] border-white/5 text-white/40 hover:bg-white/5'
             }`}
           >
-            {/* צבע באייקון בלבד */}
             <vibe.icon size={16} className={`${vibe.color} ${activeVibe === vibe.id ? 'drop-shadow-[0_0_8px_currentColor]' : ''}`} />
             {vibe.id}
           </motion.button>
@@ -131,12 +126,12 @@ export const ExplorePage: React.FC = () => {
               <span className="text-white font-black text-[16px]">הרדאר לא מצא כלום</span>
               <span className="text-white/30 text-[10px] font-bold uppercase tracking-widest">נסה לחפש ויב אחר או שם אחר</span>
             </div>
-            {/* כפתור נקי מילים בלבד כמו שביקשת */}
+            {/* העדכון לכפתור יצירת מועדון */}
             <Button
               onClick={() => { triggerFeedback('pop'); navigate('/create-circle'); }}
               className="px-8 h-12 bg-white text-black font-black text-[13px] uppercase tracking-widest rounded-[20px] mt-4 active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.2)]"
             >
-              פתח מעגל משלך
+              פתח מועדון משלך
             </Button>
           </motion.div>
         ) : (
@@ -165,18 +160,16 @@ export const ExplorePage: React.FC = () => {
                             <div className="w-full h-full flex items-center justify-center"><Users size={24} className="text-white/20" /></div>
                             )}
                         </div>
-                        {/* אינדיקטור LIVE ירוק בוהק */}
                         <div className="absolute bottom-1 right-1 w-2.5 h-2.5 bg-[#8bc34a] border-2 border-black rounded-full shadow-[0_0_8px_#8bc34a] animate-pulse"></div>
                       </div>
 
                       <div className="flex flex-col flex-1">
                         <div className="flex justify-between items-start">
                           <span className="text-white font-black text-[16px] tracking-tight">{circle.name}</span>
-                          {/* אייקון להבה צבעוני במקרה של מעגל חם */}
                           {isTrending && <Flame size={16} className="text-[#ff9800] drop-shadow-[0_0_5px_rgba(255,152,0,0.5)]" />}
                         </div>
                         <p className="text-white/40 text-[11px] font-medium mt-1 line-clamp-1">
-                          {circle.description || 'המעגל הסודי נפתח. הצטרף עכשיו כדי לגלות.'}
+                          {circle.description || 'המועדון הסודי נפתח. הצטרף עכשיו כדי לגלות.'}
                         </p>
                         <div className="flex items-center gap-3 mt-2">
                           <span className="text-white/40 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 bg-black/40 px-2.5 py-1 rounded-full border border-white/5">
