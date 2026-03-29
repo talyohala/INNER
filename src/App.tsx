@@ -28,16 +28,8 @@ type BeforeInstallPromptEvent = Event & {
 
 const isStandaloneMode = () => {
   if (typeof window === 'undefined') return false;
-
-  const byMedia =
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia('(display-mode: standalone)').matches;
-
-  const byNavigator =
-    typeof navigator !== 'undefined' &&
-    'standalone' in navigator &&
-    (navigator as Navigator & { standalone?: boolean }).standalone === true;
-
+  const byMedia = typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)').matches;
+  const byNavigator = typeof navigator !== 'undefined' && 'standalone' in navigator && (navigator as Navigator & { standalone?: boolean }).standalone === true;
   return byMedia || byNavigator;
 };
 
@@ -74,16 +66,13 @@ const InstallAppPrompt = () => {
 
   const handleInstall = async () => {
     if (!deferredPrompt || isInstalling) return;
-
     try {
       setIsInstalling(true);
       await deferredPrompt.prompt();
       const choice = await deferredPrompt.userChoice;
-
       if (choice.outcome === 'accepted') {
         setIsInstalled(true);
       }
-
       setDeferredPrompt(null);
     } catch (error) {
       console.error('Install prompt failed:', error);
@@ -101,30 +90,12 @@ const InstallAppPrompt = () => {
           <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
             <span className="text-white text-lg">⬇️</span>
           </div>
-
           <div className="flex-1 text-right">
             <div className="text-white font-black text-sm">התקן את INNER</div>
-            <div className="text-white/50 text-[11px] font-bold mt-1 leading-5">
-              התקנה מלאה למסך הבית עם פתיחה כמו אפליקציה
-            </div>
-
+            <div className="text-white/50 text-[11px] font-bold mt-1 leading-5">התקנה מלאה למסך הבית עם פתיחה כמו אפליקציה</div>
             <div className="flex items-center justify-end gap-2 mt-3">
-              <button
-                type="button"
-                onClick={() => setDismissed(true)}
-                className="h-10 px-4 rounded-2xl bg-white/5 border border-white/10 text-white/60 text-xs font-black active:scale-95 transition-all"
-              >
-                אחר כך
-              </button>
-
-              <button
-                type="button"
-                onClick={handleInstall}
-                disabled={isInstalling}
-                className="h-10 px-5 rounded-2xl bg-white text-black text-xs font-black active:scale-95 transition-all disabled:opacity-60"
-              >
-                {isInstalling ? 'טוען...' : 'התקן אפליקציה'}
-              </button>
+              <button type="button" onClick={() => setDismissed(true)} className="h-10 px-4 rounded-2xl bg-white/5 border border-white/10 text-white/60 text-xs font-black active:scale-95 transition-all">אחר כך</button>
+              <button type="button" onClick={handleInstall} disabled={isInstalling} className="h-10 px-5 rounded-2xl bg-white text-black text-xs font-black active:scale-95 transition-all disabled:opacity-60">{isInstalling ? 'טוען...' : 'התקן אפליקציה'}</button>
             </div>
           </div>
         </div>
@@ -136,7 +107,6 @@ const InstallAppPrompt = () => {
 // חסימת עמודים לאורחים
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
-
   if (loading) {
     return (
       <div className="min-h-screen bg-[#030303] flex items-center justify-center text-white/20 font-black tracking-widest">
@@ -144,9 +114,7 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
       </div>
     );
   }
-
   if (!user) return <Navigate to="/auth" />;
-
   return <>{children}</>;
 };
 
@@ -168,16 +136,15 @@ export const App = () => {
               }
             }}
           />
-
           <InstallAppPrompt />
-
           <Layout>
             <Routes>
               <Route path="/auth" element={<AuthPage />} />
-
               <Route path="/" element={<PrivateRoute><HomePage /></PrivateRoute>} />
               <Route path="/explore" element={<PrivateRoute><ExplorePage /></PrivateRoute>} />
               <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
+              {/* הנה הראוט החדש שסוגר את הפינה של מעברי הפרופילים! */}
+              <Route path="/profile/:username" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
               <Route path="/edit-profile" element={<PrivateRoute><EditProfilePage /></PrivateRoute>} />
               <Route path="/circle/:slug" element={<PrivateRoute><CirclePage /></PrivateRoute>} />
               <Route path="/create-circle" element={<PrivateRoute><CreateCirclePage /></PrivateRoute>} />
