@@ -1,196 +1,344 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, Loader2, Camera, UserCircle, Save } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { UserCircle, Edit2, Zap, ChevronLeft, ChevronDown, Loader2, Award, Flame, Wallet, Users, Crown, Heart, MessageSquare, ShoppingBag, Link as LinkIcon, UserPlus, UserCheck, MapPin, Calendar, GraduationCap, HeartHandshake, Shield, Camera, Save, KeyRound } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabase';
 import { apiFetch } from '../lib/api';
-import { FadeIn, GlassCard, Button, Input } from '../components/ui';
+import { supabase } from '../lib/supabase';
+import { FadeIn, Button, GlassCard } from '../components/ui';
 import { triggerFeedback } from '../lib/sound';
+import toast from 'react-hot-toast';
 
 export const EditProfilePage: React.FC = () => {
   const navigate = useNavigate();
-  // הורדנו את refreshProfile שעשה את הקריסה
-  const { profile } = useAuth(); 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { user, profile: authProfile, loading: authLoading, reloadProfile } = useAuth();
 
-  const [fullName, setFullName] = useState('');
-  const [username, setUsername] = useState('');
-  const [bio, setBio] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState('');
+  const [mounted, setMounted] = useState(false);
   
-  const [uploading, setUploading] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [savingDetails, setSavingDetails] = useState(false);
+  const [updatingPassword, setUpdatingPassword] = useState(false);
+
+  // מדינת טופס הפרטים האישיים - מחובר אמיתי!
+  const [formData, setFormData] = useState({
+    full_name: '',
+    username: '',
+    bio: '',
+    social_link: '',
+    zodiac: '',
+    location: '',
+    birth_date: '',
+    relationship_status: '',
+    education: '',
+  });
+  
+  // מדינת טופס סיסמה
+  const [passwordData, setPasswordData] = useState({
+    current_password: '',
+    new_password: '',
+    confirm_password: '',
+  });
+  
+  const [data, setData] = useState<any>({ profile: {}, memberships: [], ownedCircles: [] });
+  const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
-    if (profile) {
-      setFullName(profile.full_name || '');
-      setUsername(profile.username || '');
-      setBio(profile.bio || '');
-      setAvatarUrl(profile.avatar_url || '');
-    }
-  }, [profile]);
+    setMounted(true);
+    const loadProfileData = async () => {
+      try {
+        setLoadingData(true);
+        const { data: authData } = await supabase.auth.getUser();
+        
+        if (authData.user) {
+          const headers = authData.user ? { 'x-user-id': authData.user.id } : {};
+          const result = await apiFetch<any>('/api/profile/collection', { headers });
+          setData(result);
+          
+          if (result.profile) {
+            setFormData({
+              full_name: result.profile.full_name || '',
+              username: result.profile.username || '',
+              bio: result.profile.bio || '',
+              social_link: result.profile.social_link || '',
+              zodiac: result.profile.zodiac || '',
+              location: result.profile.location || '',
+              // המרת תאריך לפורמט YYYY-MM-DD עבור ה-Input
+              birth_date: result.profile.birth_date ? new Date(result.profile.birth_date).toISOString().split('T')[0] : '',
+              relationship_status: result.profile.relationship_status || '',
+              education: result.profile.education || '',
+            });
+          }
+        }
+      } catch (err) { 
+        console.error(err);
+        toast.error('שגיאה בטעינת הנתונים', { style: { background: '#111', color: '#ef4444' } });
+      } finally { 
+        setLoadingData(false); 
+      }
+    };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (user && !authLoading) loadProfileData();
+  }, [user, authLoading]);
+
+  const handleMediaUpload = async (file: File, type: 'avatar' | 'cover') => {
+    if (!file || !authProfile?.id) return;
+    
+    const setUploading = type === 'avatar' ? setUploadingAvatar : setUploadingCover;
+    setUploading(true);
+    const tid = toast.loading(`מעדכן תמונת ${type === 'avatar' ? 'פרופיל' : 'נושא'}...`, { style: { background: '#111', color: '#fff' } });
+    
     try {
-      const file = e.target.files?.[0];
-      if (!file) return;
+      const { data: authData } = await supabase.auth.getUser();
+      if (!authData.user) throw new Error('Not logged in');
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${authData.user.id}_${type}_${Date.now()}.${fileExt}`;
       
-      triggerFeedback('pop');
-      setUploading(true);
-      const tid = toast.loading('מעדכן את הלוק שלך...');
-      
-      const fileName = `avatar_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-      
-      const { error } = await supabase.storage.from('avatars').upload(fileName, file); 
-      if (error) throw error;
-      
-      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(fileName);
-      setAvatarUrl(publicUrl);
-      toast.success('תמונה הועלתה!', { id: tid });
-      triggerFeedback('success');
+      const { data: uploadData, error: uploadError } = await supabase.storage.from('feed_images').upload(fileName, file);
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage.from('feed_images').getPublicUrl(uploadData.path);
+
+      const fieldToUpdate = type === 'avatar' ? 'avatar_url' : 'cover_url';
+      const { error: updateError } = await supabase.from('profiles').update({ [fieldToUpdate]: publicUrl }).eq('id', authData.user.id);
+      if (updateError) throw updateError;
+
+      reloadProfile();
+      setData((prev: any) => ({ ...prev, profile: { ...prev.profile, [fieldToUpdate]: publicUrl } }));
+      toast.success(`תמונת ה${type === 'avatar' ? 'פרופיל' : 'נושא'} עודכנה בהצלחה!`, { id: tid, style: { background: '#111', color: '#e5e4e2', border: '1px solid rgba(229,228,226,0.2)' } });
     } catch (err) {
-      triggerFeedback('error');
-      toast.error('שגיאה בהעלאת התמונה');
+      toast.error('שגיאה בהעלאת התמונה', { id: tid, style: { background: '#111', color: '#ef4444' } });
     } finally {
       setUploading(false);
     }
   };
 
-  const handleSave = async () => {
-    if (!fullName.trim() || !username.trim()) {
-      triggerFeedback('error');
-      return toast.error('שם ושם משתמש הם חובה');
-    }
-
-    setSaving(true);
+  // שמירת פרטים אישיים - מחובר אמיתי!
+  const handleSaveDetails = async () => {
+    if (!user?.id || savingDetails) return;
+    setSavingDetails(true);
     triggerFeedback('pop');
+    const tid = toast.loading('שומר שינויים...', { style: { background: '#111', color: '#fff' } });
+    
     try {
-      await apiFetch('/api/profile', {
-        method: 'PUT',
-        body: JSON.stringify({ 
-          full_name: fullName.trim(), 
-          username: username.trim().toLowerCase(), 
-          bio: bio.trim(), 
-          avatar_url: avatarUrl 
-        })
-      });
+      // המרת מחרוזת ריקה ל-NULL עבור שדה התאריך כדי ש-Supabase לא ייכשל
+      const updates = {
+        ...formData,
+        birth_date: formData.birth_date === '' ? null : formData.birth_date,
+      };
+
+      const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
+      if (error) throw error;
       
-      triggerFeedback('coin');
-      toast.success('הפרופיל עודכן בהצלחה! 👑', { style: { background: '#22c55e', color: '#000' } });
-      
-      // כדי להבטיח שהכל (כולל תפריטים) יתעדכן עם התמונה החדשה, נעשה רענון קל לעמוד הפרופיל
-      setTimeout(() => {
-        window.location.href = '/profile';
-      }, 500);
-      
-    } catch (err: any) {
-      triggerFeedback('error');
-      toast.error(err.message || 'שגיאה בשמירת הפרופיל');
+      reloadProfile();
+      toast.success('הפרטים עודכנו בהצלחה!', { id: tid, style: { background: '#111', color: '#e5e4e2', border: '1px solid rgba(229,228,226,0.2)' } });
+    } catch (err) {
+      console.error(err);
+      toast.error('שגיאה בשמירת הפרטים', { id: tid, style: { background: '#111', color: '#ef4444' } });
     } finally {
-      setSaving(false);
+      setSavingDetails(false);
     }
   };
 
-  return (
-    <FadeIn className="px-5 pt-8 pb-32 bg-[#030303] min-h-screen font-sans relative" dir="rtl">
+  // שמירת סיסמה חדשה - מחובר אמיתי!
+  const handleUpdatePassword = async () => {
+    if (!user?.id || updatingPassword) return;
+    
+    if (passwordData.new_password !== passwordData.confirm_password) {
+      toast.error('הסיסמאות החדשות לא תואמות', { style: { background: '#111', color: '#ef4444' } });
+      return;
+    }
+
+    if (passwordData.new_password.length < 6) {
+        toast.error('הסיסמה החדשה חייבת להיות לפחות 6 תווים', { style: { background: '#111', color: '#ef4444' } });
+        return;
+    }
+
+    setUpdatingPassword(true);
+    triggerFeedback('pop');
+    const tid = toast.loading('מעדכן סיסמה...', { style: { background: '#111', color: '#fff' } });
+    
+    try {
+      const { error } = await supabase.auth.updateUser({ password: passwordData.new_password });
+      if (error) throw error;
       
-      <div className="flex justify-between items-center mb-8 relative z-10">
-        <div className="w-8"></div>
-        <div className="flex flex-col items-center">
-          <h1 className="text-2xl font-black text-white">עריכת זהות</h1>
-          <span className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-1">הפנים שלך במועדון</span>
+      setPasswordData({ current_password: '', new_password: '', confirm_password: '' });
+      toast.success('הסיסמה עודכנה בהצלחה!', { id: tid, style: { background: '#111', color: '#e5e4e2', border: '1px solid rgba(229,228,226,0.2)' } });
+    } catch (err) {
+      console.error(err);
+      toast.error('שגיאה בעדכון הסיסמה', { id: tid, style: { background: '#111', color: '#ef4444' } });
+    } finally {
+      setUpdatingPassword(false);
+    }
+  };
+
+  if (authLoading || loadingData) return <div className="min-h-screen bg-[#0C0C0C] flex items-center justify-center"><Loader2 className="animate-spin text-white/20" /></div>;
+
+  return (
+    <div className="bg-[#0C0C0C] min-h-screen relative font-sans" dir="rtl">
+      
+      {/* תאורה חלבית מרומזת ברקע השחור */}
+      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden flex justify-center">
+        <div className="absolute top-[-10%] left-[-20%] w-[60%] h-[40%] bg-white/10 blur-[120px] rounded-full mix-blend-screen"></div>
+        <div className="absolute bottom-[-10%] right-[-20%] w-[60%] h-[40%] bg-white/5 blur-[120px] rounded-full mix-blend-screen"></div>
+      </div>
+
+      {/* בר עליון צף - כפתור חזרה */}
+      <div className="fixed top-6 left-4 right-4 flex justify-between items-center z-50 pointer-events-none">
+        <button onClick={() => { triggerFeedback('pop'); navigate(-1); }} className="pointer-events-auto w-10 h-10 flex justify-center items-center bg-black/40 backdrop-blur-xl border border-white/10 rounded-full shadow-lg active:scale-90 transition-all hover:bg-black/60">
+          <ChevronLeft size={20} className="text-white" />
+        </button>
+        <div className="bg-black/40 backdrop-blur-xl border border-white/10 px-4 py-2 rounded-full shadow-lg flex items-center gap-2">
+           <span className="text-white/60 font-black text-[13px] tracking-wide">עריכת פרופיל</span> <Edit2 size={16} className="text-[#e5e4e2]" />
         </div>
-        <button onClick={() => { triggerFeedback('pop'); navigate(-1); }} className="w-8 h-8 flex justify-center items-center bg-white/5 rounded-full shadow-inner active:scale-90 transition-all">
-          <ArrowRight size={16} />
+      </div>
+
+      {/* תמונת נושא - שכבה אחורית עם אפקט מעוגל למטה */}
+      <div className="fixed top-0 left-0 w-full h-[220px] bg-[#111] z-0 rounded-b-[40px] overflow-hidden shadow-2xl origin-top border-b border-white/5 group">
+        {data.profile.cover_url ? (
+          <img src={data.profile.cover_url} className="w-full h-full object-cover opacity-80" />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-b from-[#2196f3]/10 to-transparent"></div>
+        )}
+        
+        {/* כפתור החלפת קאבר (גלריה) */}
+        <input type="file" ref={coverInputRef} onChange={(e) => handleMediaUpload(e.target.files![0], 'cover')} accept="image/*" className="hidden" />
+        <button 
+          onClick={() => coverInputRef.current?.click()} 
+          disabled={uploadingCover}
+          className="absolute bottom-3 right-3 w-9 h-9 bg-black/50 backdrop-blur-md text-white rounded-full flex items-center justify-center shadow-lg border border-white/20 active:scale-90 transition-all z-20 hover:bg-black/70 disabled:opacity-50"
+        >
+          {uploadingCover ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
         </button>
       </div>
 
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        onChange={handleFileUpload} 
-        accept="image/*" 
-        className="hidden" 
-      />
-
-      <div className="flex justify-center mb-8 relative z-10">
-        <motion.div 
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => fileInputRef.current?.click()}
-          className="relative cursor-pointer group"
-        >
-          <div className="absolute inset-0 bg-purple-500/20 blur-xl rounded-full scale-110"></div>
+      {/* תוכן הפרופיל שגולל על הקאבר */}
+      <FadeIn className="relative z-10 pt-[170px] pb-32">
+        <div className="bg-[#0C0C0C]/90 backdrop-blur-3xl rounded-t-[40px] px-4 min-h-screen flex flex-col items-center pt-0 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] border-t border-white/5">
           
-          <div className="w-28 h-28 rounded-[28px] bg-[#0A0A0A] border-2 border-white/10 overflow-hidden shadow-2xl relative z-10 flex items-center justify-center">
-            {uploading ? (
-              <Loader2 size={30} className="animate-spin text-purple-400" />
-            ) : avatarUrl ? (
-              <img src={avatarUrl} className="w-full h-full object-cover" alt="Avatar" />
-            ) : (
-              <UserCircle size={50} className="text-white/20" />
-            )}
+          {/* תמונת פרופיל - חותכת בדיוק בחצי */}
+          <motion.div whileHover={{ scale: 1.05 }} className="w-[110px] h-[110px] rounded-full bg-[#0C0C0C] shadow-[0_10px_30px_rgba(0,0,0,0.8)] p-1.5 relative -mt-[55px] z-20 group">
+            <div className="w-full h-full rounded-full overflow-hidden bg-[#1a1a1a] border border-white/5 relative">
+              {data.profile.avatar_url ? (
+                <img src={data.profile.avatar_url} className="w-full h-full object-cover" alt="" />
+              ) : (
+                <UserCircle size={50} className="text-white/20 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+              )}
+            </div>
             
-            {!uploading && (
-              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity backdrop-blur-sm">
-                <Camera size={24} className="text-white" />
+            {/* כפתור החלפת תמונת פרופיל (גלריה) */}
+            <input type="file" ref={avatarInputRef} onChange={(e) => handleMediaUpload(e.target.files![0], 'avatar')} accept="image/*" className="hidden" />
+            <button 
+              onClick={() => avatarInputRef.current?.click()} 
+              disabled={uploadingAvatar}
+              className="absolute bottom-1 left-1 w-8 h-8 bg-[#e5e4e2] text-black rounded-full flex items-center justify-center shadow-lg border-2 border-[#0C0C0C] active:scale-90 transition-all z-20 hover:bg-white disabled:opacity-50"
+            >
+              {uploadingAvatar ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} className="ml-0.5" />}
+            </button>
+          </motion.div>
+
+          <div className="px-4 flex flex-col gap-5 mt-10 w-full mb-2">
+            
+            {/* כרטיסיית פרטים אישיים - מרובעת מעוגלת-פינות (כמו ארנק) וחלבית */}
+            <GlassCard rounded="2xl" className="p-6 border border-white/10 flex flex-col gap-5 rounded-[20px]">
+              <div className="flex justify-between items-center border-b border-white/10 pb-4 mb-1">
+                <div className="flex flex-col text-right">
+                  <span className="text-white font-black text-[15px] tracking-wide">פרטים אישיים</span>
+                  <span className="text-white/30 text-[10px] uppercase font-bold tracking-widest">PERSONAL DETAILS</span>
+                </div>
+                <Users size={18} className="text-[#e5e4e2]" />
               </div>
-            )}
+              
+              <div className="flex flex-col gap-4">
+                 <div className="flex flex-col gap-1.5 text-right w-full">
+                   <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5"><span>שם מלא</span> <UserCheck size={12} /></label>
+                   <input type="text" value={formData.full_name} onChange={e => setFormData(prev => ({...prev, full_name: e.target.value}))} className="bg-transparent border border-white/5 rounded-lg px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors" placeholder="ישראל ישראלי" />
+                 </div>
+                 <div className="flex flex-col gap-1.5 text-right w-full">
+                   <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5"><span>שם משתמש (@)</span> <Edit2 size={12} /></label>
+                   <input type="text" value={formData.username} onChange={e => setFormData(prev => ({...prev, username: e.target.value}))} className="bg-transparent border border-white/5 rounded-lg px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors" placeholder="user123" />
+                 </div>
+                 <div className="flex flex-col gap-1.5 text-right w-full">
+                   <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5"><span>ביו</span> <MessageSquare size={12} /></label>
+                   <textarea value={formData.bio} onChange={e => setFormData(prev => ({...prev, bio: e.target.value}))} className="bg-transparent border border-white/5 rounded-lg px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors h-24 resize-none" placeholder="ספר קצת על עצמך..." />
+                 </div>
+                 <div className="flex flex-col gap-1.5 text-right w-full">
+                   <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5"><span>קישור חברתי</span> <LinkIcon size={12} /></label>
+                   <input type="text" value={formData.social_link} onChange={e => setFormData(prev => ({...prev, social_link: e.target.value}))} className="bg-transparent border border-white/5 rounded-lg px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors" placeholder="instagram.com/user" />
+                 </div>
+                 <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1.5 text-right w-full">
+                      <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5"><span>מתגורר ב</span> <MapPin size={12} /></label>
+                      <input type="text" value={formData.location} onChange={e => setFormData(prev => ({...prev, location: e.target.value}))} className="bg-transparent border border-white/5 rounded-lg px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors" placeholder="תל אביב" />
+                    </div>
+                    <div className="flex flex-col gap-1.5 text-right w-full">
+                      <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5"><span>תאריך לידה</span> <Calendar size={12} /></label>
+                      <input type="date" value={formData.birth_date} onChange={e => setFormData(prev => ({...prev, birth_date: e.target.value}))} className="bg-transparent border border-white/5 rounded-lg px-4 py-3 text-white text-[13px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors text-right" style={{colorScheme: 'dark'}} />
+                    </div>
+                 </div>
+                 <div className="flex flex-col gap-1.5 text-right w-full">
+                   <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5"><span>מצב משפחתי</span> <HeartHandshake size={12} /></label>
+                   <input type="text" value={formData.relationship_status} onChange={e => setFormData(prev => ({...prev, relationship_status: e.target.value}))} className="bg-transparent border border-white/5 rounded-lg px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors" placeholder="במערכת יחסים" />
+                 </div>
+                 <div className="flex flex-col gap-1.5 text-right w-full">
+                   <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5"><span>השכלה / קריירה</span> <GraduationCap size={12} /></label>
+                   <input type="text" value={formData.education} onChange={e => setFormData(prev => ({...prev, education: e.target.value}))} className="bg-transparent border border-white/5 rounded-lg px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors" placeholder="סטודנט למדעי המחשב" />
+                 </div>
+                 <div className="flex flex-col gap-1.5 text-right w-full">
+                   <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5"><span>מזל</span> <Crown size={12} /></label>
+                   <input type="text" value={formData.zodiac} onChange={e => setFormData(prev => ({...prev, zodiac: e.target.value}))} className="bg-transparent border border-white/5 rounded-lg px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors" placeholder="אריה" />
+                 </div>
+              </div>
+              
+              <div className="flex justify-end mt-4">
+                 {/* כפתור נטו טקסט, בלי אייקון! */}
+                 <Button onClick={handleSaveDetails} disabled={savingDetails} className="bg-[#e5e4e2] text-black rounded-lg font-black text-[13px] tracking-wide flex items-center justify-center active:scale-95 transition-transform px-8 h-11">
+                    {savingDetails ? <Loader2 size={16} className="animate-spin" /> : "שמור שינויים"}
+                 </Button>
+              </div>
+            </GlassCard>
+
+            {/* כרטיסיית אבטחה - מרובעת מעוגלת-פינות וחלבית */}
+            <GlassCard rounded="2xl" className="p-6 border border-white/10 flex flex-col gap-5 rounded-[20px]">
+              <div className="flex justify-between items-center border-b border-white/10 pb-4 mb-1">
+                <div className="flex flex-col text-right">
+                  <span className="text-white font-black text-[15px] tracking-wide">אבטחה וסיסמה</span>
+                  <span className="text-white/30 text-[10px] uppercase font-bold tracking-widest">SECURITY</span>
+                </div>
+                <KeyRound size={18} className="text-[#e5e4e2]" />
+              </div>
+              
+              <div className="flex flex-col gap-4">
+                 <div className="flex flex-col gap-1.5 text-right w-full">
+                   <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5"><span>סיסמה נוכחית</span> <Shield size={12} /></label>
+                   <input type="password" value={passwordData.current_password} onChange={e => setPasswordData(prev => ({...prev, current_password: e.target.value}))} className="bg-transparent border border-white/5 rounded-lg px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors" placeholder="••••••••" />
+                 </div>
+                 <div className="flex flex-col gap-1.5 text-right w-full">
+                   <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5"><span>סיסמה חדשה</span> <Shield size={12} /></label>
+                   <input type="password" value={passwordData.new_password} onChange={e => setPasswordData(prev => ({...prev, new_password: e.target.value}))} className="bg-transparent border border-white/5 rounded-lg px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors" placeholder="••••••••" />
+                 </div>
+                 <div className="flex flex-col gap-1.5 text-right w-full">
+                   <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5"><span>אימות סיסמה חדשה</span> <UserCheck size={12} /></label>
+                   <input type="password" value={passwordData.confirm_password} onChange={e => setPasswordData(prev => ({...prev, confirm_password: e.target.value}))} className="bg-transparent border border-white/5 rounded-lg px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors" placeholder="••••••••" />
+                 </div>
+              </div>
+              
+              <div className="flex justify-end mt-4">
+                 {/* כפתור נטו טקסט, בלי אייקון! */}
+                 <Button onClick={handleUpdatePassword} disabled={updatingPassword} className="bg-[#e5e4e2] text-black rounded-lg font-black text-[13px] tracking-wide flex items-center justify-center active:scale-95 transition-transform px-8 h-11">
+                    {updatingPassword ? <Loader2 size={16} className="animate-spin" /> : "עדכן סיסמה"}
+                 </Button>
+              </div>
+            </GlassCard>
+
           </div>
-          
-          <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center border-2 border-[#030303] shadow-lg z-20">
-            <Camera size={14} className="text-white" />
-          </div>
-        </motion.div>
-      </div>
 
-      <GlassCard className="p-6 flex flex-col gap-5 relative z-10 rounded-[32px]">
-        
-        <div className="flex flex-col gap-1.5">
-          <label className="text-white/40 text-[10px] font-black uppercase tracking-widest px-1 text-right">שם תצוגה</label>
-          <Input 
-            value={fullName} 
-            onChange={(e: any) => setFullName(e.target.value)} 
-            placeholder="איך יראו אותך בצ'אט?" 
-            className="h-14 bg-[#050505] text-right"
-          />
         </div>
+      </FadeIn>
 
-        <div className="flex flex-col gap-1.5">
-          <label className="text-white/40 text-[10px] font-black uppercase tracking-widest px-1 text-right">שם משתמש (User)</label>
-          <Input 
-            value={username} 
-            onChange={(e: any) => setUsername(e.target.value.toLowerCase())} 
-            placeholder="username" 
-            dir="ltr"
-            className="h-14 bg-[#050505] text-left"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <label className="text-white/40 text-[10px] font-black uppercase tracking-widest px-1 text-right">ביו (Bio)</label>
-          <textarea 
-            value={bio} 
-            onChange={(e) => setBio(e.target.value)} 
-            placeholder="ספר קצת על עצמך... (יופיע בפרופיל שלך)" 
-            className="w-full bg-[#050505] border border-white/10 rounded-2xl p-4 text-white text-right font-medium focus:border-white/30 transition-all h-28 resize-none shadow-inner text-sm placeholder:text-white/20 outline-none" 
-          />
-        </div>
-
-      </GlassCard>
-
-      <div className="mt-6 relative z-10">
-        <Button 
-          onClick={handleSave} 
-          disabled={saving || uploading}
-          className="w-full h-14 rounded-2xl bg-white text-black text-sm shadow-[0_0_20px_rgba(255,255,255,0.15)]"
-        >
-          {saving ? <Loader2 size={20} className="animate-spin" /> : <><Save size={18} /> עדכן פרופיל</>}
-        </Button>
-      </div>
-
-    </FadeIn>
+    </div>
   );
 };
