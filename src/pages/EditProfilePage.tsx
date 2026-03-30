@@ -1,17 +1,16 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { UserCircle, Edit2, Zap, ChevronLeft, ChevronDown, Loader2, Award, Flame, Wallet, Users, Crown, Heart, MessageSquare, ShoppingBag, Link as LinkIcon, UserPlus, UserCheck, MapPin, Calendar, GraduationCap, HeartHandshake, Shield, Camera, Save, KeyRound } from 'lucide-react';
+import { UserCircle, Edit2, ChevronLeft, Loader2, Users, MessageSquare, Link as LinkIcon, UserCheck, MapPin, Calendar, Book, Heart, Shield, Camera, Key } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { apiFetch } from '../lib/api';
 import { supabase } from '../lib/supabase';
-import { FadeIn, Button, GlassCard } from '../components/ui';
+import { FadeIn, Button } from '../components/ui';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 
 export const EditProfilePage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, profile: authProfile, loading: authLoading, reloadProfile } = useAuth();
+  const { user, loading: authLoading, reloadProfile } = useAuth();
 
   const [mounted, setMounted] = useState(false);
   
@@ -43,34 +42,39 @@ export const EditProfilePage: React.FC = () => {
   const [data, setData] = useState<any>({ profile: {} });
   const [loadingData, setLoadingData] = useState(true);
 
+  // משיכה ישירה מ-Supabase בלבד!
   useEffect(() => {
     setMounted(true);
     const loadProfileData = async () => {
       try {
         setLoadingData(true);
-        const { data: authData } = await supabase.auth.getUser();
-        
-        if (authData.user) {
-          const headers = authData.user ? { 'x-user-id': authData.user.id } : {};
-          const result = await apiFetch<any>('/api/profile/collection', { headers });
-          setData(result);
+        if (user?.id) {
+          const { data: profileData, error } = await supabase.from('profiles').select('*').eq('id', user.id).single();
           
-          if (result.profile) {
+          if (error) throw error;
+          setData({ profile: profileData });
+          
+          if (profileData) {
+            let safeDate = '';
+            if (profileData.birth_date && typeof profileData.birth_date === 'string') {
+              safeDate = profileData.birth_date.split('T')[0];
+            }
+
             setFormData({
-              full_name: result.profile.full_name || '',
-              username: result.profile.username || '',
-              bio: result.profile.bio || '',
-              social_link: result.profile.social_link || '',
-              zodiac: result.profile.zodiac || '',
-              location: result.profile.location || '',
-              birth_date: result.profile.birth_date ? new Date(result.profile.birth_date).toISOString().split('T')[0] : '',
-              relationship_status: result.profile.relationship_status || '',
-              education: result.profile.education || '',
+              full_name: profileData.full_name || '',
+              username: profileData.username || '',
+              bio: profileData.bio || '',
+              social_link: profileData.social_link || '',
+              zodiac: profileData.zodiac || '',
+              location: profileData.location || '',
+              birth_date: safeDate,
+              relationship_status: profileData.relationship_status || '',
+              education: profileData.education || '',
             });
           }
         }
       } catch (err: any) { 
-        toast.error(`שגיאה בטעינת הנתונים: ${err.message || ''}`, { style: { background: '#111', color: '#ef4444' } });
+        toast.error(`שגיאה בטעינת הנתונים: ${err.message}`, { style: { background: '#111', color: '#ef4444' } });
       } finally { 
         setLoadingData(false); 
       }
@@ -79,43 +83,38 @@ export const EditProfilePage: React.FC = () => {
     if (user && !authLoading) loadProfileData();
   }, [user, authLoading]);
 
+  // העלאת מדיה מאובטחת ישירות ל-Supabase
   const handleMediaUpload = async (file: File, type: 'avatar' | 'cover') => {
-    if (!file || !authProfile?.id) return;
+    if (!file || !user?.id) return;
     
     const setUploading = type === 'avatar' ? setUploadingAvatar : setUploadingCover;
     setUploading(true);
     const tid = toast.loading(`מעדכן תמונת ${type === 'avatar' ? 'פרופיל' : 'נושא'}...`, { style: { background: '#111', color: '#fff' } });
     
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      if (!authData.user) throw new Error('Not logged in');
-
       const fileExt = file.name.split('.').pop();
-      const fileName = `${authData.user.id}_${type}_${Date.now()}.${fileExt}`;
+      const fileName = `${user.id}_${type}_${Date.now()}.${fileExt}`;
       
       const { data: uploadData, error: uploadError } = await supabase.storage.from('feed_images').upload(fileName, file);
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage.from('feed_images').getPublicUrl(uploadData.path);
-
       const fieldToUpdate = type === 'avatar' ? 'avatar_url' : 'cover_url';
       
-      await apiFetch('/api/profile', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': authData.user.id },
-        body: JSON.stringify({ [fieldToUpdate]: publicUrl })
-      });
+      const { error: updateError } = await supabase.from('profiles').update({ [fieldToUpdate]: publicUrl }).eq('id', user.id);
+      if (updateError) throw updateError;
 
-      reloadProfile();
+      if (reloadProfile) reloadProfile();
       setData((prev: any) => ({ ...prev, profile: { ...prev.profile, [fieldToUpdate]: publicUrl } }));
       toast.success(`תמונת ה${type === 'avatar' ? 'פרופיל' : 'נושא'} עודכנה בהצלחה!`, { id: tid, style: { background: '#111', color: '#e5e4e2', border: '1px solid rgba(229,228,226,0.2)' } });
     } catch (err: any) {
-      toast.error(`שגיאה בהעלאה: ${err.message || ''}`, { id: tid, style: { background: '#111', color: '#ef4444' } });
+      toast.error(`שגיאה בהעלאה: ${err.message}`, { id: tid, style: { background: '#111', color: '#ef4444' } });
     } finally {
       setUploading(false);
     }
   };
 
+  // שמירת פרטים אישיים ישירות ל-Supabase - בלי שום שרת באמצע!
   const handleSaveDetails = async () => {
     if (!user?.id || savingDetails) return;
     setSavingDetails(true);
@@ -128,19 +127,14 @@ export const EditProfilePage: React.FC = () => {
         birth_date: formData.birth_date === '' ? null : formData.birth_date,
       };
 
-      const { data: authData } = await supabase.auth.getUser();
-      await apiFetch('/api/profile', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': authData.user?.id || '' },
-        body: JSON.stringify(updates)
-      });
+      const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
+      if (error) throw error;
       
-      reloadProfile();
+      if (reloadProfile) reloadProfile();
       toast.success('הפרטים עודכנו בהצלחה!', { id: tid, style: { background: '#111', color: '#e5e4e2', border: '1px solid rgba(229,228,226,0.2)' } });
     } catch (err: any) {
       console.error(err);
-      // כאן הקסם: הוא יכתוב לך באדום למה הוא לא מצליח לשמור
-      toast.error(`נכשל: ${err.message || 'שגיאה בשמירת הפרטים'}`, { id: tid, style: { background: '#111', color: '#ef4444' } });
+      toast.error(`נכשל בעדכון: ${err.message || 'שגיאה כללית'}`, { id: tid, style: { background: '#111', color: '#ef4444' } });
     } finally {
       setSavingDetails(false);
     }
@@ -169,7 +163,7 @@ export const EditProfilePage: React.FC = () => {
       toast.success('הסיסמה עודכנה בהצלחה!', { id: tid, style: { background: '#111', color: '#e5e4e2', border: '1px solid rgba(229,228,226,0.2)' } });
     } catch (err: any) {
       console.error(err);
-      toast.error(`שגיאה: ${err.message || 'שגיאה בעדכון הסיסמה'}`, { id: tid, style: { background: '#111', color: '#ef4444' } });
+      toast.error(`שגיאה: ${err.message}`, { id: tid, style: { background: '#111', color: '#ef4444' } });
     } finally {
       setUpdatingPassword(false);
     }
@@ -180,13 +174,12 @@ export const EditProfilePage: React.FC = () => {
   return (
     <div className="bg-[#0C0C0C] min-h-screen relative font-sans" dir="rtl">
       
-      {/* תאורה חלבית מרומזת ברקע השחור */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden flex justify-center">
         <div className="absolute top-[-10%] left-[-20%] w-[60%] h-[40%] bg-white/10 blur-[120px] rounded-full mix-blend-screen"></div>
         <div className="absolute bottom-[-10%] right-[-20%] w-[60%] h-[40%] bg-white/5 blur-[120px] rounded-full mix-blend-screen"></div>
       </div>
 
-      <div className="fixed top-6 left-4 right-4 flex justify-between items-center z-50 pointer-events-none">
+      <div className="fixed top-6 left-4 right-4 flex justify-between items-center z-[99999] pointer-events-none">
         <button onClick={() => { triggerFeedback('pop'); navigate(-1); }} className="pointer-events-auto w-10 h-10 flex justify-center items-center bg-black/40 backdrop-blur-xl border border-white/10 rounded-full shadow-lg active:scale-90 transition-all hover:bg-black/60">
           <ChevronLeft size={20} className="text-white" />
         </button>
@@ -195,53 +188,56 @@ export const EditProfilePage: React.FC = () => {
         </div>
       </div>
 
-      {/* הקאבר - עיצוב חלבי */}
       <div className="fixed top-0 left-0 w-full h-[220px] bg-[#111] z-0 rounded-b-[40px] overflow-hidden shadow-2xl origin-top border-b border-white/5 group">
-        {data.profile.cover_url ? (
+        {data.profile?.cover_url ? (
           <img src={data.profile.cover_url} className="w-full h-full object-cover opacity-80" />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-b from-[#2196f3]/10 to-transparent"></div>
         )}
       </div>
 
-      {/* כפתור החלפת קאבר - מחולץ לשכבה העליונה z-50 כדי שלא ייחסם! */}
-      <div className="fixed top-[165px] right-4 z-50">
-        <input type="file" ref={coverInputRef} onChange={(e) => handleMediaUpload(e.target.files![0], 'cover')} accept="image/*" className="hidden" />
+      <div className="fixed top-[160px] right-6 z-[99999]">
+        <input type="file" ref={coverInputRef} onChange={(e) => {
+            if (e.target.files && e.target.files[0]) handleMediaUpload(e.target.files[0], 'cover');
+            if (coverInputRef.current) coverInputRef.current.value = '';
+        }} accept="image/*" className="hidden" />
         <button 
-          onClick={() => coverInputRef.current?.click()} 
+          onClick={(e) => { e.preventDefault(); coverInputRef.current?.click(); }} 
           disabled={uploadingCover}
-          className="w-10 h-10 bg-black/60 backdrop-blur-xl text-[#e5e4e2] rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(0,0,0,0.5)] border border-white/20 active:scale-90 transition-all hover:bg-black/80 disabled:opacity-50 pointer-events-auto"
+          className="w-11 h-11 bg-black/80 backdrop-blur-2xl text-[#e5e4e2] rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(0,0,0,0.8)] border border-white/20 active:scale-90 transition-all hover:bg-black disabled:opacity-50 pointer-events-auto"
         >
-          {uploadingCover ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
+          {uploadingCover ? <Loader2 size={20} className="animate-spin" /> : <Camera size={20} />}
         </button>
       </div>
 
-      {/* תוכן הפרופיל שגולל על הקאבר */}
-      <FadeIn className="relative z-10 pt-[170px] pb-32">
-        <div className="bg-[#0C0C0C]/90 backdrop-blur-3xl rounded-t-[40px] px-4 min-h-screen flex flex-col items-center pt-0 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] border-t border-white/5">
+      <FadeIn className="relative z-10 pt-[170px] pb-32 pointer-events-auto">
+        <div className="bg-[#0C0C0C]/90 backdrop-blur-3xl rounded-t-[40px] px-4 min-h-screen flex flex-col items-center pt-0 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] border-t border-white/5 relative z-10">
           
           <motion.div whileHover={{ scale: 1.05 }} className="w-[110px] h-[110px] rounded-full bg-[#0C0C0C] shadow-[0_10px_30px_rgba(0,0,0,0.8)] p-1.5 relative -mt-[55px] z-20 group">
             <div className="w-full h-full rounded-full overflow-hidden bg-[#1a1a1a] border border-white/5 relative">
-              {data.profile.avatar_url ? (
+              {data.profile?.avatar_url ? (
                 <img src={data.profile.avatar_url} className="w-full h-full object-cover" alt="" />
               ) : (
                 <UserCircle size={50} className="text-white/20 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
               )}
             </div>
             
-            <input type="file" ref={avatarInputRef} onChange={(e) => handleMediaUpload(e.target.files![0], 'avatar')} accept="image/*" className="hidden" />
+            <input type="file" ref={avatarInputRef} onChange={(e) => {
+              if (e.target.files && e.target.files[0]) handleMediaUpload(e.target.files[0], 'avatar');
+              if (avatarInputRef.current) avatarInputRef.current.value = '';
+            }} accept="image/*" className="hidden" />
             <button 
               onClick={() => avatarInputRef.current?.click()} 
               disabled={uploadingAvatar}
-              className="absolute bottom-1 left-1 w-8 h-8 bg-[#e5e4e2] text-black rounded-full flex items-center justify-center shadow-lg border-2 border-[#0C0C0C] active:scale-90 transition-all z-20 hover:bg-white disabled:opacity-50"
+              className="absolute bottom-1 left-1 w-9 h-9 bg-[#e5e4e2] text-black rounded-full flex items-center justify-center shadow-lg border-4 border-[#0C0C0C] active:scale-90 transition-all z-20 hover:bg-white disabled:opacity-50"
             >
-              {uploadingAvatar ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} className="ml-0.5" />}
+              {uploadingAvatar ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} className="ml-0.5" />}
             </button>
           </motion.div>
 
           <div className="px-4 flex flex-col gap-5 mt-10 w-full mb-2">
             
-            <GlassCard rounded="2xl" className="p-6 border border-white/10 flex flex-col gap-5 rounded-[20px]">
+            <div className="bg-white/[0.02] backdrop-blur-xl border border-white/10 flex flex-col gap-5 rounded-[20px] p-6 shadow-2xl">
               <div className="flex justify-between items-center border-b border-white/10 pb-4 mb-1">
                 <div className="flex flex-col text-right">
                   <span className="text-white font-black text-[15px] tracking-wide">פרטים אישיים</span>
@@ -278,11 +274,11 @@ export const EditProfilePage: React.FC = () => {
                     </div>
                  </div>
                  <div className="flex flex-col gap-1.5 text-right w-full">
-                   <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5"><span>מצב משפחתי</span> <HeartHandshake size={12} /></label>
+                   <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5"><span>מצב משפחתי</span> <Heart size={12} /></label>
                    <input type="text" value={formData.relationship_status} onChange={e => setFormData(prev => ({...prev, relationship_status: e.target.value}))} className="bg-transparent border border-white/5 rounded-lg px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors" placeholder="במערכת יחסים" />
                  </div>
                  <div className="flex flex-col gap-1.5 text-right w-full">
-                   <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5"><span>השכלה / קריירה</span> <GraduationCap size={12} /></label>
+                   <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5"><span>השכלה / קריירה</span> <Book size={12} /></label>
                    <input type="text" value={formData.education} onChange={e => setFormData(prev => ({...prev, education: e.target.value}))} className="bg-transparent border border-white/5 rounded-lg px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors" placeholder="סטודנט למדעי המחשב" />
                  </div>
                  <div className="flex flex-col gap-1.5 text-right w-full">
@@ -296,15 +292,15 @@ export const EditProfilePage: React.FC = () => {
                     {savingDetails ? <Loader2 size={16} className="animate-spin" /> : "שמור שינויים"}
                  </Button>
               </div>
-            </GlassCard>
+            </div>
 
-            <GlassCard rounded="2xl" className="p-6 border border-white/10 flex flex-col gap-5 rounded-[20px]">
+            <div className="bg-white/[0.02] backdrop-blur-xl border border-white/10 flex flex-col gap-5 rounded-[20px] p-6 shadow-2xl">
               <div className="flex justify-between items-center border-b border-white/10 pb-4 mb-1">
                 <div className="flex flex-col text-right">
                   <span className="text-white font-black text-[15px] tracking-wide">אבטחה וסיסמה</span>
                   <span className="text-white/30 text-[10px] uppercase font-bold tracking-widest">SECURITY</span>
                 </div>
-                <KeyRound size={18} className="text-[#e5e4e2]" />
+                <Key size={18} className="text-[#e5e4e2]" />
               </div>
               
               <div className="flex flex-col gap-4">
@@ -327,7 +323,7 @@ export const EditProfilePage: React.FC = () => {
                     {updatingPassword ? <Loader2 size={16} className="animate-spin" /> : "עדכן סיסמה"}
                  </Button>
               </div>
-            </GlassCard>
+            </div>
 
           </div>
         </div>
