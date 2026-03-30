@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
-import { Loader2, Heart, MessageCircle, Share2, Bell, X, Reply, UserCircle, Plus, Video } from 'lucide-react';
+import { Loader2, Heart, MessageCircle, Share2, Bell, X, Reply, UserCircle, Video, Users, ArrowUpRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { apiFetch } from '../lib/api';
 import { FadeIn, Button } from '../components/ui';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 
 export const FeedPage: React.FC = () => {
+  const navigate = useNavigate();
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string>('');
@@ -22,6 +25,7 @@ export const FeedPage: React.FC = () => {
   const [loadingComments, setLoadingComments] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [replyingTo, setReplyingTo] = useState<any | null>(null);
+  const [editingComment, setEditingComment] = useState<any | null>(null);
 
   useEffect(() => {
     fetchPosts();
@@ -33,18 +37,41 @@ export const FeedPage: React.FC = () => {
       const { data: authData } = await supabase.auth.getUser();
       if (authData.user) setCurrentUserId(authData.user.id);
 
-      const { data, error } = await supabase
+      // 1. שליפת הפוסטים/הסרטונים החדשים מהמסד נתונים
+      const { data: newPosts, error } = await supabase
         .from('posts')
-        .select(`
-          *,
-          profiles(id, username, full_name, avatar_url),
-          post_likes(user_id),
-          post_comments(id)
-        `)
+        .select(`*, profiles(id, username, full_name, avatar_url), post_likes(user_id), post_comments(id)`)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setPosts(data || []);
+      // 2. שליפת הקהילות/הפוסטים הישנים שהעלית בעבר דרך ה-API הישן
+      let oldItems: any[] = [];
+      try {
+        const oldFeedData = await apiFetch<any>('/api/feed');
+        const circles = Array.isArray(oldFeedData) ? oldFeedData : (oldFeedData?.items || oldFeedData?.circles || oldFeedData?.data || []);
+        
+        // מיפוי התוכן הישן לעיצוב הטיקטוק החדש
+        oldItems = circles.map((c: any) => ({
+          id: c.id || c.slug,
+          is_circle: true,
+          slug: c.slug,
+          media_type: 'image',
+          media_url: c.cover_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop',
+          content: c.description || 'אין תיאור לקהילה זו',
+          created_at: c.created_at || new Date().toISOString(),
+          profiles: { username: c.name, full_name: c.name, avatar_url: c.cover_url },
+          post_likes: [],
+          post_comments: []
+        }));
+      } catch (e) {
+        console.log('No old feed data found', e);
+      }
+
+      // מיזוג של הכל ביחד וסידור לפי תאריך
+      const combinedPosts = [...(newPosts || []), ...oldItems].sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      setPosts(combinedPosts);
     } catch (err) {
       console.error(err);
     } finally {
@@ -52,7 +79,6 @@ export const FeedPage: React.FC = () => {
     }
   };
 
-  // פונקציית הקסם: מעלה סרטון דמו!
   const createDemoPost = async () => {
     triggerFeedback('pop');
     const tid = toast.loading('מעלה סרטון דמו...');
@@ -60,18 +86,20 @@ export const FeedPage: React.FC = () => {
       const { error } = await supabase.from('posts').insert({
         user_id: currentUserId,
         content: 'זה הסרטון הראשון שלי באפליקציה החדשה! 🔥 בואו נראה איך עובדות התגובות והלייקים...',
-        media_url: 'https://cdn.pixabay.com/video/2020/05/24/40061-424553805_tiny.mp4', // סרטון אנכי חינמי
+        media_url: 'https://cdn.pixabay.com/video/2020/05/24/40061-424553805_tiny.mp4',
         media_type: 'video'
       });
       if (error) throw error;
       toast.success('הסרטון באוויר!', { id: tid });
       fetchPosts();
     } catch (e: any) {
-      toast.error('שגיאה: ' + e.message, { id: tid });
+      toast.error('שגיאה בהעלאה: בדוק שביטלת את ה-RLS בטבלת posts', { id: tid });
     }
   };
 
-  const handleLikePost = async (postId: string, isLiked: boolean) => {
+  const handleLikePost = async (postId: string, isLiked: boolean, isCircle: boolean) => {
+    if (isCircle) return toast('לייקים למועדונים יתווספו בקרוב!', { icon: '✨', style: {background: '#111', color: '#fff'} });
+    
     triggerFeedback('pop');
     setPosts(posts.map(p => {
       if (p.id === postId) {
@@ -91,12 +119,15 @@ export const FeedPage: React.FC = () => {
     }
   };
 
-  const openComments = async (postId: string) => {
+  const openComments = async (postId: string, isCircle: boolean) => {
+    if (isCircle) return toast('תגובות למועדונים יפתחו בקרוב!', { icon: '💬', style: {background: '#111', color: '#fff'} });
+    
     triggerFeedback('pop');
     setActiveCommentsPostId(postId);
     setLoadingComments(true);
     setComments([]);
     setReplyingTo(null);
+    setEditingComment(null);
 
     try {
       const { data, error } = await supabase
@@ -121,20 +152,33 @@ export const FeedPage: React.FC = () => {
     triggerFeedback('pop');
 
     try {
-      const { data, error } = await supabase
-        .from('post_comments')
-        .insert({
-          post_id: activeCommentsPostId,
-          user_id: currentUserId,
-          content: text,
-          parent_id: replyingTo ? replyingTo.id : null
-        })
-        .select('*, profiles(id, username, full_name, avatar_url), comment_likes(user_id)').single();
+      if (editingComment) {
+        const { data, error } = await supabase
+          .from('post_comments')
+          .update({ content: text, updated_at: new Date().toISOString() })
+          .eq('id', editingComment.id)
+          .select('*, profiles(id, username, full_name, avatar_url), comment_likes(user_id)').single();
+          
+        if (error) throw error;
+        setComments(comments.map(c => c.id === editingComment.id ? data : c));
+        setEditingComment(null);
+        toast.success('התגובה עודכנה');
+      } else {
+        const { data, error } = await supabase
+          .from('post_comments')
+          .insert({
+            post_id: activeCommentsPostId,
+            user_id: currentUserId,
+            content: text,
+            parent_id: replyingTo ? replyingTo.id : null
+          })
+          .select('*, profiles(id, username, full_name, avatar_url), comment_likes(user_id)').single();
 
-      if (error) throw error;
-      setComments([...comments, data]);
-      setReplyingTo(null);
-      setPosts(posts.map(p => p.id === activeCommentsPostId ? { ...p, post_comments: [...(p.post_comments||[]), {id: data.id}] } : p));
+        if (error) throw error;
+        setComments([...comments, data]);
+        setReplyingTo(null);
+        setPosts(posts.map(p => p.id === activeCommentsPostId ? { ...p, post_comments: [...(p.post_comments||[]), {id: data.id}] } : p));
+      }
     } catch (err) {
       toast.error('שגיאה בשליחת התגובה');
     }
@@ -190,7 +234,7 @@ export const FeedPage: React.FC = () => {
             </div>
             <div>
               <h2 className="text-white font-black text-[22px] mb-2">הפיד ריק!</h2>
-              <p className="text-white/40 text-[13px] font-medium leading-relaxed">עדיין אין סרטונים במערכת. לחץ על הכפתור למטה כדי להזריק סרטון דמו ולראות את העיצוב החדש בפעולה.</p>
+              <p className="text-white/40 text-[13px] font-medium leading-relaxed">עדיין אין סרטונים במערכת.</p>
             </div>
             <Button onClick={createDemoPost} className="h-14 px-8 mt-4 bg-white text-black font-black text-[14px] uppercase tracking-widest rounded-full shadow-[0_0_20px_rgba(255,255,255,0.2)]">
               העלה סרטון דמו
@@ -199,9 +243,10 @@ export const FeedPage: React.FC = () => {
         ) : (
           posts.map(post => {
             const isLiked = (post.post_likes || []).some((l: any) => l.user_id === currentUserId);
+            const isCircle = post.is_circle;
             
             return (
-              <div key={post.id} className="relative w-full h-[100vh] bg-[#0A0A0A] overflow-hidden snap-center">
+              <div key={post.id} className="relative w-full h-[100vh] bg-[#0A0A0A] overflow-hidden snap-center border-b border-white/5">
                 {post.media_type === 'video' ? (
                   <video src={post.media_url} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover z-0" />
                 ) : (
@@ -212,8 +257,18 @@ export const FeedPage: React.FC = () => {
 
                 <div className="absolute bottom-24 left-0 right-0 z-20 p-5 flex items-end justify-between pointer-events-none">
                   <div className="flex flex-col gap-3 max-w-[75%] pointer-events-auto">
+                    
+                    {/* אם זה קהילה/מועדון ישן - מציג כפתור כניסה */}
+                    {isCircle && (
+                      <button onClick={() => navigate(`/circle/${post.slug}`)} className="mb-1 w-max px-3 py-1.5 bg-white/20 backdrop-blur-md border border-white/30 rounded-full flex items-center gap-1.5 text-white font-black text-[10px] uppercase tracking-widest active:scale-95 transition-transform">
+                        <Users size={12} />
+                        היכנס לקהילה
+                        <ArrowUpRight size={12} />
+                      </button>
+                    )}
+
                     <div className="flex items-center gap-2">
-                      <div className="w-10 h-10 rounded-full border-2 border-white overflow-hidden shadow-lg bg-black">
+                      <div className={`w-10 h-10 rounded-full border-2 border-white overflow-hidden shadow-lg bg-black ${isCircle ? 'rounded-[12px]' : ''}`}>
                         {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={20} className="text-white w-full h-full p-1" />}
                       </div>
                       <span className="text-white font-black text-[15px] drop-shadow-md">{post.profiles?.full_name || `@${post.profiles?.username}`}</span>
@@ -228,14 +283,14 @@ export const FeedPage: React.FC = () => {
                   </div>
 
                   <div className="flex flex-col gap-5 items-center pb-2 pointer-events-auto">
-                    <button onClick={() => handleLikePost(post.id, isLiked)} className="flex flex-col items-center gap-1.5 active:scale-75 transition-all">
+                    <button onClick={() => handleLikePost(post.id, isLiked, isCircle)} className="flex flex-col items-center gap-1.5 active:scale-75 transition-all">
                       <div className="w-12 h-12 rounded-full bg-black/20 backdrop-blur-md border border-white/10 flex items-center justify-center shadow-lg">
                         <Heart size={24} className={isLiked ? 'text-red-500 fill-red-500' : 'text-white'} />
                       </div>
                       <span className="text-white font-bold text-[11px] drop-shadow-md">{post.post_likes?.length || 0}</span>
                     </button>
 
-                    <button onClick={() => openComments(post.id)} className="flex flex-col items-center gap-1.5 active:scale-75 transition-all">
+                    <button onClick={() => openComments(post.id, isCircle)} className="flex flex-col items-center gap-1.5 active:scale-75 transition-all">
                       <div className="w-12 h-12 rounded-full bg-black/20 backdrop-blur-md border border-white/10 flex items-center justify-center shadow-lg">
                         <MessageCircle size={24} className="text-white" />
                       </div>
@@ -271,7 +326,7 @@ export const FeedPage: React.FC = () => {
                   <div onPointerDown={(e) => descDragControls.start(e)} style={{ touchAction: 'none' }} className="w-full flex flex-col items-center pt-5 pb-4 cursor-grab active:cursor-grabbing bg-white/[0.02]">
                     <div className="w-16 h-1.5 bg-white/20 rounded-full mb-4 pointer-events-none"></div>
                     <div className="px-6 pb-2 flex items-center justify-start w-full">
-                      <h3 className="text-[16px] font-black text-white">תיאור הפוסט</h3>
+                      <h3 className="text-[16px] font-black text-white">תיאור מלא</h3>
                     </div>
                   </div>
                   <div className="p-6 overflow-y-auto scrollbar-hide text-white/80 text-[14px] leading-loose whitespace-pre-wrap pb-20">
@@ -327,7 +382,10 @@ export const FeedPage: React.FC = () => {
                                 <div className="flex items-center gap-4 mt-1 text-white/40 text-[11px] font-bold">
                                   <button onClick={() => setReplyingTo(comment)} className="hover:text-white flex items-center gap-1"><Reply size={12}/> הגב</button>
                                   {isMyComment && (
-                                    <button onClick={() => deleteComment(comment.id)} className="hover:text-red-400 flex items-center gap-1">מחק</button>
+                                    <>
+                                      <button onClick={() => { setEditingComment(comment); setCommentText(comment.content); }} className="hover:text-white flex items-center gap-1">ערוך</button>
+                                      <button onClick={() => deleteComment(comment.id)} className="hover:text-red-400 flex items-center gap-1">מחק</button>
+                                    </>
                                   )}
                                 </div>
                               </div>
@@ -351,7 +409,12 @@ export const FeedPage: React.FC = () => {
                                         <span className="text-white/60 text-[11px] font-black">{reply.profiles?.username || 'משתמש'}</span>
                                         <p className="text-white/90 text-[13px]">{reply.content}</p>
                                         <div className="flex items-center gap-3 mt-1 text-white/40 text-[10px] font-bold">
-                                          {isMyReply && <button onClick={() => deleteComment(reply.id)} className="hover:text-red-400">מחק</button>}
+                                          {isMyReply && (
+                                            <>
+                                              <button onClick={() => { setEditingComment(reply); setCommentText(reply.content); }} className="hover:text-white">ערוך</button>
+                                              <button onClick={() => deleteComment(reply.id)} className="hover:text-red-400">מחק</button>
+                                            </>
+                                          )}
                                         </div>
                                       </div>
                                       <button onClick={() => handleLikeComment(reply.id, isReplyLiked)} className="flex flex-col items-center gap-1 pt-1 shrink-0">
@@ -369,10 +432,10 @@ export const FeedPage: React.FC = () => {
                   </div>
 
                   <div className="absolute bottom-0 left-0 right-0 bg-[#111] border-t border-white/10 p-4 pb-8 flex flex-col gap-2 shadow-[0_-10px_20px_rgba(0,0,0,0.5)]">
-                    {replyingTo && (
+                    {(replyingTo || editingComment) && (
                       <div className="flex items-center justify-between px-2 text-[11px] text-[#2196f3] font-bold">
-                        <span>מגיב ל-@{replyingTo.profiles?.username || 'משתמש'}</span>
-                        <button onClick={() => setReplyingTo(null)}><X size={14}/></button>
+                        <span>{editingComment ? 'עורך תגובה...' : `מגיב ל-@${replyingTo.profiles?.username || 'משתמש'}`}</span>
+                        <button onClick={() => { setReplyingTo(null); setEditingComment(null); setCommentText(''); }}><X size={14}/></button>
                       </div>
                     )}
                     <div className="flex items-center gap-3 relative">
