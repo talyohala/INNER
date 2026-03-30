@@ -289,7 +289,7 @@ export const ProfilePage: React.FC = () => {
         ) : (
           <div className="absolute inset-0 bg-gradient-to-b from-[#2196f3]/10 to-transparent"></div>
         )}
-        <div className="absolute top-6 left-5 flex flex-col items-center">
+        <div className="absolute top-6 right-5 flex flex-col items-center">
            <span className="text-white/40 text-[9px] font-black uppercase tracking-widest mb-0.5 drop-shadow-md">רמה</span>
            <span className="text-[#e5e4e2] font-black text-[22px] leading-none drop-shadow-[0_0_12px_rgba(229,228,226,0.5)]">{currentLevel}</span>
         </div>
