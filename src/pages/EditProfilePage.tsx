@@ -11,8 +11,7 @@ import toast from 'react-hot-toast';
 
 export const EditProfilePage: React.FC = () => {
   const navigate = useNavigate();
-  // הסרתי את reloadProfile למקרה שהוא לא קיים אצלך ב-context וגורם לקריסה
-  const { user, profile: authProfile, loading: authLoading } = useAuth();
+  const { user, profile: authProfile, loading: authLoading, reloadProfile } = useAuth();
 
   const [mounted, setMounted] = useState(false);
   
@@ -57,14 +56,10 @@ export const EditProfilePage: React.FC = () => {
           setData(result);
           
           if (result.profile) {
-            // מנגנון הגנה חסין קריסות לתאריך
             let safeDate = '';
-            try {
-              if (result.profile.birth_date) {
-                safeDate = new Date(result.profile.birth_date).toISOString().split('T')[0];
-              }
-            } catch (e) {
-              console.warn("Invalid date format from DB");
+            if (result.profile.birth_date) {
+              try { safeDate = new Date(result.profile.birth_date).toISOString().split('T')[0]; } 
+              catch(e) {}
             }
 
             setFormData({
@@ -90,6 +85,7 @@ export const EditProfilePage: React.FC = () => {
     if (user && !authLoading) loadProfileData();
   }, [user, authLoading]);
 
+  // העלאה מאובטחת דרך השרת (שאליו הוספנו את cover_url!)
   const handleMediaUpload = async (file: File, type: 'avatar' | 'cover') => {
     if (!file || !user?.id) return;
     
@@ -107,9 +103,13 @@ export const EditProfilePage: React.FC = () => {
       const { data: { publicUrl } } = supabase.storage.from('feed_images').getPublicUrl(uploadData.path);
       const fieldToUpdate = type === 'avatar' ? 'avatar_url' : 'cover_url';
       
-      const { error: updateError } = await supabase.from('profiles').update({ [fieldToUpdate]: publicUrl }).eq('id', user.id);
-      if (updateError) throw updateError;
+      await apiFetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
+        body: JSON.stringify({ [fieldToUpdate]: publicUrl })
+      });
 
+      if (reloadProfile) reloadProfile();
       setData((prev: any) => ({ ...prev, profile: { ...prev.profile, [fieldToUpdate]: publicUrl } }));
       toast.success(`תמונת ה${type === 'avatar' ? 'פרופיל' : 'נושא'} עודכנה בהצלחה!`, { id: tid, style: { background: '#111', color: '#e5e4e2', border: '1px solid rgba(229,228,226,0.2)' } });
     } catch (err: any) {
@@ -131,13 +131,17 @@ export const EditProfilePage: React.FC = () => {
         birth_date: formData.birth_date === '' ? null : formData.birth_date,
       };
 
-      const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
-      if (error) throw error;
+      await apiFetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
+        body: JSON.stringify(updates)
+      });
       
+      if (reloadProfile) reloadProfile();
       toast.success('הפרטים עודכנו בהצלחה!', { id: tid, style: { background: '#111', color: '#e5e4e2', border: '1px solid rgba(229,228,226,0.2)' } });
     } catch (err: any) {
       console.error(err);
-      toast.error(`נכשל: ${err.message || 'שגיאה לא ידועה'}`, { id: tid, style: { background: '#111', color: '#ef4444' } });
+      toast.error(`שגיאה: ${err.message || 'נכשל בעדכון'}`, { id: tid, style: { background: '#111', color: '#ef4444' } });
     } finally {
       setSavingDetails(false);
     }
@@ -199,6 +203,7 @@ export const EditProfilePage: React.FC = () => {
         )}
       </div>
 
+      {/* כפתור החלפת קאבר */}
       <div className="fixed top-[160px] right-6 z-[99999]">
         <input type="file" ref={coverInputRef} onChange={(e) => {
             if (e.target.files && e.target.files[0]) handleMediaUpload(e.target.files[0], 'cover');
@@ -240,7 +245,6 @@ export const EditProfilePage: React.FC = () => {
 
           <div className="px-4 flex flex-col gap-5 mt-10 w-full mb-2">
             
-            {/* כרטיסיית פרטים אישיים - החלפתי את GlassCard ב-div קלאסי למניעת קריסות */}
             <div className="bg-white/[0.02] backdrop-blur-xl border border-white/10 flex flex-col gap-5 rounded-[20px] p-6 shadow-2xl">
               <div className="flex justify-between items-center border-b border-white/10 pb-4 mb-1">
                 <div className="flex flex-col text-right">
