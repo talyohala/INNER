@@ -1,8 +1,9 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useDragControls, useScroll, useTransform } from 'framer-motion';
-import { UserCircle, Edit2, Zap, ChevronLeft, ChevronDown, Loader2, Award, Flame, Wallet, Users, Crown, Heart, MessageSquare, ShoppingBag, Link as LinkIcon, UserPlus, UserCheck, MapPin, Calendar, GraduationCap, HeartHandshake, Shield } from 'lucide-react';
+// כאן הוספתי את האייקונים שהיו חסרים והקריסו את העמוד! (MapPin, Calendar, GraduationCap)
+import { UserCircle, Edit2, Zap, ChevronLeft, ChevronDown, Loader2, Users, Crown, Activity, Heart, MessageSquare, ShoppingBag, Link as LinkIcon, UserPlus, UserCheck, Shield, Wallet, Flame, MapPin, Calendar, GraduationCap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
 import { supabase } from '../lib/supabase';
@@ -38,7 +39,6 @@ export const ProfilePage: React.FC = () => {
   const [usersListData, setUsersListData] = useState<any[]>([]);
   const [loadingUsersList, setLoadingUsersList] = useState(false);
 
-  // הטאב של המועדונים
   const [activeClubTab, setActiveClubTab] = useState<'joined' | 'owned'>('joined');
 
   const isMyProfile = !routeId || routeId === authProfile?.username || routeId === user?.id;
@@ -257,10 +257,15 @@ export const ProfilePage: React.FC = () => {
     </AnimatePresence>
   , document.body) : null;
 
+  // פונקציה לתאריך בטוח שלא תקרוס
+  const getSafeDate = (dateStr: string) => {
+    try { return new Date(dateStr).toLocaleDateString('he-IL'); } 
+    catch (e) { return dateStr; }
+  };
+
   return (
     <div className="bg-[#0C0C0C] min-h-screen relative font-sans" dir="rtl">
       
-      {/* תאורה חלבית מרומזת ברקע השחור */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden flex justify-center">
         <div className="absolute top-[-10%] left-[-20%] w-[60%] h-[40%] bg-white/10 blur-[120px] rounded-full mix-blend-screen"></div>
         <div className="absolute bottom-[-10%] right-[-20%] w-[60%] h-[40%] bg-white/5 blur-[120px] rounded-full mix-blend-screen"></div>
@@ -317,15 +322,15 @@ export const ProfilePage: React.FC = () => {
 
             <div className="flex items-center justify-center gap-2 text-[13px] text-white/50 font-medium mb-5 w-full max-w-[280px] mx-auto flex-wrap">
                <span className="cursor-pointer hover:text-white transition-colors" onClick={() => openUsersListSheet('followers')}>
-                 <span className="font-black text-white">{followersCount}</span> עוקבים
+                 <span>עוקבים</span> <span className="font-black text-white">{followersCount}</span>
                </span>
                <span>•</span>
                <span className="cursor-pointer hover:text-white transition-colors" onClick={() => openUsersListSheet('following')}>
-                 <span className="font-black text-white">{followingCount}</span> נעקבים
+                 <span>נעקבים</span> <span className="font-black text-white">{followingCount}</span>
                </span>
                <span>•</span>
                <span>
-                 <span className="font-black text-white">{trueReputation}</span> מוניטין
+                 <span>מוניטין</span> <span className="font-black text-white">{trueReputation}</span>
                </span>
             </div>
 
@@ -368,8 +373,9 @@ export const ProfilePage: React.FC = () => {
                 {isMyProfile && <span className="text-white/50 text-[12px] font-bold flex items-center gap-1"><span className="text-white">{currentXP}</span> / {xpToNextLevel} <Zap size={12} className="text-[#e5e4e2]" /></span>}
              </div>
              {isMyProfile && (
-               <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden relative">
-                  <motion.div initial={{ width: 0 }} animate={{ width: `${xpProgress}%` }} transition={{ duration: 1.5, ease: "easeOut", delay: 0.3 }} className="absolute top-0 right-0 h-full bg-gradient-to-l from-[#e5e4e2] to-white/20 rounded-full" />
+               <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden relative shadow-inner">
+                  {/* פס פעילות עשיר בצבעים שלנו (כתום להבה -> ניאון סגול -> כחול) */}
+                  <motion.div initial={{ width: 0 }} animate={{ width: `${xpProgress}%` }} transition={{ duration: 1.5, ease: "easeOut", delay: 0.3 }} className="absolute top-0 right-0 h-full bg-gradient-to-l from-[#ff5722] via-[#d500f9] to-[#2196f3] rounded-full shadow-[0_0_10px_rgba(213,0,249,0.5)]" />
                </div>
              )}
           </div>
@@ -387,10 +393,10 @@ export const ProfilePage: React.FC = () => {
                     {userProfile?.bio && <p className="text-white/80 text-[13px] leading-relaxed font-medium mb-3">{userProfile.bio}</p>}
                     
                     <div className="flex flex-col gap-2.5">
-                      <div className="flex items-center justify-start gap-3 text-white/50 text-[12px]"><span>מתגורר ב<span className="font-bold text-white ml-1">תל אביב</span></span> <MapPin size={14} /></div>
-                      <div className="flex items-center justify-start gap-3 text-white/50 text-[12px]"><span>תאריך לידה <span className="font-bold text-white">12 באוגוסט</span></span> <Calendar size={14} /></div>
-                      <div className="flex items-center justify-start gap-3 text-white/50 text-[12px]"><span><span className="font-bold text-white">במערכת יחסים</span></span> <HeartHandshake size={14} /></div>
-                      <div className="flex items-center justify-start gap-3 text-white/50 text-[12px]"><span>למד ב<span className="font-bold text-white">אוניברסיטת בן גוריון</span></span> <GraduationCap size={14} /></div>
+                      {userProfile?.location && <div className="flex items-center justify-start gap-3 text-white/50 text-[12px]"><span>מתגורר ב<span className="font-bold text-white ml-1">{userProfile.location}</span></span> <MapPin size={14} /></div>}
+                      {userProfile?.birth_date && <div className="flex items-center justify-start gap-3 text-white/50 text-[12px]"><span>תאריך לידה <span className="font-bold text-white">{getSafeDate(userProfile.birth_date)}</span></span> <Calendar size={14} /></div>}
+                      {userProfile?.relationship_status && <div className="flex items-center justify-start gap-3 text-white/50 text-[12px]"><span><span className="font-bold text-white">{userProfile.relationship_status}</span></span> <Heart size={14} /></div>}
+                      {userProfile?.education && <div className="flex items-center justify-start gap-3 text-white/50 text-[12px]"><span>למד ב<span className="font-bold text-white">{userProfile.education}</span></span> <GraduationCap size={14} /></div>}
                     </div>
                   </div>
                 </motion.div>
@@ -400,30 +406,26 @@ export const ProfilePage: React.FC = () => {
 
           <div className="w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent my-6"></div>
 
+          {/* כרטיסיות ארנק ושדרוגים בעיגול מקסימלי עם האייקון והטקסט ממוקזים יפה באמצע */}
           {isMyProfile && (
             <div className="grid grid-cols-2 gap-3 w-full mb-6 relative z-10">
-              <div onClick={() => { triggerFeedback('pop'); navigate('/wallet'); }} className="bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-lg p-4 flex flex-col justify-between cursor-pointer active:scale-95 transition-all shadow-lg hover:bg-white/[0.06] h-24">
-                <div className="flex justify-between w-full items-start">
-                  <div className="flex flex-col text-right">
-                    <span className="text-white/40 text-[10px] font-bold tracking-widest uppercase mb-1">הארנק שלך</span>
-                  </div>
-                  <Wallet size={18} className="text-[#e5e4e2]" />
+              <div onClick={() => { triggerFeedback('pop'); navigate('/wallet'); }} className="bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-[36px] p-5 flex flex-col justify-center items-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-lg hover:bg-white/[0.06] h-32 relative overflow-hidden">
+                <Wallet size={28} className="text-[#e5e4e2] drop-shadow-[0_0_10px_rgba(229,228,226,0.3)] mb-1" />
+                <div className="flex flex-col text-center">
+                  <span className="text-white/40 text-[10px] font-bold tracking-widest uppercase">הארנק שלך</span>
+                  <span className="text-white font-black text-[22px] leading-none mt-1">{userProfile?.credits?.toLocaleString() || 0}</span>
                 </div>
-                <span className="text-white font-black text-[22px] text-right w-full">{userProfile?.credits?.toLocaleString() || 0}</span>
               </div>
-              <div onClick={() => { triggerFeedback('pop'); navigate('/store'); }} className="bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-lg p-4 flex flex-col justify-between cursor-pointer active:scale-95 transition-all shadow-lg hover:bg-white/[0.06] h-24">
-                <div className="flex justify-between w-full items-start">
-                  <div className="flex flex-col text-right">
-                    <span className="text-white/40 text-[10px] font-bold tracking-widest uppercase mb-1">שדרוגים</span>
-                  </div>
-                  <ShoppingBag size={18} className="text-[#e5e4e2]" />
+              <div onClick={() => { triggerFeedback('pop'); navigate('/store'); }} className="bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-[36px] p-5 flex flex-col justify-center items-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-lg hover:bg-white/[0.06] h-32 relative overflow-hidden">
+                <ShoppingBag size={28} className="text-[#e5e4e2] drop-shadow-[0_0_10px_rgba(229,228,226,0.3)] mb-1" />
+                <div className="flex flex-col text-center">
+                  <span className="text-white/40 text-[10px] font-bold tracking-widest uppercase">שדרוגים</span>
+                  <span className="text-[#e5e4e2] font-black text-[18px] leading-none mt-1">חנות VIP</span>
                 </div>
-                <span className="text-[#e5e4e2] font-black text-[18px] text-right w-full">חנות VIP</span>
               </div>
             </div>
           )}
 
-          {/* טאב המועדונים המשותף */}
           <div className="w-full mt-2 mb-10">
             <div className="flex border-b border-white/10 w-full mb-5">
               <button onClick={() => setActiveClubTab('joined')} className={`flex-1 pb-3 text-[13px] font-black transition-colors border-b-2 flex items-center justify-center gap-1.5 ${activeClubTab === 'joined' ? 'text-white border-white' : 'text-white/40 border-transparent hover:text-white/70'}`}>
@@ -438,21 +440,21 @@ export const ProfilePage: React.FC = () => {
 
             <AnimatePresence mode="wait">
               {activeClubTab === 'joined' && (
-                <motion.div key="joined" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-3">
+                <motion.div key="joined" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-3 w-full">
                   {joinedCircles.length === 0 ? (
                     <div className="py-8 border border-white/5 rounded-lg text-center bg-white/[0.01]">
                       <p className="text-white/30 text-[11px] font-medium">לא מחובר למועדונים</p>
                     </div>
                   ) : (
-                    <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 pt-1 -mx-4 px-4">
+                    <div className="grid grid-cols-3 gap-0.5 -mx-4">
                       {joinedCircles.map((circle: any) => (
-                        <motion.div key={circle.id} whileTap={{ scale: 0.95 }} className="shrink-0 w-32">
-                          <div onClick={() => { triggerFeedback('pop'); navigate(`/circle/${circle.slug}`); }} className="rounded-lg overflow-hidden relative border border-white/5 cursor-pointer shadow-lg h-36 flex flex-col justify-end">
+                        <motion.div key={circle.id} whileTap={{ scale: 0.95 }} className="w-full">
+                          <div onClick={() => { triggerFeedback('pop'); navigate(`/circle/${circle.slug}`); }} className="rounded-sm overflow-hidden relative border border-white/5 cursor-pointer shadow-lg h-44 flex flex-col justify-end">
                             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-10"></div>
                             {circle.cover_url ? <img src={circle.cover_url} className="absolute inset-0 w-full h-full object-cover z-0" /> : <div className="absolute inset-0 bg-[#111] flex items-center justify-center z-0"><Users size={20} className="text-white/20" /></div>}
-                            <div className="relative z-20 p-3 text-center">
-                              <span className="text-white font-black text-[12px] line-clamp-1">{circle.name}</span>
-                              <span className="text-[#10b981] text-[10px] font-bold mt-0.5 flex items-center justify-center gap-1"><span>מאושר</span> <Shield size={10} /></span>
+                            <div className="relative z-20 p-2 text-center">
+                              <span className="text-white font-black text-[11px] line-clamp-1">{circle.name}</span>
+                              <span className="text-[#10b981] text-[9px] font-bold mt-0.5 flex items-center justify-center gap-1"><span>מאושר</span> <Shield size={10} /></span>
                             </div>
                           </div>
                         </motion.div>
@@ -463,16 +465,16 @@ export const ProfilePage: React.FC = () => {
               )}
 
               {activeClubTab === 'owned' && ownedCircles.length > 0 && (
-                <motion.div key="owned" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-3">
-                  <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 pt-1 -mx-4 px-4">
+                <motion.div key="owned" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-3 w-full">
+                  <div className="grid grid-cols-3 gap-0.5 -mx-4">
                     {ownedCircles.map((circle: any) => (
-                      <motion.div key={circle.id} whileTap={{ scale: 0.95 }} className="shrink-0 w-32">
-                        <div onClick={() => { triggerFeedback('pop'); navigate(`/circle/${circle.slug}`); }} className="rounded-lg overflow-hidden relative border border-white/5 cursor-pointer shadow-lg h-36 flex flex-col justify-end">
+                      <motion.div key={circle.id} whileTap={{ scale: 0.95 }} className="w-full">
+                        <div onClick={() => { triggerFeedback('pop'); navigate(`/circle/${circle.slug}`); }} className="rounded-sm overflow-hidden relative border border-white/5 cursor-pointer shadow-lg h-44 flex flex-col justify-end">
                           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-10"></div>
                           {circle.cover_url ? <img src={circle.cover_url} className="absolute inset-0 w-full h-full object-cover z-0" /> : <div className="absolute inset-0 bg-[#111] flex items-center justify-center z-0"><Users size={20} className="text-white/20" /></div>}
-                          <div className="relative z-20 p-3 text-center">
-                            <span className="text-white font-black text-[12px] line-clamp-1">{circle.name}</span>
-                            <span className="text-[#ffc107] text-[10px] font-bold mt-0.5 flex items-center justify-center gap-1"><span>מייסד</span> <Crown size={10} /></span>
+                          <div className="relative z-20 p-2 text-center">
+                            <span className="text-white font-black text-[11px] line-clamp-1">{circle.name}</span>
+                            <span className="text-[#ffc107] text-[9px] font-bold mt-0.5 flex items-center justify-center gap-1"><span>מייסד</span> <Crown size={10} /></span>
                           </div>
                         </div>
                       </motion.div>
