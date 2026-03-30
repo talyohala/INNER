@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { supabase } from '../lib/supabase';
-import { apiFetch } from '../lib/api';
 import { FadeIn, Button } from '../components/ui';
 import { 
   Loader2, Bell, Users, Lock, Flame, Heart, MessageSquare, 
@@ -81,33 +80,23 @@ export const HomePage: React.FC = () => {
         if (data) {
           fetchedCircles = data.map((c: any) => ({
             ...c, is_member: c.circle_members?.some((m: any) => m.user_id === uid)
-          })).sort((a: any, b: any) => (b.members_count || 0) - (a.members_count || 0));
+          }));
         }
       } catch (e) {}
 
       let fetchedPosts = [];
       try {
-        // תיקון קריטי: משתמשים ב-profiles!inner בדיוק כמו בשרת המקורי שלך!
+        // משיכה ישירה מסופאבייס, חסין כדורים!
         const { data, error } = await withTimeout(
-          supabase.from('posts').select('*, profiles!inner(*), likes(user_id), comments(id)')
+          supabase.from('posts').select('*, profiles(*), likes(user_id), comments(id)')
             .is('circle_id', null).order('created_at', { ascending: false })
         );
-        
-        if (error) {
-          console.warn("Direct Supabase query failed, falling back to API:", error.message);
-          // מנגנון הגנה: אם השאילתה הישירה נכשלת, נמשוך מהשרת שעובד!
-          const apiPosts = await apiFetch<any[]>('/api/feed');
-          fetchedPosts = Array.isArray(apiPosts) ? apiPosts : [];
-        } else if (data) {
+        if (data) {
           fetchedPosts = data.map(p => ({
             ...p, likes_count: p.likes?.length || 0, comments_count: p.comments?.length || 0, is_liked: p.likes?.some((l: any) => l.user_id === uid)
           }));
         }
-      } catch (e) { 
-        console.warn("Falling back to API...");
-        const apiPosts = await apiFetch<any[]>('/api/feed').catch(() => []);
-        fetchedPosts = Array.isArray(apiPosts) ? apiPosts : [];
-      }
+      } catch (e) {}
 
       setCircles(fetchedCircles);
       setPosts(fetchedPosts);
@@ -132,7 +121,7 @@ export const HomePage: React.FC = () => {
 
   const sortedCircles = useMemo(() => {
     const arr = [...circles];
-    if (activeTab === 'new') return arr.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    if (activeTab === 'new') return arr.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
     if (activeTab === 'foryou') return arr.sort(() => Math.random() - 0.5);
     return arr.sort((a, b) => (b.members_count || 0) - (a.members_count || 0));
   }, [circles, activeTab]);
@@ -194,7 +183,7 @@ export const HomePage: React.FC = () => {
     try {
       const { data } = await supabase.from('comments').select(`*, profiles(*)`).eq('post_id', post.id).order('created_at', { ascending: true });
       setComments(data || []);
-    } catch (err) { toast.error('שגיאה בטעינת תגובות'); } finally { setLoadingComments(false); }
+    } catch (err) { toast.error('שגיאה בטעינת תגובות'); setComments([]); } finally { setLoadingComments(false); }
   };
 
   const submitComment = async () => {
@@ -251,9 +240,8 @@ export const HomePage: React.FC = () => {
                 <span className="text-[10px] font-black text-white/80 tracking-widest">{onlineUsers.toLocaleString()}</span>
               </div>
             </div>
-            
-            <button onClick={() => { triggerFeedback('pop'); navigate('/notifications'); }} className="w-10 h-10 flex justify-center items-center bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-full shadow-lg active:scale-90 transition-transform relative">
-              <Bell size={18} className="text-[#3f51b5] drop-shadow-[0_0_8px_rgba(63,81,181,0.5)]" />
+            <button onClick={() => navigate('/notifications')} className="w-10 h-10 flex justify-center items-center bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-full shadow-lg active:scale-90 transition-transform relative">
+              <Bell size={18} className="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]" />
               {unreadCount > 0 && <span className="absolute top-2 right-2.5 w-2 h-2 bg-[#e91e63] rounded-full shadow-[0_0_10px_#e91e63] border border-black animate-pulse"></span>}
             </button>
           </div>
@@ -275,11 +263,11 @@ export const HomePage: React.FC = () => {
               <Flame size={14} className="text-[#f44336]" /> מועדונים חמים
             </h3>
             <div className="flex gap-4 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-4">
-              {sortedCircles.map((circle) => {
+              {sortedCircles.map(circle => {
                 const activeNow = Math.max(1, Math.ceil((circle.members_count || 1) * 0.15 + (Math.random() * 3)));
                 return (
                   <motion.div key={circle.id} whileTap={{ scale: 0.95 }} className="shrink-0 w-44">
-                    <div onClick={() => { triggerFeedback('pop'); navigate(`/circle/${circle.slug || circle.id}`); }} className="p-1.5 rounded-[32px] overflow-hidden relative border border-white/10 cursor-pointer bg-white/[0.04] backdrop-blur-xl shadow-2xl h-52 flex flex-col justify-end">
+                    <div onClick={() => navigate(`/circle/${circle.slug || circle.id}`)} className="p-1.5 rounded-[32px] overflow-hidden relative border border-white/10 cursor-pointer bg-white/[0.04] backdrop-blur-xl shadow-2xl h-52 flex flex-col justify-end">
                       <div className="absolute inset-0 z-0 rounded-[28px] overflow-hidden m-1.5">
                         <div className={`absolute inset-0 bg-black/40 z-10 ${circle.is_member ? 'opacity-0' : 'opacity-100'}`}></div>
                         <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-black/50 to-transparent z-10"></div>
@@ -334,7 +322,7 @@ export const HomePage: React.FC = () => {
                     </div>
                     <div className="flex flex-col">
                       <span className="text-white font-black text-[16px] drop-shadow-sm group-hover:text-[#e5e4e2] transition-colors">{post.profiles?.full_name || 'אנונימי'}</span>
-                      <span className="text-white/40 text-[11px] font-bold mt-0.5">{new Date(post.created_at).toLocaleDateString('he-IL')}</span>
+                      <span className="text-white/40 text-[11px] font-bold mt-0.5">{new Date(post.created_at || Date.now()).toLocaleDateString('he-IL')}</span>
                     </div>
                   </div>
                   
