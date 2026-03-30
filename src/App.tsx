@@ -10,7 +10,7 @@ import { Layout } from './components/Layout';
 
 // Pages
 import { AuthPage } from './pages/AuthPage';
-import { FeedPage } from './pages/FeedPage'; // <-- הנה השינוי הקריטי!
+import { HomePage } from './pages/HomePage'; // <-- הנה השינוי הקריטי!
 import { ExplorePage } from './pages/ExplorePage';
 import { ProfilePage } from './pages/ProfilePage';
 import { EditProfilePage } from './pages/EditProfilePage';
@@ -140,7 +140,7 @@ export const App = () => {
             <Routes>
               <Route path="/auth" element={<AuthPage />} />
               {/* החלפנו את HomePage ב-FeedPage! */}
-              <Route path="/" element={<PrivateRoute><FeedPage /></PrivateRoute>} />
+              <Route path="/" element={<PrivateRoute><HomePage /></PrivateRoute>} />
               <Route path="/explore" element={<PrivateRoute><ExplorePage /></PrivateRoute>} />
               <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
               <Route path="/profile/:username" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
