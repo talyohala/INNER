@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 import { FadeIn, Button } from '../components/ui';
 import { 
   Loader2, Bell, Users, Lock, Flame, Heart, MessageSquare, 
-  Send, X, Paperclip, RefreshCw, UserCircle, Trash2, Reply 
+  Send, X, Paperclip, RefreshCw, UserCircle, Trash2, Edit2, Reply 
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -20,12 +20,13 @@ export const HomePage: React.FC = () => {
   const [circles, setCircles] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dbError, setDbError] = useState<string>(''); // קופסת שגיאות שקטה
+  const [dbError, setDbError] = useState<string>(''); 
   
   const [newPost, setNewPost] = useState('');
   const [posting, setPosting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [editingPost, setEditingPost] = useState<any | null>(null); // שומר את הפוסט בעריכה
   
   const [activePost, setActivePost] = useState<any>(null);
   const [activeCommentsPostId, setActiveCommentsPostId] = useState<string | null>(null);
@@ -49,7 +50,6 @@ export const HomePage: React.FC = () => {
     } catch (e) {}
   };
 
-  // משיכה ישירה "בכוח" - בלי קשרים (JOIN) שגורמים לסופאבייס לקרוס בשקט
   const fetchData = async (isSilentRefresh = false) => {
     if (!isSilentRefresh) setLoading(true);
     setDbError('');
@@ -58,30 +58,23 @@ export const HomePage: React.FC = () => {
       const uid = authData.user?.id;
       if (uid) setCurrentUserId(uid);
 
-      // 1. משיכת מועדונים
-      const { data: rawCircles, error: circleErr } = await supabase.from('circles').select('*');
-      if (circleErr) setDbError(prev => prev + ' [Circles Error: ' + circleErr.message + ']');
+      const { data: rawCircles } = await supabase.from('circles').select('*');
       const { data: rawMembers } = await supabase.from('circle_members').select('circle_id, user_id');
-
       const fetchedCircles = (rawCircles || []).map((c: any) => ({
         ...c,
         is_member: !!uid && (rawMembers || []).some((m: any) => m.circle_id === c.id && m.user_id === uid)
       })).sort((a: any, b: any) => (b.members_count || 0) - (a.members_count || 0));
       setCircles(fetchedCircles);
 
-      // 2. משיכת פוסטים - נטו טבלת פוסטים
       const { data: rawPosts, error: postErr } = await supabase.from('posts').select('*').order('created_at', { ascending: false });
-      if (postErr) setDbError(prev => prev + ' [Posts Error: ' + postErr.message + ']');
+      if (postErr) setDbError(postErr.message);
 
-      // 3. משיכת פרופילים ולייקים להרכבה בזיכרון
       const { data: rawProfiles } = await supabase.from('profiles').select('*');
       const { data: rawLikes } = await supabase.from('likes').select('post_id, user_id');
       const { data: rawComments } = await supabase.from('comments').select('post_id');
 
-      // מסננים פוסטים של הפיד הראשי
       const globalPosts = (rawPosts || []).filter((p: any) => !p.circle_id);
 
-      // מרכיבים את הפוסטים
       const fetchedPosts = globalPosts.map((p: any) => {
         const prof = (rawProfiles || []).find((pr: any) => pr.id === p.user_id) || {};
         const pLikes = (rawLikes || []).filter((l: any) => l.post_id === p.id);
@@ -96,12 +89,10 @@ export const HomePage: React.FC = () => {
       });
 
       setPosts(fetchedPosts);
-      
     } catch (err: any) { 
-      setDbError('Fatal Error: ' + err.message);
+      setDbError(err.message);
     } finally { 
-      setLoading(false); 
-      setRefreshing(false); 
+      setLoading(false); setRefreshing(false); 
     }
   };
 
@@ -110,9 +101,7 @@ export const HomePage: React.FC = () => {
     fetchData(false);
     checkUnreadNotifications();
     const interval = setInterval(() => setOnlineUsers(prev => prev + Math.floor(Math.random() * 5) - 2), 5000);
-    const channel = supabase.channel('global_feed')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => fetchData(true))
-      .subscribe();
+    const channel = supabase.channel('global_feed').on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => fetchData(true)).subscribe();
     return () => { supabase.removeChannel(channel); clearInterval(interval); };
   }, []);
 
@@ -127,39 +116,65 @@ export const HomePage: React.FC = () => {
   };
 
   const handlePost = async () => {
-    if (!newPost.trim() && !selectedFile) return;
+    if (!newPost.trim() && !selectedFile && !editingPost) return;
     setPosting(true);
     try {
       const { data: authData } = await supabase.auth.getUser();
       if (!authData.user) throw new Error('משתמש לא מחובר.');
       
-      let media_url = null;
-      let media_type = 'text';
+      // מצב עריכת פוסט קיים
+      if (editingPost) {
+        const { error } = await supabase.from('posts').update({ content: newPost.trim() }).eq('id', editingPost.id);
+        if (error) throw error;
+        setPosts(curr => curr.map(p => p.id === editingPost.id ? { ...p, content: newPost.trim() } : p));
+        toast.success('הפוסט עודכן בהצלחה');
+      } 
+      // מצב יצירת פוסט חדש
+      else {
+        let media_url = null;
+        let media_type = 'text';
 
-      if (selectedFile) {
-        setUploadingImage(true);
-        const fileExt = selectedFile.name.split('.').pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const { data: uploadData, error: uploadError } = await supabase.storage.from('feed_images').upload(fileName, selectedFile);
-        if (uploadError) throw new Error(`שגיאת אחסון: ${uploadError.message}`);
-        media_url = supabase.storage.from('feed_images').getPublicUrl(uploadData.path).data.publicUrl;
-        media_type = selectedFile.type.startsWith('video/') ? 'video' : 'image';
-        setUploadingImage(false);
+        if (selectedFile) {
+          setUploadingImage(true);
+          const fileExt = selectedFile.name.split('.').pop();
+          const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+          const { data: uploadData, error: uploadError } = await supabase.storage.from('feed_images').upload(fileName, selectedFile);
+          if (uploadError) throw new Error(`שגיאת אחסון: ${uploadError.message}`);
+          media_url = supabase.storage.from('feed_images').getPublicUrl(uploadData.path).data.publicUrl;
+          media_type = selectedFile.type.startsWith('video/') ? 'video' : 'image';
+          setUploadingImage(false);
+        }
+        
+        const { error } = await supabase.from('posts').insert({ 
+          user_id: authData.user.id, content: newPost.trim() || null, media_url, media_type, circle_id: null
+        });
+        if (error) throw error;
       }
       
-      const { error } = await supabase.from('posts').insert({ 
-        user_id: authData.user.id, content: newPost.trim() || null, media_url, media_type, circle_id: null
-      });
-      
-      if (error) {
-         setDbError('Insert Error: ' + error.message);
-         throw error;
-      }
-      
-      setNewPost(''); setSelectedFile(null); triggerFeedback('pop'); fetchData(true);
+      setNewPost(''); setSelectedFile(null); setEditingPost(null); triggerFeedback('pop'); 
+      if (!editingPost) fetchData(true);
     } catch (err: any) { 
-      setUploadingImage(false); toast.error(err.message || 'שגיאה בשליחה'); 
+      setUploadingImage(false); toast.error(err.message || 'שגיאה בשמירה'); 
     } finally { setPosting(false); }
+  };
+
+  // מחיקת פוסט
+  const deletePost = async (postId: string) => {
+    if (!window.confirm('האם אתה בטוח שברצונך למחוק את הפוסט?')) return;
+    triggerFeedback('error');
+    setPosts(posts.filter(p => p.id !== postId));
+    const { error } = await supabase.from('posts').delete().eq('id', postId);
+    if (error) toast.error('שגיאה במחיקה');
+    else toast.success('הפוסט נמחק');
+  };
+
+  // הפעלת מצב עריכה
+  const startEditingPost = (post: any) => {
+    triggerFeedback('pop');
+    setEditingPost(post);
+    setNewPost(post.content || '');
+    setSelectedFile(null); // לא מאפשרים להחליף תמונה בעריכה כרגע
+    window.scrollTo({ top: 0, behavior: 'smooth' }); // קופצים למעלה לתיבת הטקסט
   };
 
   const handleLike = async (postId: string, isLiked: boolean) => {
@@ -188,12 +203,6 @@ export const HomePage: React.FC = () => {
       setComments(prev => [...prev, data]); setNewComment(''); 
       setPosts(curr => curr.map(p => p.id === activePost.id ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p)); triggerFeedback('coin');
     } catch (err) { toast.error('שגיאה בשליחת תגובה'); }
-  };
-
-  const deleteComment = async (commentId: string) => {
-    triggerFeedback('error');
-    setComments(comments.filter(c => c.id !== commentId));
-    await supabase.from('comments').delete().eq('id', commentId);
   };
 
   const goToProfile = (userId: string | undefined) => {
@@ -233,13 +242,6 @@ export const HomePage: React.FC = () => {
             </button>
           </div>
 
-          {/* תיבת דיאגנוסטיקה - תופיע רק אם יש תקלה במשיכת הנתונים! */}
-          {dbError && (
-            <div className="mb-4 p-4 rounded-2xl bg-red-900/30 border border-red-500/50 text-red-300 text-xs font-mono text-left" dir="ltr">
-              <strong>Database Error:</strong><br/>{dbError}
-            </div>
-          )}
-
           <div className="mb-8">
             <h3 className="text-white/40 text-[11px] font-black uppercase tracking-[0.2em] mb-4 px-2 flex items-center gap-1.5 drop-shadow-md">
               <Flame size={14} className="text-[#f44336]" /> מועדונים חמים
@@ -264,10 +266,16 @@ export const HomePage: React.FC = () => {
             </div>
           </div>
 
-          <div className="p-5 rounded-[36px] mb-8 border border-white/10 bg-white/[0.04] backdrop-blur-3xl shadow-2xl relative z-10">
+          <div className="p-5 rounded-[36px] mb-8 border border-white/10 bg-white/[0.04] backdrop-blur-3xl shadow-2xl relative z-10 transition-colors">
+            {editingPost && (
+              <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-2">
+                <span className="text-xs text-[#2196f3] font-bold flex items-center gap-2"><Edit2 size={12}/> עורך פוסט...</span>
+                <button onClick={() => { setEditingPost(null); setNewPost(''); }} className="text-white/40"><X size={14}/></button>
+              </div>
+            )}
             <textarea value={newPost} onChange={(e) => setNewPost(e.target.value)} placeholder="שדר משהו לכולם..." className="w-full bg-transparent border-none text-white text-[16px] font-medium focus:outline-none h-14 resize-none placeholder:text-white/30 px-1 pt-1" />
             
-            {selectedFile && (
+            {!editingPost && selectedFile && (
               <div className="relative mt-2 mb-4 w-fit">
                 {selectedFile.type.startsWith('video/') ? (
                   <video src={URL.createObjectURL(selectedFile)} controls playsInline className="w-28 h-28 rounded-[20px] object-cover border border-white/20 shadow-xl" />
@@ -279,11 +287,15 @@ export const HomePage: React.FC = () => {
             )}
 
             <div className="flex justify-end items-center gap-4 border-t border-white/10 pt-4 mt-1 px-1">
-              <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*,video/*" className="hidden" />
-              <button onClick={() => fileInputRef.current?.click()} className="w-12 h-12 flex items-center justify-center text-white/40 hover:text-[#00bcd4] hover:bg-white/5 transition-all rounded-full border border-white/10 shadow-inner">
-                <Paperclip size={20} />
-              </button>
-              <Button onClick={handlePost} disabled={posting || uploadingImage || (!newPost.trim() && !selectedFile)} className="w-12 h-12 p-0 rounded-full bg-white text-black active:scale-95 disabled:bg-white/10 disabled:text-white/20 transition-all flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(255,255,255,0.2)]">
+              {!editingPost && (
+                <>
+                  <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*,video/*" className="hidden" />
+                  <button onClick={() => fileInputRef.current?.click()} className="w-12 h-12 flex items-center justify-center text-white/40 hover:text-[#00bcd4] hover:bg-white/5 transition-all rounded-full border border-white/10 shadow-inner">
+                    <Paperclip size={20} />
+                  </button>
+                </>
+              )}
+              <Button onClick={handlePost} disabled={posting || uploadingImage || (!newPost.trim() && !selectedFile && !editingPost)} className="w-12 h-12 p-0 rounded-full bg-white text-black active:scale-95 disabled:bg-white/10 disabled:text-white/20 transition-all flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(255,255,255,0.2)]">
                 {posting || uploadingImage ? <Loader2 size={22} className="animate-spin text-black" /> : <Send size={20} className="rtl:-scale-x-100 -ml-1 text-[#2196f3]" />}
               </Button>
             </div>
@@ -297,33 +309,51 @@ export const HomePage: React.FC = () => {
             ) : (
               posts.map((post) => {
                 const targetId = post.user_id || post.profiles?.id;
+                const isMyPost = post.user_id === currentUserId;
+                
                 return (
-                  <div key={post.id} className="p-6 rounded-[36px] bg-white/[0.04] backdrop-blur-2xl border border-white/10 relative overflow-hidden shadow-2xl">
-                    <div className="flex items-center gap-4 mb-5 cursor-pointer w-fit group" onClick={() => goToProfile(targetId)}>
-                      <div className="w-12 h-12 rounded-[20px] bg-black border border-white/10 overflow-hidden shrink-0 shadow-inner p-0.5 group-hover:opacity-80 transition-opacity">
-                        <div className="w-full h-full rounded-[16px] overflow-hidden bg-[#111]">
-                          {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={24} className="text-white/20" /></div>}
+                  <div key={post.id} className="flex flex-col pt-6 pb-0 rounded-[36px] bg-white/[0.04] backdrop-blur-2xl border border-white/10 relative overflow-hidden shadow-2xl">
+                    
+                    {/* Header (Avatar, Name, Actions) */}
+                    <div className="flex items-start justify-between px-6 mb-4">
+                      <div className="flex items-center gap-4 cursor-pointer w-fit group" onClick={() => goToProfile(targetId)}>
+                        <div className="w-12 h-12 rounded-[20px] bg-black border border-white/10 overflow-hidden shrink-0 shadow-inner p-0.5 group-hover:opacity-80 transition-opacity">
+                          <div className="w-full h-full rounded-[16px] overflow-hidden bg-[#111]">
+                            {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={24} className="text-white/20" /></div>}
+                          </div>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-white font-black text-[16px] drop-shadow-sm group-hover:text-[#e5e4e2] transition-colors">{post.profiles?.full_name || 'אנונימי'}</span>
+                          <span className="text-white/40 text-[11px] font-bold mt-0.5">{new Date(post.created_at || Date.now()).toLocaleDateString('he-IL')}</span>
                         </div>
                       </div>
-                      <div className="flex flex-col">
-                        <span className="text-white font-black text-[16px] drop-shadow-sm group-hover:text-[#e5e4e2] transition-colors">{post.profiles?.full_name || 'אנונימי'}</span>
-                        <span className="text-white/40 text-[11px] font-bold mt-0.5">{new Date(post.created_at || Date.now()).toLocaleDateString('he-IL')}</span>
-                      </div>
+
+                      {isMyPost && (
+                        <div className="flex items-center gap-2 mt-1">
+                          <button onClick={() => startEditingPost(post)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 text-white/40 hover:text-white transition-colors"><Edit2 size={14}/></button>
+                          <button onClick={() => deletePost(post.id)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 text-white/40 hover:text-red-400 transition-colors"><Trash2 size={14}/></button>
+                        </div>
+                      )}
                     </div>
                     
+                    {/* Text Content */}
+                    {post.content && (
+                      <p className="text-white/90 text-[15px] leading-relaxed font-medium mb-4 text-right px-6 whitespace-pre-wrap">{post.content}</p>
+                    )}
+
+                    {/* Edge-to-Edge Media Container */}
                     {post.media_url && (
-                      <div className="mb-5 rounded-[24px] overflow-hidden border border-white/10 bg-[#050505] shadow-inner">
+                      <div className="w-full bg-[#050505] border-t border-white/5">
                         {post.media_type === 'video' || post.media_url.match(/\.(mp4|webm|mov)$/i) ? (
-                          <video src={post.media_url} controls playsInline preload="metadata" className="w-full h-auto max-h-[450px] object-cover" />
+                          <video src={post.media_url} autoPlay loop muted playsInline className="w-full h-[400px] object-cover" />
                         ) : (
-                          <img src={post.media_url} alt="Media" className="w-full h-auto object-cover max-h-[450px]" />
+                          <img src={post.media_url} alt="Media" className="w-full h-[400px] object-cover" />
                         )}
                       </div>
                     )}
-
-                    {post.content && <p className="text-white/90 text-[15px] leading-relaxed font-medium mb-6 text-right px-1 whitespace-pre-wrap">{post.content}</p>}
                     
-                    <div className="flex items-center gap-6 pt-4 border-t border-white/5">
+                    {/* Footer (Likes & Comments) - יושב צמוד לקו התחתון של התמונה */}
+                    <div className={`flex items-center gap-6 px-6 py-4 ${post.media_url ? 'bg-black/20' : 'border-t border-white/5'}`}>
                       <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-2 transition-all active:scale-90 ${post.is_liked ? 'text-[#e91e63] drop-shadow-[0_0_10px_rgba(233,30,99,0.5)]' : 'text-white/30 hover:text-[#e91e63]'}`}>
                         <Heart size={20} fill={post.is_liked ? "currentColor" : "none"} /> <span className="text-[13px] font-black">{post.likes_count}</span>
                       </button>
@@ -353,7 +383,6 @@ export const HomePage: React.FC = () => {
                   {loadingComments ? <Loader2 className="animate-spin mx-auto text-white/40 mt-10" /> : 
                     comments.map(comment => {
                       const targetId = comment.user_id || comment.profiles?.id;
-                      const isMyComment = comment.user_id === currentUserId;
                       return (
                         <div key={comment.id} className="flex gap-4">
                           <div className="w-10 h-10 rounded-[16px] bg-black shrink-0 overflow-hidden border border-white/10 shadow-inner p-0.5 cursor-pointer" onClick={() => goToProfile(targetId)}>
@@ -364,7 +393,6 @@ export const HomePage: React.FC = () => {
                           <div className="flex flex-col flex-1 bg-white/[0.04] p-4 rounded-[24px] rounded-tr-sm border border-white/5 shadow-sm">
                             <span className="text-white font-black text-[13px] mb-1.5 text-right w-fit cursor-pointer hover:text-[#e5e4e2] transition-colors" onClick={() => goToProfile(targetId)}>{comment.profiles?.full_name || 'אנונימי'}</span>
                             <p className="text-white/80 text-[14px] text-right leading-relaxed">{comment.content}</p>
-                            {isMyComment && <button onClick={() => deleteComment(comment.id)} className="text-red-400 text-[11px] font-bold mt-2 flex items-center gap-1 w-fit"><Trash2 size={12}/> מחק</button>}
                           </div>
                         </div>
                       );
@@ -380,8 +408,7 @@ export const HomePage: React.FC = () => {
               </motion.div>
             </div>
           )}
-        </AnimatePresence>,
-        document.body
+        </AnimatePresence>, document.body
       ) : null}
     </>
   );
