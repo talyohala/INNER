@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { UserCircle, Edit2, ChevronLeft, Loader2, Users, MessageSquare, Link as LinkIcon, UserCheck, MapPin, Calendar, Book, Heart, Shield, Camera, Key } from 'lucide-react';
+import { UserCircle, Edit2, ChevronLeft, Loader2, Users, MessageSquare, Link as LinkIcon, UserCheck, MapPin, Calendar, GraduationCap, HeartHandshake, Shield, Camera, Key, Crown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { FadeIn, Button } from '../components/ui';
@@ -10,7 +10,7 @@ import toast from 'react-hot-toast';
 
 export const EditProfilePage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, loading: authLoading, reloadProfile } = useAuth();
+  const { user, profile: authProfile, loading: authLoading, reloadProfile } = useAuth();
 
   const [mounted, setMounted] = useState(false);
   
@@ -42,7 +42,7 @@ export const EditProfilePage: React.FC = () => {
   const [data, setData] = useState<any>({ profile: {} });
   const [loadingData, setLoadingData] = useState(true);
 
-  // משיכה ישירה מ-Supabase בלבד!
+  // 100% שליפה ישירה מ-Supabase (אפס התערבות של השרת)
   useEffect(() => {
     setMounted(true);
     const loadProfileData = async () => {
@@ -114,7 +114,7 @@ export const EditProfilePage: React.FC = () => {
     }
   };
 
-  // שמירת פרטים אישיים ישירות ל-Supabase - בלי שום שרת באמצע!
+  // שמירת פרטים אישיים ישירות ל-Supabase
   const handleSaveDetails = async () => {
     if (!user?.id || savingDetails) return;
     setSavingDetails(true);
@@ -134,7 +134,7 @@ export const EditProfilePage: React.FC = () => {
       toast.success('הפרטים עודכנו בהצלחה!', { id: tid, style: { background: '#111', color: '#e5e4e2', border: '1px solid rgba(229,228,226,0.2)' } });
     } catch (err: any) {
       console.error(err);
-      toast.error(`נכשל בעדכון: ${err.message || 'שגיאה כללית'}`, { id: tid, style: { background: '#111', color: '#ef4444' } });
+      toast.error(`שגיאה: ${err.message || 'נכשל בעדכון'}`, { id: tid, style: { background: '#111', color: '#ef4444' } });
     } finally {
       setSavingDetails(false);
     }
@@ -274,11 +274,11 @@ export const EditProfilePage: React.FC = () => {
                     </div>
                  </div>
                  <div className="flex flex-col gap-1.5 text-right w-full">
-                   <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5"><span>מצב משפחתי</span> <Heart size={12} /></label>
+                   <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5"><span>מצב משפחתי</span> <HeartHandshake size={12} /></label>
                    <input type="text" value={formData.relationship_status} onChange={e => setFormData(prev => ({...prev, relationship_status: e.target.value}))} className="bg-transparent border border-white/5 rounded-lg px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors" placeholder="במערכת יחסים" />
                  </div>
                  <div className="flex flex-col gap-1.5 text-right w-full">
-                   <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5"><span>השכלה / קריירה</span> <Book size={12} /></label>
+                   <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5"><span>השכלה / קריירה</span> <GraduationCap size={12} /></label>
                    <input type="text" value={formData.education} onChange={e => setFormData(prev => ({...prev, education: e.target.value}))} className="bg-transparent border border-white/5 rounded-lg px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors" placeholder="סטודנט למדעי המחשב" />
                  </div>
                  <div className="flex flex-col gap-1.5 text-right w-full">
