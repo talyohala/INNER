@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { supabase } from '../lib/supabase';
-import { apiFetch } from '../lib/api';
 import { FadeIn, Button } from '../components/ui';
 import { 
   Loader2, Bell, Users, Lock, Flame, Heart, MessageSquare, 
@@ -12,13 +11,6 @@ import {
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
-
-const withTimeout = <T,>(promise: Promise<T>, ms: number = 5000): Promise<T> => {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
-  ]);
-};
 
 type FeedTab = 'hot' | 'new' | 'foryou';
 const TABS = [
@@ -75,40 +67,63 @@ export const HomePage: React.FC = () => {
       const uid = authData.user?.id;
       if (uid) setCurrentUserId(uid);
 
-      let fetchedCircles = [];
-      try {
-        const { data } = await withTimeout(supabase.from('circles').select('*, circle_members(user_id)'));
-        if (data) {
-          fetchedCircles = data.map((c: any) => ({
-            ...c, is_member: c.circle_members?.some((m: any) => m.user_id === uid)
-          })).sort((a: any, b: any) => (b.members_count || 0) - (a.members_count || 0));
-        }
-      } catch (e) {}
+      // --- 1. משיכת מועדונים בעקיפה ---
+      let fetchedCircles: any[] = [];
+      const { data: rawCircles } = await supabase.from('circles').select('*');
+      const { data: rawMembers } = await supabase.from('circle_members').select('*');
+      
+      if (rawCircles) {
+        fetchedCircles = rawCircles.map((c: any) => ({
+          ...c, 
+          is_member: (rawMembers || []).some((m: any) => m.circle_id === c.id && m.user_id === uid)
+        })).sort((a: any, b: any) => (b.members_count || 0) - (a.members_count || 0));
+      }
 
+      // --- 2. משיכת פוסטים בעקיפה מוחלטת (חסין שגיאות JOIN) ---
+      // מביאים נטו את הפוסטים עצמם!
+      const { data: rawPosts, error: postError } = await supabase
+        .from('posts')
+        .select('*')
+        .is('circle_id', null)
+        .order('created_at', { ascending: false });
+
+      if (postError) {
+        toast.error('שגיאה בטעינת הפיד: ' + postError.message);
+      }
+
+      // מביאים את שאר הנתונים בנפרד בלי לשבור את הפוסטים
+      const { data: rawProfiles } = await supabase.from('profiles').select('*');
+      // מנסים למשוך לייקים (מ-likes או post_likes)
+      const { data: rawLikes } = await supabase.from('likes').select('*').catch(() => ({data: []}));
+      const { data: rawPostLikes } = await supabase.from('post_likes').select('*').catch(() => ({data: []}));
+      const allLikes = [...(rawLikes || []), ...(rawPostLikes || [])];
+      
+      // מנסים למשוך תגובות
+      const { data: rawComments } = await supabase.from('comments').select('*').catch(() => ({data: []}));
+      const { data: rawPostComments } = await supabase.from('post_comments').select('*').catch(() => ({data: []}));
+      const allComments = [...(rawComments || []), ...(rawPostComments || [])];
+
+      // מחברים את הכל בתוך הזיכרון של הטלפון
       let fetchedPosts = [];
-      try {
-        const { data, error } = await withTimeout(
-          supabase.from('posts').select('*, profiles!inner(*), likes(user_id), comments(id)')
-            .is('circle_id', null).order('created_at', { ascending: false })
-        );
-        
-        if (error) {
-          console.warn("Direct Supabase query failed, falling back to API:", error.message);
-          const apiPosts = await apiFetch<any[]>('/api/feed');
-          fetchedPosts = Array.isArray(apiPosts) ? apiPosts : [];
-        } else if (data) {
-          fetchedPosts = data.map(p => ({
-            ...p, likes_count: p.likes?.length || 0, comments_count: p.comments?.length || 0, is_liked: p.likes?.some((l: any) => l.user_id === uid)
-          }));
-        }
-      } catch (e) { 
-        console.warn("Falling back to API...");
-        const apiPosts = await apiFetch<any[]>('/api/feed').catch(() => []);
-        fetchedPosts = Array.isArray(apiPosts) ? apiPosts : [];
+      if (rawPosts) {
+        fetchedPosts = rawPosts.map((p: any) => {
+          const profile = (rawProfiles || []).find((prof: any) => prof.id === p.user_id) || {};
+          const pLikes = allLikes.filter((l: any) => l.post_id === p.id);
+          const pComments = allComments.filter((c: any) => c.post_id === p.id);
+          
+          return {
+            ...p,
+            profiles: profile,
+            likes_count: pLikes.length,
+            comments_count: pComments.length,
+            is_liked: pLikes.some((l: any) => l.user_id === uid)
+          };
+        });
       }
 
       setCircles(fetchedCircles);
       setPosts(fetchedPosts);
+      
     } catch (err) { 
       console.error(err);
     } finally { 
@@ -123,14 +138,14 @@ export const HomePage: React.FC = () => {
     checkUnreadNotifications();
     const interval = setInterval(() => setOnlineUsers(prev => prev + Math.floor(Math.random() * 5) - 2), 5000);
     const channel = supabase.channel('global_feed')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts', filter: 'circle_id=is.null' }, () => fetchData(true))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => fetchData(true))
       .subscribe();
     return () => { supabase.removeChannel(channel); clearInterval(interval); };
   }, []);
 
   const sortedCircles = useMemo(() => {
     const arr = [...circles];
-    if (activeTab === 'new') return arr.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    if (activeTab === 'new') return arr.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
     if (activeTab === 'foryou') return arr.sort(() => Math.random() - 0.5);
     return arr.sort((a, b) => (b.members_count || 0) - (a.members_count || 0));
   }, [circles, activeTab]);
@@ -182,8 +197,9 @@ export const HomePage: React.FC = () => {
     triggerFeedback('pop');
     setPosts(curr => curr.map(p => p.id === postId ? { ...p, is_liked: !isLiked, likes_count: isLiked ? p.likes_count - 1 : p.likes_count + 1 } : p));
     try { 
-      if (isLiked) await supabase.from('likes').delete().match({ post_id: postId, user_id: currentUserId });
-      else await supabase.from('likes').insert({ post_id: postId, user_id: currentUserId });
+      const table = 'likes'; // ננסה לטבלת likes
+      if (isLiked) await supabase.from(table).delete().match({ post_id: postId, user_id: currentUserId });
+      else await supabase.from(table).insert({ post_id: postId, user_id: currentUserId });
     } catch (err) { fetchData(true); }
   };
 
@@ -249,9 +265,8 @@ export const HomePage: React.FC = () => {
                 <span className="text-[10px] font-black text-white/80 tracking-widest">{onlineUsers.toLocaleString()}</span>
               </div>
             </div>
-            
-            <button onClick={() => { triggerFeedback('pop'); navigate('/notifications'); }} className="w-10 h-10 flex justify-center items-center bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-full shadow-lg active:scale-90 transition-transform relative">
-              <Bell size={18} className="text-[#3f51b5] drop-shadow-[0_0_8px_rgba(63,81,181,0.5)]" />
+            <button onClick={() => navigate('/notifications')} className="w-10 h-10 flex justify-center items-center bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-full shadow-lg active:scale-90 transition-transform relative">
+              <Bell size={18} className="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]" />
               {unreadCount > 0 && <span className="absolute top-2 right-2.5 w-2 h-2 bg-[#e91e63] rounded-full shadow-[0_0_10px_#e91e63] border border-black animate-pulse"></span>}
             </button>
           </div>
@@ -273,20 +288,18 @@ export const HomePage: React.FC = () => {
               <Flame size={14} className="text-[#f44336]" /> מועדונים חמים
             </h3>
             <div className="flex gap-4 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-4">
-              {sortedCircles.map((circle) => {
+              {sortedCircles.map(circle => {
                 const activeNow = Math.max(1, Math.ceil((circle.members_count || 1) * 0.15 + (Math.random() * 3)));
                 return (
                   <motion.div key={circle.id} whileTap={{ scale: 0.95 }} className="shrink-0 w-44">
-                    <div onClick={() => { triggerFeedback('pop'); navigate(`/circle/${circle.slug || circle.id}`); }} className="p-1.5 rounded-[32px] overflow-hidden relative border border-white/10 cursor-pointer bg-white/[0.04] backdrop-blur-xl shadow-2xl h-52 flex flex-col justify-end">
+                    <div onClick={() => navigate(`/circle/${circle.slug || circle.id}`)} className="p-1.5 rounded-[32px] overflow-hidden relative border border-white/10 cursor-pointer bg-white/[0.04] backdrop-blur-xl shadow-2xl h-52 flex flex-col justify-end">
                       <div className="absolute inset-0 z-0 rounded-[28px] overflow-hidden m-1.5">
                         <div className={`absolute inset-0 bg-black/40 z-10 ${circle.is_member ? 'opacity-0' : 'opacity-100'}`}></div>
                         <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-black/50 to-transparent z-10"></div>
                         {circle.cover_url ? <img src={circle.cover_url} className={`w-full h-full object-cover ${circle.is_member ? 'blur-none' : 'blur-[3px]'}`} /> : <div className="w-full h-full flex items-center justify-center bg-[#111]"><Users size={24} className="text-white/20" /></div>}
                       </div>
                       {!circle.is_member && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center border border-white/10 shadow-lg"><Lock size={14} className="text-white/80" /></div>}
-                      <div className="relative z-20 p-4">
-                        <h2 className="text-white font-black text-[15px] drop-shadow-lg line-clamp-1">{circle.name}</h2>
-                      </div>
+                      <div className="relative z-20 p-4"><h2 className="text-white font-black text-[15px] drop-shadow-lg line-clamp-1">{circle.name}</h2></div>
                     </div>
                   </motion.div>
                 );
@@ -320,45 +333,51 @@ export const HomePage: React.FC = () => {
           </div>
 
           <div className="flex flex-col gap-6 relative z-10">
-            {posts.map((post) => {
-              const targetId = post.user_id || post.profiles?.id;
-              return (
-                <div key={post.id} className="p-6 rounded-[36px] bg-white/[0.04] backdrop-blur-2xl border border-white/10 relative overflow-hidden shadow-2xl">
-                  <div className="flex items-center gap-4 mb-5 cursor-pointer w-fit group" onClick={() => goToProfile(targetId)}>
-                    <div className="w-12 h-12 rounded-[20px] bg-black border border-white/10 overflow-hidden shrink-0 shadow-inner p-0.5 group-hover:opacity-80 transition-opacity">
-                      <div className="w-full h-full rounded-[16px] overflow-hidden bg-[#111]">
-                        {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={24} className="text-white/20" /></div>}
+            {posts.length === 0 ? (
+               <div className="text-center p-10 bg-white/5 border border-white/10 rounded-3xl text-white/50 text-sm font-black">
+                  אין פוסטים בפיד. היה הראשון לשדר!
+               </div>
+            ) : (
+              posts.map((post) => {
+                const targetId = post.user_id || post.profiles?.id;
+                return (
+                  <div key={post.id} className="p-6 rounded-[36px] bg-white/[0.04] backdrop-blur-2xl border border-white/10 relative overflow-hidden shadow-2xl">
+                    <div className="flex items-center gap-4 mb-5 cursor-pointer w-fit group" onClick={() => goToProfile(targetId)}>
+                      <div className="w-12 h-12 rounded-[20px] bg-black border border-white/10 overflow-hidden shrink-0 shadow-inner p-0.5 group-hover:opacity-80 transition-opacity">
+                        <div className="w-full h-full rounded-[16px] overflow-hidden bg-[#111]">
+                          {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={24} className="text-white/20" /></div>}
+                        </div>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-white font-black text-[16px] drop-shadow-sm group-hover:text-[#e5e4e2] transition-colors">{post.profiles?.full_name || 'אנונימי'}</span>
+                        <span className="text-white/40 text-[11px] font-bold mt-0.5">{new Date(post.created_at || Date.now()).toLocaleDateString('he-IL')}</span>
                       </div>
                     </div>
-                    <div className="flex flex-col">
-                      <span className="text-white font-black text-[16px] drop-shadow-sm group-hover:text-[#e5e4e2] transition-colors">{post.profiles?.full_name || 'אנונימי'}</span>
-                      <span className="text-white/40 text-[11px] font-bold mt-0.5">{new Date(post.created_at || Date.now()).toLocaleDateString('he-IL')}</span>
-                    </div>
-                  </div>
-                  
-                  {post.media_url && (
-                    <div className="mb-5 rounded-[24px] overflow-hidden border border-white/10 bg-[#050505] shadow-inner">
-                      {post.media_type === 'video' || post.media_url.match(/\.(mp4|webm|mov)$/i) ? (
-                        <video src={post.media_url} controls playsInline preload="metadata" className="w-full h-auto max-h-[450px] object-cover" />
-                      ) : (
-                        <img src={post.media_url} alt="Media" className="w-full h-auto object-cover max-h-[450px]" />
-                      )}
-                    </div>
-                  )}
+                    
+                    {post.media_url && (
+                      <div className="mb-5 rounded-[24px] overflow-hidden border border-white/10 bg-[#050505] shadow-inner">
+                        {post.media_type === 'video' || post.media_url.match(/\.(mp4|webm|mov)$/i) ? (
+                          <video src={post.media_url} controls playsInline preload="metadata" className="w-full h-auto max-h-[450px] object-cover" />
+                        ) : (
+                          <img src={post.media_url} alt="Drop media" className="w-full h-auto object-cover max-h-[450px]" />
+                        )}
+                      </div>
+                    )}
 
-                  {post.content && <p className="text-white/90 text-[15px] leading-relaxed font-medium mb-6 text-right px-1">{post.content}</p>}
-                  
-                  <div className="flex items-center gap-6 pt-4 border-t border-white/5">
-                    <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-2 transition-all active:scale-90 ${post.is_liked ? 'text-[#e91e63] drop-shadow-[0_0_10px_rgba(233,30,99,0.5)]' : 'text-white/30 hover:text-[#e91e63]'}`}>
-                      <Heart size={20} fill={post.is_liked ? "currentColor" : "none"} /> <span className="text-[13px] font-black">{post.likes_count}</span>
-                    </button>
-                    <button onClick={() => openComments(post)} className="flex items-center gap-2 text-white/30 hover:text-[#2196f3] transition-all active:scale-90">
-                      <MessageSquare size={20} /> <span className="text-[13px] font-black">{post.comments_count}</span>
-                    </button>
+                    {post.content && <p className="text-white/90 text-[15px] leading-relaxed font-medium mb-6 text-right px-1 whitespace-pre-wrap">{post.content}</p>}
+                    
+                    <div className="flex items-center gap-6 pt-4 border-t border-white/5">
+                      <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-2 transition-all active:scale-90 ${post.is_liked ? 'text-[#e91e63] drop-shadow-[0_0_10px_rgba(233,30,99,0.5)]' : 'text-white/30 hover:text-[#e91e63]'}`}>
+                        <Heart size={20} fill={post.is_liked ? "currentColor" : "none"} /> <span className="text-[13px] font-black">{post.likes_count}</span>
+                      </button>
+                      <button onClick={() => openComments(post)} className="flex items-center gap-2 text-white/30 hover:text-[#2196f3] transition-all active:scale-90">
+                        <MessageSquare size={20} /> <span className="text-[13px] font-black">{post.comments_count}</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
       </FadeIn>
@@ -384,11 +403,11 @@ export const HomePage: React.FC = () => {
           </AnimatePresence>
 
           <AnimatePresence>
-            {activePost && (
+            {activeCommentsPostId && (
               <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setActivePost(null)} />
-                <motion.div drag="y" dragControls={dragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, { offset }) => { if (offset.y > 100) setActivePost(null); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[85vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
-                  <div className="w-full flex justify-center pt-5 pb-3 cursor-grab active:cursor-grabbing bg-white/[0.02]" onPointerDown={(e) => dragControls.start(e)} style={{ touchAction: "none" }}>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setActiveCommentsPostId(null)} />
+                <motion.div drag="y" dragControls={commentsDragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, { offset }) => { if (offset.y > 100) setActiveCommentsPostId(null); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[85vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
+                  <div className="w-full flex justify-center pt-5 pb-3 cursor-grab active:cursor-grabbing bg-white/[0.02]" onPointerDown={(e) => commentsDragControls.start(e)} style={{ touchAction: "none" }}>
                     <div className="w-16 h-1.5 bg-white/20 rounded-full"></div>
                   </div>
                   <div className="flex justify-start items-center px-6 pb-4 border-b border-white/10"><h2 className="text-white font-black text-[16px]">תגובות ({activePost?.comments_count || 0})</h2></div>
