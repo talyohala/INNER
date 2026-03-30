@@ -14,7 +14,6 @@ export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Controls for Bottom Sheets
   const commentsDragControls = useDragControls();
   const optionsDragControls = useDragControls();
   const descDragControls = useDragControls();
@@ -31,8 +30,7 @@ export const HomePage: React.FC = () => {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [editingPost, setEditingPost] = useState<any | null>(null);
   
-  // Modals States
-  const [activePost, setActivePost] = useState<any>(null); // For comments
+  const [activePost, setActivePost] = useState<any>(null); 
   const [activeCommentsPostId, setActiveCommentsPostId] = useState<string | null>(null);
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState('');
@@ -58,7 +56,6 @@ export const HomePage: React.FC = () => {
     } catch (e) {}
   };
 
-  // משיכה חסינת כדורים - ללא קריסות של סופאבייס!
   const fetchData = async (isSilentRefresh = false) => {
     if (!isSilentRefresh) setLoading(true);
     try {
@@ -66,7 +63,6 @@ export const HomePage: React.FC = () => {
       const uid = authData.user?.id;
       if (uid) setCurrentUserId(uid);
 
-      // שאיבה ישירה וללא תלות אחד בשני
       const [rawPosts, rawCircles, rawMembers, rawProfiles, rawLikes, rawComments] = await Promise.all([
         supabase.from('posts').select('*').order('created_at', { ascending: false }).then(r => r.data || []).catch(() => []),
         supabase.from('circles').select('*').then(r => r.data || []).catch(() => []),
@@ -204,17 +200,10 @@ export const HomePage: React.FC = () => {
   const submitComment = async () => {
     if (!newComment.trim() || !activePost || !currentUserId) return;
     try {
-      if (editingComment) {
-        const { data, error } = await supabase.from('comments').update({ content: newComment.trim(), updated_at: new Date().toISOString() }).eq('id', editingComment.id).select('*, profiles(*)').single();
-        if (error) throw error;
-        setComments(comments.map(c => c.id === editingComment.id ? data : c)); setEditingComment(null);
-      } else {
-        const { data, error } = await supabase.from('comments').insert({ post_id: activePost.id, user_id: currentUserId, content: newComment.trim(), parent_id: replyingTo ? replyingTo.id : null }).select('*, profiles(*)').single();
-        if (error) throw error;
-        setComments(prev => [...prev, data]); 
-        setPosts(curr => curr.map(p => p.id === activePost.id ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p));
-      }
-      setNewComment(''); setReplyingTo(null); triggerFeedback('coin'); 
+      const { data, error } = await supabase.from('comments').insert({ post_id: activePost.id, user_id: currentUserId, content: newComment.trim(), parent_id: replyingTo ? replyingTo.id : null }).select('*, profiles(*)').single();
+      if (error) throw error;
+      setComments(prev => [...prev, data]); setNewComment(''); setReplyingTo(null);
+      setPosts(curr => curr.map(p => p.id === activePost.id ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p)); triggerFeedback('coin');
     } catch (err) { toast.error('שגיאה בשליחת תגובה'); }
   };
 
@@ -337,53 +326,66 @@ export const HomePage: React.FC = () => {
                   {post.media_url && (
                     <div className="w-full bg-[#050505] relative">
                       {post.media_type === 'video' || post.media_url.match(/\.(mp4|webm|mov)$/i) ? (
-                        <video src={post.media_url} autoPlay loop muted playsInline className="w-full max-h-[500px] object-cover border-b border-white/5" />
+                        <video src={post.media_url} autoPlay loop muted playsInline className="w-full max-h-[500px] object-cover" />
                       ) : (
-                        <img src={post.media_url} alt="Media" className="w-full max-h-[500px] object-cover border-b border-white/5" />
+                        <img src={post.media_url} alt="Media" className="w-full max-h-[500px] object-cover" />
+                      )}
+
+                      {/* תיאור הפוסט יושב על הוידאו למטה! */}
+                      {post.content && (
+                        <div className="absolute bottom-0 left-0 right-0 p-5 pt-16 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex items-end pointer-events-none">
+                          <p onClick={(e) => { e.stopPropagation(); triggerFeedback('pop'); setActiveDescPost(post); }} className="text-white/90 text-[14px] leading-relaxed font-medium text-right line-clamp-2 cursor-pointer active:opacity-50 transition-opacity pointer-events-auto drop-shadow-lg w-full">
+                            {post.content}
+                          </p>
+                        </div>
                       )}
                     </div>
                   )}
 
-                  {/* 2. פרטי משתמש, עריכה, ותיאור - צמודים מתחת למדיה */}
-                  <div className="p-5">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-4 cursor-pointer w-fit group" onClick={() => goToProfile(targetId)}>
-                        <div className="w-11 h-11 rounded-full bg-black border border-white/10 overflow-hidden shrink-0 shadow-inner group-hover:opacity-80 transition-opacity">
-                          <div className="w-full h-full rounded-full overflow-hidden bg-[#111]">
-                            {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={20} className="text-white/20" /></div>}
-                          </div>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-white font-black text-[15px] drop-shadow-sm group-hover:text-[#e5e4e2] transition-colors">{post.profiles?.full_name || 'אנונימי'}</span>
-                          <span className="text-white/40 text-[10px] font-bold mt-0.5">{new Date(post.created_at || Date.now()).toLocaleDateString('he-IL')}</span>
+                  {/* אם אין מדיה - התיאור יושב רגיל בקופסה */}
+                  {!post.media_url && post.content && (
+                    <div className="p-6 pb-4">
+                      <p onClick={() => { triggerFeedback('pop'); setActiveDescPost(post); }} className="text-white/90 text-[15px] leading-relaxed font-medium text-right line-clamp-3 cursor-pointer active:opacity-50 transition-opacity">
+                        {post.content}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* פס תחתון משולב - משתמש בימין, לייקים+הודעות+3 נקודות בשמאל */}
+                  <div className={`flex items-center justify-between px-5 py-4 bg-black/40 ${post.media_url ? '' : 'border-t border-white/5'}`}>
+                    
+                    {/* צד ימין: משתמש */}
+                    <div className="flex items-center gap-3 cursor-pointer group" onClick={() => goToProfile(targetId)}>
+                      <div className="w-10 h-10 rounded-full bg-black border border-white/10 overflow-hidden shrink-0 shadow-inner group-hover:opacity-80 transition-opacity">
+                        <div className="w-full h-full rounded-full overflow-hidden bg-[#111]">
+                          {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={18} className="text-white/20" /></div>}
                         </div>
                       </div>
+                      <div className="flex flex-col">
+                        <span className="text-white font-black text-[14px] drop-shadow-sm group-hover:text-[#e5e4e2] transition-colors">{post.profiles?.full_name || 'אנונימי'}</span>
+                        <span className="text-white/30 text-[10px] font-bold mt-0.5">{new Date(post.created_at || Date.now()).toLocaleDateString('he-IL')}</span>
+                      </div>
+                    </div>
 
-                      {/* תפריט 3 נקודות (עריכה / מחיקה) */}
+                    {/* צד שמאל: אקשנים - לב, הודעות, ואז 3 נקודות הכי שמאלי */}
+                    <div className="flex items-center gap-4">
+                      <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-1.5 transition-all active:scale-90 ${post.is_liked ? 'text-[#e91e63] drop-shadow-[0_0_10px_rgba(233,30,99,0.5)]' : 'text-white/30 hover:text-[#e91e63]'}`}>
+                        <Heart size={18} fill={post.is_liked ? "currentColor" : "none"} /> <span className="text-[12px] font-black">{post.likes_count}</span>
+                      </button>
+                      
+                      <button onClick={() => openComments(post)} className="flex items-center gap-1.5 text-white/30 hover:text-[#2196f3] transition-all active:scale-90">
+                        <MessageSquare size={18} /> <span className="text-[12px] font-black">{post.comments_count}</span>
+                      </button>
+
+                      {/* 3 נקודות - הכי שמאלי בשורה */}
                       {isMyPost && (
-                        <button onClick={() => { triggerFeedback('pop'); setOptionsMenuPost(post); }} className="w-10 h-10 flex items-center justify-center rounded-full bg-transparent text-white/40 hover:bg-white/5 hover:text-white transition-colors">
-                          <MoreVertical size={20} />
+                        <button onClick={() => { triggerFeedback('pop'); setOptionsMenuPost(post); }} className="flex items-center justify-center text-white/30 hover:text-white transition-colors active:scale-90">
+                          <MoreVertical size={18} />
                         </button>
                       )}
                     </div>
-                    
-                    {/* טקסט הפוסט ב-2 שורות ולחיץ */}
-                    {post.content && (
-                      <p onClick={() => { triggerFeedback('pop'); setActiveDescPost(post); }} className="text-white/80 text-[14px] leading-relaxed font-medium text-right line-clamp-2 cursor-pointer active:opacity-50 transition-opacity mb-2">
-                        {post.content}
-                      </p>
-                    )}
                   </div>
-                  
-                  {/* 3. לייקים ותגובות - קו הפרדה */}
-                  <div className="flex items-center gap-6 px-5 py-4 border-t border-white/5 bg-black/10">
-                    <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-2 transition-all active:scale-90 ${post.is_liked ? 'text-[#e91e63] drop-shadow-[0_0_10px_rgba(233,30,99,0.5)]' : 'text-white/30 hover:text-[#e91e63]'}`}>
-                      <Heart size={20} fill={post.is_liked ? "currentColor" : "none"} /> <span className="text-[13px] font-black">{post.likes_count}</span>
-                    </button>
-                    <button onClick={() => openComments(post)} className="flex items-center gap-2 text-white/30 hover:text-[#2196f3] transition-all active:scale-90">
-                      <MessageSquare size={20} /> <span className="text-[13px] font-black">{post.comments_count}</span>
-                    </button>
-                  </div>
+
                 </div>
               );
             })
@@ -391,7 +393,7 @@ export const HomePage: React.FC = () => {
         </div>
       </FadeIn>
 
-      {/* ============== BOTTOM SHEETS (NO PORTALS, NO CRASHES, OVER EVERYTHING) ================ */}
+      {/* ============== BOTTOM SHEETS (Z-99999) ================ */}
       
       {/* 1. בוטום שיט: עריכה / מחיקה */}
       <AnimatePresence>
