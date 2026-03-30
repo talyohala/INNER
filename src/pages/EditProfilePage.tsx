@@ -5,13 +5,14 @@ import { UserCircle, Edit2, Zap, ChevronLeft, Loader2, Wallet, Users, MessageSqu
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
 import { supabase } from '../lib/supabase';
-import { FadeIn, Button, GlassCard } from '../components/ui';
+import { FadeIn, Button } from '../components/ui';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 
 export const EditProfilePage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, profile: authProfile, loading: authLoading, reloadProfile } = useAuth();
+  // הסרתי את reloadProfile למקרה שהוא לא קיים אצלך ב-context וגורם לקריסה
+  const { user, profile: authProfile, loading: authLoading } = useAuth();
 
   const [mounted, setMounted] = useState(false);
   
@@ -56,6 +57,16 @@ export const EditProfilePage: React.FC = () => {
           setData(result);
           
           if (result.profile) {
+            // מנגנון הגנה חסין קריסות לתאריך
+            let safeDate = '';
+            try {
+              if (result.profile.birth_date) {
+                safeDate = new Date(result.profile.birth_date).toISOString().split('T')[0];
+              }
+            } catch (e) {
+              console.warn("Invalid date format from DB");
+            }
+
             setFormData({
               full_name: result.profile.full_name || '',
               username: result.profile.username || '',
@@ -63,7 +74,7 @@ export const EditProfilePage: React.FC = () => {
               social_link: result.profile.social_link || '',
               zodiac: result.profile.zodiac || '',
               location: result.profile.location || '',
-              birth_date: result.profile.birth_date ? new Date(result.profile.birth_date).toISOString().split('T')[0] : '',
+              birth_date: safeDate,
               relationship_status: result.profile.relationship_status || '',
               education: result.profile.education || '',
             });
@@ -79,7 +90,6 @@ export const EditProfilePage: React.FC = () => {
     if (user && !authLoading) loadProfileData();
   }, [user, authLoading]);
 
-  // העלאת תמונות ושמירה *ישירה* דרך Supabase! עוקפים את השרת!
   const handleMediaUpload = async (file: File, type: 'avatar' | 'cover') => {
     if (!file || !user?.id) return;
     
@@ -95,14 +105,11 @@ export const EditProfilePage: React.FC = () => {
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage.from('feed_images').getPublicUrl(uploadData.path);
-
       const fieldToUpdate = type === 'avatar' ? 'avatar_url' : 'cover_url';
       
-      // הנה הקסם: עדכון ישיר של המסד נתונים, אפס שרתים באמצע!
       const { error: updateError } = await supabase.from('profiles').update({ [fieldToUpdate]: publicUrl }).eq('id', user.id);
       if (updateError) throw updateError;
 
-      reloadProfile();
       setData((prev: any) => ({ ...prev, profile: { ...prev.profile, [fieldToUpdate]: publicUrl } }));
       toast.success(`תמונת ה${type === 'avatar' ? 'פרופיל' : 'נושא'} עודכנה בהצלחה!`, { id: tid, style: { background: '#111', color: '#e5e4e2', border: '1px solid rgba(229,228,226,0.2)' } });
     } catch (err: any) {
@@ -112,7 +119,6 @@ export const EditProfilePage: React.FC = () => {
     }
   };
 
-  // שמירת פרטים אישיים *ישירה* דרך Supabase! עוקפים את השרת!
   const handleSaveDetails = async () => {
     if (!user?.id || savingDetails) return;
     setSavingDetails(true);
@@ -125,11 +131,9 @@ export const EditProfilePage: React.FC = () => {
         birth_date: formData.birth_date === '' ? null : formData.birth_date,
       };
 
-      // הנה הקסם: עדכון ישיר של המסד נתונים, אפס שרתים באמצע!
       const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
       if (error) throw error;
       
-      reloadProfile();
       toast.success('הפרטים עודכנו בהצלחה!', { id: tid, style: { background: '#111', color: '#e5e4e2', border: '1px solid rgba(229,228,226,0.2)' } });
     } catch (err: any) {
       console.error(err);
@@ -195,7 +199,6 @@ export const EditProfilePage: React.FC = () => {
         )}
       </div>
 
-      {/* כפתור החלפת קאבר */}
       <div className="fixed top-[160px] right-6 z-[99999]">
         <input type="file" ref={coverInputRef} onChange={(e) => {
             if (e.target.files && e.target.files[0]) handleMediaUpload(e.target.files[0], 'cover');
@@ -237,7 +240,8 @@ export const EditProfilePage: React.FC = () => {
 
           <div className="px-4 flex flex-col gap-5 mt-10 w-full mb-2">
             
-            <GlassCard rounded="2xl" className="p-6 border border-white/10 flex flex-col gap-5 rounded-[20px]">
+            {/* כרטיסיית פרטים אישיים - החלפתי את GlassCard ב-div קלאסי למניעת קריסות */}
+            <div className="bg-white/[0.02] backdrop-blur-xl border border-white/10 flex flex-col gap-5 rounded-[20px] p-6 shadow-2xl">
               <div className="flex justify-between items-center border-b border-white/10 pb-4 mb-1">
                 <div className="flex flex-col text-right">
                   <span className="text-white font-black text-[15px] tracking-wide">פרטים אישיים</span>
@@ -292,9 +296,9 @@ export const EditProfilePage: React.FC = () => {
                     {savingDetails ? <Loader2 size={16} className="animate-spin" /> : "שמור שינויים"}
                  </Button>
               </div>
-            </GlassCard>
+            </div>
 
-            <GlassCard rounded="2xl" className="p-6 border border-white/10 flex flex-col gap-5 rounded-[20px]">
+            <div className="bg-white/[0.02] backdrop-blur-xl border border-white/10 flex flex-col gap-5 rounded-[20px] p-6 shadow-2xl">
               <div className="flex justify-between items-center border-b border-white/10 pb-4 mb-1">
                 <div className="flex flex-col text-right">
                   <span className="text-white font-black text-[15px] tracking-wide">אבטחה וסיסמה</span>
@@ -323,7 +327,7 @@ export const EditProfilePage: React.FC = () => {
                     {updatingPassword ? <Loader2 size={16} className="animate-spin" /> : "עדכן סיסמה"}
                  </Button>
               </div>
-            </GlassCard>
+            </div>
 
           </div>
         </div>
