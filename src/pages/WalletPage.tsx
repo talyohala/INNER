@@ -5,7 +5,7 @@ import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { Loader2, ArrowDownLeft, ArrowUpRight, Zap, History, ShieldCheck, SmartphoneNfc, ChevronDown, Send, Tag, Banknote, UserCircle } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { supabase } from '../lib/supabase';
-import { FadeIn, Button, Input } from '../components/ui';
+import { FadeIn, Button } from '../components/ui';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 
@@ -32,8 +32,8 @@ export const WalletPage: React.FC = () => {
   const [showRedeem, setShowRedeem] = useState(false);
 
   const [transferUsername, setTransferUsername] = useState('');
-  const [transferAmount, setTransferAmount] = useState<number | ''>('');
-  const [redeemAmount, setRedeemAmount] = useState<number | ''>('');
+  const [transferAmount, setTransferAmount] = useState<number | string>('');
+  const [redeemAmount, setRedeemAmount] = useState<number | string>('');
 
   const [transferSearchResults, setTransferSearchResults] = useState<any[]>([]);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
@@ -135,12 +135,17 @@ export const WalletPage: React.FC = () => {
   };
 
   const handleTransfer = async () => {
-    if (!transferUsername || !transferAmount || transferAmount <= 0) return toast.error('אנא הזן פרטים תקינים');
-    if (transferAmount > balance) return toast.error('אין לך מספיק יתרה בארנק');
+    const amountNum = Number(transferAmount);
+    if (!transferUsername || transferUsername.trim() === '' || isNaN(amountNum) || amountNum <= 0) {
+      return toast.error('אנא הזן פרטים תקינים');
+    }
+    if (amountNum > balance) {
+      return toast.error('אין לך מספיק יתרה בארנק');
+    }
 
     setTransferring(true);
     triggerFeedback('pop');
-    const tid = toast.loading(`מעביר ${transferAmount} CRD...`, { style: { background: '#111', color: '#fff' } });
+    const tid = toast.loading(`מעביר ${amountNum} CRD...`, { style: { background: '#111', color: '#fff' } });
 
     try {
       const { data: authData } = await supabase.auth.getUser();
@@ -151,7 +156,7 @@ export const WalletPage: React.FC = () => {
       const { data, error } = await supabase.rpc('transfer_credits', {
         sender_id: authData.user.id,
         receiver_username: cleanUsername,
-        transfer_amount: Number(transferAmount)
+        transfer_amount: amountNum
       });
 
       if (error) throw error; 
@@ -173,17 +178,18 @@ export const WalletPage: React.FC = () => {
   };
 
   const handleRedeem = async () => {
-    if (!redeemAmount || redeemAmount <= 0) return toast.error('אנא הזן סכום תקין');
-    if (redeemAmount > balance) return toast.error('אין לך מספיק יתרה למשיכה');
-    if (redeemAmount < 100) return toast.error('מינימום למשיכה הוא 100 CRD');
+    const amountNum = Number(redeemAmount);
+    if (isNaN(amountNum) || amountNum <= 0) return toast.error('אנא הזן סכום תקין');
+    if (amountNum > balance) return toast.error('אין לך מספיק יתרה למשיכה');
+    if (amountNum < 100) return toast.error('מינימום למשיכה הוא 100 CRD');
 
     setRedeeming(true);
     triggerFeedback('pop');
     const tid = toast.loading(`מכין בקשת פדיון...`, { style: { background: '#111', color: '#fff' } });
 
     setTimeout(() => {
-      setBalance(prev => prev - Number(redeemAmount));
-      setTransactions(prev => [{ id: Date.now(), type: 'withdrawal', amount: redeemAmount, description: 'משיכה לחשבון בנק', created_at: new Date().toISOString() }, ...prev]);
+      setBalance(prev => prev - amountNum);
+      setTransactions(prev => [{ id: Date.now(), type: 'withdrawal', amount: amountNum, description: 'משיכה לחשבון בנק', created_at: new Date().toISOString() }, ...prev]);
       triggerFeedback('success');
       toast.success('בקשת הפדיון נשלחה לאישור!', { id: tid, style: { background: '#111', color: '#4ade80', border: '1px solid rgba(74,222,128,0.2)' } });
       setRedeeming(false);
@@ -327,7 +333,6 @@ export const WalletPage: React.FC = () => {
 
       {mounted && typeof document !== 'undefined' && createPortal(
         <>
-          {/* ================= מגירת היסטוריית פעולות ================= */}
           <AnimatePresence>
             {showAllTx && (
               <div className="fixed inset-0 z-[9900] flex flex-col justify-end" dir="rtl">
@@ -363,7 +368,6 @@ export const WalletPage: React.FC = () => {
             )}
           </AnimatePresence>
 
-          {/* ================= מגירת אישור רכישה ================= */}
           <AnimatePresence>
             {selectedPackage && (
               <div className="fixed inset-0 z-[9900] flex flex-col justify-end" dir="rtl">
@@ -407,7 +411,6 @@ export const WalletPage: React.FC = () => {
             )}
           </AnimatePresence>
 
-          {/* ================= מגירת העברה לחבר ================= */}
           <AnimatePresence>
             {showTransfer && (
               <div className="fixed inset-0 z-[9900] flex flex-col justify-end" dir="rtl">
@@ -424,7 +427,8 @@ export const WalletPage: React.FC = () => {
                     <div className="flex flex-col gap-2 relative">
                       <label className="text-white/40 text-[11px] font-black uppercase px-2 tracking-widest text-right">שם המשתמש או חיפוש (@)</label>
                       <div className="relative">
-                        <Input 
+                        <input 
+                          type="text"
                           value={transferUsername} 
                           onChange={(e: any) => { 
                             setTransferUsername(e.target.value); 
@@ -432,12 +436,18 @@ export const WalletPage: React.FC = () => {
                           }} 
                           placeholder="חיפוש לפי שם..." 
                           dir="rtl" 
-                          className="bg-black/40 text-white font-medium h-14 border border-white/10 shadow-inner focus:border-white/50 transition-all rounded-[20px] px-4 w-full" 
+                          className="bg-black/40 text-white font-medium h-14 border border-white/10 shadow-inner focus:border-white/50 focus:outline-none transition-all rounded-[20px] px-4 w-full" 
                         />
                         
                         <AnimatePresence>
                           {showUserDropdown && transferUsername.trim() !== '' && (
-                            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="absolute top-[100%] mt-2 left-0 right-0 bg-[#111] border border-white/10 rounded-[20px] shadow-[0_10px_40px_rgba(0,0,0,0.8)] overflow-hidden z-50 flex flex-col">
+                            <motion.div 
+                              onPointerDownCapture={(e) => e.stopPropagation()} 
+                              initial={{ opacity: 0, y: -10 }} 
+                              animate={{ opacity: 1, y: 0 }} 
+                              exit={{ opacity: 0, y: -10 }} 
+                              className="absolute top-[100%] mt-2 left-0 right-0 bg-[#111] border border-white/10 rounded-[20px] shadow-[0_10px_40px_rgba(0,0,0,0.8)] overflow-hidden z-50 flex flex-col"
+                            >
                                {isSearchingUsers ? (
                                   <div className="p-4 flex justify-center"><Loader2 size={18} className="animate-spin text-white/40" /></div>
                                ) : transferSearchResults.length === 0 ? (
@@ -446,14 +456,16 @@ export const WalletPage: React.FC = () => {
                                   transferSearchResults.map(u => (
                                     <div 
                                       key={u.id} 
-                                      /* תיקון קריטי ללחיצה: onPointerDown ישר תופס את הלחיצה בלי להמתין להחלקה של החלון */
                                       onPointerDown={(e) => { 
                                         e.preventDefault(); 
-                                        e.stopPropagation(); 
                                         setTransferUsername(u.username); 
                                         setShowUserDropdown(false); 
                                       }} 
-                                      className="flex items-center gap-3 p-3 border-b border-white/5 hover:bg-white/[0.05] cursor-pointer transition-colors last:border-0"
+                                      onClick={() => {
+                                        setTransferUsername(u.username); 
+                                        setShowUserDropdown(false); 
+                                      }}
+                                      className="flex items-center gap-3 p-3 border-b border-white/5 hover:bg-white/[0.05] cursor-pointer transition-colors last:border-0 active:bg-white/10"
                                     >
                                       <div className="w-10 h-10 rounded-full bg-black overflow-hidden shrink-0 border border-white/10 relative">
                                         {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={16} className="text-white/20" /></div>}
@@ -473,7 +485,14 @@ export const WalletPage: React.FC = () => {
 
                     <div className="flex flex-col gap-2 relative z-0">
                       <label className="text-white/40 text-[11px] font-black uppercase px-2 tracking-widest text-right">סכום ב-CRD</label>
-                      <Input type="number" value={transferAmount} onChange={(e: any) => setTransferAmount(e.target.value)} placeholder="100..." dir="ltr" className="bg-black/40 text-white font-black h-14 border border-white/10 shadow-inner focus:border-white/50 transition-all rounded-[20px] px-4 text-xl" />
+                      <input 
+                        type="number" 
+                        value={transferAmount} 
+                        onChange={(e: any) => setTransferAmount(e.target.value)} 
+                        placeholder="100..." 
+                        dir="ltr" 
+                        className="bg-black/40 text-white font-black h-14 border border-white/10 shadow-inner focus:border-white/50 focus:outline-none transition-all rounded-[20px] px-4 text-xl w-full" 
+                      />
                     </div>
 
                     <Button onClick={handleTransfer} disabled={transferring} className="w-full h-14 mt-4 bg-white text-black font-black text-[14px] uppercase tracking-widest rounded-[20px] flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all active:scale-95 disabled:opacity-50 relative z-0">
@@ -485,7 +504,6 @@ export const WalletPage: React.FC = () => {
             )}
           </AnimatePresence>
 
-          {/* ================= מגירת פדיון CRD ================= */}
           <AnimatePresence>
             {showRedeem && (
               <div className="fixed inset-0 z-[9900] flex flex-col justify-end" dir="rtl">
@@ -504,7 +522,14 @@ export const WalletPage: React.FC = () => {
                     </div>
                     <div className="flex flex-col gap-2">
                       <label className="text-white/40 text-[11px] font-black uppercase px-2 tracking-widest text-right">סכום למשיכה (CRD)</label>
-                      <Input type="number" value={redeemAmount} onChange={(e: any) => setRedeemAmount(e.target.value)} placeholder="0" dir="ltr" className="bg-black/40 text-white font-black h-14 border border-white/10 shadow-inner focus:border-[#4ade80]/50 transition-all rounded-[20px] px-4 text-xl" />
+                      <input 
+                        type="number" 
+                        value={redeemAmount} 
+                        onChange={(e: any) => setRedeemAmount(e.target.value)} 
+                        placeholder="0" 
+                        dir="ltr" 
+                        className="bg-black/40 text-white font-black h-14 border border-white/10 shadow-inner focus:border-[#4ade80]/50 focus:outline-none transition-all rounded-[20px] px-4 text-xl w-full" 
+                      />
                     </div>
                     <Button onClick={handleRedeem} disabled={redeeming} className="w-full h-14 mt-4 bg-white text-black font-black text-[14px] uppercase tracking-widest rounded-[20px] flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all active:scale-95 disabled:opacity-50">
                       {redeeming ? <Loader2 size={24} className="animate-spin text-black" /> : 'בקש פדיון'}
