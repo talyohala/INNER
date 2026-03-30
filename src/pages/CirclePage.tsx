@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion'; 
 import { supabase } from '../lib/supabase';              
 import { FadeIn, GlassCard, Button } from '../components/ui';
-import { Users, Loader2, ArrowRight, MessageSquare, Heart, Activity, Send, Lock, X, UserCircle } from 'lucide-react';         
+import { Users, Loader2, ArrowRight, MessageSquare, Heart, Activity, Send, Lock, X, UserCircle, Trash2, Edit2, Reply } from 'lucide-react';         
 import { triggerFeedback } from '../lib/sound';          
 import toast from 'react-hot-toast';
 
@@ -40,9 +40,10 @@ export const CirclePage: React.FC = () => {
       }
       if (!circle) throw new Error('מועדון לא נמצא');
 
+      // התיקון הקריטי לבדיקת החברות במועדון (שמונעת את השגיאה של הכפילות)
       let isMember = false;
       if (uid) {
-        const { data: memberData } = await supabase.from('circle_members').select('id').eq('circle_id', circle.id).eq('user_id', uid);
+        const { data: memberData } = await supabase.from('circle_members').select('user_id').eq('circle_id', circle.id).eq('user_id', uid);
         isMember = memberData && memberData.length > 0;
       }
 
@@ -64,13 +65,21 @@ export const CirclePage: React.FC = () => {
         await supabase.from('circle_members').delete().match({ circle_id: data.circle.id, user_id: currentUserId });
         setData((prev: any) => ({ ...prev, isMember: false, circle: { ...prev.circle, members_count: Math.max((prev.circle.members_count || 1) - 1, 0) } }));
       } else {
-        const { error } = await supabase.from('circle_members').insert({ circle_id: data.circle.id, user_id: currentUserId, role: 'member' });
+        // הוספנו מנגנון upsert ליתר ביטחון נגד שגיאות PKEY
+        const { error } = await supabase.from('circle_members').upsert({ circle_id: data.circle.id, user_id: currentUserId, role: 'member' }, { onConflict: 'circle_id,user_id' });
+        
+        if (error && error.code === '23505') {
+           // אם הוא איכשהו כבר קיים, נעדכן את ה-UI בשקט
+           setData((prev: any) => ({ ...prev, isMember: true }));
+           return;
+        }
         if (error) throw error;
+        
         setData((prev: any) => ({ ...prev, isMember: true, circle: { ...prev.circle, members_count: (prev.circle.members_count || 0) + 1 } }));                                    
         triggerFeedback('success'); toast.success('ברוך הבא למועדון! 👑');  
         fetchCircleData(); 
       }                                                      
-    } catch (err: any) { toast.error('שגיאה בהצטרפות: ' + err.message); } finally { setJoining(false); }
+    } catch (err: any) { toast.error('שגיאה בהצטרפות'); } finally { setJoining(false); }
   };                                                                                                                
 
   const handlePost = async () => {                           
@@ -110,6 +119,12 @@ export const CirclePage: React.FC = () => {
       setData((curr: any) => ({ ...curr, posts: curr.posts.map((p: any) => p.id === activePost.id ? { ...p, comments_count: p.comments_count + 1 } : p) }));
       triggerFeedback('coin');
     } catch (err) { toast.error('שגיאה בשליחת תגובה'); }
+  };
+
+  const deleteComment = async (commentId: string) => {
+    triggerFeedback('error');
+    setComments(comments.filter(c => c.id !== commentId));
+    await supabase.from('comments').delete().eq('id', commentId);
   };
 
   if (loading || !data) return <div className="min-h-screen bg-[#030303] flex items-center justify-center"><Loader2 className="animate-spin text-white/20" /></div>;
@@ -199,7 +214,8 @@ export const CirclePage: React.FC = () => {
                     <div className="w-8 h-8 rounded-full bg-black shrink-0 mt-1 overflow-hidden">{comment.profiles?.avatar_url ? <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-white/5" />}</div>                                          
                     <div className="flex flex-col flex-1 bg-white/[0.03] p-3 rounded-2xl rounded-tr-sm border border-white/5">
                       <span className="text-white font-black text-xs mb-1 text-right">{comment.profiles?.full_name || 'אנונימי'}</span>                                                          
-                      <p className="text-white/70 text-sm text-right">{comment.content}</p>                                           
+                      <p className="text-white/70 text-sm text-right">{comment.content}</p>
+                      {comment.user_id === currentUserId && <button onClick={() => deleteComment(comment.id)} className="text-red-400 text-[10px] font-bold mt-2 flex items-center gap-1 w-fit"><Trash2 size={12}/> מחק</button>}
                     </div>                                                 
                   </div>
                 ))}
