@@ -35,7 +35,6 @@ export const WalletPage: React.FC = () => {
   const [transferAmount, setTransferAmount] = useState<number | ''>('');
   const [redeemAmount, setRedeemAmount] = useState<number | ''>('');
 
-  // States לחיפוש החכם
   const [transferSearchResults, setTransferSearchResults] = useState<any[]>([]);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
@@ -62,7 +61,6 @@ export const WalletPage: React.FC = () => {
     }
   };
 
-  // מנוע חיפוש בזמן אמת בתוך חלון ההעברה
   useEffect(() => {
     const searchUsers = async () => {
       const query = transferUsername.replace('@', '').trim();
@@ -329,9 +327,10 @@ export const WalletPage: React.FC = () => {
 
       {mounted && typeof document !== 'undefined' && createPortal(
         <>
+          {/* ================= מגירת היסטוריית פעולות ================= */}
           <AnimatePresence>
             {showAllTx && (
-              <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
+              <div className="fixed inset-0 z-[9900] flex flex-col justify-end" dir="rtl">
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowAllTx(false)} />
                 <motion.div drag="y" dragControls={historyDragControls} dragListener={false} dragConstraints={{ top: 0 }} dragElastic={0.2} onDragEnd={(e, { offset, velocity }) => { if (offset.y > 100 || velocity.y > 400) setShowAllTx(false); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[90vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
                   <div onPointerDown={(e) => historyDragControls.start(e)} style={{ touchAction: "none" }} className="w-full flex flex-col items-center pt-5 pb-4 cursor-grab active:cursor-grabbing bg-white/[0.02]">
@@ -364,9 +363,10 @@ export const WalletPage: React.FC = () => {
             )}
           </AnimatePresence>
 
+          {/* ================= מגירת אישור רכישה ================= */}
           <AnimatePresence>
             {selectedPackage && (
-              <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
+              <div className="fixed inset-0 z-[9900] flex flex-col justify-end" dir="rtl">
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closePaymentSheet} />
                 <motion.div drag="y" dragControls={paymentDragControls} dragListener={false} dragConstraints={{ top: 0 }} dragElastic={0.2} onDragEnd={(e, { offset, velocity }) => { if (offset.y > 100 || velocity.y > 400) closePaymentSheet(); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative pb-12 overflow-hidden">
                   <div onPointerDown={(e) => paymentDragControls.start(e)} style={{ touchAction: "none" }} className="w-full flex flex-col items-center pt-5 pb-4 cursor-grab active:cursor-grabbing bg-white/[0.02]">
@@ -407,9 +407,10 @@ export const WalletPage: React.FC = () => {
             )}
           </AnimatePresence>
 
+          {/* ================= מגירת העברה לחבר ================= */}
           <AnimatePresence>
             {showTransfer && (
-              <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
+              <div className="fixed inset-0 z-[9900] flex flex-col justify-end" dir="rtl">
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowTransfer(false)} />
                 <motion.div drag="y" dragControls={transferDragControls} dragListener={false} dragConstraints={{ top: 0 }} dragElastic={0.2} onDragEnd={(e, { offset, velocity }) => { if (offset.y > 100 || velocity.y > 400) setShowTransfer(false); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[90vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative pb-12 overflow-hidden">
                   <div onPointerDown={(e) => transferDragControls.start(e)} style={{ touchAction: "none" }} className="w-full flex flex-col items-center pt-5 pb-4 cursor-grab active:cursor-grabbing bg-white/[0.02]">
@@ -420,7 +421,6 @@ export const WalletPage: React.FC = () => {
                   </div>
                   <div className="p-6 flex flex-col gap-6 overflow-y-auto scrollbar-hide" onPointerDown={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }} onTouchStart={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}>
                     
-                    {/* חיפוש משתמשים חכם עם השלמה אוטומטית */}
                     <div className="flex flex-col gap-2 relative">
                       <label className="text-white/40 text-[11px] font-black uppercase px-2 tracking-widest text-right">שם המשתמש או חיפוש (@)</label>
                       <div className="relative">
@@ -435,7 +435,6 @@ export const WalletPage: React.FC = () => {
                           className="bg-black/40 text-white font-medium h-14 border border-white/10 shadow-inner focus:border-white/50 transition-all rounded-[20px] px-4 w-full" 
                         />
                         
-                        {/* התפריט הצף של תוצאות החיפוש */}
                         <AnimatePresence>
                           {showUserDropdown && transferUsername.trim() !== '' && (
                             <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="absolute top-[100%] mt-2 left-0 right-0 bg-[#111] border border-white/10 rounded-[20px] shadow-[0_10px_40px_rgba(0,0,0,0.8)] overflow-hidden z-50 flex flex-col">
@@ -445,11 +444,21 @@ export const WalletPage: React.FC = () => {
                                   <div className="p-4 text-center text-white/40 text-[12px] font-bold">לא נמצא משתמש כזה</div>
                                ) : (
                                   transferSearchResults.map(u => (
-                                    <div key={u.id} onClick={() => { setTransferUsername(u.username); setShowUserDropdown(false); }} className="flex items-center gap-3 p-3 border-b border-white/5 hover:bg-white/[0.05] cursor-pointer transition-colors last:border-0">
+                                    <div 
+                                      key={u.id} 
+                                      /* תיקון קריטי ללחיצה: onPointerDown ישר תופס את הלחיצה בלי להמתין להחלקה של החלון */
+                                      onPointerDown={(e) => { 
+                                        e.preventDefault(); 
+                                        e.stopPropagation(); 
+                                        setTransferUsername(u.username); 
+                                        setShowUserDropdown(false); 
+                                      }} 
+                                      className="flex items-center gap-3 p-3 border-b border-white/5 hover:bg-white/[0.05] cursor-pointer transition-colors last:border-0"
+                                    >
                                       <div className="w-10 h-10 rounded-full bg-black overflow-hidden shrink-0 border border-white/10 relative">
                                         {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={16} className="text-white/20" /></div>}
                                       </div>
-                                      <div className="flex flex-col text-right">
+                                      <div className="flex flex-col text-right pointer-events-none">
                                         <span className="text-white text-[13px] font-black">{u.full_name || 'משתמש'}</span>
                                         <span className="text-white/40 text-[10px] font-bold tracking-widest" dir="ltr">@{u.username}</span>
                                       </div>
@@ -476,9 +485,10 @@ export const WalletPage: React.FC = () => {
             )}
           </AnimatePresence>
 
+          {/* ================= מגירת פדיון CRD ================= */}
           <AnimatePresence>
             {showRedeem && (
-              <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
+              <div className="fixed inset-0 z-[9900] flex flex-col justify-end" dir="rtl">
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowRedeem(false)} />
                 <motion.div drag="y" dragControls={redeemDragControls} dragListener={false} dragConstraints={{ top: 0 }} dragElastic={0.2} onDragEnd={(e, { offset, velocity }) => { if (offset.y > 100 || velocity.y > 400) setShowRedeem(false); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[90vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative pb-12 overflow-hidden">
                   <div onPointerDown={(e) => redeemDragControls.start(e)} style={{ touchAction: "none" }} className="w-full flex flex-col items-center pt-5 pb-4 cursor-grab active:cursor-grabbing bg-white/[0.02]">
