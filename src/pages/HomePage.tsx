@@ -22,8 +22,12 @@ const TABS = [
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // הנה המשתנים שהיו חסרים וגרמו לקריסה!
   const dragControls = useDragControls();
   const createPostDragControls = useDragControls();
+  const commentsDragControls = useDragControls(); 
+  
   const [mounted, setMounted] = useState(false);
 
   const [circles, setCircles] = useState<any[]>([]);
@@ -37,7 +41,9 @@ export const HomePage: React.FC = () => {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
   
+  // הנה המשתנה השני שהיה חסר לקופופ של התגובות!
   const [activePost, setActivePost] = useState<any>(null);
+  const [activeCommentsPostId, setActiveCommentsPostId] = useState<string | null>(null);
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState('');
   const [loadingComments, setLoadingComments] = useState(false);
@@ -67,7 +73,7 @@ export const HomePage: React.FC = () => {
       const uid = authData.user?.id;
       if (uid) setCurrentUserId(uid);
 
-      // --- 1. משיכת מועדונים בעקיפה ---
+      // 1. משיכת מועדונים
       let fetchedCircles: any[] = [];
       const { data: rawCircles } = await supabase.from('circles').select('*');
       const { data: rawMembers } = await supabase.from('circle_members').select('*');
@@ -79,32 +85,24 @@ export const HomePage: React.FC = () => {
         })).sort((a: any, b: any) => (b.members_count || 0) - (a.members_count || 0));
       }
 
-      // --- 2. משיכת פוסטים בעקיפה מוחלטת (חסין שגיאות JOIN) ---
-      // מביאים נטו את הפוסטים עצמם!
-      const { data: rawPosts, error: postError } = await supabase
+      // 2. משיכת פוסטים בעקיפה מוחלטת של ה-API
+      const { data: rawPosts } = await supabase
         .from('posts')
         .select('*')
         .is('circle_id', null)
         .order('created_at', { ascending: false });
 
-      if (postError) {
-        toast.error('שגיאה בטעינת הפיד: ' + postError.message);
-      }
-
-      // מביאים את שאר הנתונים בנפרד בלי לשבור את הפוסטים
+      // מביאים את השאר בנפרד (פותר את ה- JOIN שבלע את הפוסטים)
       const { data: rawProfiles } = await supabase.from('profiles').select('*');
-      // מנסים למשוך לייקים (מ-likes או post_likes)
       const { data: rawLikes } = await supabase.from('likes').select('*').catch(() => ({data: []}));
       const { data: rawPostLikes } = await supabase.from('post_likes').select('*').catch(() => ({data: []}));
       const allLikes = [...(rawLikes || []), ...(rawPostLikes || [])];
       
-      // מנסים למשוך תגובות
       const { data: rawComments } = await supabase.from('comments').select('*').catch(() => ({data: []}));
       const { data: rawPostComments } = await supabase.from('post_comments').select('*').catch(() => ({data: []}));
       const allComments = [...(rawComments || []), ...(rawPostComments || [])];
 
-      // מחברים את הכל בתוך הזיכרון של הטלפון
-      let fetchedPosts = [];
+      let fetchedPosts: any[] = [];
       if (rawPosts) {
         fetchedPosts = rawPosts.map((p: any) => {
           const profile = (rawProfiles || []).find((prof: any) => prof.id === p.user_id) || {};
@@ -197,14 +195,16 @@ export const HomePage: React.FC = () => {
     triggerFeedback('pop');
     setPosts(curr => curr.map(p => p.id === postId ? { ...p, is_liked: !isLiked, likes_count: isLiked ? p.likes_count - 1 : p.likes_count + 1 } : p));
     try { 
-      const table = 'likes'; // ננסה לטבלת likes
-      if (isLiked) await supabase.from(table).delete().match({ post_id: postId, user_id: currentUserId });
-      else await supabase.from(table).insert({ post_id: postId, user_id: currentUserId });
+      if (isLiked) await supabase.from('likes').delete().match({ post_id: postId, user_id: currentUserId });
+      else await supabase.from('likes').insert({ post_id: postId, user_id: currentUserId });
     } catch (err) { fetchData(true); }
   };
 
   const openComments = async (post: any) => {
-    triggerFeedback('pop'); setActivePost(post); setLoadingComments(true);
+    triggerFeedback('pop'); 
+    setActivePost(post); 
+    setActiveCommentsPostId(post.id); // תיקון החלון של התגובות!
+    setLoadingComments(true);
     try {
       const { data } = await supabase.from('comments').select(`*, profiles(*)`).eq('post_id', post.id).order('created_at', { ascending: true });
       setComments(data || []);
@@ -236,7 +236,7 @@ export const HomePage: React.FC = () => {
 
   const goToProfile = (userId: string | undefined) => {
     if (!userId) return;
-    triggerFeedback('pop'); setActivePost(null); navigate(`/profile/${userId}`);
+    triggerFeedback('pop'); setActivePost(null); setActiveCommentsPostId(null); navigate(`/profile/${userId}`);
   };
 
   if (loading && posts.length === 0 && circles.length === 0) return <div className="min-h-screen bg-[#030303] flex items-center justify-center text-white/20 font-black animate-pulse text-xl tracking-widest uppercase">SCANNING...</div>;
@@ -405,8 +405,8 @@ export const HomePage: React.FC = () => {
           <AnimatePresence>
             {activeCommentsPostId && (
               <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setActiveCommentsPostId(null)} />
-                <motion.div drag="y" dragControls={commentsDragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, { offset }) => { if (offset.y > 100) setActiveCommentsPostId(null); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[85vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => { setActiveCommentsPostId(null); setActivePost(null); }} />
+                <motion.div drag="y" dragControls={commentsDragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, { offset }) => { if (offset.y > 100) { setActiveCommentsPostId(null); setActivePost(null); } }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[85vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
                   <div className="w-full flex justify-center pt-5 pb-3 cursor-grab active:cursor-grabbing bg-white/[0.02]" onPointerDown={(e) => commentsDragControls.start(e)} style={{ touchAction: "none" }}>
                     <div className="w-16 h-1.5 bg-white/20 rounded-full"></div>
                   </div>
