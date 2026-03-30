@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ChevronLeft, Loader2, Flame, Ghost, DollarSign, Brain, Heart, Target, UserCircle, Hash, TrendingUp, ChevronRight } from 'lucide-react';
+// הוספתי בחזרה את Users שחסרונו גרם לקריסה!
+import { Search, ChevronLeft, Loader2, Flame, Ghost, DollarSign, Brain, Heart, Target, UserCircle, Hash, TrendingUp, Users } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { FadeIn, Button } from '../components/ui';
@@ -10,8 +11,8 @@ import { triggerFeedback } from '../lib/sound';
 export const ExplorePage: React.FC = () => {
   const navigate = useNavigate();
   
-  // States ראשיים
-  const [activeMainTab, setActiveMainTab] = useState<'clubs' | 'users'>('users');
+  // States ראשיים - מועדונים טוען ראשון כברירת מחדל!
+  const [activeMainTab, setActiveMainTab] = useState<'clubs' | 'users'>('clubs');
   const [search, setSearch] = useState('');
   
   // States משניים (מועדונים)
@@ -20,7 +21,7 @@ export const ExplorePage: React.FC = () => {
   
   // States משניים (משתמשים / חיפוש מתקדם)
   const [activeSearchTab, setActiveSearchTab] = useState<'top' | 'accounts' | 'tags'>('top');
-  const [users, setUsers] = useState<any[]>([]);
+  const [usersListData, setUsersListData] = useState<any[]>([]);
   
   const [loading, setLoading] = useState(false);
 
@@ -53,7 +54,7 @@ export const ExplorePage: React.FC = () => {
   useEffect(() => {
     const fetchUsers = async () => {
       if (activeMainTab !== 'users' || !search.trim()) {
-        setUsers([]);
+        setUsersListData([]);
         return;
       }
       setLoading(true);
@@ -66,7 +67,7 @@ export const ExplorePage: React.FC = () => {
           .order('level', { ascending: false })
           .limit(30);
           
-        if (!error && data) setUsers(data);
+        if (!error && data) setUsersListData(data);
       } catch (err) {
         console.error(err);
       } finally {
@@ -122,19 +123,19 @@ export const ExplorePage: React.FC = () => {
         </h1>
       </div>
 
-      {/* טאבים ראשיים נקיים ללא אייקונים */}
+      {/* טאבים ראשיים נקיים ללא אייקונים - מועדונים מימין, משתמשים משמאל */}
       <div className="relative z-10 flex border-b border-white/10 w-full mb-1">
-        <button 
-          onClick={() => { triggerFeedback('pop'); setActiveMainTab('users'); setSearch(''); }} 
-          className={`flex-1 pb-3 text-[14px] font-black transition-colors border-b-2 flex items-center justify-center ${activeMainTab === 'users' ? 'text-white border-white' : 'text-white/40 border-transparent hover:text-white/70'}`}
-        >
-          משתמשים
-        </button>
         <button 
           onClick={() => { triggerFeedback('pop'); setActiveMainTab('clubs'); setSearch(''); }} 
           className={`flex-1 pb-3 text-[14px] font-black transition-colors border-b-2 flex items-center justify-center ${activeMainTab === 'clubs' ? 'text-white border-white' : 'text-white/40 border-transparent hover:text-white/70'}`}
         >
           מועדונים
+        </button>
+        <button 
+          onClick={() => { triggerFeedback('pop'); setActiveMainTab('users'); setSearch(''); }} 
+          className={`flex-1 pb-3 text-[14px] font-black transition-colors border-b-2 flex items-center justify-center ${activeMainTab === 'users' ? 'text-white border-white' : 'text-white/40 border-transparent hover:text-white/70'}`}
+        >
+          משתמשים
         </button>
       </div>
 
@@ -277,13 +278,13 @@ export const ExplorePage: React.FC = () => {
                       {/* טאב מובילים (Top) + חשבונות (Accounts) מציגים משתמשים */}
                       {(activeSearchTab === 'top' || activeSearchTab === 'accounts') && (
                         <motion.div key="users-list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col gap-3">
-                          {users.length === 0 ? (
+                          {usersListData.length === 0 ? (
                             <div className="text-center py-16 flex flex-col items-center gap-3">
                               <UserCircle size={40} className="text-white/20" />
                               <span className="text-white/40 text-[13px] font-bold">לא נמצאו חשבונות</span>
                             </div>
                           ) : (
-                            users.map((u, idx) => (
+                            usersListData.map((u, idx) => (
                               <motion.div key={u.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: Math.min(idx * 0.05, 0.2) }}>
                                 <div onClick={() => handleUserClick(u.id)} className="bg-transparent p-2 rounded-[20px] flex items-center justify-between cursor-pointer hover:bg-white/[0.03] active:scale-[0.98] transition-all">
                                   <div className="flex items-center gap-4 text-right">
