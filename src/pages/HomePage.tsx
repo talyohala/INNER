@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
@@ -6,42 +6,26 @@ import { supabase } from '../lib/supabase';
 import { FadeIn, Button } from '../components/ui';
 import { 
   Loader2, Bell, Users, Lock, Flame, Heart, MessageSquare, 
-  Send, X, Paperclip, RefreshCw, UserCircle, Plus, 
-  Trash2, Edit2, Reply, Sparkles, Target 
+  Send, X, Paperclip, RefreshCw, UserCircle, Trash2, Edit2, Reply 
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 
-type FeedTab = 'hot' | 'new' | 'foryou';
-const TABS = [
-  { key: 'hot', label: 'מועדונים חמים', icon: Flame, color: 'text-orange-400' },
-  { key: 'new', label: 'חדשים', icon: Sparkles, color: 'text-blue-400' },
-  { key: 'foryou', label: 'בשבילך', icon: Target, color: 'text-purple-400' },
-] as const;
-
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  // הנה המשתנים שהיו חסרים וגרמו לקריסה!
-  const dragControls = useDragControls();
-  const createPostDragControls = useDragControls();
-  const commentsDragControls = useDragControls(); 
-  
+  const commentsDragControls = useDragControls();
   const [mounted, setMounted] = useState(false);
 
   const [circles, setCircles] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<FeedTab>('hot');
   
   const [newPost, setNewPost] = useState('');
   const [posting, setPosting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [showCreatePost, setShowCreatePost] = useState(false);
   
-  // הנה המשתנה השני שהיה חסר לקופופ של התגובות!
   const [activePost, setActivePost] = useState<any>(null);
   const [activeCommentsPostId, setActiveCommentsPostId] = useState<string | null>(null);
   const [comments, setComments] = useState<any[]>([]);
@@ -73,51 +57,44 @@ export const HomePage: React.FC = () => {
       const uid = authData.user?.id;
       if (uid) setCurrentUserId(uid);
 
-      // 1. משיכת מועדונים
-      let fetchedCircles: any[] = [];
-      const { data: rawCircles } = await supabase.from('circles').select('*');
-      const { data: rawMembers } = await supabase.from('circle_members').select('*');
+      // משיכת כל הנתונים בבת אחת (עוקף באגים של קשרים במסד הנתונים)
+      const [
+        { data: rawPosts },
+        { data: rawCircles },
+        { data: rawMembers },
+        { data: rawProfiles },
+        { data: rawLikes },
+        { data: rawComments }
+      ] = await Promise.all([
+        supabase.from('posts').select('*'),
+        supabase.from('circles').select('*'),
+        supabase.from('circle_members').select('*'),
+        supabase.from('profiles').select('*'),
+        supabase.from('likes').select('*').catch(() => ({data: []})),
+        supabase.from('comments').select('*').catch(() => ({data: []}))
+      ]);
+
+      // חיבור וסינון בזיכרון של הטלפון - חסין תקלות לחלוטין!
+      const globalPosts = (rawPosts || []).filter((p: any) => !p.circle_id);
       
-      if (rawCircles) {
-        fetchedCircles = rawCircles.map((c: any) => ({
-          ...c, 
-          is_member: (rawMembers || []).some((m: any) => m.circle_id === c.id && m.user_id === uid)
-        })).sort((a: any, b: any) => (b.members_count || 0) - (a.members_count || 0));
-      }
+      const fetchedPosts = globalPosts.map((p: any) => {
+        const prof = (rawProfiles || []).find((pr: any) => pr.id === p.user_id) || {};
+        const pLikes = (rawLikes || []).filter((l: any) => l.post_id === p.id);
+        const pComments = (rawComments || []).filter((c: any) => c.post_id === p.id);
+        
+        return {
+          ...p,
+          profiles: prof,
+          likes_count: pLikes.length,
+          comments_count: pComments.length,
+          is_liked: !!uid && pLikes.some((l: any) => l.user_id === uid)
+        };
+      }).sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
 
-      // 2. משיכת פוסטים בעקיפה מוחלטת של ה-API
-      const { data: rawPosts } = await supabase
-        .from('posts')
-        .select('*')
-        .is('circle_id', null)
-        .order('created_at', { ascending: false });
-
-      // מביאים את השאר בנפרד (פותר את ה- JOIN שבלע את הפוסטים)
-      const { data: rawProfiles } = await supabase.from('profiles').select('*');
-      const { data: rawLikes } = await supabase.from('likes').select('*').catch(() => ({data: []}));
-      const { data: rawPostLikes } = await supabase.from('post_likes').select('*').catch(() => ({data: []}));
-      const allLikes = [...(rawLikes || []), ...(rawPostLikes || [])];
-      
-      const { data: rawComments } = await supabase.from('comments').select('*').catch(() => ({data: []}));
-      const { data: rawPostComments } = await supabase.from('post_comments').select('*').catch(() => ({data: []}));
-      const allComments = [...(rawComments || []), ...(rawPostComments || [])];
-
-      let fetchedPosts: any[] = [];
-      if (rawPosts) {
-        fetchedPosts = rawPosts.map((p: any) => {
-          const profile = (rawProfiles || []).find((prof: any) => prof.id === p.user_id) || {};
-          const pLikes = allLikes.filter((l: any) => l.post_id === p.id);
-          const pComments = allComments.filter((c: any) => c.post_id === p.id);
-          
-          return {
-            ...p,
-            profiles: profile,
-            likes_count: pLikes.length,
-            comments_count: pComments.length,
-            is_liked: pLikes.some((l: any) => l.user_id === uid)
-          };
-        });
-      }
+      const fetchedCircles = (rawCircles || []).map((c: any) => ({
+        ...c,
+        is_member: !!uid && (rawMembers || []).some((m: any) => m.circle_id === c.id && m.user_id === uid)
+      })).sort((a: any, b: any) => (b.members_count || 0) - (a.members_count || 0));
 
       setCircles(fetchedCircles);
       setPosts(fetchedPosts);
@@ -140,13 +117,6 @@ export const HomePage: React.FC = () => {
       .subscribe();
     return () => { supabase.removeChannel(channel); clearInterval(interval); };
   }, []);
-
-  const sortedCircles = useMemo(() => {
-    const arr = [...circles];
-    if (activeTab === 'new') return arr.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
-    if (activeTab === 'foryou') return arr.sort(() => Math.random() - 0.5);
-    return arr.sort((a, b) => (b.members_count || 0) - (a.members_count || 0));
-  }, [circles, activeTab]);
 
   const handleTouchStart = (e: React.TouchEvent) => { if (window.scrollY <= 0) pullStartY.current = e.touches[0].clientY; };
   const handleTouchMove = (e: React.TouchEvent) => { if (pullStartY.current > 0 && window.scrollY <= 0) { const y = e.touches[0].clientY - pullStartY.current; if (y > 0) setPullY(Math.min(y, 120)); } };
@@ -179,12 +149,14 @@ export const HomePage: React.FC = () => {
         setUploadingImage(false);
       }
       
+      // הוספנו במפורש circle_id: null כדי למנוע היעלמויות
       const { error } = await supabase.from('posts').insert({ 
-        user_id: authData.user.id, content: newPost.trim() || null, media_url, media_type
+        user_id: authData.user.id, content: newPost.trim() || null, media_url, media_type, circle_id: null
       });
+      
       if (error) throw error;
       
-      setNewPost(''); setSelectedFile(null); setShowCreatePost(false); triggerFeedback('pop'); fetchData(true);
+      setNewPost(''); setSelectedFile(null); triggerFeedback('pop'); fetchData(true);
     } catch (err: any) { 
       setUploadingImage(false); toast.error(err.message || 'שגיאה בשליחה'); 
     } finally { setPosting(false); }
@@ -201,10 +173,7 @@ export const HomePage: React.FC = () => {
   };
 
   const openComments = async (post: any) => {
-    triggerFeedback('pop'); 
-    setActivePost(post); 
-    setActiveCommentsPostId(post.id); // תיקון החלון של התגובות!
-    setLoadingComments(true);
+    triggerFeedback('pop'); setActivePost(post); setActiveCommentsPostId(post.id); setLoadingComments(true);
     try {
       const { data } = await supabase.from('comments').select(`*, profiles(*)`).eq('post_id', post.id).order('created_at', { ascending: true });
       setComments(data || []);
@@ -266,21 +235,9 @@ export const HomePage: React.FC = () => {
               </div>
             </div>
             <button onClick={() => navigate('/notifications')} className="w-10 h-10 flex justify-center items-center bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-full shadow-lg active:scale-90 transition-transform relative">
-              <Bell size={18} className="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]" />
+              <Bell size={18} className="text-[#3f51b5] drop-shadow-[0_0_8px_rgba(63,81,181,0.5)]" />
               {unreadCount > 0 && <span className="absolute top-2 right-2.5 w-2 h-2 bg-[#e91e63] rounded-full shadow-[0_0_10px_#e91e63] border border-black animate-pulse"></span>}
             </button>
-          </div>
-
-          <div className="flex gap-2 mb-8">
-            {TABS.map((tab) => {
-              const isActive = activeTab === tab.key;
-              const Icon = tab.icon;
-              return (
-                <button key={tab.key} onClick={() => setActiveTab(tab.key as FeedTab)} className={`flex-1 h-12 rounded-[18px] border text-xs font-black transition-all duration-300 flex items-center justify-center gap-2 ${isActive ? 'bg-[#1A1C20] text-white border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)]' : 'bg-transparent text-white/40 border-transparent hover:bg-white/5'}`}>
-                  <Icon size={14} className={isActive ? tab.color : 'opacity-40'} /> {tab.label}
-                </button>
-              );
-            })}
           </div>
 
           <div className="mb-8">
@@ -288,7 +245,7 @@ export const HomePage: React.FC = () => {
               <Flame size={14} className="text-[#f44336]" /> מועדונים חמים
             </h3>
             <div className="flex gap-4 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-4">
-              {sortedCircles.map(circle => {
+              {circles.map(circle => {
                 const activeNow = Math.max(1, Math.ceil((circle.members_count || 1) * 0.15 + (Math.random() * 3)));
                 return (
                   <motion.div key={circle.id} whileTap={{ scale: 0.95 }} className="shrink-0 w-44">
@@ -334,7 +291,7 @@ export const HomePage: React.FC = () => {
 
           <div className="flex flex-col gap-6 relative z-10">
             {posts.length === 0 ? (
-               <div className="text-center p-10 bg-white/5 border border-white/10 rounded-3xl text-white/50 text-sm font-black">
+               <div className="text-center p-10 bg-white/5 border border-white/10 rounded-[24px] text-white/50 text-sm font-black shadow-inner">
                   אין פוסטים בפיד. היה הראשון לשדר!
                </div>
             ) : (
@@ -359,7 +316,7 @@ export const HomePage: React.FC = () => {
                         {post.media_type === 'video' || post.media_url.match(/\.(mp4|webm|mov)$/i) ? (
                           <video src={post.media_url} controls playsInline preload="metadata" className="w-full h-auto max-h-[450px] object-cover" />
                         ) : (
-                          <img src={post.media_url} alt="Drop media" className="w-full h-auto object-cover max-h-[450px]" />
+                          <img src={post.media_url} alt="Media" className="w-full h-auto object-cover max-h-[450px]" />
                         )}
                       </div>
                     )}
@@ -382,69 +339,49 @@ export const HomePage: React.FC = () => {
         </div>
       </FadeIn>
 
-      <button onClick={() => { triggerFeedback('pop'); setShowCreatePost(true); }} className="fixed bottom-24 right-5 w-14 h-14 bg-gradient-to-tr from-[#2196f3] to-blue-400 text-white rounded-full shadow-[0_10px_25px_rgba(33,150,243,0.5)] flex items-center justify-center z-40 active:scale-90 transition-all border border-white/30"><Plus size={28} /></button>
-
       {mounted && typeof document !== 'undefined' ? createPortal(
-        <>
-          <AnimatePresence>
-            {showCreatePost && (
-              <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowCreatePost(false)} />
-                <motion.div drag="y" dragControls={createPostDragControls} dragListener={false} dragConstraints={{ top: 0 }} onDragEnd={(e, { offset }) => { if (offset.y > 100) setShowCreatePost(false); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="bg-[#111] border-t border-white/10 rounded-t-[36px] p-6 flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.9)] relative z-50 pb-12">
-                  <div onPointerDown={(e) => createPostDragControls.start(e)} style={{ touchAction: 'none' }} className="w-full flex flex-col items-center pb-4 cursor-grab"><div className="w-16 h-1.5 bg-white/20 rounded-full mb-4"></div><div className="flex justify-between items-center w-full"><h3 className="text-lg font-black text-white">העלה תוכן חדש</h3><button onClick={() => setShowCreatePost(false)}><X size={20} className="text-white/40"/></button></div></div>
-                  <div className="flex flex-col gap-4">
-                    <input type="text" value={newPostMedia} onChange={e => setNewPostMedia(e.target.value)} placeholder="קישור לוידאו או תמונה..." className="h-14 bg-white/5 border border-white/10 rounded-[20px] px-4 text-white text-sm focus:outline-none focus:border-[#2196f3]" dir="ltr" />
-                    <textarea value={newPostText} onChange={e => setNewPostText(e.target.value)} placeholder="כתוב משהו..." className="h-28 bg-white/5 border border-white/10 rounded-[20px] p-4 text-white text-sm focus:outline-none focus:border-[#2196f3] resize-none" />
-                    <Button onClick={handlePost} className="h-14 bg-[#2196f3] text-white font-black rounded-[20px]">פרסם</Button>
-                  </div>
-                </motion.div>
-              </div>
-            )}
-          </AnimatePresence>
-
-          <AnimatePresence>
-            {activeCommentsPostId && (
-              <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => { setActiveCommentsPostId(null); setActivePost(null); }} />
-                <motion.div drag="y" dragControls={commentsDragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, { offset }) => { if (offset.y > 100) { setActiveCommentsPostId(null); setActivePost(null); } }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[85vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
-                  <div className="w-full flex justify-center pt-5 pb-3 cursor-grab active:cursor-grabbing bg-white/[0.02]" onPointerDown={(e) => commentsDragControls.start(e)} style={{ touchAction: "none" }}>
-                    <div className="w-16 h-1.5 bg-white/20 rounded-full"></div>
-                  </div>
-                  <div className="flex justify-start items-center px-6 pb-4 border-b border-white/10"><h2 className="text-white font-black text-[16px]">תגובות ({activePost?.comments_count || 0})</h2></div>
-                  <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 scrollbar-hide touch-pan-y" onPointerDown={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}>
-                    {loadingComments ? <Loader2 className="animate-spin mx-auto text-white/40 mt-10" /> : 
-                      comments.map(comment => {
-                        const targetId = comment.user_id || comment.profiles?.id;
-                        const isMyComment = comment.user_id === currentUserId;
-                        return (
-                          <div key={comment.id} className="flex gap-4">
-                            <div className="w-10 h-10 rounded-[16px] bg-black shrink-0 overflow-hidden border border-white/10 shadow-inner p-0.5 cursor-pointer" onClick={() => goToProfile(targetId)}>
-                              <div className="w-full h-full rounded-[12px] overflow-hidden bg-[#111]">
-                                {comment.profiles?.avatar_url ? <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={18} className="text-white/20" /></div>}
-                              </div>
-                            </div>
-                            <div className="flex flex-col flex-1 bg-white/[0.04] p-4 rounded-[24px] rounded-tr-sm border border-white/5 shadow-sm">
-                              <span className="text-white font-black text-[13px] mb-1.5 text-right w-fit cursor-pointer hover:text-[#e5e4e2] transition-colors" onClick={() => goToProfile(targetId)}>{comment.profiles?.full_name || 'אנונימי'}</span>
-                              <p className="text-white/80 text-[14px] text-right leading-relaxed">{comment.content}</p>
-                              {isMyComment && <button onClick={() => deleteComment(comment.id)} className="text-red-400 text-[11px] font-bold mt-2 flex items-center gap-1 w-fit"><Trash2 size={12}/> מחק</button>}
+        <AnimatePresence>
+          {activeCommentsPostId && (
+            <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => { setActiveCommentsPostId(null); setActivePost(null); }} />
+              <motion.div drag="y" dragControls={commentsDragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, { offset }) => { if (offset.y > 100) { setActiveCommentsPostId(null); setActivePost(null); } }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[85vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
+                <div className="w-full flex justify-center pt-5 pb-3 cursor-grab active:cursor-grabbing bg-white/[0.02]" onPointerDown={(e) => commentsDragControls.start(e)} style={{ touchAction: "none" }}>
+                  <div className="w-16 h-1.5 bg-white/20 rounded-full"></div>
+                </div>
+                <div className="flex justify-start items-center px-6 pb-4 border-b border-white/10"><h2 className="text-white font-black text-[16px]">תגובות ({activePost?.comments_count || 0})</h2></div>
+                <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 scrollbar-hide touch-pan-y" onPointerDown={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}>
+                  {loadingComments ? <Loader2 className="animate-spin mx-auto text-white/40 mt-10" /> : 
+                    comments.map(comment => {
+                      const targetId = comment.user_id || comment.profiles?.id;
+                      const isMyComment = comment.user_id === currentUserId;
+                      return (
+                        <div key={comment.id} className="flex gap-4">
+                          <div className="w-10 h-10 rounded-[16px] bg-black shrink-0 overflow-hidden border border-white/10 shadow-inner p-0.5 cursor-pointer" onClick={() => goToProfile(targetId)}>
+                            <div className="w-full h-full rounded-[12px] overflow-hidden bg-[#111]">
+                              {comment.profiles?.avatar_url ? <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={18} className="text-white/20" /></div>}
                             </div>
                           </div>
-                        );
-                      })
-                    }
+                          <div className="flex flex-col flex-1 bg-white/[0.04] p-4 rounded-[24px] rounded-tr-sm border border-white/5 shadow-sm">
+                            <span className="text-white font-black text-[13px] mb-1.5 text-right w-fit cursor-pointer hover:text-[#e5e4e2] transition-colors" onClick={() => goToProfile(targetId)}>{comment.profiles?.full_name || 'אנונימי'}</span>
+                            <p className="text-white/80 text-[14px] text-right leading-relaxed">{comment.content}</p>
+                            {isMyComment && <button onClick={() => deleteComment(comment.id)} className="text-red-400 text-[11px] font-bold mt-2 flex items-center gap-1 w-fit"><Trash2 size={12}/> מחק</button>}
+                          </div>
+                        </div>
+                      );
+                    })
+                  }
+                </div>
+                <div className="p-5 border-t border-white/10 bg-black/90 backdrop-blur-2xl mt-auto pb-8" onPointerDown={e => e.stopPropagation()}>
+                  <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-full pr-2 pl-5 h-14 shadow-inner">
+                    <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="הוסף תגובה..." className="flex-1 bg-transparent border-none text-white text-[15px] text-right outline-none placeholder:text-white/30" />
+                    <button onClick={submitComment} disabled={!newComment.trim()} className="w-11 h-11 rounded-full bg-white text-black flex items-center justify-center shrink-0 active:scale-95 disabled:opacity-50 transition-opacity shadow-[0_0_15px_rgba(255,255,255,0.2)]"><Send size={18} className="rtl:-scale-x-100 -ml-0.5 text-[#2196f3]" /></button>
                   </div>
-                  <div className="p-5 border-t border-white/10 bg-black/90 backdrop-blur-2xl mt-auto pb-8" onPointerDown={e => e.stopPropagation()}>
-                    <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-full pr-2 pl-5 h-14 shadow-inner">
-                      <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="הוסף תגובה..." className="flex-1 bg-transparent border-none text-white text-[15px] text-right outline-none placeholder:text-white/30" />
-                      <button onClick={submitComment} disabled={!newComment.trim()} className="w-11 h-11 rounded-full bg-white text-black flex items-center justify-center shrink-0 active:scale-95 disabled:opacity-50 transition-opacity shadow-[0_0_15px_rgba(255,255,255,0.2)]"><Send size={18} className="rtl:-scale-x-100 -ml-0.5 text-[#2196f3]" /></button>
-                    </div>
-                  </div>
-                </motion.div>
-              </div>
-            )}
-          </AnimatePresence>
-        </>, document.body
-      ) : null}
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+      </>, document.body) : null}
     </>
   );
 };
