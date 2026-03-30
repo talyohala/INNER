@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { supabase } from '../lib/supabase';
+import { apiFetch } from '../lib/api';
 import { FadeIn, Button } from '../components/ui';
 import { 
   Loader2, Bell, Users, Lock, Flame, Heart, MessageSquare, 
@@ -80,23 +81,31 @@ export const HomePage: React.FC = () => {
         if (data) {
           fetchedCircles = data.map((c: any) => ({
             ...c, is_member: c.circle_members?.some((m: any) => m.user_id === uid)
-          }));
+          })).sort((a: any, b: any) => (b.members_count || 0) - (a.members_count || 0));
         }
       } catch (e) {}
 
       let fetchedPosts = [];
       try {
-        // משיכה ישירה מסופאבייס, חסין כדורים!
         const { data, error } = await withTimeout(
-          supabase.from('posts').select('*, profiles(*), likes(user_id), comments(id)')
+          supabase.from('posts').select('*, profiles!inner(*), likes(user_id), comments(id)')
             .is('circle_id', null).order('created_at', { ascending: false })
         );
-        if (data) {
+        
+        if (error) {
+          console.warn("Direct Supabase query failed, falling back to API:", error.message);
+          const apiPosts = await apiFetch<any[]>('/api/feed');
+          fetchedPosts = Array.isArray(apiPosts) ? apiPosts : [];
+        } else if (data) {
           fetchedPosts = data.map(p => ({
             ...p, likes_count: p.likes?.length || 0, comments_count: p.comments?.length || 0, is_liked: p.likes?.some((l: any) => l.user_id === uid)
           }));
         }
-      } catch (e) {}
+      } catch (e) { 
+        console.warn("Falling back to API...");
+        const apiPosts = await apiFetch<any[]>('/api/feed').catch(() => []);
+        fetchedPosts = Array.isArray(apiPosts) ? apiPosts : [];
+      }
 
       setCircles(fetchedCircles);
       setPosts(fetchedPosts);
@@ -121,7 +130,7 @@ export const HomePage: React.FC = () => {
 
   const sortedCircles = useMemo(() => {
     const arr = [...circles];
-    if (activeTab === 'new') return arr.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    if (activeTab === 'new') return arr.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     if (activeTab === 'foryou') return arr.sort(() => Math.random() - 0.5);
     return arr.sort((a, b) => (b.members_count || 0) - (a.members_count || 0));
   }, [circles, activeTab]);
@@ -240,8 +249,9 @@ export const HomePage: React.FC = () => {
                 <span className="text-[10px] font-black text-white/80 tracking-widest">{onlineUsers.toLocaleString()}</span>
               </div>
             </div>
-            <button onClick={() => navigate('/notifications')} className="w-10 h-10 flex justify-center items-center bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-full shadow-lg active:scale-90 transition-transform relative">
-              <Bell size={18} className="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]" />
+            
+            <button onClick={() => { triggerFeedback('pop'); navigate('/notifications'); }} className="w-10 h-10 flex justify-center items-center bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-full shadow-lg active:scale-90 transition-transform relative">
+              <Bell size={18} className="text-[#3f51b5] drop-shadow-[0_0_8px_rgba(63,81,181,0.5)]" />
               {unreadCount > 0 && <span className="absolute top-2 right-2.5 w-2 h-2 bg-[#e91e63] rounded-full shadow-[0_0_10px_#e91e63] border border-black animate-pulse"></span>}
             </button>
           </div>
@@ -263,11 +273,11 @@ export const HomePage: React.FC = () => {
               <Flame size={14} className="text-[#f44336]" /> מועדונים חמים
             </h3>
             <div className="flex gap-4 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-4">
-              {sortedCircles.map(circle => {
+              {sortedCircles.map((circle) => {
                 const activeNow = Math.max(1, Math.ceil((circle.members_count || 1) * 0.15 + (Math.random() * 3)));
                 return (
                   <motion.div key={circle.id} whileTap={{ scale: 0.95 }} className="shrink-0 w-44">
-                    <div onClick={() => navigate(`/circle/${circle.slug || circle.id}`)} className="p-1.5 rounded-[32px] overflow-hidden relative border border-white/10 cursor-pointer bg-white/[0.04] backdrop-blur-xl shadow-2xl h-52 flex flex-col justify-end">
+                    <div onClick={() => { triggerFeedback('pop'); navigate(`/circle/${circle.slug || circle.id}`); }} className="p-1.5 rounded-[32px] overflow-hidden relative border border-white/10 cursor-pointer bg-white/[0.04] backdrop-blur-xl shadow-2xl h-52 flex flex-col justify-end">
                       <div className="absolute inset-0 z-0 rounded-[28px] overflow-hidden m-1.5">
                         <div className={`absolute inset-0 bg-black/40 z-10 ${circle.is_member ? 'opacity-0' : 'opacity-100'}`}></div>
                         <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-black/50 to-transparent z-10"></div>
@@ -331,7 +341,7 @@ export const HomePage: React.FC = () => {
                       {post.media_type === 'video' || post.media_url.match(/\.(mp4|webm|mov)$/i) ? (
                         <video src={post.media_url} controls playsInline preload="metadata" className="w-full h-auto max-h-[450px] object-cover" />
                       ) : (
-                        <img src={post.media_url} alt="Drop media" className="w-full h-auto object-cover max-h-[450px]" />
+                        <img src={post.media_url} alt="Media" className="w-full h-auto object-cover max-h-[450px]" />
                       )}
                     </div>
                   )}
@@ -374,11 +384,11 @@ export const HomePage: React.FC = () => {
           </AnimatePresence>
 
           <AnimatePresence>
-            {activeCommentsPostId && (
+            {activePost && (
               <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setActiveCommentsPostId(null)} />
-                <motion.div drag="y" dragControls={commentsDragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, { offset }) => { if (offset.y > 100) setActiveCommentsPostId(null); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[85vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
-                  <div className="w-full flex justify-center pt-5 pb-3 cursor-grab active:cursor-grabbing bg-white/[0.02]" onPointerDown={(e) => commentsDragControls.start(e)} style={{ touchAction: "none" }}>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setActivePost(null)} />
+                <motion.div drag="y" dragControls={dragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, { offset }) => { if (offset.y > 100) setActivePost(null); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[85vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
+                  <div className="w-full flex justify-center pt-5 pb-3 cursor-grab active:cursor-grabbing bg-white/[0.02]" onPointerDown={(e) => dragControls.start(e)} style={{ touchAction: "none" }}>
                     <div className="w-16 h-1.5 bg-white/20 rounded-full"></div>
                   </div>
                   <div className="flex justify-start items-center px-6 pb-4 border-b border-white/10"><h2 className="text-white font-black text-[16px]">תגובות ({activePost?.comments_count || 0})</h2></div>
