@@ -2,9 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
-import { Loader2, Heart, MessageCircle, Share2, Bell, X, Reply, UserCircle, Users, ArrowUpRight, Flame, Sparkles, Target, Edit2, Trash2 } from 'lucide-react';
+import { Loader2, Heart, MessageCircle, Share2, Bell, X, Reply, UserCircle, Users, ArrowUpRight, Flame, Sparkles, Target, Edit2, Trash2, Video } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { apiFetch } from '../lib/api';
 import { FadeIn, Button } from '../components/ui';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -36,15 +35,6 @@ export const FeedPage: React.FC = () => {
   const [replyingTo, setReplyingTo] = useState<any | null>(null);
   const [editingComment, setEditingComment] = useState<any | null>(null);
 
-  // הפונקציה המקורית שלך לתיקון הנתונים מהשרת!
-  const normalizeItems = (payload: any): any[] => {
-    if (Array.isArray(payload)) return payload;
-    if (Array.isArray(payload?.items)) return payload.items;
-    if (Array.isArray(payload?.data)) return payload.data;
-    if (Array.isArray(payload?.circles)) return payload.circles;
-    return [];
-  };
-
   useEffect(() => {
     fetchPosts();
   }, []);
@@ -55,7 +45,7 @@ export const FeedPage: React.FC = () => {
       const { data: authData } = await supabase.auth.getUser();
       if (authData.user) setCurrentUserId(authData.user.id);
 
-      // 1. סרטונים אמיתיים מטבלת posts
+      // 1. שליפה ישירה מ-Supabase של הסרטונים החדשים
       let newPosts: any[] = [];
       try {
         const { data, error } = await supabase
@@ -66,31 +56,36 @@ export const FeedPage: React.FC = () => {
         console.error('No posts table found', e);
       }
 
-      // 2. הקהילות הישנות דרך ה-API המקורי שלך בדיוק
+      // 2. שליפה ישירה מ-Supabase של הקהילות (המועדונים הישנים) - בלי שרת באמצע!
       let oldItems: any[] = [];
       try {
-        const result = await apiFetch<any>('/api/feed');
-        const circles = normalizeItems(result);
-        
-        oldItems = circles.map((c: any) => ({
-          id: c.id || c.slug,
-          is_circle: true,
-          slug: c.slug,
-          media_type: 'image',
-          media_url: c.cover_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop',
-          content: c.description || 'לחץ כדי להצטרף לקהילה!',
-          created_at: c.created_at || new Date().toISOString(),
-          members_count: c.members_count || 0,
-          vip_price: c.vip_price || 0,
-          profiles: { username: c.name, full_name: c.name, avatar_url: c.cover_url },
-          post_likes: [],
-          post_comments: []
-        }));
+        const { data: circlesData, error: circlesError } = await supabase
+          .from('circles')
+          .select('*');
+          
+        if (!circlesError && circlesData) {
+          oldItems = circlesData.map((c: any) => ({
+            id: c.id || c.slug,
+            is_circle: true,
+            slug: c.slug,
+            media_type: 'image',
+            media_url: c.cover_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop',
+            content: c.description || 'לחץ כדי להצטרף לקהילה!',
+            created_at: c.created_at || new Date().toISOString(),
+            members_count: c.members_count || 0,
+            vip_price: c.vip_price || 0,
+            profiles: { username: c.name, full_name: c.name, avatar_url: c.cover_url },
+            post_likes: [],
+            post_comments: []
+          }));
+        }
       } catch (e) {
-        console.error('Failed fetching old feed', e);
+        console.error('Failed fetching circles directly from Supabase', e);
       }
 
-      setPosts([...newPosts, ...oldItems]);
+      // 3. מיזוג של הכל ביחד וסידור
+      const combinedPosts = [...newPosts, ...oldItems];
+      setPosts(combinedPosts);
     } catch (err) {
       console.error(err);
     } finally {
@@ -98,12 +93,29 @@ export const FeedPage: React.FC = () => {
     }
   };
 
-  // סידור הפיד (מבוסס במדויק על הקוד המקורי שלך!)
+  const createDemoPost = async () => {
+    triggerFeedback('pop');
+    const tid = toast.loading('מעלה סרטון דמו ישירות לסופאבייס...');
+    try {
+      const { error } = await supabase.from('posts').insert({
+        user_id: currentUserId,
+        content: 'זה הסרטון הראשון שלי באפליקציה החדשה! 🔥 בואו נראה איך עובדות התגובות והלייקים...',
+        media_url: 'https://cdn.pixabay.com/video/2020/05/24/40061-424553805_tiny.mp4',
+        media_type: 'video'
+      });
+      if (error) throw error;
+      toast.success('הסרטון באוויר!', { id: tid });
+      fetchPosts();
+    } catch (e: any) {
+      toast.error('שגיאה בהעלאה: ' + e.message, { id: tid });
+    }
+  };
+
+  // סידור הפיד
   const sortedItems = useMemo(() => {
     const arr = [...posts];
     if (activeTab === 'new') return arr.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
     if (activeTab === 'foryou') return arr.sort(() => Math.random() - 0.5);
-    // ברירת מחדל (חם): משקלל חברים ומחיר VIP לקהילות + תאריך לסרטונים חדשים
     return arr.sort((a, b) => {
       const scoreB = (Number(b.members_count) || 0) * 2 + (Number(b.vip_price) || 0) + (b.post_likes?.length || 0);
       const scoreA = (Number(a.members_count) || 0) * 2 + (Number(a.vip_price) || 0) + (a.post_likes?.length || 0);
@@ -234,7 +246,7 @@ export const FeedPage: React.FC = () => {
   return (
     <FadeIn className="bg-black font-sans overflow-hidden" dir="rtl">
       
-      {/* טופ טיקטוק הדר: פעמון ימין, כותרות אמצע */}
+      {/* הדר טיקטוק צף למעלה */}
       <div className="fixed top-10 left-0 right-0 z-50 flex items-center justify-center pointer-events-none px-5">
         <button onClick={() => triggerFeedback('pop')} className="absolute right-5 w-10 h-10 rounded-full flex items-center justify-center pointer-events-auto active:scale-95 transition-all">
           <Bell size={24} className="text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]" />
@@ -253,12 +265,19 @@ export const FeedPage: React.FC = () => {
         </div>
       </div>
 
-      {/* קונטיינר גלילה אנכית לטיקטוק */}
       <div className="h-[100dvh] w-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide pb-16">
         {sortedItems.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
-            <Loader2 size={40} className="animate-spin text-white/20" />
-            <h2 className="text-white font-black text-xl">טוען קהילות מטורפות...</h2>
+          <div className="flex flex-col items-center justify-center h-full gap-6 px-8 text-center pt-20">
+            <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shadow-inner">
+              <Video size={40} className="text-white/30" />
+            </div>
+            <div>
+              <h2 className="text-white font-black text-[22px] mb-2">הפיד ריק!</h2>
+              <p className="text-white/40 text-[13px] font-medium leading-relaxed">אין כרגע סרטונים או קהילות במסד הנתונים.</p>
+            </div>
+            <Button onClick={createDemoPost} className="h-14 px-8 mt-4 bg-white text-black font-black text-[14px] uppercase tracking-widest rounded-full shadow-[0_0_20px_rgba(255,255,255,0.2)]">
+              הזרק סרטון דמו
+            </Button>
           </div>
         ) : (
           sortedItems.map(post => {
@@ -268,20 +287,16 @@ export const FeedPage: React.FC = () => {
             return (
               <div key={post.id} className="relative w-full h-[100dvh] bg-black snap-center">
                 
-                {/* התוכן: וידאו או תמונה - תופס 100% מהמסך */}
                 {post.media_type === 'video' ? (
                   <video src={post.media_url} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover z-0" />
                 ) : (
                   <div className="absolute inset-0 w-full h-full bg-cover bg-center z-0" style={{ backgroundImage: `url(${post.media_url})` }} />
                 )}
 
-                {/* גרדיאנט תחתון כהה עמוק כדי להבליט את הטקסטים והכפתורים */}
                 <div className="absolute bottom-0 left-0 right-0 h-2/3 z-10 bg-gradient-to-t from-black/90 via-black/30 to-transparent pointer-events-none" />
 
-                {/* מערכת התצוגה התחתונה */}
                 <div className="absolute bottom-[90px] left-0 right-0 z-20 px-4 flex items-end justify-between pointer-events-none">
                   
-                  {/* צד ימין/שמאל בהתאם ל-RTL - מידע המשתמש והתיאור */}
                   <div className="flex flex-col gap-2 max-w-[75%] pointer-events-auto">
                     {isCircle && (
                       <button onClick={() => navigate(`/circle/${post.slug}`)} className="mb-1 w-max px-4 py-2 bg-[#2196f3] rounded-full flex items-center gap-1.5 text-white font-black text-[12px] uppercase tracking-widest shadow-[0_0_20px_rgba(33,150,243,0.4)] active:scale-95 transition-transform">
@@ -305,10 +320,7 @@ export const FeedPage: React.FC = () => {
                     )}
                   </div>
 
-                  {/* צד שני - כפתורי פעולות אנכיים */}
                   <div className="flex flex-col gap-4 items-center pointer-events-auto">
-                    
-                    {/* תמונת הפרופיל של מי שהעלה מעל הלייקים */}
                     <div className="w-12 h-12 rounded-full border-2 border-white overflow-hidden shadow-lg bg-black mb-2">
                       {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={24} className="text-white w-full h-full p-1.5" />}
                     </div>
