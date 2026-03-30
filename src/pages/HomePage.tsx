@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 import { FadeIn, Button } from '../components/ui';
 import { 
   Loader2, Bell, Users, Lock, Flame, Heart, MessageSquare, 
-  Send, X, Paperclip, RefreshCw, UserCircle, Trash2, Edit2, Reply 
+  Send, X, Paperclip, RefreshCw, UserCircle, Trash2, Reply 
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -20,6 +20,7 @@ export const HomePage: React.FC = () => {
   const [circles, setCircles] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dbError, setDbError] = useState<string>(''); // קופסת שגיאות שקטה
   
   const [newPost, setNewPost] = useState('');
   const [posting, setPosting] = useState(false);
@@ -31,8 +32,6 @@ export const HomePage: React.FC = () => {
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState('');
   const [loadingComments, setLoadingComments] = useState(false);
-  const [replyingTo, setReplyingTo] = useState<any | null>(null);
-  const [editingComment, setEditingComment] = useState<any | null>(null);
   
   const [onlineUsers, setOnlineUsers] = useState(3420);
   const [pullY, setPullY] = useState(0);
@@ -50,38 +49,43 @@ export const HomePage: React.FC = () => {
     } catch (e) {}
   };
 
+  // משיכה ישירה "בכוח" - בלי קשרים (JOIN) שגורמים לסופאבייס לקרוס בשקט
   const fetchData = async (isSilentRefresh = false) => {
     if (!isSilentRefresh) setLoading(true);
+    setDbError('');
     try {
       const { data: authData } = await supabase.auth.getUser();
       const uid = authData.user?.id;
       if (uid) setCurrentUserId(uid);
 
-      // משיכת כל הנתונים בבת אחת - ללא סינוני NULL בסופאבייס שעושים באגים!
-      const [
-        { data: rawPosts },
-        { data: rawCircles },
-        { data: rawMembers },
-        { data: rawProfiles },
-        { data: rawLikes },
-        { data: rawComments }
-      ] = await Promise.all([
-        supabase.from('posts').select('*'),
-        supabase.from('circles').select('*'),
-        supabase.from('circle_members').select('*'),
-        supabase.from('profiles').select('*'),
-        supabase.from('likes').select('*').catch(() => ({data: []})),
-        supabase.from('comments').select('*').catch(() => ({data: []}))
-      ]);
+      // 1. משיכת מועדונים
+      const { data: rawCircles, error: circleErr } = await supabase.from('circles').select('*');
+      if (circleErr) setDbError(prev => prev + ' [Circles Error: ' + circleErr.message + ']');
+      const { data: rawMembers } = await supabase.from('circle_members').select('circle_id, user_id');
 
-      // סינון הפוסטים של הפיד הראשי בלבד (אלו שהם NULL)
+      const fetchedCircles = (rawCircles || []).map((c: any) => ({
+        ...c,
+        is_member: !!uid && (rawMembers || []).some((m: any) => m.circle_id === c.id && m.user_id === uid)
+      })).sort((a: any, b: any) => (b.members_count || 0) - (a.members_count || 0));
+      setCircles(fetchedCircles);
+
+      // 2. משיכת פוסטים - נטו טבלת פוסטים
+      const { data: rawPosts, error: postErr } = await supabase.from('posts').select('*').order('created_at', { ascending: false });
+      if (postErr) setDbError(prev => prev + ' [Posts Error: ' + postErr.message + ']');
+
+      // 3. משיכת פרופילים ולייקים להרכבה בזיכרון
+      const { data: rawProfiles } = await supabase.from('profiles').select('*');
+      const { data: rawLikes } = await supabase.from('likes').select('post_id, user_id');
+      const { data: rawComments } = await supabase.from('comments').select('post_id');
+
+      // מסננים פוסטים של הפיד הראשי
       const globalPosts = (rawPosts || []).filter((p: any) => !p.circle_id);
-      
+
+      // מרכיבים את הפוסטים
       const fetchedPosts = globalPosts.map((p: any) => {
         const prof = (rawProfiles || []).find((pr: any) => pr.id === p.user_id) || {};
         const pLikes = (rawLikes || []).filter((l: any) => l.post_id === p.id);
         const pComments = (rawComments || []).filter((c: any) => c.post_id === p.id);
-        
         return {
           ...p,
           profiles: prof,
@@ -89,18 +93,12 @@ export const HomePage: React.FC = () => {
           comments_count: pComments.length,
           is_liked: !!uid && pLikes.some((l: any) => l.user_id === uid)
         };
-      }).sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+      });
 
-      const fetchedCircles = (rawCircles || []).map((c: any) => ({
-        ...c,
-        is_member: !!uid && (rawMembers || []).some((m: any) => m.circle_id === c.id && m.user_id === uid)
-      })).sort((a: any, b: any) => (b.members_count || 0) - (a.members_count || 0));
-
-      setCircles(fetchedCircles);
       setPosts(fetchedPosts);
       
-    } catch (err) { 
-      console.error(err);
+    } catch (err: any) { 
+      setDbError('Fatal Error: ' + err.message);
     } finally { 
       setLoading(false); 
       setRefreshing(false); 
@@ -143,7 +141,7 @@ export const HomePage: React.FC = () => {
         const fileExt = selectedFile.name.split('.').pop();
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
         const { data: uploadData, error: uploadError } = await supabase.storage.from('feed_images').upload(fileName, selectedFile);
-        if (uploadError) throw new Error(`שגיאת אחסון`);
+        if (uploadError) throw new Error(`שגיאת אחסון: ${uploadError.message}`);
         media_url = supabase.storage.from('feed_images').getPublicUrl(uploadData.path).data.publicUrl;
         media_type = selectedFile.type.startsWith('video/') ? 'video' : 'image';
         setUploadingImage(false);
@@ -153,7 +151,10 @@ export const HomePage: React.FC = () => {
         user_id: authData.user.id, content: newPost.trim() || null, media_url, media_type, circle_id: null
       });
       
-      if (error) throw error;
+      if (error) {
+         setDbError('Insert Error: ' + error.message);
+         throw error;
+      }
       
       setNewPost(''); setSelectedFile(null); triggerFeedback('pop'); fetchData(true);
     } catch (err: any) { 
@@ -182,23 +183,16 @@ export const HomePage: React.FC = () => {
   const submitComment = async () => {
     if (!newComment.trim() || !activePost || !currentUserId) return;
     try {
-      if (editingComment) {
-        const { data, error } = await supabase.from('comments').update({ content: newComment.trim(), updated_at: new Date().toISOString() }).eq('id', editingComment.id).select('*, profiles(*)').single();
-        if (error) throw error;
-        setComments(comments.map(c => c.id === editingComment.id ? data : c)); setEditingComment(null);
-      } else {
-        const { data, error } = await supabase.from('comments').insert({ post_id: activePost.id, user_id: currentUserId, content: newComment.trim(), parent_id: replyingTo ? replyingTo.id : null }).select('*, profiles(*)').single();
-        if (error) throw error;
-        setComments(prev => [...prev, data]); 
-        setPosts(curr => curr.map(p => p.id === activePost.id ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p));
-      }
-      setNewComment(''); setReplyingTo(null); triggerFeedback('coin'); 
+      const { data, error } = await supabase.from('comments').insert({ post_id: activePost.id, user_id: currentUserId, content: newComment.trim() }).select('*, profiles(*)').single();
+      if (error) throw error;
+      setComments(prev => [...prev, data]); setNewComment(''); 
+      setPosts(curr => curr.map(p => p.id === activePost.id ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p)); triggerFeedback('coin');
     } catch (err) { toast.error('שגיאה בשליחת תגובה'); }
   };
 
   const deleteComment = async (commentId: string) => {
     triggerFeedback('error');
-    setComments(comments.filter(c => c.id !== commentId && c.parent_id !== commentId));
+    setComments(comments.filter(c => c.id !== commentId));
     await supabase.from('comments').delete().eq('id', commentId);
   };
 
@@ -238,6 +232,13 @@ export const HomePage: React.FC = () => {
               {unreadCount > 0 && <span className="absolute top-2 right-2.5 w-2 h-2 bg-[#e91e63] rounded-full shadow-[0_0_10px_#e91e63] border border-black animate-pulse"></span>}
             </button>
           </div>
+
+          {/* תיבת דיאגנוסטיקה - תופיע רק אם יש תקלה במשיכת הנתונים! */}
+          {dbError && (
+            <div className="mb-4 p-4 rounded-2xl bg-red-900/30 border border-red-500/50 text-red-300 text-xs font-mono text-left" dir="ltr">
+              <strong>Database Error:</strong><br/>{dbError}
+            </div>
+          )}
 
           <div className="mb-8">
             <h3 className="text-white/40 text-[11px] font-black uppercase tracking-[0.2em] mb-4 px-2 flex items-center gap-1.5 drop-shadow-md">
