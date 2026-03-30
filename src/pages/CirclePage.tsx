@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion'; 
 import { supabase } from '../lib/supabase';              
 import { FadeIn, GlassCard, Button } from '../components/ui';
-import { Users, Loader2, ArrowRight, MessageSquare, Heart, Activity, Send, Lock, X } from 'lucide-react';         
+import { Users, Loader2, ArrowRight, MessageSquare, Heart, Activity, Send, Lock, X, UserCircle, Trash2, Edit2, Reply } from 'lucide-react';         
 import { triggerFeedback } from '../lib/sound';          
 import toast from 'react-hot-toast';
 
@@ -23,9 +23,7 @@ export const CirclePage: React.FC = () => {
 
   useEffect(() => {                                          
     fetchCircleData();
-    const channel = supabase.channel(`circle_${slug}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => fetchCircleData())
-      .subscribe();
+    const channel = supabase.channel(`circle_${slug}`).on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => fetchCircleData()).subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [slug]);                                                                                                       
 
@@ -35,93 +33,56 @@ export const CirclePage: React.FC = () => {
       const uid = authData.user?.id;
       if (uid) setCurrentUserId(uid);
 
-      // 1. שליפת פרטי המועדון ישירות מ-Supabase (תומך גם ב-slug וגם ב-ID)
       let { data: circle } = await supabase.from('circles').select('*').eq('slug', slug).single();
       if (!circle) {
         const { data: circleById } = await supabase.from('circles').select('*').eq('id', slug).single();
         circle = circleById;
       }
-      
       if (!circle) throw new Error('מועדון לא נמצא');
 
-      // 2. בדיקה האם המשתמש כבר חבר במועדון
       let isMember = false;
       if (uid) {
         const { data: memberData } = await supabase.from('circle_members').select('id').eq('circle_id', circle.id).eq('user_id', uid);
         isMember = memberData && memberData.length > 0;
       }
 
-      // 3. שליפת כל הפוסטים של המועדון כולל לייקים ותגובות
       let formattedPosts = [];
-      const { data: pData } = await supabase.from('posts')
-        .select('*, profiles(*), post_likes(user_id), post_comments(id)')
-        .eq('circle_id', circle.id)
-        .order('created_at', { ascending: false });
-        
+      // התיקון הקריטי: שימוש בטבלאות likes ו-comments!
+      const { data: pData } = await supabase.from('posts').select('*, profiles(*), likes(user_id), comments(id)').eq('circle_id', circle.id).order('created_at', { ascending: false });
       if (pData) {
-        formattedPosts = pData.map(p => ({
-          ...p,
-          likes_count: p.post_likes?.length || 0,
-          comments_count: p.post_comments?.length || 0,
-          is_liked: p.post_likes?.some((l:any) => l.user_id === uid)
-        }));
+        formattedPosts = pData.map(p => ({ ...p, likes_count: p.likes?.length || 0, comments_count: p.comments?.length || 0, is_liked: p.likes?.some((l:any) => l.user_id === uid) }));
       }
 
       setData({ circle, isMember, posts: formattedPosts });                                       
-    } catch (err) { 
-      navigate('/'); 
-    } finally { 
-      setLoading(false); 
-    }                                                 
+    } catch (err) { navigate('/'); } finally { setLoading(false); }                                                 
   };
 
   const handleJoin = async () => {
     if (!currentUserId) return toast.error('יש להתחבר תחילה');
-    setJoining(true);
-    triggerFeedback('pop');
+    setJoining(true); triggerFeedback('pop');
     try {
       if (data.isMember) {
-        // עזיבת מועדון
         await supabase.from('circle_members').delete().match({ circle_id: data.circle.id, user_id: currentUserId });
         setData((prev: any) => ({ ...prev, isMember: false, circle: { ...prev.circle, members_count: Math.max((prev.circle.members_count || 1) - 1, 0) } }));
       } else {
-        // הצטרפות למועדון (ישירות לסופאבייס!)
-        const { error } = await supabase.from('circle_members').insert({ circle_id: data.circle.id, user_id: currentUserId });
+        // התיקון הקריטי: הוספת role: 'member' לשאילתה
+        const { error } = await supabase.from('circle_members').insert({ circle_id: data.circle.id, user_id: currentUserId, role: 'member' });
         if (error) throw error;
-        
         setData((prev: any) => ({ ...prev, isMember: true, circle: { ...prev.circle, members_count: (prev.circle.members_count || 0) + 1 } }));                                    
-        triggerFeedback('success');                              
-        toast.success('ברוך הבא למועדון! 👑');  
-        fetchCircleData(); // רענון כדי לראות את הפוסטים מיד
+        triggerFeedback('success'); toast.success('ברוך הבא למועדון! 👑');  
+        fetchCircleData(); 
       }                                                      
-    } catch (err) { 
-      toast.error('שגיאה בהצטרפות/עזיבה'); 
-    } finally { 
-      setJoining(false); 
-    }
+    } catch (err: any) { toast.error('שגיאה בהצטרפות: ' + err.message); } finally { setJoining(false); }
   };                                                                                                                
 
   const handlePost = async () => {                           
     if (!newPost.trim() || !currentUserId) return;
     setPosting(true);                                        
     try {
-      // שליחת פוסט חדש למועדון ישירות לסופאבייס
-      const { error } = await supabase.from('posts').insert({
-        circle_id: data.circle.id,
-        user_id: currentUserId,
-        content: newPost.trim(),
-        media_type: 'text'
-      });
+      const { error } = await supabase.from('posts').insert({ circle_id: data.circle.id, user_id: currentUserId, content: newPost.trim(), media_type: 'text' });
       if (error) throw error;
-      
-      setNewPost('');
-      triggerFeedback('pop');                                  
-      fetchCircleData();                                     
-    } catch (err: any) { 
-      toast.error(err.message || 'שגיאה בשליחה'); 
-    } finally { 
-      setPosting(false); 
-    }               
+      setNewPost(''); triggerFeedback('pop'); fetchCircleData();                                     
+    } catch (err: any) { toast.error('שגיאה בשליחה: ' + err.message); } finally { setPosting(false); }               
   };
                                                            
   const handleLike = async (postId: string, isLiked: boolean) => {
@@ -129,44 +90,34 @@ export const CirclePage: React.FC = () => {
     triggerFeedback('pop');
     setData((curr: any) => ({ ...curr, posts: curr.posts.map((p: any) => p.id === postId ? { ...p, is_liked: !isLiked, likes_count: isLiked ? p.likes_count - 1 : p.likes_count + 1 } : p) }));                                         
     try { 
-      if (isLiked) {
-        await supabase.from('post_likes').delete().match({ post_id: postId, user_id: currentUserId });
-      } else {
-        await supabase.from('post_likes').insert({ post_id: postId, user_id: currentUserId });
-      }
+      if (isLiked) await supabase.from('likes').delete().match({ post_id: postId, user_id: currentUserId });
+      else await supabase.from('likes').insert({ post_id: postId, user_id: currentUserId });
     } catch (err) { fetchCircleData(); }
   };                                                                                                                
 
   const openComments = async (post: any) => {                
-    triggerFeedback('pop');
-    setActivePost(post);                                     
-    setLoadingComments(true);                                
+    triggerFeedback('pop'); setActivePost(post); setLoadingComments(true);                                
     try {
-      const { data: commentsData } = await supabase.from('post_comments').select('*, profiles(*)').eq('post_id', post.id).order('created_at', { ascending: true });
+      const { data: commentsData } = await supabase.from('comments').select('*, profiles(*)').eq('post_id', post.id).order('created_at', { ascending: true });
       setComments(commentsData || []);
-    } catch (err) { 
-      toast.error('שגיאה בטעינת תגובות'); 
-    } finally { 
-      setLoadingComments(false); 
-    }                                  
+    } catch (err) { toast.error('שגיאה בתגובות'); } finally { setLoadingComments(false); }                                  
   };
                                                            
   const submitComment = async () => {                        
     if (!newComment.trim() || !activePost || !currentUserId) return;
     try {                                                      
-      const { data: newComm, error } = await supabase.from('post_comments').insert({
-        post_id: activePost.id,
-        user_id: currentUserId,
-        content: newComment.trim()
-      }).select('*, profiles(*)').single();
-
+      const { data: newComm, error } = await supabase.from('comments').insert({ post_id: activePost.id, user_id: currentUserId, content: newComment.trim() }).select('*, profiles(*)').single();
       if (error) throw error;
-
-      setComments([...comments, newComm]);
-      setNewComment('');                                       
+      setComments([...comments, newComm]); setNewComment('');                                       
       setData((curr: any) => ({ ...curr, posts: curr.posts.map((p: any) => p.id === activePost.id ? { ...p, comments_count: p.comments_count + 1 } : p) }));
       triggerFeedback('coin');
     } catch (err) { toast.error('שגיאה בשליחת תגובה'); }
+  };
+
+  const deleteComment = async (commentId: string) => {
+    triggerFeedback('error');
+    setComments(comments.filter(c => c.id !== commentId));
+    await supabase.from('comments').delete().eq('id', commentId);
   };
 
   if (loading || !data) return <div className="min-h-screen bg-[#030303] flex items-center justify-center"><Loader2 className="animate-spin text-white/20" /></div>;
@@ -186,10 +137,7 @@ export const CirclePage: React.FC = () => {
       
       <GlassCard className="p-0 rounded-[32px] flex flex-col items-center text-center border-white/5 shadow-2xl relative overflow-hidden min-h-[240px] justify-center mt-2">                                                                
         {circle.cover_url && (                                     
-          <div className="absolute inset-0 z-0">
-            <img src={circle.cover_url} className="w-full h-full object-cover opacity-30" />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-[#0A0A0A]/60 to-transparent"></div>
-          </div>
+          <div className="absolute inset-0 z-0"><img src={circle.cover_url} className="w-full h-full object-cover opacity-30" /><div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-[#0A0A0A]/60 to-transparent"></div></div>
         )}                                                       
         <div className="relative z-10 flex flex-col items-center p-6 w-full mt-auto">                                       
           <h2 className="text-2xl font-black text-white drop-shadow-lg mb-2">{circle.name}</h2>                             
@@ -228,9 +176,7 @@ export const CirclePage: React.FC = () => {
                 <div className="w-10 h-10 rounded-full bg-[#050505] overflow-hidden border border-white/5 shrink-0">                                                                         
                   {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <Users size={16} className="text-white/20 m-auto mt-2" />}                                                           
                 </div>                                                   
-                <div className="flex flex-col">                            
-                  <span className="text-white font-black text-sm">{post.profiles?.full_name || 'אנונימי'}</span>                  
-                </div>                                                 
+                <div className="flex flex-col"><span className="text-white font-black text-sm">{post.profiles?.full_name || 'אנונימי'}</span></div>                                                 
               </div>                                                   
               <p className="text-white/80 text-sm text-right leading-relaxed px-1">{post.content}</p>
                                                                        
@@ -252,23 +198,17 @@ export const CirclePage: React.FC = () => {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[999] flex flex-col justify-end bg-black/80 backdrop-blur-sm">
             <div className="absolute inset-0" onClick={() => setActivePost(null)}></div>                                      
             <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.8 }} onDragEnd={(e, { offset, velocity }) => { if (offset.y > 100 || velocity.y > 500) setActivePost(null); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[32px] h-[75vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative z-10 pb-8">
-              <div className="w-full flex justify-center pt-4 pb-2 cursor-grab active:cursor-grabbing">
-                <div className="w-16 h-1 bg-white/20 rounded-full"></div>
-              </div>                   
-              <div className="flex justify-between items-center px-6 pb-4 border-b border-white/5">                               
-                <h2 className="text-white font-black text-sm">תגובות ({activePost.comments_count})</h2>                           
-                <button onClick={() => setActivePost(null)} className="text-white/30 hover:text-white transition-colors"><X size={18} /></button>
-              </div>                                                   
+              <div className="w-full flex justify-center pt-4 pb-2 cursor-grab active:cursor-grabbing"><div className="w-16 h-1 bg-white/20 rounded-full"></div></div>                   
+              <div className="flex justify-between items-center px-6 pb-4 border-b border-white/5"><h2 className="text-white font-black text-sm">תגובות ({activePost.comments_count})</h2><button onClick={() => setActivePost(null)} className="text-white/30 hover:text-white transition-colors"><X size={18} /></button></div>                                                   
               
               <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
                 {loadingComments ? <Loader2 className="animate-spin mx-auto text-white/20" /> : comments.map((comment, idx) => (
                   <div key={idx} className="flex gap-3">                     
-                    <div className="w-8 h-8 rounded-full bg-black shrink-0 mt-1 overflow-hidden">
-                      {comment.profiles?.avatar_url ? <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-white/5" />}
-                    </div>                                          
+                    <div className="w-8 h-8 rounded-full bg-black shrink-0 mt-1 overflow-hidden">{comment.profiles?.avatar_url ? <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-white/5" />}</div>                                          
                     <div className="flex flex-col flex-1 bg-white/[0.03] p-3 rounded-2xl rounded-tr-sm border border-white/5">
                       <span className="text-white font-black text-xs mb-1 text-right">{comment.profiles?.full_name || 'אנונימי'}</span>                                                          
-                      <p className="text-white/70 text-sm text-right">{comment.content}</p>                                           
+                      <p className="text-white/70 text-sm text-right">{comment.content}</p>
+                      {comment.user_id === currentUserId && <button onClick={() => deleteComment(comment.id)} className="text-red-400 text-[10px] font-bold mt-2 flex items-center gap-1 w-fit"><Trash2 size={12}/> מחק</button>}
                     </div>                                                 
                   </div>
                 ))}
@@ -277,9 +217,7 @@ export const CirclePage: React.FC = () => {
               <div className="p-4 border-t border-white/5 bg-[#050505]">
                 <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full pr-2 pl-4 h-12">
                   <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="הוסף תגובה..." className="flex-1 bg-transparent border-none text-white text-sm text-right outline-none" />                       
-                  <button onClick={submitComment} disabled={!newComment.trim()} className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center shrink-0 active:scale-95 disabled:opacity-50">                                   
-                    <Send size={14} className="-ml-1" />                   
-                  </button>                                              
+                  <button onClick={submitComment} disabled={!newComment.trim()} className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center shrink-0 active:scale-95 disabled:opacity-50"><Send size={14} className="-ml-1" /></button>                                              
                 </div>
               </div>                                                 
             </motion.div>                                          
