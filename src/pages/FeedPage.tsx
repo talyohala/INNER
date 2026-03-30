@@ -4,26 +4,13 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { Users, Lock, Flame, Sparkles, Target, MessageCircle, ArrowUpRight, Heart, Share2, Bell, X, Reply, UserCircle, Edit2, Trash2, Plus, Send } from 'lucide-react';
+import { apiFetch } from '../lib/api';
 import { supabase } from '../lib/supabase';
-import { FadeIn, Button } from '../components/ui';
+import { FadeIn } from '../components/ui';
 import { triggerFeedback } from '../lib/sound';
 
-type FeedItem = {
-  id: string;
-  is_circle: boolean;
-  slug?: string;
-  name: string;
-  description?: string | null;
-  cover_url?: string | null;
-  media_type?: string;
-  members_count?: number;
-  vip_price?: number;
-  created_at: string;
-  post_likes?: any[];
-  post_comments?: any[];
-  profiles?: any;
-};
-
+type Circle = { id: string; slug?: string; name?: string; description?: string | null; cover_url?: string | null; members_count?: number | null; vip_price?: number | null; created_at?: string | null; is_post?: boolean; is_circle?: boolean; media_url?: string; media_type?: string; content?: string; profiles?: any; post_likes?: any[]; post_comments?: any[]; };
+type FeedResponse = Circle[] | { items?: Circle[]; circles?: Circle[]; data?: Circle[]; };
 type FeedTab = 'hot' | 'new' | 'foryou';
 
 const TABS = [
@@ -34,23 +21,23 @@ const TABS = [
 
 export const FeedPage: React.FC = () => {
   const navigate = useNavigate();
-  const [items, setItems] = useState<FeedItem[]>([]);
+  const [items, setItems] = useState<Circle[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<FeedTab>('hot');
-  const [currentUserId, setCurrentUserId] = useState<string>('');
   const [mounted, setMounted] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string>('');
 
-  // Bottom Sheets Controls
+  // מגירות - Bottom Sheets
   const descDragControls = useDragControls();
   const commentsDragControls = useDragControls();
-  const createPostDragControls = useDragControls();
+  const createDragControls = useDragControls();
 
-  const [activeDescPost, setActiveDescPost] = useState<FeedItem | null>(null);
+  const [activeDescPost, setActiveDescPost] = useState<Circle | null>(null);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [newPostText, setNewPostText] = useState('');
   const [newPostMedia, setNewPostMedia] = useState('');
   
-  // Comments System
+  // מערכת תגובות (סופאבייס)
   const [activeCommentsPostId, setActiveCommentsPostId] = useState<string | null>(null);
   const [comments, setComments] = useState<any[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
@@ -58,60 +45,55 @@ export const FeedPage: React.FC = () => {
   const [replyingTo, setReplyingTo] = useState<any | null>(null);
   const [editingComment, setEditingComment] = useState<any | null>(null);
 
+  // הפונקציה המקורית שלך
+  const normalizeItems = (payload: FeedResponse): Circle[] => {
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray((payload as any)?.items)) return (payload as any).items;
+    if (Array.isArray((payload as any)?.data)) return (payload as any).data;
+    if (Array.isArray((payload as any)?.circles)) return (payload as any).circles;
+    return [];
+  };
+
   const loadFeed = async () => {
     setLoading(true);
     try {
       const { data: authData } = await supabase.auth.getUser();
       if (authData.user) setCurrentUserId(authData.user.id);
 
-      // 1. חילוץ ישיר של קהילות מטבלת circles בסופאבייס! (עוקף את השרת התקוע לחלוטין)
-      let mappedCircles: FeedItem[] = [];
+      // 1. הקהילות מהשרת המקורי שלך (עובד 100%)
+      let circles: Circle[] = [];
       try {
-        const { data: dbCircles } = await supabase.from('circles').select('*');
-        if (dbCircles) {
-          mappedCircles = dbCircles.map((c: any) => ({
-            id: c.id || c.slug,
-            is_circle: true,
-            slug: c.slug,
-            name: c.name || 'קהילה ללא שם',
-            description: c.description || 'אין תיאור לקהילה זו',
-            cover_url: c.cover_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop',
-            media_type: 'image',
-            members_count: c.members_count || 0,
-            vip_price: c.vip_price || 0,
-            created_at: c.created_at || new Date().toISOString(),
-            post_likes: [],
-            post_comments: []
-          }));
-        }
-      } catch (e) { console.error('Supabase Circles Error:', e); }
+        const result = await apiFetch<FeedResponse>('/api/feed');
+        circles = normalizeItems(result).map(c => ({ ...c, is_circle: true }));
+      } catch (err) { console.warn('Could not fetch circles API'); }
 
-      // 2. חילוץ ישיר של סרטונים מטבלת posts בסופאבייס
-      let mappedPosts: FeedItem[] = [];
+      // 2. פוסטים חדשים (וידאו/תמונות) מסופאבייס
+      let posts: Circle[] = [];
       try {
-        const { data: dbPosts } = await supabase.from('posts').select(`*, profiles(id, username, full_name, avatar_url), post_likes(user_id), post_comments(id)`);
+        const { data: dbPosts } = await supabase.from('posts').select('*, profiles(*), post_likes(*), post_comments(*)');
         if (dbPosts) {
-          mappedPosts = dbPosts.map(p => ({
+          posts = dbPosts.map(p => ({
             id: p.id,
-            is_circle: false,
-            name: p.profiles?.full_name || `@${p.profiles?.username}` || 'משתמש',
+            is_post: true,
+            name: p.profiles?.full_name || p.profiles?.username || 'משתמש',
             description: p.content,
             cover_url: p.media_url,
             media_type: p.media_type || 'video',
             created_at: p.created_at,
-            profiles: p.profiles,
+            members_count: 0,
+            vip_price: 0,
             post_likes: p.post_likes || [],
-            post_comments: p.post_comments || []
+            post_comments: p.post_comments || [],
+            profiles: p.profiles
           }));
         }
-      } catch (e) { console.error('Supabase Posts Error:', e); }
+      } catch (err) { console.warn('Could not fetch Supabase posts'); }
 
-      // מיזוג של הכל!
-      setItems([...mappedPosts, ...mappedCircles]);
+      setItems([...posts, ...circles]);
     } catch (err: any) {
-      toast.error('שגיאה בטעינת הפיד');
+      toast.error(err.message || 'שגיאה בטעינת הפיד');
     } finally {
-      setLoading(false); // כאן אנחנו משחררים את ה-SCANNING... מיידית!
+      setLoading(false);
     }
   };
 
@@ -120,23 +102,19 @@ export const FeedPage: React.FC = () => {
     loadFeed(); 
   }, []);
 
+  // הסידור המקורי שלך
   const sortedItems = useMemo(() => {
     const arr = [...items];
-    if (activeTab === 'new') return arr.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    if (activeTab === 'new') return arr.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
     if (activeTab === 'foryou') return arr.sort(() => Math.random() - 0.5);
-    return arr.sort((a, b) => {
-      const scoreA = (Number(a.members_count) || 0) * 2 + (Number(a.vip_price) || 0) + (a.post_likes?.length || 0);
-      const scoreB = (Number(b.members_count) || 0) * 2 + (Number(b.vip_price) || 0) + (b.post_likes?.length || 0);
-      if (scoreA === scoreB) return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      return scoreB - scoreA;
-    });
+    return arr.sort((a, b) => ((Number(b.members_count) || 0) * 2 + (Number(b.vip_price) || 0)) - ((Number(a.members_count) || 0) * 2 + (Number(a.vip_price) || 0)));
   }, [items, activeTab]);
 
+  // העלאת פוסט חדש
   const handleCreatePost = async () => {
-    if (!newPostMedia.trim() && !newPostText.trim()) return toast.error('הזן קישור לסרטון או טקסט');
-    
+    if (!newPostMedia.trim() && !newPostText.trim()) return toast.error('יש להזין מדיה או טקסט');
     triggerFeedback('pop');
-    const tid = toast.loading('מעלה פוסט...');
+    const tid = toast.loading('מפרסם פוסט...');
     try {
       const { error } = await supabase.from('posts').insert({
         user_id: currentUserId,
@@ -145,51 +123,46 @@ export const FeedPage: React.FC = () => {
         media_type: newPostMedia.includes('.mp4') || newPostMedia.includes('video') ? 'video' : 'image'
       });
       if (error) throw error;
-      toast.success('הפוסט באוויר!', { id: tid });
+      toast.success('פורסם בהצלחה!', { id: tid });
       setShowCreatePost(false);
       setNewPostText('');
       setNewPostMedia('');
       loadFeed();
-    } catch (e: any) {
-      toast.error('שגיאה בהעלאה: ' + e.message, { id: tid });
-    }
+    } catch (e: any) { toast.error('שגיאה בהעלאה: ' + e.message, { id: tid }); }
   };
 
-  const handleLikePost = async (postId: string, isLiked: boolean, isCircle: boolean) => {
-    if (isCircle) return toast('לייקים למועדונים בקרוב!', { icon: '✨', style: {background: '#111', color: '#fff'} });
+  // מערכת לייקים לפוסטים
+  const handleLikePost = async (e: React.MouseEvent, postId: string, isLiked: boolean, isCircle?: boolean) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isCircle) return toast('לייקים לקהילות בקרוב!');
     triggerFeedback('pop');
     
     setItems(items.map(p => {
       if (p.id === postId) {
         const safeLikes = p.post_likes || [];
-        return { 
-          ...p, 
-          post_likes: isLiked ? safeLikes.filter((l: any) => l.user_id !== currentUserId) : [...safeLikes, { user_id: currentUserId }] 
-        };
+        return { ...p, post_likes: isLiked ? safeLikes.filter(l => l.user_id !== currentUserId) : [...safeLikes, { user_id: currentUserId }] };
       }
       return p;
     }));
 
-    if (isLiked) {
-      await supabase.from('post_likes').delete().match({ post_id: postId, user_id: currentUserId });
-    } else {
-      await supabase.from('post_likes').insert({ post_id: postId, user_id: currentUserId });
-    }
+    if (isLiked) await supabase.from('post_likes').delete().match({ post_id: postId, user_id: currentUserId });
+    else await supabase.from('post_likes').insert({ post_id: postId, user_id: currentUserId });
   };
 
-  const openComments = async (postId: string, isCircle: boolean) => {
-    if (isCircle) return toast('תגובות למועדונים בקרוב!', { icon: '💬', style: {background: '#111', color: '#fff'} });
+  // מערכת תגובות מלאה!
+  const openComments = async (e: React.MouseEvent, postId: string, isCircle?: boolean) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isCircle) return toast('תגובות לקהילות בקרוב!');
     triggerFeedback('pop');
     setActiveCommentsPostId(postId);
     setLoadingComments(true);
     setComments([]);
-    setReplyingTo(null);
-    setEditingComment(null);
-
     try {
-      const { data, error } = await supabase.from('post_comments').select(`*, profiles(id, username, full_name, avatar_url), comment_likes(user_id)`).eq('post_id', postId).order('created_at', { ascending: true });
-      if (!error && data) setComments(data);
-    } catch (err) {} finally { setLoadingComments(false); }
+      const { data } = await supabase.from('post_comments').select(`*, profiles(*), comment_likes(*)`).eq('post_id', postId).order('created_at', { ascending: true });
+      if (data) setComments(data);
+    } finally { setLoadingComments(false); }
   };
 
   const submitComment = async () => {
@@ -198,23 +171,29 @@ export const FeedPage: React.FC = () => {
     setCommentText('');
     triggerFeedback('pop');
 
-    try {
-      if (editingComment) {
-        const { data, error } = await supabase.from('post_comments').update({ content: text, updated_at: new Date().toISOString() })
-          .eq('id', editingComment.id).select('*, profiles(id, username, full_name, avatar_url), comment_likes(user_id)').single();
-        if (error) throw error;
+    if (editingComment) {
+      const { data, error } = await supabase.from('post_comments').update({ content: text, updated_at: new Date().toISOString() })
+        .eq('id', editingComment.id).select('*, profiles(*), comment_likes(*)').single();
+      if (!error && data) {
         setComments(comments.map(c => c.id === editingComment.id ? data : c));
         setEditingComment(null);
-      } else {
-        const { data, error } = await supabase.from('post_comments').insert({
-            post_id: activeCommentsPostId, user_id: currentUserId, content: text, parent_id: replyingTo ? replyingTo.id : null
-        }).select('*, profiles(id, username, full_name, avatar_url), comment_likes(user_id)').single();
-        if (error) throw error;
+      }
+    } else {
+      const { data, error } = await supabase.from('post_comments').insert({
+          post_id: activeCommentsPostId, user_id: currentUserId, content: text, parent_id: replyingTo ? replyingTo.id : null
+      }).select('*, profiles(*), comment_likes(*)').single();
+      if (!error && data) {
         setComments([...comments, data]);
         setReplyingTo(null);
         setItems(items.map(p => p.id === activeCommentsPostId ? { ...p, post_comments: [...(p.post_comments||[]), {id: data.id}] } : p));
       }
-    } catch (err) { toast.error('שגיאה בשליחת תגובה'); }
+    }
+  };
+
+  const deleteComment = async (commentId: string) => {
+    triggerFeedback('error');
+    setComments(comments.filter(c => c.id !== commentId && c.parent_id !== commentId));
+    await supabase.from('post_comments').delete().eq('id', commentId);
   };
 
   const handleLikeComment = async (commentId: string, isLiked: boolean) => {
@@ -230,12 +209,6 @@ export const FeedPage: React.FC = () => {
     else await supabase.from('comment_likes').insert({ comment_id: commentId, user_id: currentUserId });
   };
 
-  const deleteComment = async (commentId: string) => {
-    triggerFeedback('error');
-    setComments(comments.filter(c => c.id !== commentId && c.parent_id !== commentId));
-    await supabase.from('post_comments').delete().eq('id', commentId);
-  };
-
   const topLevelComments = comments.filter(c => !c.parent_id);
   const getReplies = (parentId: string) => comments.filter(c => c.parent_id === parentId);
 
@@ -244,16 +217,15 @@ export const FeedPage: React.FC = () => {
   return (
     <FadeIn className="px-4 pt-10 pb-28 flex flex-col gap-6 bg-[#030303] min-h-screen font-sans relative" dir="rtl">
       
-      {/* כותרת עליונה */}
+      {/* כותרת מקורית + פעמון לבן */}
       <div className="flex items-center justify-between">
         <h1 className="text-4xl font-black text-white tracking-tighter drop-shadow-md">פיד</h1>
-        {/* פעמון מוגדר בלבן במפורש לבקשתך */}
         <button onClick={() => triggerFeedback('pop')} className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center active:scale-95 transition-all">
           <Bell size={20} className="text-white" />
         </button>
       </div>
 
-      {/* טאבים לניווט במקור */}
+      {/* טאבים מקוריים */}
       <div className="flex gap-2">
         {TABS.map((tab) => {
           const isActive = activeTab === tab.key;
@@ -276,106 +248,104 @@ export const FeedPage: React.FC = () => {
       {sortedItems.length === 0 ? (
         <div className="bg-[#0A0A0A] border border-white/5 rounded-[32px] text-center py-20 flex flex-col items-center justify-center shadow-inner">
           <Flame size={40} className="text-white/10 mb-4" />
-          <h3 className="text-xl font-black text-white/80 mb-2">אין קהילות בתדר הזה</h3>
+          <h3 className="text-xl font-black text-white/80 mb-2">אין תוכן בתדר הזה</h3>
           <p className="text-white/30 text-sm font-bold">תהיה הראשון להדליק את האור.</p>
         </div>
       ) : (
         <div className="flex flex-col gap-6">
-          {sortedItems.map((item) => {
-            const membersCount = item.members_count || 1;
+          {sortedItems.map((circle) => {
+            const membersCount = circle.members_count || 1;
             const activeNow = Math.max(1, Math.ceil(membersCount * 0.15 + (Math.random() * 3)));
             const chattingNow = Math.max(0, Math.ceil(activeNow * 0.3));
-            const isLiked = (item.post_likes || []).some((l: any) => l.user_id === currentUserId);
+            const isLiked = (circle.post_likes || []).some((l: any) => l.user_id === currentUserId);
 
             return (
-              <div key={item.id} className="p-0 overflow-hidden rounded-[32px] bg-[#0A0A0A] border border-white/5 transition-all shadow-[0_8px_30px_rgb(0,0,0,0.5)] flex flex-col">
-                
-                {/* המדיה (וידאו או תמונה) - תופסת את כל החלק העליון של הקלף מקצה לקצה */}
-                <div className="relative h-72 sm:h-80 w-full bg-black group cursor-pointer" onClick={() => item.is_circle && navigate(`/circle/${encodeURIComponent(item.slug || item.id)}`)}>
+              // במקום Link שעוטף הכל (ושובר כפתורים פנימיים), הקלף הוא Div
+              <div key={circle.id} className="block group outline-none transition-transform duration-200">
+                <div className="p-0 overflow-hidden rounded-[32px] bg-[#0A0A0A] border border-white/5 shadow-[0_8px_30px_rgb(0,0,0,0.5)] flex flex-col">
                   
-                  {item.media_type === 'video' && item.cover_url ? (
-                    <video src={item.cover_url} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" />
-                  ) : (
-                    <div className="absolute inset-0 bg-cover bg-center transition-transform duration-1000 group-hover:scale-105" style={{ backgroundImage: `url(${item.cover_url || ''})` }} />
-                  )}
-                  
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-transparent to-black/60 pointer-events-none" />
-
-                  {/* שם משתמש יושב מעל הוידאו! */}
-                  {!item.is_circle && (
-                    <div className="absolute top-4 right-4 flex items-center gap-2 z-10 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10">
-                      <div className="w-6 h-6 rounded-full overflow-hidden bg-black shrink-0">
-                        {item.profiles?.avatar_url ? <img src={item.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={24} className="text-white/50" />}
+                  {/* החלק העליון - המדיה (תמונה או וידאו בלופ) מקצה לקצה */}
+                  <div 
+                    className="relative h-[400px] w-full bg-black cursor-pointer overflow-hidden"
+                    onClick={() => circle.is_circle ? navigate(`/circle/${encodeURIComponent(circle.slug || circle.id)}`) : null}
+                  >
+                    {circle.media_type === 'video' && circle.cover_url ? (
+                      <video src={circle.cover_url} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" />
+                    ) : (
+                      <div className="absolute inset-0 bg-cover bg-center group-hover:scale-105 transition-transform duration-1000" style={{ backgroundImage: `url(${circle.cover_url || ''})` }} />
+                    )}
+                    
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-black/40 pointer-events-none" />
+                    
+                    {/* VIP לתגית */}
+                    {circle.is_circle && (
+                      <div className="absolute top-4 right-4 px-3 py-1.5 rounded-xl bg-black/60 border border-white/10 text-[10px] font-black text-white/90 flex items-center gap-1.5 backdrop-blur-md z-10">
+                        <Lock size={12} className="text-white/50" /> VIP
                       </div>
-                      <span className="text-white text-[12px] font-black">{item.name}</span>
-                    </div>
-                  )}
+                    )}
 
-                  {item.is_circle && (
-                    <div className="absolute top-4 right-4 px-3 py-1.5 rounded-xl bg-black/60 border border-white/10 text-[10px] font-black text-white/90 flex items-center gap-1.5 backdrop-blur-md z-10">
-                      <Lock size={12} className="text-white/50" /> VIP
-                    </div>
-                  )}
-
-                  {/* כותרת על גבי המדיה למטה */}
-                  {item.is_circle && (
+                    {/* שם משתמש וכותרת - מעל פס התגובות, בתוך אזור הוידאו! */}
                     <div className="absolute bottom-5 right-5 left-5 z-10 flex flex-col gap-3">
-                      <h3 className="text-white text-3xl font-black drop-shadow-2xl truncate leading-none">{item.name}</h3>
-                      <div className="flex gap-2">
-                        {chattingNow > 0 && (
-                          <div className="px-3 py-1.5 rounded-[12px] bg-yellow-500/10 border border-yellow-500/20 text-[10px] font-black text-yellow-500 flex items-center gap-1.5 backdrop-blur-md">
-                            <MessageCircle size={12} /> {chattingNow} מדברים
+                      <h3 className="text-white text-3xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)] truncate leading-none">
+                        {circle.name}
+                      </h3>
+                      
+                      {circle.is_circle && (
+                        <div className="flex gap-2">
+                          {chattingNow > 0 && (
+                            <div className="px-3 py-1.5 rounded-[12px] bg-yellow-500/10 border border-yellow-500/20 text-[10px] font-black text-yellow-500 flex items-center gap-1.5 backdrop-blur-md">
+                              <MessageCircle size={12} /> {chattingNow} מדברים
+                            </div>
+                          )}
+                          <div className="px-3 py-1.5 rounded-[12px] bg-white/5 border border-white/10 text-[10px] font-black text-white/80 flex items-center gap-1.5 backdrop-blur-md">
+                            <Users size={12} className="text-green-400" /> {activeNow} אונליין
                           </div>
-                        )}
-                        <div className="px-3 py-1.5 rounded-[12px] bg-white/5 border border-white/10 text-[10px] font-black text-white/80 flex items-center gap-1.5 backdrop-blur-md">
-                          <Users size={12} className="text-green-400" /> {activeNow} אונליין
                         </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* החלק התחתון - פס הפעולות והתיאור - הוידאו נוגע בו בדיוק! */}
+                  <div className="p-5 flex flex-col gap-4 border-t border-white/10 bg-[#050505] z-20">
+                    
+                    {/* פס פעולות לייט ותגובות */}
+                    {!circle.is_circle && (
+                      <div className="flex items-center gap-6 border-b border-white/5 pb-4">
+                        <button onClick={(e) => handleLikePost(e, circle.id, isLiked, circle.is_circle)} className="flex items-center gap-1.5 active:scale-90 transition-transform">
+                          <Heart size={22} className={isLiked ? 'text-red-500 fill-red-500' : 'text-white/60'} />
+                          <span className="text-white/80 text-[13px] font-bold">{circle.post_likes?.length || 0}</span>
+                        </button>
+                        <button onClick={(e) => openComments(e, circle.id, circle.is_circle)} className="flex items-center gap-1.5 active:scale-90 transition-transform">
+                          <MessageCircle size={22} className="text-white/60" />
+                          <span className="text-white/80 text-[13px] font-bold">{circle.post_comments?.length || 0}</span>
+                        </button>
+                        <button onClick={(e) => { e.preventDefault(); toast('הועתק ללוח!'); }} className="flex items-center gap-1.5 active:scale-90 transition-transform">
+                          <Share2 size={20} className="text-white/60" />
+                        </button>
                       </div>
-                    </div>
-                  )}
-                </div>
+                    )}
 
-                {/* אזור תחתון של הקלף - כפתורי פעולות ותיאור מתחת לוידאו */}
-                <div className="bg-[#050505] p-5 flex flex-col gap-4 border-t border-white/5">
-                  
-                  {/* פס פעולות: לייק, תגובות, שיתוף - הופרד ולא מסתיר שום דבר */}
-                  {!item.is_circle && (
-                    <div className="flex items-center gap-5 border-b border-white/5 pb-4">
-                      <button onClick={(e) => { e.preventDefault(); handleLikePost(item.id, isLiked, item.is_circle); }} className="flex items-center gap-1.5 active:scale-90 transition-transform">
-                        <Heart size={20} className={isLiked ? 'text-red-500 fill-red-500' : 'text-white/60'} />
-                        <span className="text-white/80 text-[13px] font-bold">{item.post_likes?.length || 0}</span>
-                      </button>
+                    {/* תיאור נפתח במגירה */}
+                    {circle.description && (
+                      <div onClick={() => { triggerFeedback('pop'); setActiveDescPost(circle); }} className="cursor-pointer group">
+                        <p className="text-white/70 text-sm font-medium leading-relaxed line-clamp-2 text-right group-hover:text-white transition-colors">
+                          {circle.description}
+                        </p>
+                        <span className="text-[#2196f3] text-[10px] font-black uppercase tracking-widest mt-2 block">הצג תיאור מלא...</span>
+                      </div>
+                    )}
 
-                      <button onClick={(e) => { e.preventDefault(); openComments(item.id, item.is_circle); }} className="flex items-center gap-1.5 active:scale-90 transition-transform">
-                        <MessageCircle size={20} className="text-white/60" />
-                        <span className="text-white/80 text-[13px] font-bold">{item.post_comments?.length || 0}</span>
-                      </button>
-
-                      <button onClick={(e) => { e.preventDefault(); triggerFeedback('pop'); toast('הועתק ללוח!', {style: {background: '#111', color: '#fff'}}); }} className="flex items-center gap-1.5 active:scale-90 transition-transform">
-                        <Share2 size={18} className="text-white/60" />
-                      </button>
-                    </div>
-                  )}
-
-                  {/* תיאור נפתח במגירה */}
-                  {item.description && (
-                    <div onClick={(e) => { e.preventDefault(); triggerFeedback('pop'); setActiveDescPost(item); }} className="cursor-pointer group relative z-20">
-                      <p className="text-white/50 text-sm font-medium leading-relaxed line-clamp-2 text-right group-hover:text-white/80 transition-colors">
-                        {item.description}
-                      </p>
-                      <span className="text-[#2196f3] text-[10px] font-black uppercase tracking-widest mt-2 block">קרא תיאור מלא</span>
-                    </div>
-                  )}
-
-                  {item.is_circle && (
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-white/30 text-[9px] font-black uppercase tracking-widest">Premium Access</span>
-                      <Link to={`/circle/${encodeURIComponent(item.slug || item.id)}`} className="w-12 h-12 bg-[#1A1C20] rounded-xl border border-white/5 group-hover:bg-white/10 group-hover:scale-105 transition-all duration-300 flex items-center justify-center shadow-inner">
-                        <ArrowUpRight size={22} className="text-white/60 group-hover:text-white transition-colors" />
+                    {/* כפתור פרימיום לקהילות */}
+                    {circle.is_circle && (
+                      <Link to={`/circle/${encodeURIComponent(circle.slug || circle.id)}`} className="flex items-center justify-between mt-2">
+                        <span className="text-white/30 text-[9px] font-black uppercase tracking-widest">Premium Access</span>
+                        <div className="w-12 h-12 bg-[#1A1C20] rounded-xl border border-white/5 active:scale-95 transition-all duration-300 flex items-center justify-center shadow-inner">
+                          <ArrowUpRight size={22} className="text-white/60" />
+                        </div>
                       </Link>
-                    </div>
-                  )}
+                    )}
 
+                  </div>
                 </div>
               </div>
             );
@@ -383,18 +353,18 @@ export const FeedPage: React.FC = () => {
         </div>
       )}
 
-      {/* כפתור פלוס צף להעלאת תכנים - עובד פיקס! */}
+      {/* כפתור יצירת פוסט (+) צף! */}
       <button 
         onClick={() => { triggerFeedback('pop'); setShowCreatePost(true); }}
-        className="fixed bottom-24 right-5 w-14 h-14 bg-[#2196f3] rounded-full shadow-[0_0_20px_rgba(33,150,243,0.5)] flex items-center justify-center z-40 active:scale-90 transition-all border border-white/20"
+        className="fixed bottom-24 left-5 w-14 h-14 bg-[#2196f3] text-white rounded-full shadow-[0_0_20px_rgba(33,150,243,0.5)] flex items-center justify-center z-40 active:scale-90 transition-all border border-white/20"
       >
-        <Plus size={28} className="text-white" />
+        <Plus size={28} />
       </button>
 
-      {/* ================== חלונות צפים (הכל מוכן ועובד ישר מול סופאבייס!) ================== */}
+      {/* ================== מגירות (Bottom Sheets) ================== */}
       {mounted && typeof document !== 'undefined' && createPortal(
         <>
-          {/* מגירת יצירת פוסט */}
+          {/* העלאת סרטון/פוסט */}
           <AnimatePresence>
             {showCreatePost && (
               <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
@@ -408,21 +378,21 @@ export const FeedPage: React.FC = () => {
                   <div onPointerDown={(e) => createPostDragControls.start(e)} style={{ touchAction: 'none' }} className="w-full flex flex-col items-center pb-4 cursor-grab">
                     <div className="w-16 h-1.5 bg-white/20 rounded-full mb-4"></div>
                     <div className="flex justify-between items-center w-full">
-                      <h3 className="text-lg font-black text-white">העלה פוסט חדש</h3>
+                      <h3 className="text-lg font-black text-white">העלה תוכן חדש</h3>
                       <button onClick={() => setShowCreatePost(false)}><X size={20} className="text-white/40"/></button>
                     </div>
                   </div>
                   <div className="flex flex-col gap-4">
-                    <input type="text" value={newPostMedia} onChange={e => setNewPostMedia(e.target.value)} placeholder="קישור לוידאו (.mp4) - חובה..." className="h-14 bg-white/5 border border-white/10 rounded-[20px] px-4 text-white text-sm focus:outline-none focus:border-[#2196f3] transition-colors" dir="ltr" />
-                    <textarea value={newPostText} onChange={e => setNewPostText(e.target.value)} placeholder="כתוב את התיאור כאן..." className="h-28 bg-white/5 border border-white/10 rounded-[20px] p-4 text-white text-sm focus:outline-none focus:border-[#2196f3] transition-colors resize-none" />
-                    <Button onClick={handleCreatePost} className="h-14 bg-[#2196f3] text-white font-black rounded-[20px] text-[14px]">פרסם פוסט עכשיו</Button>
+                    <input type="text" value={newPostMedia} onChange={e => setNewPostMedia(e.target.value)} placeholder="קישור לוידאו (.mp4) / תמונה..." className="h-14 bg-white/5 border border-white/10 rounded-[20px] px-4 text-white text-sm focus:outline-none focus:border-[#2196f3]" dir="ltr" />
+                    <textarea value={newPostText} onChange={e => setNewPostText(e.target.value)} placeholder="כתוב משהו יפה..." className="h-28 bg-white/5 border border-white/10 rounded-[20px] p-4 text-white text-sm focus:outline-none focus:border-[#2196f3] resize-none" />
+                    <button onClick={handleCreatePost} className="h-14 bg-[#2196f3] text-white font-black rounded-[20px] text-[14px]">פרסם פוסט</button>
                   </div>
                 </motion.div>
               </div>
             )}
           </AnimatePresence>
 
-          {/* מגירת תיאור מלא */}
+          {/* מגירת תיאור */}
           <AnimatePresence>
             {activeDescPost && (
               <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
@@ -436,7 +406,7 @@ export const FeedPage: React.FC = () => {
                   <div onPointerDown={(e) => descDragControls.start(e)} style={{ touchAction: 'none' }} className="w-full flex flex-col items-center pt-5 pb-4 cursor-grab">
                     <div className="w-16 h-1.5 bg-white/20 rounded-full mb-4 pointer-events-none"></div>
                     <div className="px-6 flex items-center justify-between w-full">
-                      <h3 className="text-[16px] font-black text-white">תיאור הפוסט</h3>
+                      <h3 className="text-[16px] font-black text-white">תיאור מלא</h3>
                       <button onClick={() => setActiveDescPost(null)} className="text-white/40 hover:text-white"><X size={20} /></button>
                     </div>
                   </div>
@@ -448,7 +418,7 @@ export const FeedPage: React.FC = () => {
             )}
           </AnimatePresence>
 
-          {/* מגירת תגובות מורחבת (מחיקה, עריכה, ותת-תגובות) */}
+          {/* מגירת תגובות מורחבת! */}
           <AnimatePresence>
             {activeCommentsPostId && (
               <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
@@ -471,7 +441,7 @@ export const FeedPage: React.FC = () => {
                     {loadingComments ? (
                       <div className="flex justify-center pt-20"><Loader2 className="animate-spin text-white/20" /></div>
                     ) : comments.length === 0 ? (
-                      <div className="text-center pt-20 text-white/30 font-bold text-[14px]">אין תגובות עדיין. היו הראשונים!</div>
+                      <div className="text-center pt-20 text-white/30 font-bold text-[14px]">אין תגובות עדיין. היה הראשון!</div>
                     ) : (
                       topLevelComments.map(comment => {
                         const isLiked = (comment.comment_likes || []).some((l:any) => l.user_id === currentUserId);
