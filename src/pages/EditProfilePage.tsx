@@ -22,7 +22,6 @@ export const EditProfilePage: React.FC = () => {
   const [savingDetails, setSavingDetails] = useState(false);
   const [updatingPassword, setUpdatingPassword] = useState(false);
 
-  // מדינת טופס הפרטים האישיים - מחובר אמיתי!
   const [formData, setFormData] = useState({
     full_name: '',
     username: '',
@@ -35,14 +34,13 @@ export const EditProfilePage: React.FC = () => {
     education: '',
   });
   
-  // מדינת טופס סיסמה
   const [passwordData, setPasswordData] = useState({
     current_password: '',
     new_password: '',
     confirm_password: '',
   });
   
-  const [data, setData] = useState<any>({ profile: {}, memberships: [], ownedCircles: [] });
+  const [data, setData] = useState<any>({ profile: {} });
   const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
@@ -65,7 +63,6 @@ export const EditProfilePage: React.FC = () => {
               social_link: result.profile.social_link || '',
               zodiac: result.profile.zodiac || '',
               location: result.profile.location || '',
-              // המרת תאריך לפורמט YYYY-MM-DD עבור ה-Input
               birth_date: result.profile.birth_date ? new Date(result.profile.birth_date).toISOString().split('T')[0] : '',
               relationship_status: result.profile.relationship_status || '',
               education: result.profile.education || '',
@@ -73,7 +70,6 @@ export const EditProfilePage: React.FC = () => {
           }
         }
       } catch (err) { 
-        console.error(err);
         toast.error('שגיאה בטעינת הנתונים', { style: { background: '#111', color: '#ef4444' } });
       } finally { 
         setLoadingData(false); 
@@ -83,6 +79,7 @@ export const EditProfilePage: React.FC = () => {
     if (user && !authLoading) loadProfileData();
   }, [user, authLoading]);
 
+  // העלאת מדיה מאובטחת דרך השרת
   const handleMediaUpload = async (file: File, type: 'avatar' | 'cover') => {
     if (!file || !authProfile?.id) return;
     
@@ -103,8 +100,13 @@ export const EditProfilePage: React.FC = () => {
       const { data: { publicUrl } } = supabase.storage.from('feed_images').getPublicUrl(uploadData.path);
 
       const fieldToUpdate = type === 'avatar' ? 'avatar_url' : 'cover_url';
-      const { error: updateError } = await supabase.from('profiles').update({ [fieldToUpdate]: publicUrl }).eq('id', authData.user.id);
-      if (updateError) throw updateError;
+      
+      // שמירה דרך השרת כדי לעקוף חסימות
+      await apiFetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': authData.user.id },
+        body: JSON.stringify({ [fieldToUpdate]: publicUrl })
+      });
 
       reloadProfile();
       setData((prev: any) => ({ ...prev, profile: { ...prev.profile, [fieldToUpdate]: publicUrl } }));
@@ -116,7 +118,7 @@ export const EditProfilePage: React.FC = () => {
     }
   };
 
-  // שמירת פרטים אישיים - מחובר אמיתי!
+  // שמירת פרטים דרך השרת
   const handleSaveDetails = async () => {
     if (!user?.id || savingDetails) return;
     setSavingDetails(true);
@@ -124,14 +126,17 @@ export const EditProfilePage: React.FC = () => {
     const tid = toast.loading('שומר שינויים...', { style: { background: '#111', color: '#fff' } });
     
     try {
-      // המרת מחרוזת ריקה ל-NULL עבור שדה התאריך כדי ש-Supabase לא ייכשל
       const updates = {
         ...formData,
         birth_date: formData.birth_date === '' ? null : formData.birth_date,
       };
 
-      const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
-      if (error) throw error;
+      const { data: authData } = await supabase.auth.getUser();
+      await apiFetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': authData.user?.id || '' },
+        body: JSON.stringify(updates)
+      });
       
       reloadProfile();
       toast.success('הפרטים עודכנו בהצלחה!', { id: tid, style: { background: '#111', color: '#e5e4e2', border: '1px solid rgba(229,228,226,0.2)' } });
@@ -143,15 +148,12 @@ export const EditProfilePage: React.FC = () => {
     }
   };
 
-  // שמירת סיסמה חדשה - מחובר אמיתי!
   const handleUpdatePassword = async () => {
     if (!user?.id || updatingPassword) return;
-    
     if (passwordData.new_password !== passwordData.confirm_password) {
       toast.error('הסיסמאות החדשות לא תואמות', { style: { background: '#111', color: '#ef4444' } });
       return;
     }
-
     if (passwordData.new_password.length < 6) {
         toast.error('הסיסמה החדשה חייבת להיות לפחות 6 תווים', { style: { background: '#111', color: '#ef4444' } });
         return;
@@ -186,7 +188,6 @@ export const EditProfilePage: React.FC = () => {
         <div className="absolute bottom-[-10%] right-[-20%] w-[60%] h-[40%] bg-white/5 blur-[120px] rounded-full mix-blend-screen"></div>
       </div>
 
-      {/* בר עליון צף - כפתור חזרה */}
       <div className="fixed top-6 left-4 right-4 flex justify-between items-center z-50 pointer-events-none">
         <button onClick={() => { triggerFeedback('pop'); navigate(-1); }} className="pointer-events-auto w-10 h-10 flex justify-center items-center bg-black/40 backdrop-blur-xl border border-white/10 rounded-full shadow-lg active:scale-90 transition-all hover:bg-black/60">
           <ChevronLeft size={20} className="text-white" />
@@ -196,22 +197,24 @@ export const EditProfilePage: React.FC = () => {
         </div>
       </div>
 
-      {/* תמונת נושא - שכבה אחורית עם אפקט מעוגל למטה */}
+      {/* הקאבר - עיצוב חלבי */}
       <div className="fixed top-0 left-0 w-full h-[220px] bg-[#111] z-0 rounded-b-[40px] overflow-hidden shadow-2xl origin-top border-b border-white/5 group">
         {data.profile.cover_url ? (
           <img src={data.profile.cover_url} className="w-full h-full object-cover opacity-80" />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-b from-[#2196f3]/10 to-transparent"></div>
         )}
-        
-        {/* כפתור החלפת קאבר (גלריה) */}
+      </div>
+
+      {/* כפתור החלפת קאבר - מחולץ לשכבה העליונה z-50 כדי שלא ייחסם! */}
+      <div className="fixed top-[165px] right-4 z-50">
         <input type="file" ref={coverInputRef} onChange={(e) => handleMediaUpload(e.target.files![0], 'cover')} accept="image/*" className="hidden" />
         <button 
           onClick={() => coverInputRef.current?.click()} 
           disabled={uploadingCover}
-          className="absolute bottom-3 right-3 w-9 h-9 bg-black/50 backdrop-blur-md text-white rounded-full flex items-center justify-center shadow-lg border border-white/20 active:scale-90 transition-all z-20 hover:bg-black/70 disabled:opacity-50"
+          className="w-10 h-10 bg-black/60 backdrop-blur-xl text-[#e5e4e2] rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(0,0,0,0.5)] border border-white/20 active:scale-90 transition-all hover:bg-black/80 disabled:opacity-50 pointer-events-auto"
         >
-          {uploadingCover ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
+          {uploadingCover ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
         </button>
       </div>
 
@@ -219,7 +222,6 @@ export const EditProfilePage: React.FC = () => {
       <FadeIn className="relative z-10 pt-[170px] pb-32">
         <div className="bg-[#0C0C0C]/90 backdrop-blur-3xl rounded-t-[40px] px-4 min-h-screen flex flex-col items-center pt-0 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] border-t border-white/5">
           
-          {/* תמונת פרופיל - חותכת בדיוק בחצי */}
           <motion.div whileHover={{ scale: 1.05 }} className="w-[110px] h-[110px] rounded-full bg-[#0C0C0C] shadow-[0_10px_30px_rgba(0,0,0,0.8)] p-1.5 relative -mt-[55px] z-20 group">
             <div className="w-full h-full rounded-full overflow-hidden bg-[#1a1a1a] border border-white/5 relative">
               {data.profile.avatar_url ? (
@@ -229,20 +231,18 @@ export const EditProfilePage: React.FC = () => {
               )}
             </div>
             
-            {/* כפתור החלפת תמונת פרופיל (גלריה) */}
             <input type="file" ref={avatarInputRef} onChange={(e) => handleMediaUpload(e.target.files![0], 'avatar')} accept="image/*" className="hidden" />
             <button 
               onClick={() => avatarInputRef.current?.click()} 
               disabled={uploadingAvatar}
               className="absolute bottom-1 left-1 w-8 h-8 bg-[#e5e4e2] text-black rounded-full flex items-center justify-center shadow-lg border-2 border-[#0C0C0C] active:scale-90 transition-all z-20 hover:bg-white disabled:opacity-50"
             >
-              {uploadingAvatar ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} className="ml-0.5" />}
+              {uploadingAvatar ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} className="ml-0.5" />}
             </button>
           </motion.div>
 
           <div className="px-4 flex flex-col gap-5 mt-10 w-full mb-2">
             
-            {/* כרטיסיית פרטים אישיים - מרובעת מעוגלת-פינות (כמו ארנק) וחלבית */}
             <GlassCard rounded="2xl" className="p-6 border border-white/10 flex flex-col gap-5 rounded-[20px]">
               <div className="flex justify-between items-center border-b border-white/10 pb-4 mb-1">
                 <div className="flex flex-col text-right">
@@ -294,14 +294,13 @@ export const EditProfilePage: React.FC = () => {
               </div>
               
               <div className="flex justify-end mt-4">
-                 {/* כפתור נטו טקסט, בלי אייקון! */}
+                 {/* כפתור נטו טקסט בלי אייקון! */}
                  <Button onClick={handleSaveDetails} disabled={savingDetails} className="bg-[#e5e4e2] text-black rounded-lg font-black text-[13px] tracking-wide flex items-center justify-center active:scale-95 transition-transform px-8 h-11">
                     {savingDetails ? <Loader2 size={16} className="animate-spin" /> : "שמור שינויים"}
                  </Button>
               </div>
             </GlassCard>
 
-            {/* כרטיסיית אבטחה - מרובעת מעוגלת-פינות וחלבית */}
             <GlassCard rounded="2xl" className="p-6 border border-white/10 flex flex-col gap-5 rounded-[20px]">
               <div className="flex justify-between items-center border-b border-white/10 pb-4 mb-1">
                 <div className="flex flex-col text-right">
@@ -327,7 +326,7 @@ export const EditProfilePage: React.FC = () => {
               </div>
               
               <div className="flex justify-end mt-4">
-                 {/* כפתור נטו טקסט, בלי אייקון! */}
+                 {/* כפתור נטו טקסט בלי אייקון! */}
                  <Button onClick={handleUpdatePassword} disabled={updatingPassword} className="bg-[#e5e4e2] text-black rounded-lg font-black text-[13px] tracking-wide flex items-center justify-center active:scale-95 transition-transform px-8 h-11">
                     {updatingPassword ? <Loader2 size={16} className="animate-spin" /> : "עדכן סיסמה"}
                  </Button>
@@ -335,7 +334,6 @@ export const EditProfilePage: React.FC = () => {
             </GlassCard>
 
           </div>
-
         </div>
       </FadeIn>
 
