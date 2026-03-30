@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion'; 
 import { supabase } from '../lib/supabase';              
 import { FadeIn, GlassCard, Button } from '../components/ui';
-import { Users, Loader2, ArrowRight, MessageSquare, Heart, Activity, Send, Lock, X, UserCircle, Trash2, Edit2, Reply } from 'lucide-react';         
+import { Users, Loader2, ArrowRight, MessageSquare, Heart, Activity, Send, Lock, X, UserCircle } from 'lucide-react';         
 import { triggerFeedback } from '../lib/sound';          
 import toast from 'react-hot-toast';
 
@@ -47,7 +47,6 @@ export const CirclePage: React.FC = () => {
       }
 
       let formattedPosts = [];
-      // התיקון הקריטי: שימוש בטבלאות likes ו-comments!
       const { data: pData } = await supabase.from('posts').select('*, profiles(*), likes(user_id), comments(id)').eq('circle_id', circle.id).order('created_at', { ascending: false });
       if (pData) {
         formattedPosts = pData.map(p => ({ ...p, likes_count: p.likes?.length || 0, comments_count: p.comments?.length || 0, is_liked: p.likes?.some((l:any) => l.user_id === uid) }));
@@ -65,7 +64,6 @@ export const CirclePage: React.FC = () => {
         await supabase.from('circle_members').delete().match({ circle_id: data.circle.id, user_id: currentUserId });
         setData((prev: any) => ({ ...prev, isMember: false, circle: { ...prev.circle, members_count: Math.max((prev.circle.members_count || 1) - 1, 0) } }));
       } else {
-        // התיקון הקריטי: הוספת role: 'member' לשאילתה
         const { error } = await supabase.from('circle_members').insert({ circle_id: data.circle.id, user_id: currentUserId, role: 'member' });
         if (error) throw error;
         setData((prev: any) => ({ ...prev, isMember: true, circle: { ...prev.circle, members_count: (prev.circle.members_count || 0) + 1 } }));                                    
@@ -82,7 +80,7 @@ export const CirclePage: React.FC = () => {
       const { error } = await supabase.from('posts').insert({ circle_id: data.circle.id, user_id: currentUserId, content: newPost.trim(), media_type: 'text' });
       if (error) throw error;
       setNewPost(''); triggerFeedback('pop'); fetchCircleData();                                     
-    } catch (err: any) { toast.error('שגיאה בשליחה: ' + err.message); } finally { setPosting(false); }               
+    } catch (err: any) { toast.error('שגיאה בשליחה'); } finally { setPosting(false); }               
   };
                                                            
   const handleLike = async (postId: string, isLiked: boolean) => {
@@ -112,12 +110,6 @@ export const CirclePage: React.FC = () => {
       setData((curr: any) => ({ ...curr, posts: curr.posts.map((p: any) => p.id === activePost.id ? { ...p, comments_count: p.comments_count + 1 } : p) }));
       triggerFeedback('coin');
     } catch (err) { toast.error('שגיאה בשליחת תגובה'); }
-  };
-
-  const deleteComment = async (commentId: string) => {
-    triggerFeedback('error');
-    setComments(comments.filter(c => c.id !== commentId));
-    await supabase.from('comments').delete().eq('id', commentId);
   };
 
   if (loading || !data) return <div className="min-h-screen bg-[#030303] flex items-center justify-center"><Loader2 className="animate-spin text-white/20" /></div>;
@@ -197,7 +189,7 @@ export const CirclePage: React.FC = () => {
         {activePost && (                                           
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[999] flex flex-col justify-end bg-black/80 backdrop-blur-sm">
             <div className="absolute inset-0" onClick={() => setActivePost(null)}></div>                                      
-            <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.8 }} onDragEnd={(e, { offset, velocity }) => { if (offset.y > 100 || velocity.y > 500) setActivePost(null); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[32px] h-[75vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative z-10 pb-8">
+            <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.8 }} onDragEnd={(e, { offset }) => { if (offset.y > 100) setActivePost(null); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[32px] h-[75vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative z-10 pb-8">
               <div className="w-full flex justify-center pt-4 pb-2 cursor-grab active:cursor-grabbing"><div className="w-16 h-1 bg-white/20 rounded-full"></div></div>                   
               <div className="flex justify-between items-center px-6 pb-4 border-b border-white/5"><h2 className="text-white font-black text-sm">תגובות ({activePost.comments_count})</h2><button onClick={() => setActivePost(null)} className="text-white/30 hover:text-white transition-colors"><X size={18} /></button></div>                                                   
               
@@ -207,8 +199,7 @@ export const CirclePage: React.FC = () => {
                     <div className="w-8 h-8 rounded-full bg-black shrink-0 mt-1 overflow-hidden">{comment.profiles?.avatar_url ? <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-white/5" />}</div>                                          
                     <div className="flex flex-col flex-1 bg-white/[0.03] p-3 rounded-2xl rounded-tr-sm border border-white/5">
                       <span className="text-white font-black text-xs mb-1 text-right">{comment.profiles?.full_name || 'אנונימי'}</span>                                                          
-                      <p className="text-white/70 text-sm text-right">{comment.content}</p>
-                      {comment.user_id === currentUserId && <button onClick={() => deleteComment(comment.id)} className="text-red-400 text-[10px] font-bold mt-2 flex items-center gap-1 w-fit"><Trash2 size={12}/> מחק</button>}
+                      <p className="text-white/70 text-sm text-right">{comment.content}</p>                                           
                     </div>                                                 
                   </div>
                 ))}
