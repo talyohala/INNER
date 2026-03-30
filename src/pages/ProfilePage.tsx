@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
-import { UserCircle, Edit2, Zap, ChevronLeft, ChevronDown, Loader2, Award, Flame, Wallet, Users, Crown, Activity, Heart, MessageSquare, ShoppingBag, Link as LinkIcon, UserPlus, UserCheck, X } from 'lucide-react';
+import { UserCircle, Edit2, Zap, ChevronLeft, ChevronDown, Loader2, Award, Flame, Wallet, Users, Crown, Activity, Heart, MessageSquare, ShoppingBag, Link as LinkIcon, UserPlus, UserCheck, MapPin, Calendar, GraduationCap, HeartHandshake, Camera } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
 import { supabase } from '../lib/supabase';
@@ -23,6 +23,9 @@ export const ProfilePage: React.FC = () => {
   const [loadingData, setLoadingData] = useState(true);
   const [isBioExpanded, setIsBioExpanded] = useState(false);
   
+  // Tabs State
+  const [activeTab, setActiveTab] = useState<'clubs' | 'activity' | 'wallet'>('clubs');
+
   const [isFollowing, setIsFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
@@ -33,6 +36,9 @@ export const ProfilePage: React.FC = () => {
   const [usersListData, setUsersListData] = useState<any[]>([]);
   const [loadingUsersList, setLoadingUsersList] = useState(false);
 
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingCover, setUploadingCover] = useState(false);
+
   const isMyProfile = !routeId || routeId === authProfile?.username || routeId === user?.id;
 
   useEffect(() => {
@@ -41,13 +47,13 @@ export const ProfilePage: React.FC = () => {
       try {
         setLoadingData(true);
         const { data: authData } = await supabase.auth.getUser();
-        
+        let targetId = '';
+
         if (isMyProfile) {
           const headers = authData.user ? { 'x-user-id': authData.user.id } : {};
           const result = await apiFetch<any>('/api/profile/collection', { headers });
           setData(result);
-          setFollowersCount(result.profile?.followers_count || 0);
-          setFollowingCount(result.profile?.following_count || 0);
+          targetId = result.profile?.id;
         } else {
           const identifier = routeId || '';
           const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
@@ -59,7 +65,7 @@ export const ProfilePage: React.FC = () => {
           const { data: publicProfile, error: profileErr } = await query.maybeSingle();
           if (!publicProfile || profileErr) throw new Error('Profile not found');
 
-          const targetId = publicProfile.id;
+          targetId = publicProfile.id;
 
           const [{ data: memberships }, { data: ownedCircles }] = await Promise.all([
             supabase.from('circle_members').select('circle:circles(*)').eq('user_id', targetId).neq('role', 'admin'),
@@ -76,9 +82,18 @@ export const ProfilePage: React.FC = () => {
 
           setData({ profile: publicProfile, memberships: memberships || [], ownedCircles: ownedCircles || [] });
           setIsFollowing(isFollowingUser);
-          setFollowersCount(publicProfile.followers_count || 0);
-          setFollowingCount(publicProfile.following_count || 0);
         }
+
+        // ספירה אמיתית
+        if (targetId) {
+          const [{ count: followers }, { count: following }] = await Promise.all([
+            supabase.from('followers').select('*', { count: 'exact', head: true }).eq('following_id', targetId),
+            supabase.from('followers').select('*', { count: 'exact', head: true }).eq('follower_id', targetId)
+          ]);
+          setFollowersCount(followers || 0);
+          setFollowingCount(following || 0);
+        }
+
       } catch (err) { 
         console.error(err);
         toast.error('הפרופיל לא נמצא', { style: { background: '#111', color: '#ef4444' } });
@@ -161,7 +176,38 @@ export const ProfilePage: React.FC = () => {
     }
   };
 
-  if (authLoading || loadingData) return <div className="min-h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-white/20" /></div>;
+  const handleCoverChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !isMyProfile) return;
+
+    setUploadingCover(true);
+    const tid = toast.loading('מעדכן תמונת נושא...', { style: { background: '#111', color: '#fff' } });
+    
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (!authData.user) throw new Error('Not logged in');
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${authData.user.id}_cover_${Date.now()}.${fileExt}`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage.from('feed_images').upload(fileName, file);
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage.from('feed_images').getPublicUrl(uploadData.path);
+
+      const { error: updateError } = await supabase.from('profiles').update({ cover_url: publicUrl }).eq('id', authData.user.id);
+      if (updateError) throw updateError;
+
+      setData((prev: any) => ({ ...prev, profile: { ...prev.profile, cover_url: publicUrl } }));
+      toast.success('תמונת הנושא עודכנה בהצלחה!', { id: tid, style: { background: '#111', color: '#e5e4e2', border: '1px solid rgba(229,228,226,0.2)' } });
+    } catch (err) {
+      toast.error('שגיאה בהעלאת התמונה', { id: tid, style: { background: '#111', color: '#ef4444' } });
+    } finally {
+      setUploadingCover(false);
+    }
+  };
+
+  if (authLoading || loadingData) return <div className="min-h-screen bg-[#050505] flex items-center justify-center"><Loader2 className="animate-spin text-white/20" /></div>;
 
   const userProfile = isMyProfile ? { ...(authProfile || {}), ...(data?.profile || {}) } : data?.profile || {};
   const currentLevel = userProfile.level || 1;
@@ -170,7 +216,6 @@ export const ProfilePage: React.FC = () => {
   const xpToNextLevel = currentLevel * 1000;
   const xpProgress = Math.min((currentXP / xpToNextLevel) * 100, 100);
   
-  // מוניטין אמיתי (מבוסס על סך ה-XP שצברת)
   const trueReputation = Math.floor(currentXP / 10) + (currentLevel * 5);
 
   const joinedCircles = data.memberships?.map((m: any) => m?.circle).filter(Boolean) || [];
@@ -180,6 +225,7 @@ export const ProfilePage: React.FC = () => {
 
   const userListsSheets = mounted && typeof document !== 'undefined' ? createPortal(
     <AnimatePresence>
+      {/* בוטום שיט רשימת עוקבים מחובר אמיתי */}
       {showFollowersList && (
         <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowFollowersList(false)} />
@@ -210,6 +256,7 @@ export const ProfilePage: React.FC = () => {
         </div>
       )}
 
+      {/* בוטום שיט רשימת נעקבים מחובר אמיתי */}
       {showFollowingList && (
         <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowFollowingList(false)} />
@@ -243,228 +290,255 @@ export const ProfilePage: React.FC = () => {
   , document.body) : null;
 
   return (
-    <FadeIn className="px-4 pt-8 pb-32 bg-black min-h-screen flex flex-col gap-5 relative overflow-x-hidden" dir="rtl">
+    <FadeIn className="bg-[#050505] min-h-screen flex flex-col pb-32 relative overflow-x-hidden font-sans" dir="rtl">
       
-      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden flex justify-center">
-        <div className="absolute top-[-10%] left-[-20%] w-[60%] h-[40%] bg-white/10 blur-[120px] rounded-full mix-blend-screen"></div>
-      </div>
-
-      <div className="flex items-center justify-between relative z-10 px-1 mb-2">
-        <div className="w-10">
-          {!isMyProfile && (
-            <button onClick={() => { triggerFeedback('pop'); navigate(-1); }} className="w-10 h-10 flex justify-center items-center bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-full shadow-lg active:scale-90 transition-all hover:bg-white/10">
-              <ChevronLeft size={20} className="text-white/80" />
-            </button>
-          )}
-        </div>
-        <h1 className="text-xl font-black text-white tracking-tight flex items-center gap-2 drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
-          <UserCircle size={20} className="text-white/40" /> {isMyProfile ? 'הפרופיל שלך' : `הפרופיל של @${userProfile?.username || 'user'}`}
-        </h1>
-        <div className="w-10">
-          {isMyProfile && (
-            <button onClick={() => { triggerFeedback('pop'); navigate('/edit-profile'); }} className="w-10 h-10 flex items-center justify-center text-white/60 hover:text-white transition-colors bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-full shadow-lg active:scale-90">
-              <Edit2 size={16} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* ===== קלף ראשי אלגנטי ומוקטן ===== */}
-      <div className="p-5 bg-white/[0.03] backdrop-blur-3xl border border-white/10 rounded-[32px] flex flex-col items-center text-center relative overflow-hidden z-10 shadow-2xl gap-3">
+      {/* אזור תמונת נושא יוקרתית (Cover) עם העלאת תמונה */}
+      <div className="w-full h-44 bg-[#111] relative z-0 group">
+        {userProfile.cover_url ? (
+          <img src={userProfile.cover_url} className="w-full h-full object-cover" />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent"></div>
+        )}
         
-        <div className="absolute top-4 left-5 flex flex-col items-center pointer-events-none">
-          <span className="text-white/30 text-[8px] font-black uppercase tracking-widest mb-0.5">רמה</span>
-          <span className="text-[#e5e4e2] font-black text-[18px] leading-none drop-shadow-[0_0_8px_rgba(229,228,226,0.3)]">{currentLevel}</span>
+        <div className="absolute top-6 left-4 right-4 flex justify-between items-center z-20">
+           {!isMyProfile ? (
+            <button onClick={() => { triggerFeedback('pop'); navigate(-1); }} className="w-10 h-10 flex justify-center items-center bg-black/40 backdrop-blur-md border border-white/10 rounded-full shadow-lg active:scale-90 transition-all hover:bg-black/60">
+              <ChevronLeft size={20} className="text-white" />
+            </button>
+          ) : <div className="w-10"></div>}
+          
+          <div className="bg-black/40 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg">
+             <span className="text-[#ffc107] font-black text-[12px] drop-shadow-[0_0_5px_rgba(255,193,7,0.5)]">LVL {currentLevel}</span>
+          </div>
         </div>
 
-        <motion.div whileHover={{ scale: 1.05 }} className="w-28 h-28 rounded-full bg-black shadow-2xl overflow-hidden p-1 border border-white/10 mt-1">
-          <div className="w-full h-full rounded-full overflow-hidden bg-[#111] relative">
+        {/* כפתור החלפת קאבר (גלריה) */}
+        {isMyProfile && (
+          <>
+            <input type="file" ref={coverInputRef} onChange={handleCoverChange} accept="image/*" className="hidden" />
+            <button 
+              onClick={() => coverInputRef.current?.click()} 
+              disabled={uploadingCover}
+              className="absolute bottom-3 right-3 w-9 h-9 bg-black/50 backdrop-blur-md text-white rounded-full flex items-center justify-center shadow-lg border border-white/20 active:scale-90 transition-all z-20 hover:bg-black/70 disabled:opacity-50"
+            >
+              {uploadingCover ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
+            </button>
+          </>
+        )}
+      </div>
+
+      <div className="px-4 relative z-10 flex flex-col items-center -mt-16 w-full">
+        {/* תמונת פרופיל חותכת את הקאבר */}
+        <motion.div whileHover={{ scale: 1.05 }} className="w-32 h-32 rounded-full bg-[#050505] shadow-2xl p-1.5 relative z-20">
+          <div className="w-full h-full rounded-full overflow-hidden bg-[#1a1a1a] border border-white/10 relative">
             {userProfile?.avatar_url ? (
               <img src={userProfile.avatar_url} className="w-full h-full object-cover" alt="" />
             ) : (
-              <UserCircle size={48} className="text-white/20 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+              <UserCircle size={60} className="text-white/20 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
             )}
           </div>
+          {isMyProfile && (
+             <button onClick={() => { triggerFeedback('pop'); navigate('/edit-profile'); }} className="absolute bottom-0 left-0 w-8 h-8 bg-[#e5e4e2] text-black rounded-full flex items-center justify-center shadow-lg border-2 border-[#050505] active:scale-90 transition-transform">
+               <Edit2 size={14} className="ml-0.5" />
+             </button>
+          )}
         </motion.div>
 
-        <div className="w-full">
-          <h2 className="text-xl font-black text-white tracking-tight flex items-center justify-center gap-1.5 flex-wrap">
+        <div className="text-center mt-3 w-full">
+          <h2 className="text-[22px] font-black text-white tracking-tight flex items-center justify-center gap-1.5">
             {userProfile?.full_name || 'משתמש'}
             {currentLevel >= 5 && <Crown size={16} className="text-[#ffc107] drop-shadow-[0_0_8px_rgba(255,193,7,0.5)]" />}
           </h2>
-          <p className="text-white/40 font-bold text-[12px] tracking-widest mb-3" dir="ltr">@{userProfile?.username || 'user'}</p>
+          <p className="text-white/40 font-bold text-[13px] tracking-widest mb-3" dir="ltr">@{userProfile?.username || 'user'}</p>
 
-          <div className="flex items-center justify-center gap-6 mb-4">
-            <div className="flex flex-col items-center cursor-pointer active:scale-95 transition-transform" onClick={() => openUsersListSheet('followers')}>
-              <span className="text-white font-black text-[20px] leading-none">{followersCount}</span>
-              <span className="text-white/40 text-[9px] font-black uppercase tracking-widest mt-1.5">עוקבים</span>
-            </div>
-            <div className="w-px h-6 bg-white/10"></div>
-            <div className="flex flex-col items-center cursor-pointer active:scale-95 transition-transform" onClick={() => openUsersListSheet('following')}>
-              <span className="text-white font-black text-[20px] leading-none">{followingCount}</span>
-              <span className="text-white/40 text-[9px] font-black uppercase tracking-widest mt-1.5">נעקבים</span>
-            </div>
-            <div className="w-px h-6 bg-white/10"></div>
-            <div className="flex flex-col items-center">
-              <span className="text-[#ffc107] font-black text-[20px] leading-none drop-shadow-[0_0_8px_rgba(255,193,7,0.4)]">{trueReputation}</span>
-              <span className="text-white/40 text-[9px] font-black uppercase tracking-widest mt-1.5">מוניטין</span>
-            </div>
+          <div className="flex items-center justify-center gap-2 text-[14px] text-white/50 font-medium mb-5 w-full max-w-[300px] mx-auto flex-wrap">
+             <span className="cursor-pointer hover:text-white transition-colors" onClick={() => openUsersListSheet('followers')}>
+               <span className="font-black text-white">{followersCount}</span> עוקבים
+             </span>
+             <span>•</span>
+             <span className="cursor-pointer hover:text-white transition-colors" onClick={() => openUsersListSheet('following')}>
+               <span className="font-black text-white">{followingCount}</span> נעקבים
+             </span>
+             <span>•</span>
+             <span>
+               <span className="font-black text-white">{trueReputation}</span> מוניטין
+             </span>
           </div>
 
+          {/* כפתור "נעקוב" לבן נקי */}
           {!isMyProfile && (
-            <div className="flex justify-center mb-3">
+            <div className="flex justify-center mb-5 w-full px-8">
               <Button
                 onClick={handleFollowToggle}
                 disabled={followLoading}
-                className={`h-10 px-8 rounded-[16px] font-black text-[12px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 ${
+                className={`h-11 w-full rounded-xl font-black text-[14px] flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 ${
                   isFollowing 
-                    ? 'bg-white/[0.05] border border-white/10 text-white hover:bg-white/[0.08]' 
-                    : 'bg-[#e5e4e2] text-black shadow-[0_0_20px_rgba(229,228,226,0.3)]'
+                    ? 'bg-white/10 text-white hover:bg-white/20' 
+                    : 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.3)]'
                 }`}
               >
-                {followLoading ? <Loader2 size={16} className="animate-spin" /> : 
-                 isFollowing ? <><UserCheck size={14} /> עוקב</> : <><UserPlus size={14} /> עקוב</>}
+                {followLoading ? <Loader2 size={18} className="animate-spin" /> : 
+                 isFollowing ? <><UserCheck size={18} /> עוקב</> : <><UserPlus size={18} /> נעקוב</>}
               </Button>
             </div>
           )}
 
           {(userProfile?.zodiac || userProfile?.social_link) && (
-            <div className="flex flex-wrap items-center justify-center gap-3 mb-1 px-4 mt-1">
-              {userProfile?.zodiac && (
-                <span className="text-[#e5e4e2] text-[12px] font-bold flex items-center gap-1.5 drop-shadow-sm">
-                  <span className="text-white/30 text-[9px] uppercase tracking-widest">מזל</span> {userProfile.zodiac}
-                </span>
-              )}
-              {userProfile?.zodiac && userProfile?.social_link && <span className="text-white/20 text-[10px]">•</span>}
+            <div className="flex flex-col items-center gap-2 mb-4">
               {userProfile?.social_link && (
-                <a
-                  href={userProfile.social_link.startsWith('http') ? userProfile.social_link : `https://${userProfile.social_link}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[#e5e4e2] text-[12px] font-bold flex items-center gap-1 hover:text-white transition-colors drop-shadow-sm"
-                >
-                  <LinkIcon size={12} className="text-white/40" /> <span dir="ltr" className="tracking-wide">{displayLink}</span>
+                <a href={userProfile.social_link.startsWith('http') ? userProfile.social_link : `https://${userProfile.social_link}`} target="_blank" rel="noopener noreferrer" className="text-[#e5e4e2] text-[13px] font-bold flex items-center gap-1.5 hover:text-white transition-colors">
+                  <LinkIcon size={14} className="text-white/40" /> <span dir="ltr" className="tracking-wide text-blue-400">{displayLink}</span>
                 </a>
+              )}
+              {userProfile?.zodiac && (
+                <span className="text-white/60 text-[13px] font-medium flex items-center gap-1.5">
+                   {userProfile.zodiac}
+                </span>
               )}
             </div>
           )}
         </div>
 
-        {userProfile?.bio && (
-          <div className="w-full mt-2 border-t border-white/5 pt-3">
-            <button
-              onClick={() => { triggerFeedback('pop'); setIsBioExpanded(!isBioExpanded); }}
-              className="mx-auto flex flex-col items-center justify-center gap-1 text-white/30 hover:text-white/60 transition-colors"
-            >
-              <span className="text-[9px] font-bold uppercase tracking-widest">קצת עליי</span>
-              <motion.div animate={{ rotate: isBioExpanded ? 180 : 0 }} transition={{ duration: 0.3 }}>
-                <ChevronDown size={14} />
+        <div className="w-full mt-2">
+          <button onClick={() => { triggerFeedback('pop'); setIsBioExpanded(!isBioExpanded); }} className="mx-auto flex items-center justify-center gap-1.5 text-white/50 hover:text-white transition-colors py-2 px-4 rounded-full bg-white/[0.02]">
+            <span className="text-[12px] font-bold">קצת עליי</span>
+            <motion.div animate={{ rotate: isBioExpanded ? 180 : 0 }} transition={{ duration: 0.3 }}><ChevronDown size={14} /></motion.div>
+          </button>
+          
+          <AnimatePresence>
+            {isBioExpanded && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden w-full">
+                <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-5 mt-3 text-right flex flex-col gap-4">
+                  {userProfile?.bio && <p className="text-white/90 text-[14px] leading-relaxed font-medium mb-2">{userProfile.bio}</p>}
+                  <h4 className="text-white/80 font-black text-[14px] border-b border-white/5 pb-2 mb-1">פרטים אישיים</h4>
+                  <div className="flex items-center gap-3 text-white/70 text-[13px]"><MapPin size={16} className="text-white/40" /><span>מתגורר ב<span className="font-black text-white ml-1">תל אביב</span></span></div>
+                  <div className="flex items-center gap-3 text-white/70 text-[13px]"><Calendar size={16} className="text-white/40" /><span>תאריך לידה <span className="font-black text-white">12 באוגוסט</span></span></div>
+                  <div className="flex items-center gap-3 text-white/70 text-[13px]"><HeartHandshake size={16} className="text-white/40" /><span><span className="font-black text-white">במערכת יחסים</span></span></div>
+                  <div className="flex items-center gap-3 text-white/70 text-[13px]"><GraduationCap size={16} className="text-white/40" /><span>למד ב<span className="font-black text-white">אוניברסיטת בן גוריון</span></span></div>
+                </div>
               </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* ========================================= */}
+        {/* טאבים יוקרתיים מפרידים בין התוכן התחתון   */}
+        {/* ========================================= */}
+        <div className="flex border-b border-white/10 w-full mt-8">
+          <button onClick={() => setActiveTab('clubs')} className={`flex-1 pb-3 text-[13px] font-black transition-colors border-b-2 ${activeTab === 'clubs' ? 'text-white border-white' : 'text-white/40 border-transparent hover:text-white/70'}`}>
+            מועדונים
+          </button>
+          <button onClick={() => setActiveTab('activity')} className={`flex-1 pb-3 text-[13px] font-black transition-colors border-b-2 ${activeTab === 'activity' ? 'text-white border-white' : 'text-white/40 border-transparent hover:text-white/70'}`}>
+            פעילות
+          </button>
+          {isMyProfile && (
+            <button onClick={() => setActiveTab('wallet')} className={`flex-1 pb-3 text-[13px] font-black transition-colors border-b-2 ${activeTab === 'wallet' ? 'text-white border-white' : 'text-white/40 border-transparent hover:text-white/70'}`}>
+              שדרוגים
             </button>
-            <AnimatePresence>
-              {isBioExpanded && (
-                <motion.div initial={{ height: 0, opacity: 0, marginTop: 0 }} animate={{ height: 'auto', opacity: 1, marginTop: 8 }} exit={{ height: 0, opacity: 0, marginTop: 0 }} className="overflow-hidden">
-                  <p className="text-white/80 text-[13px] font-medium leading-relaxed max-w-[260px] mx-auto pb-1">
-                    {userProfile.bio}
-                  </p>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
-      </div>
-
-      <div className="w-full bg-white/[0.02] backdrop-blur-xl border border-white/5 rounded-[24px] p-4 flex flex-col gap-3 shadow-2xl z-10">
-        <div className="flex justify-between items-center px-1">
-          <div className="flex items-center gap-1.5">
-            <Flame size={14} className="text-[#ff5722] drop-shadow-[0_0_8px_rgba(255,87,34,0.4)]" />
-            <span className="text-white/60 text-[11px] font-black uppercase tracking-widest">רצף פעילות</span>
-          </div>
-          <span className="text-white font-black text-[16px] tracking-wide">{streak} <span className="text-[11px] text-white/40">ימים</span></span>
+          )}
         </div>
 
-        {isMyProfile && (
-          <>
-            <div className="w-full h-px bg-white/5"></div>
-            <div className="flex flex-col gap-2">
-              <div className="flex justify-between items-end px-1">
-                <span className="text-white/40 text-[9px] font-black uppercase">לשלב הבא: {xpToNextLevel}</span>
-                <span className="text-white text-[12px] font-black flex items-center gap-1 drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]"><Zap size={12} className="text-[#e5e4e2]" /> {currentXP} XP</span>
-              </div>
-              <div className="w-full h-2 bg-black/40 rounded-full overflow-hidden shadow-inner border border-white/5 relative">
-                <motion.div initial={{ width: 0 }} animate={{ width: `${xpProgress}%` }} transition={{ duration: 1.5, ease: "easeOut", delay: 0.3 }} className="absolute top-0 right-0 h-full bg-[#e5e4e2] rounded-full shadow-[0_0_15px_rgba(229,228,226,0.6)]" />
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      {isMyProfile && (
-        <div className="grid grid-cols-2 gap-3 z-10">
-          <div onClick={() => { triggerFeedback('pop'); navigate('/wallet'); }} className="p-4 bg-white/[0.02] backdrop-blur-xl border border-white/5 rounded-[24px] flex items-center justify-between cursor-pointer active:scale-95 shadow-lg hover:bg-white/[0.04] transition-all">
-            <div className="flex flex-col text-right">
-              <span className="text-white/40 text-[9px] font-bold uppercase tracking-widest block mb-0.5">ארנק</span>
-              <span className="text-white font-black text-[18px] drop-shadow-[0_0_12px_rgba(255,255,255,0.2)] block">{userProfile?.credits?.toLocaleString() || 0}</span>
-            </div>
-            <div className="w-10 h-10 rounded-[14px] bg-black border border-white/10 flex items-center justify-center shadow-inner shrink-0"><Wallet size={18} className="text-[#e5e4e2] drop-shadow-[0_0_8px_rgba(229,228,226,0.4)]" /></div>
-          </div>
-          <div onClick={() => { triggerFeedback('pop'); navigate('/store'); }} className="p-4 bg-white/[0.02] backdrop-blur-xl border border-white/5 rounded-[24px] flex items-center justify-between cursor-pointer active:scale-95 shadow-lg hover:bg-white/[0.04] transition-all">
-            <div className="flex flex-col text-right">
-              <span className="text-white/40 text-[9px] font-bold uppercase tracking-widest block mb-0.5">חנות</span>
-              <span className="text-[#d500f9] font-black text-[14px] block drop-shadow-[0_0_10px_rgba(213,0,249,0.3)] mt-0.5">בוסטים</span>
-            </div>
-            <div className="w-10 h-10 rounded-[14px] bg-black border border-white/10 flex items-center justify-center shadow-inner shrink-0"><ShoppingBag size={18} className="text-[#d500f9] drop-shadow-[0_0_8px_rgba(213,0,249,0.4)]" /></div>
-          </div>
-        </div>
-      )}
-
-      {/* ===== מועדונים בקרוסלה אופקית למניעת עומס ===== */}
-      {ownedCircles.length > 0 && (
-        <div className="flex flex-col gap-2 z-10 mt-2">
-          <h3 className="text-white/40 text-[10px] font-black uppercase text-right px-2 flex items-center gap-1.5"><Activity size={12} className="text-[#e5e4e2]" /> מועדונים בניהול</h3>
-          <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-2">
-            {ownedCircles.map((circle: any) => (
-              <motion.div key={circle.id} whileTap={{ scale: 0.95 }} className="shrink-0 w-36">
-                <div onClick={() => { triggerFeedback('pop'); navigate(`/circle/${circle.slug}`); }} className="p-1.5 rounded-[24px] overflow-hidden relative border border-white/10 cursor-pointer bg-white/[0.02] backdrop-blur-xl shadow-lg h-36 flex flex-col justify-end">
-                  <div className="absolute inset-0 z-0 rounded-[20px] overflow-hidden m-1">
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent z-10"></div>
-                    {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center bg-[#111]"><Users size={20} className="text-white/20" /></div>}
+        <div className="w-full mt-6 mb-12">
+          <AnimatePresence mode="wait">
+            
+            {/* טאב מועדונים */}
+            {activeTab === 'clubs' && (
+              <motion.div key="clubs" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
+                {ownedCircles.length > 0 && (
+                  <div className="flex flex-col gap-2">
+                    <h3 className="text-white/60 text-[12px] font-bold text-right flex items-center gap-1.5"><Activity size={14} /> מועדונים בניהול</h3>
+                    <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 pt-1 -mx-4 px-4">
+                      {ownedCircles.map((circle: any) => (
+                        <motion.div key={circle.id} whileTap={{ scale: 0.95 }} className="shrink-0 w-32">
+                          <div onClick={() => { triggerFeedback('pop'); navigate(`/circle/${circle.slug}`); }} className="rounded-2xl overflow-hidden relative border border-white/10 cursor-pointer shadow-lg h-36 flex flex-col justify-end">
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-10"></div>
+                            {circle.cover_url ? <img src={circle.cover_url} className="absolute inset-0 w-full h-full object-cover z-0" /> : <div className="absolute inset-0 bg-[#111] flex items-center justify-center z-0"><Users size={20} className="text-white/20" /></div>}
+                            <div className="relative z-20 p-3 text-center">
+                              <span className="text-white font-black text-[12px] line-clamp-1">{circle.name}</span>
+                              <span className="text-[#ffc107] text-[10px] font-bold mt-0.5">מייסד</span>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="relative z-20 p-2">
-                    <span className="text-white font-black text-[12px] drop-shadow-md line-clamp-1">{circle.name}</span>
-                    <span className="text-[#ffc107] text-[8px] font-black uppercase flex items-center gap-1 mt-0.5 drop-shadow-md">מייסד 👑</span>
-                  </div>
+                )}
+                <div className="flex flex-col gap-2">
+                  <h3 className="text-white/60 text-[12px] font-bold text-right flex items-center gap-1.5"><Users size={14} /> מועדונים מחוברים</h3>
+                  {joinedCircles.length === 0 ? (
+                    <div className="py-8 border border-white/5 rounded-2xl text-center bg-white/[0.01]">
+                      <p className="text-white/30 text-[11px] font-medium">לא מחובר למועדונים</p>
+                    </div>
+                  ) : (
+                    <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 pt-1 -mx-4 px-4">
+                      {joinedCircles.map((circle: any) => (
+                        <motion.div key={circle.id} whileTap={{ scale: 0.95 }} className="shrink-0 w-32">
+                          <div onClick={() => { triggerFeedback('pop'); navigate(`/circle/${circle.slug}`); }} className="rounded-2xl overflow-hidden relative border border-white/10 cursor-pointer shadow-lg h-36 flex flex-col justify-end">
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-10"></div>
+                            {circle.cover_url ? <img src={circle.cover_url} className="absolute inset-0 w-full h-full object-cover z-0" /> : <div className="absolute inset-0 bg-[#111] flex items-center justify-center z-0"><Users size={20} className="text-white/20" /></div>}
+                            <div className="relative z-20 p-3 text-center">
+                              <span className="text-white font-black text-[12px] line-clamp-1">{circle.name}</span>
+                              <span className="text-[#10b981] text-[10px] font-bold mt-0.5">מאושר</span>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </motion.div>
-            ))}
-          </div>
-        </div>
-      )}
+            )}
 
-      <div className="flex flex-col gap-2 z-10 mt-2 mb-10">
-        <h3 className="text-white/40 text-[10px] font-black uppercase text-right px-2 flex items-center gap-1.5"><Users size={12} className="text-[#2196f3]" /> מועדונים מחוברים</h3>
-        {joinedCircles.length === 0 ? (
-          <div className="p-6 bg-white/[0.01] border border-white/5 rounded-[24px] text-center shadow-inner mx-1">
-            <p className="text-white/30 text-[9px] font-black uppercase tracking-widest">לא מחובר למועדונים</p>
-          </div>
-        ) : (
-          <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-2">
-            {joinedCircles.map((circle: any) => (
-              <motion.div key={circle.id} whileTap={{ scale: 0.95 }} className="shrink-0 w-36">
-                <div onClick={() => { triggerFeedback('pop'); navigate(`/circle/${circle.slug}`); }} className="p-1.5 rounded-[24px] overflow-hidden relative border border-white/10 cursor-pointer bg-white/[0.02] backdrop-blur-xl shadow-lg h-36 flex flex-col justify-end">
-                  <div className="absolute inset-0 z-0 rounded-[20px] overflow-hidden m-1">
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent z-10"></div>
-                    {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center bg-[#111]"><Users size={20} className="text-white/20" /></div>}
+            {/* טאב פעילות */}
+            {activeTab === 'activity' && (
+              <motion.div key="activity" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="w-full bg-white/[0.02] border border-white/5 rounded-2xl p-5 flex flex-col gap-4 shadow-lg">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2.5">
+                    <Flame size={18} className="text-[#ff5722]" />
+                    <span className="text-white/70 text-[14px] font-bold">רצף פעילות</span>
                   </div>
-                  <div className="relative z-20 p-2">
-                    <span className="text-white font-black text-[12px] drop-shadow-md line-clamp-1">{circle.name}</span>
-                    <span className="text-[#10b981] text-[8px] font-black uppercase flex items-center gap-1 mt-0.5 drop-shadow-md">גישה מאושרת 🔓</span>
+                  <span className="text-white font-black text-[20px]">{streak} <span className="text-[12px] text-white/40 font-medium">ימים</span></span>
+                </div>
+                {isMyProfile && (
+                  <>
+                    <div className="w-full h-px bg-white/5 my-1"></div>
+                    <div className="flex flex-col gap-2.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-white/40 text-[11px] uppercase font-bold">לרמה הבאה: {xpToNextLevel}</span>
+                        <span className="text-[#e5e4e2] text-[14px] font-black flex items-center gap-1"><Zap size={14} /> {currentXP} XP</span>
+                      </div>
+                      <div className="w-full h-2 bg-black/50 rounded-full overflow-hidden border border-white/5 relative">
+                        <motion.div initial={{ width: 0 }} animate={{ width: `${xpProgress}%` }} transition={{ duration: 1.5, ease: "easeOut", delay: 0.3 }} className="absolute top-0 right-0 h-full bg-[#e5e4e2] rounded-full" />
+                      </div>
+                    </div>
+                  </>
+                )}
+              </motion.div>
+            )}
+
+            {/* טאב ארנק ושדרוגים */}
+            {activeTab === 'wallet' && isMyProfile && (
+              <motion.div key="wallet" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-3">
+                <div onClick={() => { triggerFeedback('pop'); navigate('/wallet'); }} className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 flex items-center justify-between cursor-pointer active:scale-95 transition-all hover:bg-white/[0.04]">
+                  <div className="flex flex-col text-right">
+                    <span className="text-white/40 text-[11px] font-bold">הארנק שלך</span>
+                    <span className="text-white font-black text-[20px] mt-1">{userProfile?.credits?.toLocaleString() || 0}</span>
                   </div>
+                  <div className="w-12 h-12 bg-black rounded-full border border-white/10 flex items-center justify-center shadow-inner"><Wallet size={20} className="text-[#e5e4e2]" /></div>
+                </div>
+                <div onClick={() => { triggerFeedback('pop'); navigate('/store'); }} className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 flex items-center justify-between cursor-pointer active:scale-95 transition-all hover:bg-white/[0.04]">
+                  <div className="flex flex-col text-right">
+                    <span className="text-white/40 text-[11px] font-bold">שדרוגים</span>
+                    <span className="text-[#e5e4e2] font-black text-[16px] mt-1">חנות VIP</span>
+                  </div>
+                  <div className="w-12 h-12 bg-black rounded-full border border-white/10 flex items-center justify-center shadow-inner"><ShoppingBag size={20} className="text-[#e5e4e2]" /></div>
                 </div>
               </motion.div>
-            ))}
-          </div>
-        )}
+            )}
+
+          </AnimatePresence>
+        </div>
+
       </div>
 
       {userListsSheets}
