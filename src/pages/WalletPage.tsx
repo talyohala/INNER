@@ -99,6 +99,7 @@ export const WalletPage: React.FC = () => {
     }, 1500);
   };
 
+  // מנוע ההעברות המאובטח החדש: דיבור ישיר עם החוזה החכם ב-Supabase!
   const handleTransfer = async () => {
     if (!transferUsername || !transferAmount || transferAmount <= 0) return toast.error('אנא הזן פרטים תקינים');
     if (transferAmount > balance) return toast.error('אין לך מספיק יתרה בארנק');
@@ -107,16 +108,37 @@ export const WalletPage: React.FC = () => {
     triggerFeedback('pop');
     const tid = toast.loading(`מעביר ${transferAmount} CRD...`, { style: { background: '#111', color: '#fff' } });
 
-    setTimeout(() => {
-      setBalance(prev => prev - Number(transferAmount));
-      setTransactions(prev => [{ id: Date.now(), type: 'withdrawal', amount: transferAmount, description: `העברה ל-@${transferUsername}`, created_at: new Date().toISOString() }, ...prev]);
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (!authData.user) throw new Error('משתמש לא מחובר');
+
+      const cleanUsername = transferUsername.replace('@', '').trim();
+
+      // קריאה ישירה לפונקציית ה-RPC המאובטחת שלנו
+      const { data, error } = await supabase.rpc('transfer_credits', {
+        sender_id: authData.user.id,
+        receiver_username: cleanUsername,
+        transfer_amount: Number(transferAmount)
+      });
+
+      if (error) throw error; // אם סופאבייס חסם את זה (אין יתרה, משתמש לא קיים) הוא יזרוק את השגיאה
+
+      // ההעברה עברה בהצלחה!
+      setBalance(data.new_balance);
+      await fetchWallet(); // מרענן את היסטוריית העסקאות מול המסד
+
       triggerFeedback('success');
       toast.success('ההעברה בוצעה בהצלחה!', { id: tid, style: { background: '#111', color: '#2196f3', border: '1px solid rgba(33,150,243,0.2)' } });
-      setTransferring(false);
       setShowTransfer(false);
       setTransferUsername('');
       setTransferAmount('');
-    }, 1500);
+    } catch (err: any) {
+      triggerFeedback('error');
+      // מציג את הודעת השגיאה המדויקת מהמסד נתונים שלנו (בעברית!)
+      toast.error(err.message || 'ההעברה נכשלה', { id: tid, style: { background: '#111', color: '#ef4444' } });
+    } finally {
+      setTransferring(false);
+    }
   };
 
   const handleRedeem = async () => {
@@ -139,7 +161,6 @@ export const WalletPage: React.FC = () => {
     }, 1500);
   };
 
-  // אסטרטגיית התמחור החדשה והשיווקית ל-2026
   const PACKAGES = [
     { id: 'crd_100', amount: 100, price: 15, popular: false, discount: 0 },
     { id: 'crd_500', amount: 500, price: 59, popular: true, discount: 21 },
@@ -275,7 +296,6 @@ export const WalletPage: React.FC = () => {
 
       {mounted && typeof document !== 'undefined' && createPortal(
         <>
-          {/* ================= מגירת היסטוריית פעולות ================= */}
           <AnimatePresence>
             {showAllTx && (
               <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
@@ -311,7 +331,6 @@ export const WalletPage: React.FC = () => {
             )}
           </AnimatePresence>
 
-          {/* ================= מגירת אישור רכישה ================= */}
           <AnimatePresence>
             {selectedPackage && (
               <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
@@ -355,7 +374,6 @@ export const WalletPage: React.FC = () => {
             )}
           </AnimatePresence>
 
-          {/* ================= מגירת העברה לחבר ================= */}
           <AnimatePresence>
             {showTransfer && (
               <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
@@ -370,13 +388,12 @@ export const WalletPage: React.FC = () => {
                   <div className="p-6 flex flex-col gap-6 overflow-y-auto scrollbar-hide" onPointerDown={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }} onTouchStart={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}>
                     <div className="flex flex-col gap-2">
                       <label className="text-white/40 text-[11px] font-black uppercase px-2 tracking-widest text-right">שם המשתמש (@)</label>
-                      <Input value={transferUsername} onChange={(e: any) => setTransferUsername(e.target.value)} placeholder="username" dir="ltr" className="bg-black/40 text-white font-medium h-14 border border-white/10 shadow-inner focus:border-[#e5e4e2]/50 transition-all rounded-[20px] px-4" />
+                      <Input value={transferUsername} onChange={(e: any) => setTransferUsername(e.target.value)} placeholder="username" dir="ltr" className="bg-black/40 text-white font-medium h-14 border border-white/10 shadow-inner focus:border-white/50 transition-all rounded-[20px] px-4" />
                     </div>
                     <div className="flex flex-col gap-2">
                       <label className="text-white/40 text-[11px] font-black uppercase px-2 tracking-widest text-right">סכום ב-CRD</label>
-                      <Input type="number" value={transferAmount} onChange={(e: any) => setTransferAmount(e.target.value)} placeholder="100..." dir="ltr" className="bg-black/40 text-white font-black h-14 border border-white/10 shadow-inner focus:border-[#e5e4e2]/50 transition-all rounded-[20px] px-4 text-xl" />
+                      <Input type="number" value={transferAmount} onChange={(e: any) => setTransferAmount(e.target.value)} placeholder="100..." dir="ltr" className="bg-black/40 text-white font-black h-14 border border-white/10 shadow-inner focus:border-white/50 transition-all rounded-[20px] px-4 text-xl" />
                     </div>
-                    {/* שינוי הכפתור ללבן בוהק במקום הכחול/סגול */}
                     <Button onClick={handleTransfer} disabled={transferring} className="w-full h-14 mt-4 bg-white text-black font-black text-[14px] uppercase tracking-widest rounded-[20px] flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all active:scale-95 disabled:opacity-50">
                       {transferring ? <Loader2 size={24} className="animate-spin text-black" /> : 'שלח קרדיטים'}
                     </Button>
@@ -386,7 +403,6 @@ export const WalletPage: React.FC = () => {
             )}
           </AnimatePresence>
 
-          {/* ================= מגירת פדיון CRD ================= */}
           <AnimatePresence>
             {showRedeem && (
               <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
