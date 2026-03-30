@@ -22,18 +22,15 @@ export const WalletPage: React.FC = () => {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // States for actions
   const [adding, setAdding] = useState(false);
   const [transferring, setTransferring] = useState(false);
   const [redeeming, setRedeeming] = useState(false);
 
-  // Sheets visibility
   const [selectedPackage, setSelectedPackage] = useState<{ amount: number, price: number, id: string, discount?: number } | null>(null);
   const [showAllTx, setShowAllTx] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
   const [showRedeem, setShowRedeem] = useState(false);
 
-  // Transfer & Redeem form states
   const [transferUsername, setTransferUsername] = useState('');
   const [transferAmount, setTransferAmount] = useState<number | ''>('');
   const [redeemAmount, setRedeemAmount] = useState<number | ''>('');
@@ -142,10 +139,11 @@ export const WalletPage: React.FC = () => {
     }, 1500);
   };
 
+  // אסטרטגיית התמחור החדשה והשיווקית ל-2026
   const PACKAGES = [
-    { id: 'crd_100', amount: 100, price: 10, popular: false, discount: 0 },
-    { id: 'crd_500', amount: 500, price: 45, popular: true, discount: 10 },
-    { id: 'crd_1200', amount: 1200, price: 100, popular: false, discount: 17 }
+    { id: 'crd_100', amount: 100, price: 15, popular: false, discount: 0 },
+    { id: 'crd_500', amount: 500, price: 59, popular: true, discount: 21 },
+    { id: 'crd_1500', amount: 1500, price: 149, popular: false, discount: 33 }
   ];
 
   if (loading) return <div className="min-h-screen bg-[#0C0C0C] flex items-center justify-center"><Loader2 className="animate-spin text-white/20" /></div>;
@@ -153,12 +151,10 @@ export const WalletPage: React.FC = () => {
   return (
     <FadeIn className="px-4 pt-12 pb-32 bg-[#0C0C0C] min-h-screen font-sans flex flex-col gap-6 relative overflow-x-hidden" dir="rtl">
       
-      {/* תאורה רקע */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden flex justify-center">
         <div className="absolute top-[-5%] left-[-10%] w-[50%] h-[40%] bg-white/5 blur-[100px] rounded-full mix-blend-screen"></div>
       </div>
 
-      {/* כותרת נקייה וחלקה בלי כפתורים ואייקונים */}
       <div className="flex flex-col items-center justify-center relative z-10 mb-2 mt-2">
         <h1 className="text-2xl font-black text-white tracking-tight drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">
           הארנק שלי
@@ -166,7 +162,6 @@ export const WalletPage: React.FC = () => {
       </div>
 
       <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: "spring", stiffness: 100, damping: 20 }}>
-        {/* כרטיס הארנק */}
         <div className="bg-gradient-to-br from-[#1a1a1a] to-[#050505] border border-white/20 pt-8 pb-4 rounded-[36px] flex flex-col items-center text-center shadow-[0_25px_60px_rgba(0,0,0,0.8)] relative overflow-hidden z-10">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-[#e5e4e2]/10 blur-[80px] rounded-full pointer-events-none"></div>
 
@@ -179,7 +174,6 @@ export const WalletPage: React.FC = () => {
             </span>
           </div>
 
-          {/* פעולות הארנק מובנות בתוך הכרטיס למטה נטו כטקסט */}
           <div className="w-full flex items-center justify-between px-10 pt-4 border-t border-white/5 relative z-10">
              <button onClick={() => { triggerFeedback('pop'); setShowTransfer(true); }} className="flex items-center gap-1.5 text-white/60 hover:text-white transition-colors text-[12px] font-black uppercase tracking-widest active:scale-95">
                 <Send size={14} className="text-[#2196f3]" /> העברה
@@ -376,14 +370,15 @@ export const WalletPage: React.FC = () => {
                   <div className="p-6 flex flex-col gap-6 overflow-y-auto scrollbar-hide" onPointerDown={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }} onTouchStart={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}>
                     <div className="flex flex-col gap-2">
                       <label className="text-white/40 text-[11px] font-black uppercase px-2 tracking-widest text-right">שם המשתמש (@)</label>
-                      <Input value={transferUsername} onChange={(e: any) => setTransferUsername(e.target.value)} placeholder="username" dir="ltr" className="bg-black/40 text-white font-medium h-14 border border-white/10 shadow-inner focus:border-[#2196f3]/50 transition-all rounded-[20px] px-4" />
+                      <Input value={transferUsername} onChange={(e: any) => setTransferUsername(e.target.value)} placeholder="username" dir="ltr" className="bg-black/40 text-white font-medium h-14 border border-white/10 shadow-inner focus:border-[#e5e4e2]/50 transition-all rounded-[20px] px-4" />
                     </div>
                     <div className="flex flex-col gap-2">
                       <label className="text-white/40 text-[11px] font-black uppercase px-2 tracking-widest text-right">סכום ב-CRD</label>
-                      <Input type="number" value={transferAmount} onChange={(e: any) => setTransferAmount(e.target.value)} placeholder="100..." dir="ltr" className="bg-black/40 text-white font-black h-14 border border-white/10 shadow-inner focus:border-[#2196f3]/50 transition-all rounded-[20px] px-4 text-xl" />
+                      <Input type="number" value={transferAmount} onChange={(e: any) => setTransferAmount(e.target.value)} placeholder="100..." dir="ltr" className="bg-black/40 text-white font-black h-14 border border-white/10 shadow-inner focus:border-[#e5e4e2]/50 transition-all rounded-[20px] px-4 text-xl" />
                     </div>
-                    <Button onClick={handleTransfer} disabled={transferring} className="w-full h-14 mt-4 bg-[#2196f3] text-white font-black text-[14px] uppercase tracking-widest rounded-[20px] flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(33,150,243,0.3)] transition-all active:scale-95 disabled:opacity-50">
-                      {transferring ? <Loader2 size={24} className="animate-spin text-white" /> : 'שלח קרדיטים'}
+                    {/* שינוי הכפתור ללבן בוהק במקום הכחול/סגול */}
+                    <Button onClick={handleTransfer} disabled={transferring} className="w-full h-14 mt-4 bg-white text-black font-black text-[14px] uppercase tracking-widest rounded-[20px] flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all active:scale-95 disabled:opacity-50">
+                      {transferring ? <Loader2 size={24} className="animate-spin text-black" /> : 'שלח קרדיטים'}
                     </Button>
                   </div>
                 </motion.div>
