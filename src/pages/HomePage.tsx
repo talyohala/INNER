@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
@@ -6,25 +6,37 @@ import { supabase } from '../lib/supabase';
 import { FadeIn, Button } from '../components/ui';
 import { 
   Loader2, Bell, Users, Lock, Flame, Heart, MessageSquare, 
-  Send, X, Paperclip, RefreshCw, UserCircle, Trash2, Edit2, Reply 
+  Send, X, Paperclip, RefreshCw, UserCircle, Plus, 
+  Trash2, Edit2, Reply, Sparkles, Target 
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 
+type FeedTab = 'hot' | 'new' | 'foryou';
+const TABS = [
+  { key: 'hot', label: 'מועדונים חמים', icon: Flame, color: 'text-orange-400' },
+  { key: 'new', label: 'חדשים', icon: Sparkles, color: 'text-blue-400' },
+  { key: 'foryou', label: 'בשבילך', icon: Target, color: 'text-purple-400' },
+] as const;
+
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragControls = useDragControls();
+  const createPostDragControls = useDragControls();
   const commentsDragControls = useDragControls();
   const [mounted, setMounted] = useState(false);
 
   const [circles, setCircles] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<FeedTab>('hot');
   
   const [newPost, setNewPost] = useState('');
   const [posting, setPosting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [showCreatePost, setShowCreatePost] = useState(false);
   
   const [activePost, setActivePost] = useState<any>(null);
   const [activeCommentsPostId, setActiveCommentsPostId] = useState<string | null>(null);
@@ -57,7 +69,6 @@ export const HomePage: React.FC = () => {
       const uid = authData.user?.id;
       if (uid) setCurrentUserId(uid);
 
-      // משיכת כל הנתונים בבת אחת (עוקף באגים של קשרים במסד הנתונים)
       const [
         { data: rawPosts },
         { data: rawCircles },
@@ -66,7 +77,7 @@ export const HomePage: React.FC = () => {
         { data: rawLikes },
         { data: rawComments }
       ] = await Promise.all([
-        supabase.from('posts').select('*'),
+        supabase.from('posts').select('*').is('circle_id', null).order('created_at', { ascending: false }),
         supabase.from('circles').select('*'),
         supabase.from('circle_members').select('*'),
         supabase.from('profiles').select('*'),
@@ -74,27 +85,30 @@ export const HomePage: React.FC = () => {
         supabase.from('comments').select('*').catch(() => ({data: []}))
       ]);
 
-      // חיבור וסינון בזיכרון של הטלפון - חסין תקלות לחלוטין!
-      const globalPosts = (rawPosts || []).filter((p: any) => !p.circle_id);
-      
-      const fetchedPosts = globalPosts.map((p: any) => {
-        const prof = (rawProfiles || []).find((pr: any) => pr.id === p.user_id) || {};
-        const pLikes = (rawLikes || []).filter((l: any) => l.post_id === p.id);
-        const pComments = (rawComments || []).filter((c: any) => c.post_id === p.id);
-        
-        return {
-          ...p,
-          profiles: prof,
-          likes_count: pLikes.length,
-          comments_count: pComments.length,
-          is_liked: !!uid && pLikes.some((l: any) => l.user_id === uid)
-        };
-      }).sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+      let fetchedPosts: any[] = [];
+      if (rawPosts) {
+        fetchedPosts = rawPosts.map((p: any) => {
+          const profile = (rawProfiles || []).find((prof: any) => prof.id === p.user_id) || {};
+          const pLikes = (rawLikes || []).filter((l: any) => l.post_id === p.id);
+          const pComments = (rawComments || []).filter((c: any) => c.post_id === p.id);
+          
+          return {
+            ...p,
+            profiles: profile,
+            likes_count: pLikes.length,
+            comments_count: pComments.length,
+            is_liked: !!uid && pLikes.some((l: any) => l.user_id === uid)
+          };
+        });
+      }
 
-      const fetchedCircles = (rawCircles || []).map((c: any) => ({
-        ...c,
-        is_member: !!uid && (rawMembers || []).some((m: any) => m.circle_id === c.id && m.user_id === uid)
-      })).sort((a: any, b: any) => (b.members_count || 0) - (a.members_count || 0));
+      let fetchedCircles: any[] = [];
+      if (rawCircles) {
+        fetchedCircles = rawCircles.map((c: any) => ({
+          ...c, 
+          is_member: !!uid && (rawMembers || []).some((m: any) => m.circle_id === c.id && m.user_id === uid)
+        })).sort((a: any, b: any) => (b.members_count || 0) - (a.members_count || 0));
+      }
 
       setCircles(fetchedCircles);
       setPosts(fetchedPosts);
@@ -149,14 +163,12 @@ export const HomePage: React.FC = () => {
         setUploadingImage(false);
       }
       
-      // הוספנו במפורש circle_id: null כדי למנוע היעלמויות
       const { error } = await supabase.from('posts').insert({ 
         user_id: authData.user.id, content: newPost.trim() || null, media_url, media_type, circle_id: null
       });
-      
       if (error) throw error;
       
-      setNewPost(''); setSelectedFile(null); triggerFeedback('pop'); fetchData(true);
+      setNewPost(''); setSelectedFile(null); setShowCreatePost(false); triggerFeedback('pop'); fetchData(true);
     } catch (err: any) { 
       setUploadingImage(false); toast.error(err.message || 'שגיאה בשליחה'); 
     } finally { setPosting(false); }
@@ -339,6 +351,28 @@ export const HomePage: React.FC = () => {
         </div>
       </FadeIn>
 
+      <button onClick={() => { triggerFeedback('pop'); setShowCreatePost(true); }} className="fixed bottom-24 right-5 w-14 h-14 bg-gradient-to-tr from-[#2196f3] to-blue-400 text-white rounded-full shadow-[0_10px_25px_rgba(33,150,243,0.5)] flex items-center justify-center z-40 active:scale-90 transition-all border border-white/30"><Plus size={28} /></button>
+
+      {/* הפרדנו את הפורטלים אחד אחד כדי שהשרת שלך לא יקרוס מהבאג שלו! */}
+      {mounted && typeof document !== 'undefined' ? createPortal(
+        <AnimatePresence>
+          {showCreatePost && (
+            <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowCreatePost(false)} />
+              <motion.div drag="y" dragControls={createPostDragControls} dragListener={false} dragConstraints={{ top: 0 }} onDragEnd={(e, { offset }) => { if (offset.y > 100) setShowCreatePost(false); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="bg-[#111] border-t border-white/10 rounded-t-[36px] p-6 flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.9)] relative z-50 pb-12">
+                <div onPointerDown={(e) => createPostDragControls.start(e)} style={{ touchAction: 'none' }} className="w-full flex flex-col items-center pb-4 cursor-grab"><div className="w-16 h-1.5 bg-white/20 rounded-full mb-4"></div><div className="flex justify-between items-center w-full"><h3 className="text-lg font-black text-white">העלה תוכן חדש</h3><button onClick={() => setShowCreatePost(false)}><X size={20} className="text-white/40"/></button></div></div>
+                <div className="flex flex-col gap-4">
+                  <input type="text" value={newPostMedia} onChange={e => setNewPostMedia(e.target.value)} placeholder="קישור לוידאו או תמונה..." className="h-14 bg-white/5 border border-white/10 rounded-[20px] px-4 text-white text-sm focus:outline-none focus:border-[#2196f3]" dir="ltr" />
+                  <textarea value={newPostText} onChange={e => setNewPostText(e.target.value)} placeholder="כתוב משהו..." className="h-28 bg-white/5 border border-white/10 rounded-[20px] p-4 text-white text-sm focus:outline-none focus:border-[#2196f3] resize-none" />
+                  <Button onClick={handlePost} className="h-14 bg-[#2196f3] text-white font-black rounded-[20px]">פרסם</Button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      ) : null}
+
       {mounted && typeof document !== 'undefined' ? createPortal(
         <AnimatePresence>
           {activeCommentsPostId && (
@@ -380,8 +414,9 @@ export const HomePage: React.FC = () => {
               </motion.div>
             </div>
           )}
-        </AnimatePresence>
-      </>, document.body) : null}
+        </AnimatePresence>,
+        document.body
+      ) : null}
     </>
   );
 };
