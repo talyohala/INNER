@@ -10,7 +10,7 @@ import { Layout } from './components/Layout';
 
 // Pages
 import { AuthPage } from './pages/AuthPage';
-import { HomePage } from './pages/HomePage';
+import { FeedPage } from './pages/FeedPage'; // <-- הנה השינוי הקריטי!
 import { ExplorePage } from './pages/ExplorePage';
 import { ProfilePage } from './pages/ProfilePage';
 import { EditProfilePage } from './pages/EditProfilePage';
@@ -104,7 +104,6 @@ const InstallAppPrompt = () => {
   );
 };
 
-// חסימת עמודים לאורחים
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   if (loading) {
@@ -140,10 +139,10 @@ export const App = () => {
           <Layout>
             <Routes>
               <Route path="/auth" element={<AuthPage />} />
-              <Route path="/" element={<PrivateRoute><HomePage /></PrivateRoute>} />
+              {/* החלפנו את HomePage ב-FeedPage! */}
+              <Route path="/" element={<PrivateRoute><FeedPage /></PrivateRoute>} />
               <Route path="/explore" element={<PrivateRoute><ExplorePage /></PrivateRoute>} />
               <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
-              {/* הנה הראוט החדש שסוגר את הפינה של מעברי הפרופילים! */}
               <Route path="/profile/:username" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
               <Route path="/edit-profile" element={<PrivateRoute><EditProfilePage /></PrivateRoute>} />
               <Route path="/circle/:slug" element={<PrivateRoute><CirclePage /></PrivateRoute>} />
