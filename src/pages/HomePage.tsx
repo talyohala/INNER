@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 import { FadeIn, Button } from '../components/ui';
 import { 
   Loader2, Bell, Users, Lock, Flame, Heart, MessageSquare, 
-  Send, X, Paperclip, RefreshCw, UserCircle, Trash2, Edit2, Reply, MoreVertical, Share2
+  Send, X, Paperclip, RefreshCw, UserCircle, Trash2, Edit2, Share2, MoreVertical
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -53,6 +53,42 @@ export const HomePage: React.FC = () => {
   const pullStartY = useRef(0);
   const [currentUserId, setCurrentUserId] = useState<string>('');
 
+  // מנגנון ניהול חלונות קופצים חכם (מונע סגירה של המסך המלא כשסוגרים תגובות)
+  const modalsRef = useRef({ comments: false, desc: false, options: false, create: false, fullscreen: false });
+
+  useEffect(() => {
+    modalsRef.current = {
+      comments: !!activeCommentsPostId,
+      desc: !!activeDescPost,
+      options: !!optionsMenuPost,
+      create: showCreatePost,
+      fullscreen: !!fullScreenVideos
+    };
+  }, [activeCommentsPostId, activeDescPost, optionsMenuPost, showCreatePost, fullScreenVideos]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const m = modalsRef.current;
+      // סדר הסגירה קריטי: מהעליון ביותר עד לתחתון
+      if (m.comments) { setActiveCommentsPostId(null); setActivePost(null); }
+      else if (m.options) { setOptionsMenuPost(null); }
+      else if (m.desc) { setActiveDescPost(null); }
+      else if (m.create) { setShowCreatePost(false); setEditingPost(null); }
+      else if (m.fullscreen) { setFullScreenVideos(null); }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const openModal = (action: () => void) => {
+    window.history.pushState({ modalOpen: true }, ''); 
+    action();
+  };
+
+  const closeModal = () => {
+    window.history.back(); 
+  };
+
   const checkUnreadNotifications = async () => {
     try {
       const { data: authData } = await supabase.auth.getUser();
@@ -94,28 +130,6 @@ export const HomePage: React.FC = () => {
   };
 
   useEffect(() => {
-    const handlePopState = () => {
-      setFullScreenVideos(null);
-      setActiveCommentsPostId(null);
-      setActivePost(null);
-      setOptionsMenuPost(null);
-      setActiveDescPost(null);
-      setShowCreatePost(false);
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-
-  const openModal = (action: () => void) => {
-    window.history.pushState({ modalOpen: true }, ''); 
-    action();
-  };
-
-  const closeModal = () => {
-    window.history.back(); 
-  };
-
-  useEffect(() => {
     setMounted(true);
     fetchData(false);
     checkUnreadNotifications();
@@ -124,7 +138,6 @@ export const HomePage: React.FC = () => {
     return () => { supabase.removeChannel(channel); clearInterval(interval); };
   }, []);
 
-  // ניהול סרטונים חכם עוקף באגים של ריאקט (שליטה ישירה ב-DOM)
   useEffect(() => {
     if (!fullScreenVideos) return;
     const videos = document.querySelectorAll('.reels-video');
@@ -135,7 +148,7 @@ export const HomePage: React.FC = () => {
       } else {
         vid.pause();
         vid.muted = true;
-        vid.currentTime = 0; // מונע קפיאות ורעשים של סרטון לא נכון
+        vid.currentTime = 0; 
       }
     });
   }, [currentVideoIndex, fullScreenVideos]);
@@ -211,24 +224,34 @@ export const HomePage: React.FC = () => {
     else toast.success('הפוסט נמחק');
   };
 
-  // מנגנון שיתוף (Native API + Fallback)
+  // מנגנון שיתוף חסין לחלוטין - עובד גם ברשת מקומית ללא HTTPS
   const handleShare = async (post: any) => {
     triggerFeedback('pop');
-    const url = `${window.location.origin}/#/`; // כרגע מפנה לפיד
-    const shareData = {
-      title: 'INNER - רשת חברתית',
-      text: post.content || 'צפה בפוסט הזה ב-INNER!',
-      url: url
-    };
-    try {
-      if (navigator.share) {
-        await navigator.share(shareData);
-      } else {
-        await navigator.clipboard.writeText(`${shareData.text}\n${shareData.url}`);
-        toast.success('הקישור הועתק ללוח!');
-      }
-    } catch (err) {
-      console.log('Share canceled or failed', err);
+    const url = `${window.location.origin}/#/`; 
+    const textToShare = `${post.content ? post.content + '\n' : ''}צפה בפוסט הזה ב-INNER!\n${url}`;
+    
+    // ניסיון שימוש במנגנון הטבעי של המכשיר
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'INNER - רשת חברתית', text: post.content || 'צפה בפוסט הזה ב-INNER!', url: url });
+        return;
+      } catch (err) { console.log('Share canceled by user'); }
+    } else {
+      // יצירת מנגנון העתקה נסתר מובנה - תמיד עובד!
+      const textArea = document.createElement("textarea");
+      textArea.value = textToShare;
+      textArea.style.position = "fixed";
+      textArea.style.top = "0";
+      textArea.style.left = "0";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        const successful = document.execCommand('copy');
+        if (successful) toast.success('הקישור הועתק ללוח!');
+        else toast.error('שגיאה בהעתקה');
+      } catch (err) { toast.error('שגיאה בהעתקה'); }
+      document.body.removeChild(textArea);
     }
   };
 
@@ -317,7 +340,6 @@ export const HomePage: React.FC = () => {
           </div>
         </div>
 
-        {/* האדר עליון */}
         <div className="relative z-10 px-4">
           <div className="flex justify-between items-start mb-8 h-12 px-1">
             <div className="w-10"></div>
@@ -371,7 +393,6 @@ export const HomePage: React.FC = () => {
           </div>
         </div>
 
-        {/* פיד הפוסטים Edge to Edge */}
         <div className="flex flex-col gap-6 relative z-10 px-4">
           {posts.length === 0 ? (
              <div className="text-center p-10 bg-white/5 border border-white/10 rounded-[24px] text-white/50 text-sm font-black shadow-inner">
@@ -385,7 +406,6 @@ export const HomePage: React.FC = () => {
               
               return (
                 <div key={post.id} className="flex flex-col pt-0 pb-0 rounded-[36px] bg-[#0A0A0A] border border-white/10 relative overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
-                  
                   {post.media_url && (
                     <div className={`w-full bg-[#050505] relative ${isVideo ? 'cursor-pointer' : ''}`} onClick={() => isVideo ? openVideoFullscreen(post) : null}>
                       {isVideo ? (
@@ -393,7 +413,6 @@ export const HomePage: React.FC = () => {
                       ) : (
                         <img src={post.media_url} alt="Media" className="w-full max-h-[500px] object-cover border-b border-white/5" />
                       )}
-                      
                       {post.content && (
                         <div className="absolute bottom-0 left-0 right-0 p-5 pt-16 bg-gradient-to-t from-[#0A0A0A] via-black/60 to-transparent flex items-end pointer-events-none">
                           <p onClick={(e) => { e.stopPropagation(); openModal(() => setActiveDescPost(post)); }} className="text-white/90 text-[14px] leading-relaxed font-medium text-right line-clamp-2 cursor-pointer active:opacity-50 transition-opacity pointer-events-auto drop-shadow-lg w-full pr-2">
@@ -434,7 +453,7 @@ export const HomePage: React.FC = () => {
                         <span className="text-[12px] font-black">{post.comments_count}</span> <MessageSquare size={18} />
                       </button>
 
-                      <button onClick={() => { triggerFeedback('pop'); openModal(() => setOptionsMenuPost(post)); }} className="flex items-center justify-center text-white/30 hover:text-white transition-colors active:scale-90 border-l border-white/10 pl-4">
+                      <button onClick={() => { triggerFeedback('pop'); openModal(() => setOptionsMenuPost(post)); }} className="flex items-center justify-center text-white/30 hover:text-white transition-colors active:scale-90 border-r border-white/10 pr-4">
                         <MoreVertical size={18} />
                       </button>
                     </div>
@@ -447,12 +466,13 @@ export const HomePage: React.FC = () => {
         </div>
       </FadeIn>
 
-      {/* 1. FULL SCREEN REELS VIEWER - עם כפתור שיתוף ושליטה ישירה בוידאו ב-DOM */}
+      {/* PORTALS */}
+      
+      {/* 1. FULL SCREEN REELS VIEWER */}
       {mounted && typeof document !== 'undefined' ? createPortal(
         <AnimatePresence>
           {fullScreenVideos && (
             <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed inset-0 z-[999999] bg-black flex flex-col" dir="rtl">
-              
               <div className="w-full h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide" onScroll={handleVideoScroll}>
                 {fullScreenVideos.map((vid, idx) => {
                   return (
@@ -465,7 +485,6 @@ export const HomePage: React.FC = () => {
                         onClick={(e) => { const v = e.currentTarget; if (v.paused) v.play(); else v.pause(); }}
                       />
                       
-                      {/* TIKTOK STYLE BUTTONS */}
                       <div className="absolute bottom-32 left-4 flex flex-col gap-6 items-center z-50 pointer-events-auto">
                         <button onClick={(e) => { e.stopPropagation(); handleLike(vid.id, vid.is_liked); }} className="flex flex-col items-center gap-1.5 active:scale-90 transition-transform">
                           <Heart size={32} className={`${vid.is_liked ? 'text-[#e91e63]' : 'text-white'} drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]`} fill={vid.is_liked ? "currentColor" : "none"} strokeWidth={1.5} />
@@ -483,7 +502,6 @@ export const HomePage: React.FC = () => {
                         </button>
                       </div>
 
-                      {/* תיאור ומשתמש צמודים לימין */}
                       <div className="absolute bottom-0 left-0 right-0 p-6 pb-12 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none flex flex-col gap-3">
                          <div className="flex items-center justify-start gap-3 w-full pr-2">
                            <div className="w-12 h-12 rounded-full overflow-hidden bg-black border-2 border-white/20 shrink-0 shadow-lg pointer-events-auto cursor-pointer" onClick={() => { closeModal(); goToProfile(vid.user_id); }}>
@@ -542,7 +560,7 @@ export const HomePage: React.FC = () => {
                   <div className="w-16 h-1.5 bg-white/20 rounded-full"></div>
                 </div>
                 <div className="flex flex-col p-4 gap-2">
-                  <button onClick={() => { handleShare(optionsMenuPost); closeModal(); }} className="flex items-center justify-between w-full p-4 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors text-white font-black text-lg border border-white/5">
+                  <button onClick={() => { closeModal(); setTimeout(() => handleShare(optionsMenuPost), 100); }} className="flex items-center justify-between w-full p-4 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors text-white font-black text-lg border border-white/5">
                     <span>שתף פוסט</span>
                     <Share2 size={20} className="text-[#2196f3]" />
                   </button>
