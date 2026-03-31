@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 import { FadeIn, Button } from '../components/ui';
 import { 
   Loader2, Bell, Users, Lock, Flame, Heart, MessageSquare, 
-  Send, X, Paperclip, RefreshCw, UserCircle, Trash2, Edit2, Reply, MoreVertical
+  Send, X, Paperclip, RefreshCw, UserCircle, Trash2, Edit2, Reply, MoreVertical, Share2
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -124,6 +124,22 @@ export const HomePage: React.FC = () => {
     return () => { supabase.removeChannel(channel); clearInterval(interval); };
   }, []);
 
+  // ניהול סרטונים חכם עוקף באגים של ריאקט (שליטה ישירה ב-DOM)
+  useEffect(() => {
+    if (!fullScreenVideos) return;
+    const videos = document.querySelectorAll('.reels-video');
+    videos.forEach((vid: any, idx) => {
+      if (idx === currentVideoIndex) {
+        vid.muted = false;
+        vid.play().catch(() => {});
+      } else {
+        vid.pause();
+        vid.muted = true;
+        vid.currentTime = 0; // מונע קפיאות ורעשים של סרטון לא נכון
+      }
+    });
+  }, [currentVideoIndex, fullScreenVideos]);
+
   const handleTouchStart = (e: React.TouchEvent) => { if (window.scrollY <= 0) pullStartY.current = e.touches[0].clientY; };
   const handleTouchMove = (e: React.TouchEvent) => { if (pullStartY.current > 0 && window.scrollY <= 0) { const y = e.touches[0].clientY - pullStartY.current; if (y > 0) setPullY(Math.min(y, 120)); } };
   const handleTouchEnd = async () => { if (pullY > 60) { setRefreshing(true); setPullY(0); triggerFeedback('coin'); await fetchData(true); await checkUnreadNotifications(); } else { setPullY(0); } pullStartY.current = 0; };
@@ -195,6 +211,27 @@ export const HomePage: React.FC = () => {
     else toast.success('הפוסט נמחק');
   };
 
+  // מנגנון שיתוף (Native API + Fallback)
+  const handleShare = async (post: any) => {
+    triggerFeedback('pop');
+    const url = `${window.location.origin}/#/`; // כרגע מפנה לפיד
+    const shareData = {
+      title: 'INNER - רשת חברתית',
+      text: post.content || 'צפה בפוסט הזה ב-INNER!',
+      url: url
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(`${shareData.text}\n${shareData.url}`);
+        toast.success('הקישור הועתק ללוח!');
+      }
+    } catch (err) {
+      console.log('Share canceled or failed', err);
+    }
+  };
+
   const handleLike = async (postId: string, isLiked: boolean) => {
     if (!currentUserId) return;
     triggerFeedback('pop');
@@ -259,7 +296,6 @@ export const HomePage: React.FC = () => {
       triggerFeedback('pop');
     }
 
-    // גלילה אינסופית - נטען עוד סרטונים כשאנחנו קרובים לסוף
     if (fullScreenVideos && index >= fullScreenVideos.length - 2) {
       const allVideos = posts.filter(p => p.media_type === 'video' || (p.media_url && p.media_url.match(/\.(mp4|webm|mov)$/i)));
       if (allVideos.length > 0) {
@@ -350,7 +386,6 @@ export const HomePage: React.FC = () => {
               return (
                 <div key={post.id} className="flex flex-col pt-0 pb-0 rounded-[36px] bg-[#0A0A0A] border border-white/10 relative overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
                   
-                  {/* 1. מדיה בקצה העליון - Edge to Edge */}
                   {post.media_url && (
                     <div className={`w-full bg-[#050505] relative ${isVideo ? 'cursor-pointer' : ''}`} onClick={() => isVideo ? openVideoFullscreen(post) : null}>
                       {isVideo ? (
@@ -359,7 +394,6 @@ export const HomePage: React.FC = () => {
                         <img src={post.media_url} alt="Media" className="w-full max-h-[500px] object-cover border-b border-white/5" />
                       )}
                       
-                      {/* תיאור הפוסט יושב על המדיה למטה! */}
                       {post.content && (
                         <div className="absolute bottom-0 left-0 right-0 p-5 pt-16 bg-gradient-to-t from-[#0A0A0A] via-black/60 to-transparent flex items-end pointer-events-none">
                           <p onClick={(e) => { e.stopPropagation(); openModal(() => setActiveDescPost(post)); }} className="text-white/90 text-[14px] leading-relaxed font-medium text-right line-clamp-2 cursor-pointer active:opacity-50 transition-opacity pointer-events-auto drop-shadow-lg w-full pr-2">
@@ -370,7 +404,6 @@ export const HomePage: React.FC = () => {
                     </div>
                   )}
 
-                  {/* אם אין מדיה - התיאור יושב רגיל */}
                   {!post.media_url && post.content && (
                     <div className="p-6 pb-4 border-b border-white/5">
                       <p onClick={() => openModal(() => setActiveDescPost(post))} className="text-white/90 text-[15px] leading-relaxed font-medium text-right line-clamp-3 cursor-pointer active:opacity-50 transition-opacity">
@@ -379,10 +412,7 @@ export const HomePage: React.FC = () => {
                     </div>
                   )}
                   
-                  {/* פס תחתון משולב */}
                   <div className={`flex items-center justify-between px-5 py-4 bg-[#0A0A0A]`}>
-                    
-                    {/* צד ימין: משתמש מוצמד לימין */}
                     <div className="flex items-center justify-start gap-3 cursor-pointer group" onClick={() => goToProfile(targetId)}>
                       <div className="w-10 h-10 rounded-full bg-black border border-white/10 overflow-hidden shrink-0 shadow-inner group-hover:opacity-80 transition-opacity">
                         <div className="w-full h-full rounded-full overflow-hidden bg-[#111]">
@@ -395,9 +425,7 @@ export const HomePage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* צד שמאל: אקשנים - 3 נקודות הכי שמאלי, הודעות, לב */}
                     <div className="flex items-center gap-4">
-                      
                       <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-1.5 transition-all active:scale-90 ${post.is_liked ? 'text-[#e91e63]' : 'text-white/30 hover:text-white'}`}>
                         <span className="text-[12px] font-black">{post.likes_count}</span> <Heart size={18} className={`${post.is_liked ? 'text-[#e91e63]' : 'text-white/30'}`} fill={post.is_liked ? "currentColor" : "none"} /> 
                       </button>
@@ -406,12 +434,9 @@ export const HomePage: React.FC = () => {
                         <span className="text-[12px] font-black">{post.comments_count}</span> <MessageSquare size={18} />
                       </button>
 
-                      {/* 3 נקודות - הכי שמאלי בשורה */}
-                      {isMyPost && (
-                        <button onClick={() => { triggerFeedback('pop'); openModal(() => setOptionsMenuPost(post)); }} className="flex items-center justify-center text-white/30 hover:text-white transition-colors active:scale-90 border-r border-white/10 pr-4">
-                          <MoreVertical size={18} />
-                        </button>
-                      )}
+                      <button onClick={() => { triggerFeedback('pop'); openModal(() => setOptionsMenuPost(post)); }} className="flex items-center justify-center text-white/30 hover:text-white transition-colors active:scale-90 border-l border-white/10 pl-4">
+                        <MoreVertical size={18} />
+                      </button>
                     </div>
                   </div>
 
@@ -422,9 +447,7 @@ export const HomePage: React.FC = () => {
         </div>
       </FadeIn>
 
-      {/* ============== PORTALS (Z-999999) ================ */}
-      
-      {/* 1. FULL SCREEN REELS VIEWER - גלילה אינסופית ותפריט שקוף */}
+      {/* 1. FULL SCREEN REELS VIEWER - עם כפתור שיתוף ושליטה ישירה בוידאו ב-DOM */}
       {mounted && typeof document !== 'undefined' ? createPortal(
         <AnimatePresence>
           {fullScreenVideos && (
@@ -432,24 +455,17 @@ export const HomePage: React.FC = () => {
               
               <div className="w-full h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide" onScroll={handleVideoScroll}>
                 {fullScreenVideos.map((vid, idx) => {
-                  const isActive = idx === currentVideoIndex;
                   return (
                     <div key={vid.id + '-' + idx} className="w-full h-screen snap-center relative bg-black flex items-center justify-center">
                       <video
                         src={vid.media_url}
                         loop
                         playsInline
-                        className="w-full h-full object-cover"
-                        ref={(el) => {
-                          if (el) {
-                            if (isActive) { el.muted = false; el.play().catch(() => {}); } 
-                            else { el.pause(); el.muted = true; }
-                          }
-                        }}
+                        className="w-full h-full object-cover reels-video"
                         onClick={(e) => { const v = e.currentTarget; if (v.paused) v.play(); else v.pause(); }}
                       />
                       
-                      {/* TIKTOK STYLE BUTTONS - שקופים רק צורה */}
+                      {/* TIKTOK STYLE BUTTONS */}
                       <div className="absolute bottom-32 left-4 flex flex-col gap-6 items-center z-50 pointer-events-auto">
                         <button onClick={(e) => { e.stopPropagation(); handleLike(vid.id, vid.is_liked); }} className="flex flex-col items-center gap-1.5 active:scale-90 transition-transform">
                           <Heart size={32} className={`${vid.is_liked ? 'text-[#e91e63]' : 'text-white'} drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]`} fill={vid.is_liked ? "currentColor" : "none"} strokeWidth={1.5} />
@@ -460,16 +476,21 @@ export const HomePage: React.FC = () => {
                           <MessageSquare size={32} className="text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]" strokeWidth={1.5} />
                           <span className="text-white font-black text-[13px] drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">{vid.comments_count}</span>
                         </button>
+
+                        <button onClick={(e) => { e.stopPropagation(); handleShare(vid); }} className="flex flex-col items-center gap-1.5 active:scale-90 transition-transform">
+                          <Share2 size={32} className="text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]" strokeWidth={1.5} />
+                          <span className="text-white font-black text-[13px] drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">שתף</span>
+                        </button>
                       </div>
 
                       {/* תיאור ומשתמש צמודים לימין */}
                       <div className="absolute bottom-0 left-0 right-0 p-6 pb-12 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none flex flex-col gap-3">
                          <div className="flex items-center justify-start gap-3 w-full pr-2">
-                           <div className="w-12 h-12 rounded-full overflow-hidden bg-black border-2 border-white/20 shrink-0 shadow-lg pointer-events-auto cursor-pointer" onClick={() => goToProfile(vid.user_id)}>
+                           <div className="w-12 h-12 rounded-full overflow-hidden bg-black border-2 border-white/20 shrink-0 shadow-lg pointer-events-auto cursor-pointer" onClick={() => { closeModal(); goToProfile(vid.user_id); }}>
                               {vid.profiles?.avatar_url ? <img src={vid.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={24} className="text-white/50 w-full h-full p-2" />}
                            </div>
                            <div className="flex flex-col text-right">
-                             <span className="text-white font-black text-[17px] drop-shadow-md pointer-events-auto cursor-pointer" onClick={() => goToProfile(vid.user_id)}>{vid.profiles?.full_name || 'אנונימי'}</span>
+                             <span className="text-white font-black text-[17px] drop-shadow-md pointer-events-auto cursor-pointer" onClick={() => { closeModal(); goToProfile(vid.user_id); }}>{vid.profiles?.full_name || 'אנונימי'}</span>
                            </div>
                          </div>
                          <p className="text-white/90 text-[15px] font-medium drop-shadow-md line-clamp-3 text-right pr-2 w-5/6">{vid.content}</p>
@@ -510,7 +531,7 @@ export const HomePage: React.FC = () => {
         document.body
       ) : null}
 
-      {/* 3. בוטום שיט: עריכה / מחיקה */}
+      {/* 3. בוטום שיט: עריכה / מחיקה ושיתוף */}
       {mounted && typeof document !== 'undefined' ? createPortal(
         <AnimatePresence>
           {optionsMenuPost && (
@@ -521,6 +542,10 @@ export const HomePage: React.FC = () => {
                   <div className="w-16 h-1.5 bg-white/20 rounded-full"></div>
                 </div>
                 <div className="flex flex-col p-4 gap-2">
+                  <button onClick={() => { handleShare(optionsMenuPost); closeModal(); }} className="flex items-center justify-between w-full p-4 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors text-white font-black text-lg border border-white/5">
+                    <span>שתף פוסט</span>
+                    <Share2 size={20} className="text-[#2196f3]" />
+                  </button>
                   <button onClick={() => startEditingPost(optionsMenuPost)} className="flex items-center justify-between w-full p-4 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors text-white font-black text-lg border border-white/5">
                     <span>ערוך פוסט</span>
                     <Edit2 size={20} className="text-white/50" />
@@ -578,13 +603,13 @@ export const HomePage: React.FC = () => {
                       const isMyComment = comment.user_id === currentUserId;
                       return (
                         <div key={comment.id} className="flex gap-4">
-                          <div className="w-10 h-10 rounded-[16px] bg-black shrink-0 overflow-hidden border border-white/10 shadow-inner p-0.5 cursor-pointer" onClick={() => goToProfile(targetId)}>
+                          <div className="w-10 h-10 rounded-[16px] bg-black shrink-0 overflow-hidden border border-white/10 shadow-inner p-0.5 cursor-pointer" onClick={() => { closeModal(); goToProfile(targetId); }}>
                             <div className="w-full h-full rounded-[12px] overflow-hidden bg-[#111]">
                               {comment.profiles?.avatar_url ? <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={18} className="text-white/20" /></div>}
                             </div>
                           </div>
                           <div className="flex flex-col flex-1 bg-white/[0.04] p-4 rounded-[24px] rounded-tr-sm border border-white/5 shadow-sm">
-                            <span className="text-white font-black text-[13px] mb-1.5 text-right w-fit cursor-pointer hover:text-[#e5e4e2] transition-colors" onClick={() => goToProfile(targetId)}>{comment.profiles?.full_name || 'אנונימי'}</span>
+                            <span className="text-white font-black text-[13px] mb-1.5 text-right w-fit cursor-pointer hover:text-[#e5e4e2] transition-colors" onClick={() => { closeModal(); goToProfile(targetId); }}>{comment.profiles?.full_name || 'אנונימי'}</span>
                             <p className="text-white/80 text-[14px] text-right leading-relaxed">{comment.content}</p>
                             {isMyComment && <button onClick={() => deleteComment(comment.id)} className="text-red-400 text-[11px] font-bold mt-2 flex items-center gap-1 w-fit"><Trash2 size={12}/> מחק</button>}
                           </div>
