@@ -11,10 +11,10 @@ import {
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 import { Share } from '@capacitor/share';
-import { App as CapApp } from '@capacitor/app';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
+  // רפרנס גלובלי להעלאת קבצים
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const commentsDragControls = useDragControls();
@@ -54,7 +54,7 @@ export const HomePage: React.FC = () => {
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const scrollTimeout = useRef<any>(null);
   
-  const [onlineUsers, setOnlineUsers] = useState(0); // מתחיל מ-0 ספירה אמיתית!
+  const [onlineUsers, setOnlineUsers] = useState(0);
   const [pullY, setPullY] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -135,31 +135,21 @@ export const HomePage: React.FC = () => {
     setMounted(true); fetchData(false); checkUnreadNotifications();
   }, []);
 
-  // מנגנון ספירת משתמשים בזמן אמת (Supabase Presence)
   useEffect(() => {
     const presenceChannel = supabase.channel('global_online');
-
     presenceChannel
       .on('presence', { event: 'sync' }, () => {
         const state = presenceChannel.presenceState();
         let activeCount = 0;
-        for (const key in state) {
-          activeCount += state[key].length; // סופר כמה חיבורים פתוחים יש באמת
-        }
+        for (const key in state) activeCount += state[key].length;
         setOnlineUsers(activeCount > 0 ? activeCount : 1);
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
-          await presenceChannel.track({
-            online_at: new Date().toISOString(),
-            user_id: currentUserId || 'guest'
-          });
+          await presenceChannel.track({ online_at: new Date().toISOString(), user_id: currentUserId || 'guest' });
         }
       });
-
-    return () => {
-      supabase.removeChannel(presenceChannel);
-    };
+    return () => { supabase.removeChannel(presenceChannel); };
   }, [currentUserId]);
 
   useEffect(() => {
@@ -179,10 +169,20 @@ export const HomePage: React.FC = () => {
   const handleTouchMove = (e: React.TouchEvent) => { if (isAnyModalOpen()) return; if (pullStartY.current > 0 && window.scrollY <= 0) { const y = e.touches[0].clientY - pullStartY.current; if (y > 0) setPullY(Math.min(y, 120)); } };
   const handleTouchEnd = async () => { if (isAnyModalOpen()) return; if (pullY > 60) { setRefreshing(true); setPullY(0); triggerFeedback('coin'); await fetchData(true); await checkUnreadNotifications(); } else { setPullY(0); } pullStartY.current = 0; };
 
+  // הטיפול החכם בבחירת קובץ (פותח חלון אוטומטית)
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) setSelectedFile(file);
-    else if (file) toast.error('אנא בחר קובץ תמונה או וידאו תקין');
+    if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) {
+      setSelectedFile(file);
+      // אם החלון לא פתוח, נפתח אותו מיד אחרי הבחירה
+      if (!showCreatePost && !editingPost) {
+        openOverlay(() => setShowCreatePost(true));
+      }
+    } else if (file) {
+      toast.error('אנא בחר קובץ תמונה או וידאו תקין');
+    }
+    // מאפס את הקלט כדי שאפשר יהיה לבחור אותו קובץ שוב אם ביטלנו
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handlePost = async () => {
@@ -302,6 +302,9 @@ export const HomePage: React.FC = () => {
 
   return (
     <>
+      {/* פקד העלאה גלובלי נסתר */}
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*" />
+
       <FadeIn className="px-0 pt-8 pb-32 bg-[#030303] min-h-screen relative overflow-x-hidden touch-pan-y" dir="rtl" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
         <div className="fixed top-0 left-0 right-0 flex justify-center z-50 pointer-events-none transition-transform duration-200" style={{ transform: `translateY(${Math.max(pullY - 40, -40)}px)`, opacity: pullY / 60 }}><div className="bg-[#111] p-2.5 rounded-full shadow-2xl border border-white/10 mt-6"><RefreshCw size={22} className={`text-white ${refreshing ? 'animate-spin' : ''}`} /></div></div>
         
@@ -320,10 +323,17 @@ export const HomePage: React.FC = () => {
               {unreadCount > 0 && <span className="absolute top-2 right-2.5 w-2 h-2 bg-[#e91e63] rounded-full border border-black animate-pulse"></span>}
             </button>
           </div>
+          
           <div className="p-5 rounded-[36px] mb-8 border border-white/10 bg-white/[0.04] backdrop-blur-md shadow-2xl relative z-10 cursor-pointer" onClick={() => openOverlay(() => setShowCreatePost(true))}>
             <div className="w-full text-white/40 text-[16px] font-medium h-12 flex items-center">שדר משהו לכולם...</div>
             <div className="flex justify-end items-center gap-4 border-t border-white/10 pt-4 mt-1">
-              <div className="w-12 h-12 flex items-center justify-center text-white/40 rounded-full border border-white/10"><Paperclip size={20} /></div>
+              {/* כפתור האטב - מדלג על החלון ופותח ישירות את הגלריה */}
+              <div 
+                className="w-12 h-12 flex items-center justify-center text-white/40 rounded-full border border-white/10 relative z-20 cursor-pointer hover:bg-white/5 transition-colors"
+                onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+              >
+                <Paperclip size={20} />
+              </div>
               <div className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(255,255,255,0.2)]"><Send size={20} className="rtl:-scale-x-100 -ml-1 text-[#2196f3]" /></div>
             </div>
           </div>
@@ -421,7 +431,6 @@ export const HomePage: React.FC = () => {
             </motion.div>
           )}
 
-          {/* COMMENTS OVERLAY WITH FAST THREADS */}
           {activeCommentsPostId && (
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
@@ -536,8 +545,22 @@ export const HomePage: React.FC = () => {
               <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="relative z-10 bg-[#0A0A0A] rounded-t-[36px] p-6 flex flex-col gap-4 pb-12">
                 <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/20 rounded-full"/></div>
                 <div className="flex justify-between items-center mb-2"><h3 className="text-white font-black text-lg">{editingPost ? 'עריכה' : 'חדש'}</h3><button onClick={closeOverlay} className="text-white/40"><X size={20} /></button></div>
+                
+                {/* תצוגה מקדימה לקובץ שנבחר */}
+                {selectedFile && (
+                  <div className="relative w-full h-32 rounded-2xl overflow-hidden bg-[#111] mb-2 border border-white/10 flex items-center justify-center">
+                    {selectedFile.type.startsWith('video/') ? (
+                       <video src={URL.createObjectURL(selectedFile)} className="w-full h-full object-cover opacity-60" />
+                    ) : (
+                       <img src={URL.createObjectURL(selectedFile)} className="w-full h-full object-cover opacity-60" />
+                    )}
+                    <button onClick={() => setSelectedFile(null)} className="absolute top-2 right-2 w-8 h-8 bg-black/60 rounded-full flex items-center justify-center text-white"><X size={16}/></button>
+                    <span className="absolute bottom-2 left-2 bg-black/60 px-3 py-1 rounded-full text-xs font-bold text-white">קובץ מצורף</span>
+                  </div>
+                )}
+
                 <textarea value={newPost} onChange={e => setNewPost(e.target.value)} placeholder="כתוב משהו..." className="h-32 bg-white/5 rounded-2xl p-4 text-white outline-none resize-none border border-white/10" onPointerDown={stopPropagation} onTouchStart={stopPropagation} />
-                {!editingPost && ( <div onClick={() => fileInputRef.current?.click()} className="p-4 bg-white/5 rounded-2xl border-2 border-dashed border-white/10 text-center text-white/40 cursor-pointer"><input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*" />{selectedFile ? selectedFile.name : 'צרף מדיה (תמונה/וידאו)'}</div> )}
+                {!editingPost && !selectedFile && ( <div onClick={() => fileInputRef.current?.click()} className="p-4 bg-white/5 rounded-2xl border-2 border-dashed border-white/10 text-center text-white/40 cursor-pointer"><input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*" />{selectedFile ? selectedFile.name : 'צרף מדיה (תמונה/וידאו)'}</div> )}
                 <Button onClick={handlePost} disabled={posting || (!newPost.trim() && !selectedFile && !editingPost)} className="h-14 bg-[#2196f3] text-white font-black rounded-2xl mt-2">{posting ? <Loader2 className="animate-spin"/> : 'פרסם'}</Button>
               </motion.div>
             </div>
