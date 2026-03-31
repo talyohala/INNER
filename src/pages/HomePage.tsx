@@ -6,10 +6,11 @@ import { supabase } from '../lib/supabase';
 import { FadeIn, Button } from '../components/ui';
 import { 
   Loader2, Bell, Users, Lock, Flame, Heart, MessageSquare, 
-  Send, Paperclip, RefreshCw, UserCircle, Trash2, Edit2, Share2, MoreVertical
+  Send, X, Paperclip, RefreshCw, UserCircle, Trash2, Edit2, Share2, MoreVertical
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
+import { Share } from '@capacitor/share';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -41,14 +42,16 @@ export const HomePage: React.FC = () => {
   const [activeDescPost, setActiveDescPost] = useState<any>(null);
 
   const [fullScreenVideos, setFullScreenVideos] = useState<any[] | null>(null);
+  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const scrollTimeout = useRef<any>(null);
 
   const [onlineUsers, setOnlineUsers] = useState(3420);
   const [pullY, setPullY] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const pullStartY = useRef(0);
   const [currentUserId, setCurrentUserId] = useState<string>('');
 
-  // מנהל מצבי מערכת - חסין מחיקות שגויות של חלונות
   const stateRef = useRef({ comments: false, options: false, desc: false, create: false, fullscreen: false });
   stateRef.current = {
     comments: !!activeCommentsPostId,
@@ -78,6 +81,15 @@ export const HomePage: React.FC = () => {
 
   const closeOverlay = () => {
     window.history.back(); 
+  };
+
+  const checkUnreadNotifications = async () => {
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (!authData.user) return;
+      const { count } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', authData.user.id).eq('is_read', false);
+      setUnreadCount(count || 0);
+    } catch (e) {}
   };
 
   const fetchData = async (isSilentRefresh = false) => {
@@ -114,11 +126,11 @@ export const HomePage: React.FC = () => {
   useEffect(() => {
     setMounted(true);
     fetchData(false);
+    checkUnreadNotifications();
     const interval = setInterval(() => setOnlineUsers(prev => prev + Math.floor(Math.random() * 5) - 2), 5000);
     return () => clearInterval(interval);
   }, []);
 
-  // מנגנון ניגון וידאו מקצועי ואסינכרוני (מונע קפיאות לחלוטין)
   useEffect(() => {
     if (!fullScreenVideos) return;
     const observer = new IntersectionObserver((entries) => {
@@ -141,6 +153,16 @@ export const HomePage: React.FC = () => {
 
     return () => observer.disconnect();
   }, [fullScreenVideos]);
+
+  const handleTouchStart = (e: React.TouchEvent) => { if (window.scrollY <= 0) pullStartY.current = e.touches[0].clientY; };
+  const handleTouchMove = (e: React.TouchEvent) => { if (pullStartY.current > 0 && window.scrollY <= 0) { const y = e.touches[0].clientY - pullStartY.current; if (y > 0) setPullY(Math.min(y, 120)); } };
+  const handleTouchEnd = async () => { if (pullY > 60) { setRefreshing(true); setPullY(0); triggerFeedback('coin'); await fetchData(true); await checkUnreadNotifications(); } else { setPullY(0); } pullStartY.current = 0; };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) setSelectedFile(file);
+    else if (file) toast.error('אנא בחר קובץ תמונה או וידאו תקין');
+  };
 
   const handlePost = async () => {
     if (!newPost.trim() && !selectedFile && !editingPost) return;
@@ -166,46 +188,45 @@ export const HomePage: React.FC = () => {
     } catch (err: any) { toast.error('שגיאה בשמירה'); } finally { setPosting(false); }
   };
 
-  // === מנגנון שיתוף Native אמיתי (WhatsApp, Telegram וכו') ===
+  // Capacitor Native Share
   const handleShare = async (post: any) => {
     triggerFeedback('pop');
-    const url = `${window.location.origin}/#/`; // כתובת הפוסט/אפליקציה
-    const textToShare = `${post.content ? post.content + '\n\n' : ''}צפה בפוסט הזה ב-INNER!\n`;
-    
-    // מנסה לפתוח את תפריט השיתוף האמיתי של הטלפון
-    if (navigator.share) {
-      try { 
-        await navigator.share({ 
-          title: 'INNER - רשת חברתית', 
-          text: textToShare,
-          url: url
-        }); 
-        return; // הצליח - יוצאים מהפונקציה
-      } catch (err: any) {
-        // אם המשתמש פשוט לחץ "ביטול" בחלון השיתוף, לא נעשה כלום
-        if (err.name === 'AbortError') return;
-        // אם נחסם מסיבות אחרות (כמו סביבת HTTP), נמשיך לפולבאק למטה
-      }
-    }
-    
-    // גיבוי למחשב או רשת מקומית שחוסמת (מעתיק ללוח)
+    const url = `${window.location.origin}/#/`;
+    const textToShare = `${post.content ? post.content + '\n\n' : ''}צפה בפוסט הזה ב-INNER!`;
+
     try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(textToShare + url);
-      } else {
-        const textArea = document.createElement("textarea");
-        textArea.value = textToShare + url;
-        textArea.style.position = "fixed";
-        textArea.style.opacity = "0";
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
+      const isNativeApp = typeof window !== 'undefined' && !!(window as any).Capacitor && (window as any).Capacitor.isNativePlatform?.();
+
+      if (isNativeApp) {
+        await Share.share({ title: 'INNER - רשת חברתית', text: textToShare, url, dialogTitle: 'שתף עם חברים' });
+        return;
       }
-      toast.success('הקישור הועתק ללוח!', { icon: '🔗' });
-    } catch (err) { 
-      toast.error('שגיאה בהעתקת הקישור'); 
+
+      if (navigator.share && window.isSecureContext) {
+        await navigator.share({ title: 'INNER - רשת חברתית', text: textToShare, url });
+        return;
+      }
+
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(`${textToShare}\n${url}`);
+        toast.success('הקישור הועתק ללוח', { icon: '🔗' });
+        return;
+      }
+
+      const textArea = document.createElement('textarea');
+      textArea.value = `${textToShare}\n${url}`;
+      textArea.style.position = 'fixed';
+      textArea.style.opacity = '0';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      toast.success('הקישור הועתק ללוח', { icon: '🔗' });
+      
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return;
+      toast.error('לא הצלחתי לפתוח את תפריט השיתוף');
     }
   };
 
@@ -220,6 +241,7 @@ export const HomePage: React.FC = () => {
   };
 
   const submitComment = async () => {
+    if (!newComment.trim() || !activePost || !currentUserId) return;
     try {
       const { data } = await supabase.from('comments').insert({ post_id: activePost.id, user_id: currentUserId, content: newComment.trim() }).select('*, profiles(*)').single();
       setComments(prev => [...prev, data]); setNewComment('');
@@ -229,12 +251,28 @@ export const HomePage: React.FC = () => {
     } catch (err) {}
   };
 
-  // גלילה אינסופית אמיתית - טוענת סרטונים לפני שאתה מגיע לסוף
+  const deletePost = async (postId: string) => {
+    triggerFeedback('error');
+    closeOverlay();
+    setPosts(curr => curr.filter(p => p.id !== postId));
+    if (fullScreenVideos) setFullScreenVideos(curr => (curr||[]).filter(p => p.id !== postId));
+    try { await supabase.from('posts').delete().eq('id', postId); toast.success('הפוסט נמחק'); } catch (err) { toast.error('שגיאה במחיקה'); }
+  };
+
+  const deleteComment = async (commentId: string) => {
+    triggerFeedback('error');
+    setComments(curr => curr.filter(c => c.id !== commentId));
+    try { await supabase.from('comments').delete().eq('id', commentId); } catch (err) {}
+  };
+
   const handleContainerScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;
     if (scrollTimeout.current) return;
     scrollTimeout.current = setTimeout(() => {
       scrollTimeout.current = null;
+      const index = Math.round(target.scrollTop / target.clientHeight);
+      if (index !== currentVideoIndex) setCurrentVideoIndex(index);
+
       if (target.scrollHeight - target.scrollTop <= target.clientHeight * 2.5) {
         if (fullScreenVideos) {
           const vids = posts.filter(p => p.media_type === 'video' || (p.media_url && p.media_url.match(/\.(mp4|webm|mov)$/i)));
@@ -249,7 +287,7 @@ export const HomePage: React.FC = () => {
 
   return (
     <>
-      <FadeIn className="px-0 pt-8 pb-32 bg-[#030303] min-h-screen relative overflow-x-hidden touch-pan-y" dir="rtl" onTouchStart={e => { if (window.scrollY <= 0) pullStartY.current = e.touches[0].clientY; }} onTouchMove={e => { if (pullStartY.current > 0 && window.scrollY <= 0) { const y = e.touches[0].clientY - pullStartY.current; if (y > 0) setPullY(Math.min(y, 120)); } }} onTouchEnd={() => { if (pullY > 60) { setRefreshing(true); setPullY(0); fetchData(true); } else setPullY(0); pullStartY.current = 0; }}>
+      <FadeIn className="px-0 pt-8 pb-32 bg-[#030303] min-h-screen relative overflow-x-hidden touch-pan-y" dir="rtl" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
         
         <div className="fixed top-0 left-0 right-0 flex justify-center z-50 pointer-events-none transition-transform duration-200" style={{ transform: `translateY(${Math.max(pullY - 40, -40)}px)`, opacity: pullY / 60 }}>
           <div className="bg-[#111] p-2.5 rounded-full shadow-2xl border border-white/10 mt-6 backdrop-blur-xl"><RefreshCw size={22} className={`text-white ${refreshing ? 'animate-spin' : ''}`} style={{ transform: `rotate(${pullY * 2}deg)` }} /></div>
@@ -267,6 +305,7 @@ export const HomePage: React.FC = () => {
             </div>
             <button onClick={() => navigate('/notifications')} className="w-10 h-10 flex justify-center items-center bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-full shadow-lg active:scale-90 transition-transform relative">
               <Bell size={18} className="text-[#3f51b5] drop-shadow-[0_0_8px_rgba(63,81,181,0.5)]" />
+              {unreadCount > 0 && <span className="absolute top-2 right-2.5 w-2 h-2 bg-[#e91e63] rounded-full shadow-[0_0_10px_#e91e63] border border-black animate-pulse"></span>}
             </button>
           </div>
 
@@ -298,7 +337,7 @@ export const HomePage: React.FC = () => {
           </div>
         </div>
 
-        {/* פיד הפוסטים Edge to Edge */}
+        {/* POSTS FEED */}
         <div className="flex flex-col gap-6 relative z-10 px-4">
           {posts.map((post) => {
             const isMyPost = post.user_id === currentUserId;
@@ -308,7 +347,7 @@ export const HomePage: React.FC = () => {
               <div key={post.id} className="flex flex-col rounded-[36px] bg-[#0A0A0A] border border-white/10 relative overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
                 
                 {post.media_url && (
-                  <div className={`w-full bg-[#050505] relative ${isVideo ? 'cursor-pointer' : ''}`} onClick={() => isVideo ? openOverlay(() => { const vids = posts.filter(p => p.media_type === 'video' || (p.media_url && p.media_url.match(/\.(mp4|webm|mov)$/i))); const others = vids.filter(p => p.id !== post.id).sort(()=>Math.random()-0.5); setFullScreenVideos([post, ...others]); }) : null}>
+                  <div className={`w-full bg-[#050505] relative ${isVideo ? 'cursor-pointer' : ''}`} onClick={() => isVideo ? openOverlay(() => { const vids = posts.filter(p => p.media_type === 'video' || (p.media_url && p.media_url.match(/\.(mp4|webm|mov)$/i))); const others = vids.filter(p => p.id !== post.id).sort(()=>Math.random()-0.5); setFullScreenVideos([post, ...others]); setCurrentVideoIndex(0); }) : null}>
                     {isVideo ? (
                       <video src={post.media_url} autoPlay loop muted playsInline className="w-full max-h-[500px] object-cover" />
                     ) : (
@@ -328,7 +367,7 @@ export const HomePage: React.FC = () => {
                   </div>
                 )}
                 
-                {/* פס תחתון מעוצב - Edge to Edge */}
+                {/* ACTIONS BAR */}
                 <div className={`flex items-center justify-between px-5 py-4 bg-[#0A0A0A] border-t border-white/10`}>
                   <div className="flex items-center justify-start gap-3 cursor-pointer group" onClick={() => navigate(`/profile/${post.user_id}`)}>
                     <div className="w-10 h-10 rounded-full bg-black border border-white/10 overflow-hidden shrink-0 shadow-inner group-hover:opacity-80 transition-opacity">
@@ -353,9 +392,9 @@ export const HomePage: React.FC = () => {
         </div>
       </FadeIn>
 
-      {/* ============== PORTALS (Z-999999 OVER EVERYTHING) ================ */}
+      {/* PORTALS (Z-999999 OVER EVERYTHING) */}
       
-      {/* FULL SCREEN REELS VIEWER - צפייה אקראית חלקה ואמיתית */}
+      {/* 1. FULL SCREEN REELS VIEWER */}
       {mounted && typeof document !== 'undefined' ? createPortal(
         <AnimatePresence>
           {fullScreenVideos && (
@@ -365,7 +404,7 @@ export const HomePage: React.FC = () => {
                   <div key={vid.id + '-' + idx} className="w-full h-screen snap-center relative bg-black flex items-center justify-center">
                     <video src={vid.media_url} loop playsInline className="w-full h-full object-cover reels-video" onClick={(e) => { const v = e.currentTarget; if (v.paused) v.play(); else v.pause(); }} />
                     
-                    {/* כפתורים שקופים בצד שמאל */}
+                    {/* TIKTOK STYLE BUTTONS */}
                     <div className="absolute bottom-32 left-4 flex flex-col gap-6 items-center z-50 pointer-events-auto">
                       <button onClick={(e) => { e.stopPropagation(); handleLike(vid.id, vid.is_liked); }} className="flex flex-col items-center gap-1.5 active:scale-90 transition-transform">
                         <Heart size={32} className={`${vid.is_liked ? 'text-[#e91e63]' : 'text-white'} drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]`} fill={vid.is_liked ? "currentColor" : "none"} strokeWidth={1.5} />
