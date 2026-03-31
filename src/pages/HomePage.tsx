@@ -166,17 +166,47 @@ export const HomePage: React.FC = () => {
     } catch (err: any) { toast.error('שגיאה בשמירה'); } finally { setPosting(false); }
   };
 
+  // === מנגנון שיתוף Native אמיתי (WhatsApp, Telegram וכו') ===
   const handleShare = async (post: any) => {
     triggerFeedback('pop');
-    const text = `${post.content ? post.content + '\n' : ''}צפה בפוסט ב-INNER!\n${window.location.origin}/#/`;
+    const url = `${window.location.origin}/#/`; // כתובת הפוסט/אפליקציה
+    const textToShare = `${post.content ? post.content + '\n\n' : ''}צפה בפוסט הזה ב-INNER!\n`;
+    
+    // מנסה לפתוח את תפריט השיתוף האמיתי של הטלפון
     if (navigator.share) {
-      try { await navigator.share({ title: 'INNER', text }); return; } catch (e) {}
+      try { 
+        await navigator.share({ 
+          title: 'INNER - רשת חברתית', 
+          text: textToShare,
+          url: url
+        }); 
+        return; // הצליח - יוצאים מהפונקציה
+      } catch (err: any) {
+        // אם המשתמש פשוט לחץ "ביטול" בחלון השיתוף, לא נעשה כלום
+        if (err.name === 'AbortError') return;
+        // אם נחסם מסיבות אחרות (כמו סביבת HTTP), נמשיך לפולבאק למטה
+      }
     }
-    if (navigator.clipboard && window.isSecureContext) {
-      try { await navigator.clipboard.writeText(text); toast.success('הועתק ללוח!'); return; } catch (e) {}
+    
+    // גיבוי למחשב או רשת מקומית שחוסמת (מעתיק ללוח)
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(textToShare + url);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = textToShare + url;
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      toast.success('הקישור הועתק ללוח!', { icon: '🔗' });
+    } catch (err) { 
+      toast.error('שגיאה בהעתקת הקישור'); 
     }
-    const res = window.prompt("העתק את הקישור לשיתוף:", text);
-    if (res !== null) toast.success('הקישור הועתק!');
   };
 
   const handleLike = async (postId: string, isLiked: boolean) => {
@@ -402,7 +432,7 @@ export const HomePage: React.FC = () => {
               <motion.div drag="y" dragControls={optionsDragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, { offset }) => { if (offset.y > 50) closeOverlay(); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden pb-10">
                 <div className="w-full flex justify-center pt-5 pb-3 cursor-grab active:cursor-grabbing bg-white/[0.02]" onPointerDown={(e) => optionsDragControls.start(e)} style={{ touchAction: "none" }}><div className="w-16 h-1.5 bg-white/20 rounded-full"></div></div>
                 <div className="flex flex-col p-4 gap-2">
-                  <button onClick={() => { handleShare(optionsMenuPost); closeOverlay(); }} className="flex items-center justify-between w-full p-4 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors text-white font-black text-lg border border-white/5">
+                  <button onClick={() => { closeOverlay(); setTimeout(() => handleShare(optionsMenuPost), 100); }} className="flex items-center justify-between w-full p-4 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors text-white font-black text-lg border border-white/5">
                     <span>שתף פוסט</span><Share2 size={20} className="text-[#2196f3]" />
                   </button>
                   <button onClick={() => { closeOverlay(); setTimeout(() => openOverlay(() => { setEditingPost(optionsMenuPost); setNewPost(optionsMenuPost.content || ''); setShowCreatePost(true); }), 100); }} className="flex items-center justify-between w-full p-4 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors text-white font-black text-lg border border-white/5">
@@ -436,7 +466,7 @@ export const HomePage: React.FC = () => {
         </AnimatePresence>, document.body
       ) : null}
 
-      {/* 5. בוטום שיט: תגובות - חסין מסגירת הסרטון מאחוריו */}
+      {/* 5. בוטום שיט: תגובות */}
       {mounted && typeof document !== 'undefined' ? createPortal(
         <AnimatePresence>
           {activeCommentsPostId && (
