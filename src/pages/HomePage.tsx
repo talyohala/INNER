@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 import { FadeIn, Button } from '../components/ui';
 import { 
   Loader2, Bell, Users, Lock, Flame, Heart, MessageSquare, 
-  Send, X, Paperclip, RefreshCw, UserCircle, Trash2, Edit2, Reply, MoreVertical, Play
+  Send, X, Paperclip, RefreshCw, UserCircle, Trash2, Edit2, Reply, MoreVertical
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -18,6 +18,7 @@ export const HomePage: React.FC = () => {
   const commentsDragControls = useDragControls();
   const optionsDragControls = useDragControls();
   const descDragControls = useDragControls();
+  const createPostDragControls = useDragControls();
   
   const [mounted, setMounted] = useState(false);
 
@@ -30,7 +31,9 @@ export const HomePage: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [editingPost, setEditingPost] = useState<any | null>(null);
+  const [showCreatePost, setShowCreatePost] = useState(false);
   
+  // Modals States
   const [activePost, setActivePost] = useState<any>(null); 
   const [activeCommentsPostId, setActiveCommentsPostId] = useState<string | null>(null);
   const [comments, setComments] = useState<any[]>([]);
@@ -41,7 +44,6 @@ export const HomePage: React.FC = () => {
   const [optionsMenuPost, setOptionsMenuPost] = useState<any>(null);
   const [activeDescPost, setActiveDescPost] = useState<any>(null);
 
-  // === מנוע REELS / TIKTOK ===
   const [fullScreenVideos, setFullScreenVideos] = useState<any[] | null>(null);
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
 
@@ -78,34 +80,42 @@ export const HomePage: React.FC = () => {
       ]);
 
       const globalPosts = rawPosts.filter((p: any) => !p.circle_id);
-      
       const fetchedPosts = globalPosts.map((p: any) => {
         const prof = rawProfiles.find((pr: any) => pr.id === p.user_id) || {};
         const pLikes = rawLikes.filter((l: any) => l.post_id === p.id);
         const pComments = rawComments.filter((c: any) => c.post_id === p.id);
-        
-        return {
-          ...p,
-          profiles: prof,
-          likes_count: pLikes.length,
-          comments_count: pComments.length,
-          is_liked: !!uid && pLikes.some((l: any) => l.user_id === uid)
-        };
+        return { ...p, profiles: prof, likes_count: pLikes.length, comments_count: pComments.length, is_liked: !!uid && pLikes.some((l: any) => l.user_id === uid) };
       });
 
-      const fetchedCircles = rawCircles.map((c: any) => ({
-        ...c,
-        is_member: !!uid && rawMembers.some((m: any) => m.circle_id === c.id && m.user_id === uid)
-      })).sort((a: any, b: any) => (b.members_count || 0) - (a.members_count || 0));
+      const fetchedCircles = rawCircles.map((c: any) => ({ ...c, is_member: !!uid && rawMembers.some((m: any) => m.circle_id === c.id && m.user_id === uid) })).sort((a: any, b: any) => (b.members_count || 0) - (a.members_count || 0));
 
       setCircles(fetchedCircles);
       setPosts(fetchedPosts);
-      
-    } catch (err) { 
-      console.error(err);
-    } finally { 
-      setLoading(false); setRefreshing(false); 
-    }
+    } catch (err) { console.error(err); } finally { setLoading(false); setRefreshing(false); }
+  };
+
+  // מנגנון כפתור חזור של אנדרואיד / דפדפן
+  useEffect(() => {
+    const handlePopState = () => {
+      // אם משהו מהחלונות פתוח, כפתור חזור פשוט יסגור אותו ולא יעזוב את העמוד
+      setFullScreenVideos(null);
+      setActiveCommentsPostId(null);
+      setActivePost(null);
+      setOptionsMenuPost(null);
+      setActiveDescPost(null);
+      setShowCreatePost(false);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const openModal = (action: () => void) => {
+    window.history.pushState({ modalOpen: true }, ''); // רושמים בהיסטוריה שנפתח חלון
+    action();
+  };
+
+  const closeModal = () => {
+    window.history.back(); // מפעיל את ה-popstate וסוגר את החלון בצורה טבעית
   };
 
   useEffect(() => {
@@ -139,6 +149,7 @@ export const HomePage: React.FC = () => {
         if (error) throw error;
         setPosts(curr => curr.map(p => p.id === editingPost.id ? { ...p, content: newPost.trim() } : p));
         toast.success('הפוסט עודכן בהצלחה');
+        closeModal(); // סוגר את חלון העריכה במידה ופתוח
       } else {
         let media_url = null;
         let media_type = 'text';
@@ -154,10 +165,10 @@ export const HomePage: React.FC = () => {
           setUploadingImage(false);
         }
         
-        const { error } = await supabase.from('posts').insert({ 
-          user_id: authData.user.id, content: newPost.trim() || null, media_url, media_type, circle_id: null
-        });
+        const { error } = await supabase.from('posts').insert({ user_id: authData.user.id, content: newPost.trim() || null, media_url, media_type, circle_id: null });
         if (error) throw error;
+        
+        closeModal(); // סוגר את הבוטום שיט של היצירה
       }
       
       setNewPost(''); setSelectedFile(null); setEditingPost(null); triggerFeedback('pop'); 
@@ -169,15 +180,19 @@ export const HomePage: React.FC = () => {
 
   const startEditingPost = (post: any) => {
     triggerFeedback('pop');
-    setEditingPost(post);
-    setNewPost(post.content || '');
-    setOptionsMenuPost(null);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    closeModal(); // סוגר את תפריט 3 הנקודות
+    setTimeout(() => {
+      openModal(() => {
+        setEditingPost(post);
+        setNewPost(post.content || '');
+        setShowCreatePost(true); // פותח את חלון היצירה לעריכה
+      });
+    }, 100);
   };
 
   const deletePost = async (postId: string) => {
     triggerFeedback('error');
-    setOptionsMenuPost(null);
+    closeModal();
     setPosts(posts.filter(p => p.id !== postId));
     const { error } = await supabase.from('posts').delete().eq('id', postId);
     if (error) toast.error('שגיאה במחיקה');
@@ -188,6 +203,8 @@ export const HomePage: React.FC = () => {
     if (!currentUserId) return;
     triggerFeedback('pop');
     setPosts(curr => curr.map(p => p.id === postId ? { ...p, is_liked: !isLiked, likes_count: isLiked ? p.likes_count - 1 : p.likes_count + 1 } : p));
+    if (fullScreenVideos) setFullScreenVideos(curr => (curr||[]).map(p => p.id === postId ? { ...p, is_liked: !isLiked, likes_count: isLiked ? p.likes_count - 1 : p.likes_count + 1 } : p));
+    
     try { 
       if (isLiked) await supabase.from('likes').delete().match({ post_id: postId, user_id: currentUserId });
       else await supabase.from('likes').insert({ post_id: postId, user_id: currentUserId });
@@ -195,7 +212,10 @@ export const HomePage: React.FC = () => {
   };
 
   const openComments = async (post: any) => {
-    triggerFeedback('pop'); setActivePost(post); setActiveCommentsPostId(post.id); setLoadingComments(true);
+    triggerFeedback('pop'); 
+    openModal(() => {
+      setActivePost(post); setActiveCommentsPostId(post.id); setLoadingComments(true);
+    });
     try {
       const { data } = await supabase.from('comments').select(`*, profiles(*)`).eq('post_id', post.id).order('created_at', { ascending: true });
       setComments(data || []);
@@ -220,21 +240,19 @@ export const HomePage: React.FC = () => {
 
   const goToProfile = (userId: string | undefined) => {
     if (!userId) return;
-    triggerFeedback('pop'); setActivePost(null); setActiveCommentsPostId(null); setOptionsMenuPost(null); setFullScreenVideos(null); navigate(`/profile/${userId}`);
+    triggerFeedback('pop'); navigate(`/profile/${userId}`);
   };
 
-  // פתיחת הוידאו במצב מסך מלא אקראי (TikTok Mode)
   const openVideoFullscreen = (clickedPost: any) => {
     triggerFeedback('pop');
-    // אוספים את כל הוידאוז בפיד
-    const allVideos = posts.filter(p => p.media_type === 'video' || (p.media_url && p.media_url.match(/\.(mp4|webm|mov)$/i)));
-    // מערבבים את כל השאר
-    const otherVideos = allVideos.filter(p => p.id !== clickedPost.id).sort(() => Math.random() - 0.5);
-    setFullScreenVideos([clickedPost, ...otherVideos]);
-    setCurrentVideoIndex(0);
+    openModal(() => {
+      const allVideos = posts.filter(p => p.media_type === 'video' || (p.media_url && p.media_url.match(/\.(mp4|webm|mov)$/i)));
+      const otherVideos = allVideos.filter(p => p.id !== clickedPost.id).sort(() => Math.random() - 0.5);
+      setFullScreenVideos([clickedPost, ...otherVideos]);
+      setCurrentVideoIndex(0);
+    });
   };
 
-  // מזהה החלקה ומפעיל סאונד רק לוידאו הנוכחי
   const handleVideoScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;
     const index = Math.round(target.scrollTop / target.clientHeight);
@@ -297,43 +315,20 @@ export const HomePage: React.FC = () => {
             </div>
           </div>
 
-          <div className="p-5 rounded-[36px] mb-8 border border-white/10 bg-white/[0.04] backdrop-blur-3xl shadow-2xl relative z-10 transition-colors">
-            {editingPost && (
-              <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-2">
-                <span className="text-xs text-[#2196f3] font-bold flex items-center gap-2"><Edit2 size={12}/> עורך פוסט...</span>
-                <button onClick={() => { setEditingPost(null); setNewPost(''); }} className="text-white/40"><X size={14}/></button>
-              </div>
-            )}
-            <textarea value={newPost} onChange={(e) => setNewPost(e.target.value)} placeholder="שדר משהו לכולם..." className="w-full bg-transparent border-none text-white text-[16px] font-medium focus:outline-none h-14 resize-none placeholder:text-white/30 px-1 pt-1" />
-            
-            {!editingPost && selectedFile && (
-              <div className="relative mt-2 mb-4 w-fit">
-                {selectedFile.type.startsWith('video/') ? (
-                  <video src={URL.createObjectURL(selectedFile)} autoPlay loop muted playsInline className="w-28 h-28 rounded-[20px] object-cover border border-white/20 shadow-xl" />
-                ) : (
-                  <img src={URL.createObjectURL(selectedFile)} alt="Preview" className="w-28 h-28 rounded-[20px] object-cover border border-white/20 shadow-xl" />
-                )}
-                <button onClick={() => setSelectedFile(null)} className="absolute -top-3 -right-3 w-8 h-8 bg-black rounded-full text-white flex items-center justify-center shadow-lg font-black border border-white/20 z-10"><X size={14} className="text-[#f44336]" /></button>
-              </div>
-            )}
-
+          <div className="p-5 rounded-[36px] mb-8 border border-white/10 bg-white/[0.04] backdrop-blur-3xl shadow-2xl relative z-10 transition-colors cursor-pointer" onClick={() => openModal(() => setShowCreatePost(true))}>
+            <div className="w-full bg-transparent border-none text-white/40 text-[16px] font-medium h-14 flex items-center px-1">שדר משהו לכולם...</div>
             <div className="flex justify-end items-center gap-4 border-t border-white/10 pt-4 mt-1 px-1">
-              {!editingPost && (
-                <>
-                  <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*,video/*" className="hidden" />
-                  <button onClick={() => fileInputRef.current?.click()} className="w-12 h-12 flex items-center justify-center text-white/40 hover:text-[#00bcd4] hover:bg-white/5 transition-all rounded-full border border-white/10 shadow-inner">
-                    <Paperclip size={20} />
-                  </button>
-                </>
-              )}
-              <Button onClick={handlePost} disabled={posting || uploadingImage || (!newPost.trim() && !selectedFile && !editingPost)} className="w-12 h-12 p-0 rounded-full bg-white text-black active:scale-95 disabled:bg-white/10 disabled:text-white/20 transition-all flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(255,255,255,0.2)]">
-                {posting || uploadingImage ? <Loader2 size={22} className="animate-spin text-black" /> : <Send size={20} className="rtl:-scale-x-100 -ml-1 text-[#2196f3]" />}
-              </Button>
+              <div className="w-12 h-12 flex items-center justify-center text-white/40 rounded-full border border-white/10 shadow-inner">
+                <Paperclip size={20} />
+              </div>
+              <div className="w-12 h-12 p-0 rounded-full bg-white text-black flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(255,255,255,0.2)]">
+                <Send size={20} className="rtl:-scale-x-100 -ml-1 text-[#2196f3]" />
+              </div>
             </div>
           </div>
         </div>
 
-        {/* פיד הפוסטים Edge to Edge */}
+        {/* פיד הפוסטים */}
         <div className="flex flex-col gap-6 relative z-10 px-4">
           {posts.length === 0 ? (
              <div className="text-center p-10 bg-white/5 border border-white/10 rounded-[24px] text-white/50 text-sm font-black shadow-inner">
@@ -350,25 +345,17 @@ export const HomePage: React.FC = () => {
                   
                   {/* 1. מדיה בקצה העליון - Edge to Edge */}
                   {post.media_url && (
-                    <div 
-                      className={`w-full bg-[#050505] relative ${isVideo ? 'cursor-pointer' : ''}`}
-                      onClick={() => isVideo ? openVideoFullscreen(post) : null}
-                    >
+                    <div className={`w-full bg-[#050505] relative ${isVideo ? 'cursor-pointer' : ''}`} onClick={() => isVideo ? openVideoFullscreen(post) : null}>
                       {isVideo ? (
-                        <>
-                          <video src={post.media_url} autoPlay loop muted playsInline className="w-full max-h-[500px] object-cover" />
-                          <div className="absolute top-4 right-4 w-10 h-10 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 pointer-events-none">
-                            <Play size={18} className="text-white ml-1" />
-                          </div>
-                        </>
+                        <video src={post.media_url} autoPlay loop muted playsInline className="w-full max-h-[500px] object-cover" />
                       ) : (
                         <img src={post.media_url} alt="Media" className="w-full max-h-[500px] object-cover" />
                       )}
-
+                      
                       {/* תיאור הפוסט יושב על המדיה למטה! */}
                       {post.content && (
                         <div className="absolute bottom-0 left-0 right-0 p-5 pt-16 bg-gradient-to-t from-[#0A0A0A] via-black/60 to-transparent flex items-end pointer-events-none">
-                          <p onClick={(e) => { e.stopPropagation(); triggerFeedback('pop'); setActiveDescPost(post); }} className="text-white/90 text-[14px] leading-relaxed font-medium text-right line-clamp-2 cursor-pointer active:opacity-50 transition-opacity pointer-events-auto drop-shadow-lg w-full">
+                          <p onClick={(e) => { e.stopPropagation(); openModal(() => setActiveDescPost(post)); }} className="text-white/90 text-[14px] leading-relaxed font-medium text-right line-clamp-2 cursor-pointer active:opacity-50 transition-opacity pointer-events-auto drop-shadow-lg w-full">
                             {post.content}
                           </p>
                         </div>
@@ -376,17 +363,17 @@ export const HomePage: React.FC = () => {
                     </div>
                   )}
 
-                  {/* אם אין מדיה - התיאור יושב רגיל בקופסה */}
+                  {/* אם אין מדיה - התיאור יושב רגיל */}
                   {!post.media_url && post.content && (
-                    <div className="p-6 pb-4">
-                      <p onClick={() => { triggerFeedback('pop'); setActiveDescPost(post); }} className="text-white/90 text-[15px] leading-relaxed font-medium text-right line-clamp-3 cursor-pointer active:opacity-50 transition-opacity">
+                    <div className="p-6 pb-4 border-b border-white/5">
+                      <p onClick={() => openModal(() => setActiveDescPost(post))} className="text-white/90 text-[15px] leading-relaxed font-medium text-right line-clamp-3 cursor-pointer active:opacity-50 transition-opacity">
                         {post.content}
                       </p>
                     </div>
                   )}
                   
-                  {/* פס תחתון משולב */}
-                  <div className={`flex items-center justify-between px-5 py-4 bg-[#0A0A0A] ${post.media_url ? '' : 'border-t border-white/5'}`}>
+                  {/* פס תחתון משולב - משתמש בימין, לייקים+הודעות+3 נקודות בשמאל */}
+                  <div className={`flex items-center justify-between px-5 py-4 bg-[#0A0A0A]`}>
                     
                     {/* צד ימין: משתמש */}
                     <div className="flex items-center gap-3 cursor-pointer group" onClick={() => goToProfile(targetId)}>
@@ -401,23 +388,21 @@ export const HomePage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* צד שמאל: אקשנים - 3 נקודות הכי שמאלי, הודעות, לב */}
+                    {/* צד שמאל: אקשנים */}
                     <div className="flex items-center gap-4">
-                      
-                      <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-1.5 transition-all active:scale-90 ${post.is_liked ? 'text-[#e91e63] drop-shadow-[0_0_10px_rgba(233,30,99,0.5)]' : 'text-white/30 hover:text-[#e91e63]'}`}>
-                        <span className="text-[12px] font-black">{post.likes_count}</span> <Heart size={18} fill={post.is_liked ? "currentColor" : "none"} /> 
-                      </button>
+                      {isMyPost && (
+                        <button onClick={() => openModal(() => setOptionsMenuPost(post))} className="flex items-center justify-center text-white/30 hover:text-white transition-colors active:scale-90 border-l border-white/10 pl-4">
+                          <MoreVertical size={18} />
+                        </button>
+                      )}
                       
                       <button onClick={() => openComments(post)} className="flex items-center gap-1.5 text-white/30 hover:text-[#2196f3] transition-all active:scale-90">
                         <span className="text-[12px] font-black">{post.comments_count}</span> <MessageSquare size={18} />
                       </button>
 
-                      {/* 3 נקודות - הכי שמאלי בשורה */}
-                      {isMyPost && (
-                        <button onClick={() => { triggerFeedback('pop'); setOptionsMenuPost(post); }} className="flex items-center justify-center text-white/30 hover:text-white transition-colors active:scale-90 border-r border-white/10 pr-2">
-                          <MoreVertical size={18} />
-                        </button>
-                      )}
+                      <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-1.5 transition-all active:scale-90 ${post.is_liked ? 'text-[#e91e63] drop-shadow-[0_0_10px_rgba(233,30,99,0.5)]' : 'text-white/30 hover:text-[#e91e63]'}`}>
+                        <span className="text-[12px] font-black">{post.likes_count}</span> <Heart size={18} fill={post.is_liked ? "currentColor" : "none"} /> 
+                      </button>
                     </div>
                   </div>
 
@@ -428,16 +413,13 @@ export const HomePage: React.FC = () => {
         </div>
       </FadeIn>
 
-      {/* ============== PORTALS ================ */}
+      {/* ============== PORTALS (Z-999999 OVER EVERYTHING) ================ */}
       
-      {/* FULL SCREEN REELS VIEWER */}
+      {/* 1. FULL SCREEN REELS VIEWER - ללא איקס, סגירה עם חזור! */}
       {mounted && typeof document !== 'undefined' ? createPortal(
         <AnimatePresence>
           {fullScreenVideos && (
             <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed inset-0 z-[999999] bg-black flex flex-col" dir="rtl">
-              <button onClick={() => { setFullScreenVideos(null); setCurrentVideoIndex(0); }} className="absolute top-10 right-5 z-50 w-12 h-12 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center text-white border border-white/10 active:scale-90 transition-transform">
-                <X size={24} />
-              </button>
               
               <div className="w-full h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide" onScroll={handleVideoScroll}>
                 {fullScreenVideos.map((vid, idx) => {
@@ -452,21 +434,34 @@ export const HomePage: React.FC = () => {
                         ref={(el) => {
                           if (el) {
                             if (isActive) {
-                              el.muted = false; // סאונד עובד רק בסרטון הפעיל!
+                              el.muted = false; // סאונד רק בסרטון הפעיל!
                               el.play().catch(() => {});
                             } else {
-                              el.pause();
-                              el.muted = true;
+                              el.pause(); el.muted = true;
                             }
                           }
                         }}
-                        onClick={(e) => {
-                          const v = e.currentTarget;
-                          if (v.paused) v.play(); else v.pause();
-                        }}
+                        onClick={(e) => { const v = e.currentTarget; if (v.paused) v.play(); else v.pause(); }}
                       />
                       
-                      <div className="absolute bottom-0 left-0 right-0 p-6 pb-12 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none flex flex-col gap-3">
+                      {/* TIKTOK STYLE BUTTONS - צד שמאל */}
+                      <div className="absolute bottom-32 left-4 flex flex-col gap-6 items-center z-50 pointer-events-auto">
+                        <button onClick={(e) => { e.stopPropagation(); handleLike(vid.id, vid.is_liked); }} className="flex flex-col items-center gap-1.5 active:scale-90 transition-transform">
+                          <div className={`w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center ${vid.is_liked ? 'text-[#e91e63]' : 'text-white'}`}>
+                            <Heart size={24} fill={vid.is_liked ? "currentColor" : "none"} />
+                          </div>
+                          <span className="text-white font-black text-sm drop-shadow-md">{vid.likes_count}</span>
+                        </button>
+                        
+                        <button onClick={(e) => { e.stopPropagation(); openComments(vid); }} className="flex flex-col items-center gap-1.5 active:scale-90 transition-transform">
+                          <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white">
+                            <MessageSquare size={24} />
+                          </div>
+                          <span className="text-white font-black text-sm drop-shadow-md">{vid.comments_count}</span>
+                        </button>
+                      </div>
+
+                      <div className="absolute bottom-0 left-0 right-0 p-6 pb-12 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none flex flex-col gap-3 pr-20">
                          <div className="flex items-center gap-3">
                            <div className="w-12 h-12 rounded-full overflow-hidden bg-black border-2 border-white/20">
                               {vid.profiles?.avatar_url ? <img src={vid.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={24} className="text-white/50 w-full h-full p-2" />}
@@ -487,13 +482,39 @@ export const HomePage: React.FC = () => {
         document.body
       ) : null}
 
-      {/* בוטום שיט: עריכה / מחיקה */}
+      {/* 2. בוטום שיט: יצירה / עריכה */}
+      {mounted && typeof document !== 'undefined' ? createPortal(
+        <AnimatePresence>
+          {showCreatePost && (
+            <div className="fixed inset-0 z-[999999] flex flex-col justify-end" dir="rtl">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeModal} />
+              <motion.div drag="y" dragControls={createPostDragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, { offset }) => { if (offset.y > 100) closeModal(); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden pb-10 px-6 pt-6">
+                <div className="w-full flex justify-center pb-6 cursor-grab active:cursor-grabbing bg-white/[0.02]" onPointerDown={(e) => createPostDragControls.start(e)} style={{ touchAction: "none" }}>
+                  <div className="w-16 h-1.5 bg-white/20 rounded-full"></div>
+                </div>
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-white font-black text-lg">{editingPost ? 'עריכת פוסט' : 'שידור חדש'}</h3>
+                  <button onClick={closeModal} className="text-white/40"><X size={20} /></button>
+                </div>
+                <div className="flex flex-col gap-4">
+                  <input type="text" value={newPostMedia} onChange={e => setNewPostMedia(e.target.value)} placeholder="קישור לוידאו או תמונה..." className="h-14 bg-white/5 border border-white/10 rounded-[20px] px-4 text-white text-sm focus:outline-none focus:border-[#2196f3]" dir="ltr" />
+                  <textarea value={newPost} onChange={e => setNewPost(e.target.value)} placeholder="כתוב משהו..." className="h-28 bg-white/5 border border-white/10 rounded-[20px] p-4 text-white text-sm focus:outline-none focus:border-[#2196f3] resize-none" />
+                  <Button onClick={handlePost} disabled={posting || (!newPost.trim() && !selectedFile && !editingPost)} className="h-14 bg-[#2196f3] text-white font-black rounded-[20px]">{posting ? <Loader2 className="animate-spin" /> : 'פרסם'}</Button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      ) : null}
+
+      {/* 3. בוטום שיט: עריכה / מחיקה */}
       {mounted && typeof document !== 'undefined' ? createPortal(
         <AnimatePresence>
           {optionsMenuPost && (
-            <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setOptionsMenuPost(null)} />
-              <motion.div drag="y" dragControls={optionsDragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, { offset }) => { if (offset.y > 50) setOptionsMenuPost(null); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden pb-10">
+            <div className="fixed inset-0 z-[999999] flex flex-col justify-end" dir="rtl">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeModal} />
+              <motion.div drag="y" dragControls={optionsDragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, { offset }) => { if (offset.y > 50) closeModal(); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden pb-10">
                 <div className="w-full flex justify-center pt-5 pb-3 cursor-grab active:cursor-grabbing bg-white/[0.02]" onPointerDown={(e) => optionsDragControls.start(e)} style={{ touchAction: "none" }}>
                   <div className="w-16 h-1.5 bg-white/20 rounded-full"></div>
                 </div>
@@ -514,13 +535,13 @@ export const HomePage: React.FC = () => {
         document.body
       ) : null}
 
-      {/* בוטום שיט: תיאור מורחב */}
+      {/* 4. בוטום שיט: תיאור מורחב */}
       {mounted && typeof document !== 'undefined' ? createPortal(
         <AnimatePresence>
           {activeDescPost && (
-            <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setActiveDescPost(null)} />
-              <motion.div drag="y" dragControls={descDragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, { offset }) => { if (offset.y > 100) setActiveDescPost(null); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] max-h-[75vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden pb-10">
+            <div className="fixed inset-0 z-[999999] flex flex-col justify-end" dir="rtl">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeModal} />
+              <motion.div drag="y" dragControls={descDragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, { offset }) => { if (offset.y > 100) closeModal(); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] max-h-[75vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden pb-10">
                 <div className="w-full flex justify-center pt-5 pb-3 cursor-grab active:cursor-grabbing bg-white/[0.02]" onPointerDown={(e) => descDragControls.start(e)} style={{ touchAction: "none" }}>
                   <div className="w-16 h-1.5 bg-white/20 rounded-full"></div>
                 </div>
@@ -537,13 +558,13 @@ export const HomePage: React.FC = () => {
         document.body
       ) : null}
 
-      {/* בוטום שיט: תגובות */}
+      {/* 5. בוטום שיט: תגובות */}
       {mounted && typeof document !== 'undefined' ? createPortal(
         <AnimatePresence>
           {activeCommentsPostId && (
-            <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => { setActiveCommentsPostId(null); setActivePost(null); }} />
-              <motion.div drag="y" dragControls={commentsDragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, { offset }) => { if (offset.y > 100) { setActiveCommentsPostId(null); setActivePost(null); } }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[85vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
+            <div className="fixed inset-0 z-[999999] flex flex-col justify-end" dir="rtl">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeModal} />
+              <motion.div drag="y" dragControls={commentsDragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, { offset }) => { if (offset.y > 100) closeModal(); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[85vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
                 <div className="w-full flex justify-center pt-5 pb-3 cursor-grab active:cursor-grabbing bg-white/[0.02]" onPointerDown={(e) => commentsDragControls.start(e)} style={{ touchAction: "none" }}>
                   <div className="w-16 h-1.5 bg-white/20 rounded-full"></div>
                 </div>

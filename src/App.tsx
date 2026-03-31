@@ -1,14 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React from 'react';
+// התיקון הקריטי ל-APK ולרענון הדף: שימוש ב-HashRouter במקום BrowserRouter
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
-// Context
 import { AuthProvider, useAuth } from './context/AuthContext';
-
-// Components
 import { Layout } from './components/Layout';
 
-// Pages
 import { AuthPage } from './pages/AuthPage';
 import { HomePage } from './pages/HomePage';
 import { ExplorePage } from './pages/ExplorePage';
@@ -21,7 +18,6 @@ import { NotificationsPage } from './pages/NotificationsPage';
 import { BoostStorePage } from './pages/BoostStorePage';
 import { SettingsPage } from './pages/SettingsPage';
 
-// מנגנון קופסה שחורה - תופס קריסות ומונע מסך שחור!
 class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: any}> {
   constructor(props: any) { super(props); this.state = { hasError: false, error: null }; }
   static getDerivedStateFromError(error: any) { return { hasError: true, error }; }
@@ -51,7 +47,7 @@ export const App = () => {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <BrowserRouter>
+        <Router>
           <div className="bg-[#030303] min-h-screen text-white font-sans selection:bg-white/20 relative" dir="rtl">
             <Toaster position="top-center" toastOptions={{ style: { background: '#0A0A0A', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', fontSize: '12px', fontWeight: 'bold' } }} />
             <Layout>
@@ -72,7 +68,7 @@ export const App = () => {
               </Routes>
             </Layout>
           </div>
-        </BrowserRouter>
+        </Router>
       </AuthProvider>
     </ErrorBoundary>
   );
