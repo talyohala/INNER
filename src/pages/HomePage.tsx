@@ -14,7 +14,6 @@ import { Share } from '@capacitor/share';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
-  // רפרנס גלובלי להעלאת קבצים
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const commentsDragControls = useDragControls();
@@ -32,7 +31,7 @@ export const HomePage: React.FC = () => {
   const [posting, setPosting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [editingPost, setEditingPost] = useState<any | null>(null);
-  const [showCreatePost, setShowCreatePost] = useState(false);
+  const [showCreatePost, setShowCreatePost] = useState(false); // ישמש מעכשיו רק לעריכה!
   
   const [activePost, setActivePost] = useState<any>(null); 
   const [activeCommentsPostId, setActiveCommentsPostId] = useState<string | null>(null);
@@ -169,19 +168,14 @@ export const HomePage: React.FC = () => {
   const handleTouchMove = (e: React.TouchEvent) => { if (isAnyModalOpen()) return; if (pullStartY.current > 0 && window.scrollY <= 0) { const y = e.touches[0].clientY - pullStartY.current; if (y > 0) setPullY(Math.min(y, 120)); } };
   const handleTouchEnd = async () => { if (isAnyModalOpen()) return; if (pullY > 60) { setRefreshing(true); setPullY(0); triggerFeedback('coin'); await fetchData(true); await checkUnreadNotifications(); } else { setPullY(0); } pullStartY.current = 0; };
 
-  // הטיפול החכם בבחירת קובץ (פותח חלון אוטומטית)
+  // הטיפול החכם בבחירת קובץ (שומר את הקובץ ולא פותח שום חלון)
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) {
       setSelectedFile(file);
-      // אם החלון לא פתוח, נפתח אותו מיד אחרי הבחירה
-      if (!showCreatePost && !editingPost) {
-        openOverlay(() => setShowCreatePost(true));
-      }
     } else if (file) {
       toast.error('אנא בחר קובץ תמונה או וידאו תקין');
     }
-    // מאפס את הקלט כדי שאפשר יהיה לבחור אותו קובץ שוב אם ביטלנו
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -192,7 +186,8 @@ export const HomePage: React.FC = () => {
       if (editingPost) {
         await supabase.from('posts').update({ content: newPost.trim() }).eq('id', editingPost.id);
         setPosts(curr => curr.map(p => p.id === editingPost.id ? { ...p, content: newPost.trim() } : p));
-        toast.success('עודכן'); closeOverlay();
+        toast.success('עודכן בהצלחה'); 
+        closeOverlay(); // סוגרים את הבוטום שיט רק אם ערכנו!
       } else {
         let media_url = null; let media_type = 'text';
         if (selectedFile) {
@@ -202,7 +197,7 @@ export const HomePage: React.FC = () => {
           media_type = selectedFile.type.startsWith('video/') ? 'video' : 'image';
         }
         await supabase.from('posts').insert({ user_id: currentUserId, content: newPost.trim(), media_url, media_type, circle_id: null });
-        closeOverlay();
+        // לא סוגרים כלום, כי פרסמנו ישירות מהכרטיסייה!
       }
       setNewPost(''); setSelectedFile(null); setEditingPost(null); fetchData(true);
     } catch (err) { toast.error('שגיאה בשמירה'); } finally { setPosting(false); }
@@ -324,17 +319,41 @@ export const HomePage: React.FC = () => {
             </button>
           </div>
           
-          <div className="p-5 rounded-[36px] mb-8 border border-white/10 bg-white/[0.04] backdrop-blur-md shadow-2xl relative z-10 cursor-pointer" onClick={() => openOverlay(() => setShowCreatePost(true))}>
-            <div className="w-full text-white/40 text-[16px] font-medium h-12 flex items-center">שדר משהו לכולם...</div>
+          {/* הכרטיסייה האקטיבית והחכמה ליצירת פוסט בפיד */}
+          <div className="p-5 rounded-[36px] mb-8 border border-white/10 bg-white/[0.04] backdrop-blur-md shadow-2xl relative z-10 flex flex-col gap-3 transition-all duration-300">
+            {/* תצוגה מקדימה של התמונה/וידאו שנבחרו */}
+            {selectedFile && (
+              <div className="relative w-full h-36 rounded-[24px] overflow-hidden bg-[#111] border border-white/10 flex items-center justify-center">
+                {selectedFile.type.startsWith('video/') ? (
+                   <video src={URL.createObjectURL(selectedFile)} className="w-full h-full object-cover opacity-80" />
+                ) : (
+                   <img src={URL.createObjectURL(selectedFile)} className="w-full h-full object-cover opacity-80" />
+                )}
+                <button onClick={(e) => { e.stopPropagation(); setSelectedFile(null); }} className="absolute top-2 right-2 w-8 h-8 bg-black/60 backdrop-blur-md rounded-full flex items-center justify-center text-white z-10 hover:bg-black/80 transition-colors"><X size={16}/></button>
+                <span className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold text-white z-10 uppercase tracking-wider">מצורף</span>
+              </div>
+            )}
+            
+            {/* תיבת הטקסט החיה */}
+            <textarea 
+              value={!editingPost ? newPost : ''} 
+              onChange={(e) => { if(!editingPost) setNewPost(e.target.value); }} 
+              placeholder="שדר משהו לכולם..." 
+              className="w-full bg-transparent border-none text-white/90 text-[16px] font-medium outline-none resize-none placeholder:text-white/40 pt-1"
+              rows={Math.min(Math.max(newPost.split('\n').length, 1), 5)}
+            />
+
             <div className="flex justify-end items-center gap-4 border-t border-white/10 pt-4 mt-1">
-              {/* כפתור האטב - מדלג על החלון ופותח ישירות את הגלריה */}
-              <div 
-                className="w-12 h-12 flex items-center justify-center text-white/40 rounded-full border border-white/10 relative z-20 cursor-pointer hover:bg-white/5 transition-colors"
-                onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
-              >
+              <div className="w-12 h-12 flex items-center justify-center text-white/40 rounded-full border border-white/10 cursor-pointer hover:bg-white/5 hover:text-white transition-colors" onClick={() => fileInputRef.current?.click()}>
                 <Paperclip size={20} />
               </div>
-              <div className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(255,255,255,0.2)]"><Send size={20} className="rtl:-scale-x-100 -ml-1 text-[#2196f3]" /></div>
+              <button 
+                onClick={handlePost} 
+                disabled={posting || (!newPost.trim() && !selectedFile)} 
+                className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(255,255,255,0.2)] disabled:opacity-50 active:scale-95 transition-all"
+              >
+                {posting ? <Loader2 className="animate-spin w-5 h-5"/> : <Send size={20} className="rtl:-scale-x-100 -ml-1 text-[#2196f3]" />}
+              </button>
             </div>
           </div>
         </div>
@@ -364,9 +383,7 @@ export const HomePage: React.FC = () => {
                     <div className="flex gap-4 overflow-x-auto scrollbar-hide items-center">
                       {visibleCircles.map((circle: any) => (
                         <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug || circle.id}`)} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
-                          <div className="w-12 h-12 rounded-full border border-white/10 overflow-hidden bg-[#111]">
-                            {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" /> : <Users className="w-full h-full p-2.5 text-white/20"/>}
-                          </div>
+                          <div className="w-12 h-12 rounded-full border border-white/10 overflow-hidden bg-[#111]">{circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" /> : <Users className="w-full h-full p-2.5 text-white/20"/>}</div>
                           <span className="text-[9px] text-white/60 font-bold max-w-[55px] truncate text-center">{circle.name}</span>
                         </div>
                       ))}
@@ -527,6 +544,7 @@ export const HomePage: React.FC = () => {
              </div>
           )}
 
+          {/* POST OPTIONS OVERLAY */}
           {optionsMenuPost && (
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
@@ -539,29 +557,15 @@ export const HomePage: React.FC = () => {
             </div>
           )}
 
+          {/* EDIT POST OVERLAY (No longer for creation!) */}
           {showCreatePost && (
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
               <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="relative z-10 bg-[#0A0A0A] rounded-t-[36px] p-6 flex flex-col gap-4 pb-12">
                 <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/20 rounded-full"/></div>
-                <div className="flex justify-between items-center mb-2"><h3 className="text-white font-black text-lg">{editingPost ? 'עריכה' : 'חדש'}</h3><button onClick={closeOverlay} className="text-white/40"><X size={20} /></button></div>
-                
-                {/* תצוגה מקדימה לקובץ שנבחר */}
-                {selectedFile && (
-                  <div className="relative w-full h-32 rounded-2xl overflow-hidden bg-[#111] mb-2 border border-white/10 flex items-center justify-center">
-                    {selectedFile.type.startsWith('video/') ? (
-                       <video src={URL.createObjectURL(selectedFile)} className="w-full h-full object-cover opacity-60" />
-                    ) : (
-                       <img src={URL.createObjectURL(selectedFile)} className="w-full h-full object-cover opacity-60" />
-                    )}
-                    <button onClick={() => setSelectedFile(null)} className="absolute top-2 right-2 w-8 h-8 bg-black/60 rounded-full flex items-center justify-center text-white"><X size={16}/></button>
-                    <span className="absolute bottom-2 left-2 bg-black/60 px-3 py-1 rounded-full text-xs font-bold text-white">קובץ מצורף</span>
-                  </div>
-                )}
-
+                <div className="flex justify-between items-center mb-2"><h3 className="text-white font-black text-lg">עריכת פוסט</h3><button onClick={closeOverlay} className="text-white/40"><X size={20} /></button></div>
                 <textarea value={newPost} onChange={e => setNewPost(e.target.value)} placeholder="כתוב משהו..." className="h-32 bg-white/5 rounded-2xl p-4 text-white outline-none resize-none border border-white/10" onPointerDown={stopPropagation} onTouchStart={stopPropagation} />
-                {!editingPost && !selectedFile && ( <div onClick={() => fileInputRef.current?.click()} className="p-4 bg-white/5 rounded-2xl border-2 border-dashed border-white/10 text-center text-white/40 cursor-pointer"><input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*" />{selectedFile ? selectedFile.name : 'צרף מדיה (תמונה/וידאו)'}</div> )}
-                <Button onClick={handlePost} disabled={posting || (!newPost.trim() && !selectedFile && !editingPost)} className="h-14 bg-[#2196f3] text-white font-black rounded-2xl mt-2">{posting ? <Loader2 className="animate-spin"/> : 'פרסם'}</Button>
+                <Button onClick={handlePost} disabled={posting || (!newPost.trim() && !selectedFile && !editingPost)} className="h-14 bg-[#2196f3] text-white font-black rounded-2xl mt-2">{posting ? <Loader2 className="animate-spin"/> : 'שמור עריכה'}</Button>
               </motion.div>
             </div>
           )}
