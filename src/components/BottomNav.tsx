@@ -21,7 +21,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onMenuClick, hasUnread }) 
 
   return (
     <div className="fixed bottom-0 left-0 w-full px-5 pb-6 pt-4 pointer-events-none z-40" dir="rtl">
-      <div className="bg-[#080808]/80 backdrop-blur-2xl border border-white/10 h-16 rounded-[24px] flex items-center justify-around shadow-[0_8px_32px_rgba(0,0,0,0.8)] pointer-events-auto px-2">
+      <div className="bg-white/[0.04] backdrop-blur-3xl border border-white/10 h-16 rounded-[24px] flex items-center justify-around shadow-[0_20px_40px_rgba(0,0,0,0.5)] pointer-events-auto px-2">
         
         {items.map((item) => {
           const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
@@ -31,21 +31,19 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onMenuClick, hasUnread }) 
               key={item.path}
               onClick={() => { triggerFeedback('pop'); navigate(item.path); }}
               className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all active:scale-90 ${
-                isActive ? 'text-white' : 'text-white/30 hover:text-white/60'
+                isActive ? 'text-white bg-white/5 shadow-inner' : 'text-white/30 hover:text-white/60 hover:bg-white/[0.02]'
               }`}
             >
               <Icon size={22} className={isActive ? 'drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]' : ''} />
-              {isActive && <span className="w-1 h-1 bg-white rounded-full mt-1 shadow-[0_0_5px_white]"></span>}
             </button>
           );
         })}
 
         <div className="w-px h-8 bg-white/10 mx-1"></div>
-
-        {/* כפתור המבורגר עם הנקודה האדומה המהבהבת */}
+        
         <button
-          onClick={onMenuClick}
-          className="flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all active:scale-90 text-white/30 hover:text-white relative"
+          onClick={() => { triggerFeedback('pop'); onMenuClick(); }}
+          className="flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all active:scale-90 text-white/30 hover:text-white relative hover:bg-white/[0.02]"
         >
           <Menu size={24} />
           {hasUnread && (
