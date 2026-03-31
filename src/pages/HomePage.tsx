@@ -1,20 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { FadeIn, Button } from '../components/ui';
 import { 
   Loader2, Bell, Users, Heart, MessageSquare, 
-  Send, X, Paperclip, RefreshCw, UserCircle, Trash2, Edit2, Share2, MoreVertical, ChevronLeft, Reply
+  Send, X, Paperclip, RefreshCw, UserCircle, Trash2, Edit2, Share2, MoreVertical, ChevronLeft, Reply, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 import { Share } from '@capacitor/share';
+import { App as CapApp } from '@capacitor/app';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const commentsDragControls = useDragControls();
+  const optionsDragControls = useDragControls();
+  const descDragControls = useDragControls();
+  const createPostDragControls = useDragControls();
+  const circlesDragControls = useDragControls();
+  const commentActionDragControls = useDragControls();
   
   const [mounted, setMounted] = useState(false);
   const [posts, setPosts] = useState<any[]>([]);
@@ -33,6 +41,9 @@ export const HomePage: React.FC = () => {
   const [loadingComments, setLoadingComments] = useState(false);
   
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<any | null>(null);
+  const [expandedThreads, setExpandedThreads] = useState<Record<string, boolean>>({});
+  
   const [commentActionModal, setCommentActionModal] = useState<any | null>(null);
   const [likedComments, setLikedComments] = useState<Set<string>>(new Set());
   
@@ -60,23 +71,17 @@ export const HomePage: React.FC = () => {
   
   useEffect(() => {
     stateRef.current = {
-      comments: !!activeCommentsPostId,
-      options: !!optionsMenuPost,
-      desc: !!activeDescPost,
-      create: showCreatePost,
-      fullscreen: !!fullScreenVideos,
-      commentAction: !!commentActionModal,
-      userCircles: !!userCirclesModal
+      comments: !!activeCommentsPostId, options: !!optionsMenuPost, desc: !!activeDescPost,
+      create: showCreatePost, fullscreen: !!fullScreenVideos, commentAction: !!commentActionModal, userCircles: !!userCirclesModal
     };
   }, [activeCommentsPostId, optionsMenuPost, activeDescPost, showCreatePost, fullScreenVideos, commentActionModal, userCirclesModal]);
 
-  // מנגנון ה-History API הטבעי לניהול כפתור החזור באנדרואיד
   useEffect(() => {
     const handlePopState = () => {
       const s = stateRef.current;
       if (s.commentAction) { setCommentActionModal(null); }
       else if (s.userCircles) { setUserCirclesModal(null); }
-      else if (s.comments) { setActiveCommentsPostId(null); setActivePost(null); }
+      else if (s.comments) { setActiveCommentsPostId(null); setActivePost(null); setReplyingTo(null); }
       else if (s.options) { setOptionsMenuPost(null); }
       else if (s.desc) { setActiveDescPost(null); }
       else if (s.create) { setShowCreatePost(false); setEditingPost(null); }
@@ -86,19 +91,9 @@ export const HomePage: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const openOverlay = (action: () => void) => {
-    window.history.pushState({ overlay: true }, ''); 
-    action();
-  };
-
-  const closeOverlay = () => {
-    window.history.back(); 
-  };
-
-  const isAnyModalOpen = () => {
-    const s = stateRef.current;
-    return s.comments || s.options || s.desc || s.create || s.fullscreen || s.commentAction || s.userCircles;
-  };
+  const openOverlay = (action: () => void) => { window.history.pushState({ overlay: true }, ''); action(); };
+  const closeOverlay = () => { window.history.back(); };
+  const isAnyModalOpen = () => Object.values(stateRef.current).some(Boolean);
 
   const checkUnreadNotifications = async () => {
     try {
@@ -130,11 +125,10 @@ export const HomePage: React.FC = () => {
         const pLikes = rawLikes.filter((l: any) => l.post_id === p.id);
         const pComments = rawComments.filter((c: any) => c.post_id === p.id);
         const userCircles = rawCircles.filter((c: any) => rawMembers.some((m: any) => m.circle_id === c.id && m.user_id === p.user_id));
-        
         return { ...p, profiles: prof, likes_count: pLikes.length, comments_count: pComments.length, is_liked: !!uid && pLikes.some((l: any) => l.user_id === uid), user_circles: userCircles };
       });
       setPosts(fetchedPosts);
-    } catch (err) { console.error(err); } finally { setLoading(false); setRefreshing(false); }
+    } catch (err) {} finally { setLoading(false); setRefreshing(false); }
   };
 
   useEffect(() => {
@@ -156,18 +150,9 @@ export const HomePage: React.FC = () => {
     return () => observer.disconnect();
   }, [fullScreenVideos, currentVideoIndex]);
 
-  const handleTouchStart = (e: React.TouchEvent) => { 
-    if (isAnyModalOpen()) return;
-    if (window.scrollY <= 0) pullStartY.current = e.touches[0].clientY; 
-  };
-  const handleTouchMove = (e: React.TouchEvent) => { 
-    if (isAnyModalOpen()) return;
-    if (pullStartY.current > 0 && window.scrollY <= 0) { const y = e.touches[0].clientY - pullStartY.current; if (y > 0) setPullY(Math.min(y, 120)); } 
-  };
-  const handleTouchEnd = async () => { 
-    if (isAnyModalOpen()) return;
-    if (pullY > 60) { setRefreshing(true); setPullY(0); triggerFeedback('coin'); await fetchData(true); await checkUnreadNotifications(); } else { setPullY(0); } pullStartY.current = 0; 
-  };
+  const handleTouchStart = (e: React.TouchEvent) => { if (isAnyModalOpen()) return; if (window.scrollY <= 0) pullStartY.current = e.touches[0].clientY; };
+  const handleTouchMove = (e: React.TouchEvent) => { if (isAnyModalOpen()) return; if (pullStartY.current > 0 && window.scrollY <= 0) { const y = e.touches[0].clientY - pullStartY.current; if (y > 0) setPullY(Math.min(y, 120)); } };
+  const handleTouchEnd = async () => { if (isAnyModalOpen()) return; if (pullY > 60) { setRefreshing(true); setPullY(0); triggerFeedback('coin'); await fetchData(true); await checkUnreadNotifications(); } else { setPullY(0); } pullStartY.current = 0; };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -228,13 +213,19 @@ export const HomePage: React.FC = () => {
         setComments(prev => prev.map(c => c.id === editingCommentId ? { ...c, content: newComment.trim() } : c));
         setEditingCommentId(null);
       } else {
-        const { data } = await supabase.from('comments').insert({ post_id: activePost.id, user_id: currentUserId, content: newComment.trim() }).select('*, profiles(*)').single();
+        const payload = { post_id: activePost.id, user_id: currentUserId, content: newComment.trim(), parent_id: replyingTo?.id || null };
+        const { data } = await supabase.from('comments').insert(payload).select('*, profiles(*)').single();
         setComments(prev => [...prev, data]);
         const update = (list: any[]) => list.map(p => p.id === activePost.id ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p);
         setPosts(update(posts)); if (fullScreenVideos) setFullScreenVideos(update(fullScreenVideos));
+        
+        // נפתח את השרשור אוטומטית אם הגבנו למישהו
+        if (replyingTo) {
+           setExpandedThreads(prev => ({ ...prev, [replyingTo.id]: true }));
+        }
         triggerFeedback('coin');
       }
-      setNewComment('');
+      setNewComment(''); setReplyingTo(null);
     } catch (err) { toast.error('שגיאה בשמירת התגובה'); }
   };
 
@@ -251,7 +242,7 @@ export const HomePage: React.FC = () => {
 
   const deleteComment = async (commentId: string) => {
     triggerFeedback('error');
-    setComments(curr => curr.filter(c => c.id !== commentId));
+    setComments(curr => curr.filter(c => c.id !== commentId && c.parent_id !== commentId));
     const update = (list: any[]) => list.map(p => p.id === activePost?.id ? { ...p, comments_count: Math.max(0, p.comments_count - 1) } : p);
     setPosts(update(posts)); if (fullScreenVideos) setFullScreenVideos(update(fullScreenVideos));
     try { await supabase.from('comments').delete().eq('id', commentId); } catch (err) {}
@@ -271,7 +262,18 @@ export const HomePage: React.FC = () => {
     }, 150);
   };
 
+  // פונקציה חכמה שצובעת תיוגים (@) בכחול
+  const renderCommentText = (text: string) => {
+    const parts = text.split(/(@[\wא-ת]+)/g);
+    return parts.map((part, i) => 
+      part.startsWith('@') ? <span key={i} className="text-[#2196f3] font-bold">{part}</span> : <span key={i}>{part}</span>
+    );
+  };
+
   const stopPropagation = (e: any) => e.stopPropagation();
+
+  // חלוקת תגובות לאבות וילדים
+  const topLevelComments = comments.filter(c => !c.parent_id);
 
   if (loading && posts.length === 0) return <div className="min-h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-white/20" /></div>;
 
@@ -290,7 +292,6 @@ export const HomePage: React.FC = () => {
                 <span className="text-[10px] font-black text-white/80 tracking-widest">{onlineUsers.toLocaleString()}</span>
               </div>
             </div>
-            {/* כפתור הפעמון - עכשיו עם מסגרת עגולה מלאה */}
             <button onClick={() => navigate('/notifications')} className="w-10 h-10 flex justify-center items-center bg-white/[0.04] border border-white/10 rounded-full active:scale-90 relative shadow-sm backdrop-blur-sm">
               <Bell size={18} className="text-white" />
               {unreadCount > 0 && <span className="absolute top-2 right-2.5 w-2 h-2 bg-[#e91e63] rounded-full border border-black animate-pulse"></span>}
@@ -330,9 +331,7 @@ export const HomePage: React.FC = () => {
                     <div className="flex gap-4 overflow-x-auto scrollbar-hide items-center">
                       {visibleCircles.map((circle: any) => (
                         <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug || circle.id}`)} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
-                          <div className="w-12 h-12 rounded-full border border-white/10 overflow-hidden bg-[#111]">
-                            {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" /> : <Users className="w-full h-full p-2.5 text-white/20"/>}
-                          </div>
+                          <div className="w-12 h-12 rounded-full border border-white/10 overflow-hidden bg-[#111]">{circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" /> : <Users className="w-full h-full p-2.5 text-white/20"/>}</div>
                           <span className="text-[9px] text-white/60 font-bold max-w-[55px] truncate text-center">{circle.name}</span>
                         </div>
                       ))}
@@ -344,9 +343,7 @@ export const HomePage: React.FC = () => {
                 )}
                 <div className="flex items-center justify-between px-5 py-4 bg-[#0A0A0A]">
                   <div className="flex items-center gap-3 cursor-pointer group" onClick={() => navigate(`/profile/${post.user_id}`)}>
-                    <div className="w-10 h-10 rounded-full bg-black border border-white/10 overflow-hidden shrink-0">
-                      {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-2 text-white/20" />}
-                    </div>
+                    <div className="w-10 h-10 rounded-full bg-black border border-white/10 overflow-hidden shrink-0">{post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-2 text-white/20" />}</div>
                     <div className="flex flex-col text-right">
                       <span className="text-white font-black text-[14px]">{post.profiles?.full_name || 'אנונימי'}</span>
                       <span className="text-white/30 text-[10px]">{new Date(post.created_at).toLocaleDateString('he-IL')}</span>
@@ -373,29 +370,20 @@ export const HomePage: React.FC = () => {
                 {fullScreenVideos.map((vid, idx) => (
                   <div key={vid.id + idx} className="w-full h-screen snap-center relative bg-black flex items-center justify-center">
                     <video src={vid.media_url} loop playsInline className="w-full h-full object-cover reels-video" onClick={(e) => e.currentTarget.paused ? e.currentTarget.play() : e.currentTarget.pause()} />
-                    
-                    {/* הכפתורים הועלו למעלה ל-bottom-48 במקום bottom-36 */}
                     <div className="absolute bottom-48 left-4 flex flex-col gap-6 items-center z-50">
                       <button onClick={(e) => { e.stopPropagation(); handleLike(vid.id, vid.is_liked); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform"><Heart size={35} className={vid.is_liked ? 'text-[#e91e63]' : 'text-white'} fill={vid.is_liked ? 'currentColor' : 'none'} strokeWidth={1.5} /><span className="text-white text-[13px] font-black drop-shadow-md">{vid.likes_count}</span></button>
                       <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(vid); setActiveCommentsPostId(vid.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', vid.id).order('created_at',{ascending:true}).then(r => {setComments(r.data||[]); setLoadingComments(false);}); }); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform"><MessageSquare size={35} className="text-white" strokeWidth={1.5} /><span className="text-white text-[13px] font-black drop-shadow-md">{vid.comments_count}</span></button>
                       <button onClick={(e) => { e.stopPropagation(); handleShare(vid); }} className="active:scale-90 transition-transform"><Share2 size={35} className="text-white" strokeWidth={1.5} /></button>
                     </div>
-
                     <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end pointer-events-none">
-                      {/* תיקון למועדונים במסך מלא - לחיצה עובדת חלק */}
                       {vid.user_circles && vid.user_circles.length > 0 && (
                         <div className="flex items-center gap-2 mb-4 overflow-x-auto scrollbar-hide pr-2 pointer-events-auto">
                           {vid.user_circles.slice(0, 5).map((c: any) => (
-                            <div key={c.id} onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/circle/${c.slug||c.id}`), 50); }} className="w-8 h-8 rounded-full bg-black shrink-0 overflow-hidden border border-white/20 shadow-md cursor-pointer pointer-events-auto">
-                              {c.cover_url ? <img src={c.cover_url} className="w-full h-full object-cover"/> : <Users size={14} className="m-1.5 text-white/50"/>}
-                            </div>
+                            <div key={c.id} onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/circle/${c.slug||c.id}`), 50); }} className="w-8 h-8 rounded-full bg-black shrink-0 overflow-hidden border border-white/20 shadow-md cursor-pointer pointer-events-auto">{c.cover_url ? <img src={c.cover_url} className="w-full h-full object-cover"/> : <Users size={14} className="m-1.5 text-white/50"/>}</div>
                           ))}
-                          {vid.user_circles.length > 5 && ( 
-                            <div onClick={(e) => { e.stopPropagation(); openOverlay(() => setUserCirclesModal(vid.user_circles)); }} className="w-8 h-8 rounded-full border border-white/20 bg-white/10 flex flex-col items-center justify-center shrink-0 cursor-pointer active:scale-95 shadow-md pointer-events-auto"><ChevronLeft size={12} className="text-white" /></div> 
-                          )}
+                          {vid.user_circles.length > 5 && ( <div onClick={(e) => { e.stopPropagation(); openOverlay(() => setUserCirclesModal(vid.user_circles)); }} className="w-8 h-8 rounded-full border border-white/20 bg-white/10 flex flex-col items-center justify-center shrink-0 cursor-pointer active:scale-95 shadow-md pointer-events-auto"><ChevronLeft size={12} className="text-white" /></div> )}
                         </div>
                       )}
-                      {/* פרופיל קליקבילי */}
                       <div className="flex items-center gap-3 mb-2 cursor-pointer w-fit pr-2 pointer-events-auto" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${vid.user_id}`), 50); }}>
                         <div className="w-12 h-12 rounded-full overflow-hidden bg-black border-2 border-white/20 shrink-0 shadow-lg">{vid.profiles?.avatar_url ? <img src={vid.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={24} className="text-white/50 w-full h-full p-2" />}</div>
                         <span className="text-white font-black text-[17px] drop-shadow-md">{vid.profiles?.full_name || 'אנונימי'}</span>
@@ -408,39 +396,80 @@ export const HomePage: React.FC = () => {
             </motion.div>
           )}
 
+          {/* COMMENTS OVERLAY WITH THREADS (FAST ANIMATION) */}
           {activeCommentsPostId && (
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
-              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25 }} className="relative z-10 bg-[#0A0A0A] rounded-t-[36px] h-[80vh] flex flex-col overflow-hidden pb-10">
-                <div className="w-full py-6 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/20 rounded-full"/></div>
-                <div className="flex-1 overflow-y-auto p-6 pt-0 flex flex-col gap-6" onPointerDown={stopPropagation} onTouchStart={stopPropagation}>
-                  {loadingComments ? <Loader2 className="animate-spin mx-auto text-white/20 mt-4" /> : comments.map(c => (
-                    <div key={c.id} className="flex gap-3">
-                      <div className="w-10 h-10 rounded-[16px] bg-white/10 shrink-0 overflow-hidden cursor-pointer" onClick={() => { closeOverlay(); navigate(`/profile/${c.user_id}`); }}>{c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-2 text-white/20" />}</div>
-                      <div className="flex flex-col flex-1">
-                        <div className="bg-white/5 p-3 rounded-2xl rounded-tr-sm cursor-pointer" onClick={() => openOverlay(() => setCommentActionModal(c))}><span className="text-white font-bold text-xs mb-1">{c.profiles?.full_name || 'אנונימי'}</span><p className="text-white/80 text-sm">{c.content}</p></div>
-                        <div className="flex items-center gap-4 mt-2 px-2">
-                          <span className="text-[11px] text-white/40 cursor-pointer font-medium hover:text-white" onClick={() => setNewComment(`@${c.profiles?.full_name} `)}>השב</span>
-                          <button onClick={() => toggleCommentLike(c.id)} className={`ml-auto flex items-center gap-1 ${likedComments.has(c.id) ? 'text-[#e91e63]' : 'text-white/30'}`}><Heart size={12} fill={likedComments.has(c.id) ? "currentColor" : "none"} /></button>
+              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 400 }} className="relative z-10 bg-[#0A0A0A] rounded-t-[36px] h-[80vh] flex flex-col overflow-hidden pb-10 shadow-[0_-10px_50px_rgba(0,0,0,0.8)]">
+                <div className="w-full py-6 flex justify-center cursor-grab active:cursor-grabbing bg-white/[0.02] border-b border-white/5"><div className="w-16 h-1.5 bg-white/20 rounded-full"/></div>
+                <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6" onPointerDown={stopPropagation} onTouchStart={stopPropagation}>
+                  {loadingComments ? <Loader2 className="animate-spin mx-auto text-white/20 mt-4" /> : topLevelComments.map(c => {
+                    const replies = comments.filter(r => r.parent_id === c.id);
+                    const isThreadExpanded = expandedThreads[c.id];
+                    return (
+                      <div key={c.id} className="flex flex-col gap-2">
+                        {/* Main Comment */}
+                        <div className="flex gap-3">
+                          <div className="w-10 h-10 rounded-[16px] bg-white/10 shrink-0 overflow-hidden cursor-pointer" onClick={() => { closeOverlay(); navigate(`/profile/${c.user_id}`); }}>{c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-2 text-white/20" />}</div>
+                          <div className="flex flex-col flex-1">
+                            <div className="bg-white/5 p-3 rounded-2xl rounded-tr-sm cursor-pointer" onClick={() => openOverlay(() => setCommentActionModal(c))}>
+                              <span className="text-white font-bold text-xs mb-1">{c.profiles?.full_name || 'אנונימי'}</span>
+                              <p className="text-white/90 text-sm whitespace-pre-wrap leading-relaxed">{renderCommentText(c.content)}</p>
+                            </div>
+                            <div className="flex items-center gap-4 mt-2 px-2">
+                              <span className="text-[11px] text-white/40 cursor-pointer font-medium hover:text-white" onClick={() => { setReplyingTo(c); setNewComment(`@${c.profiles?.full_name} `); }}>השב</span>
+                              <button onClick={() => toggleCommentLike(c.id)} className={`ml-auto flex items-center gap-1 ${likedComments.has(c.id) ? 'text-[#e91e63]' : 'text-white/30'}`}><Heart size={12} fill={likedComments.has(c.id) ? "currentColor" : "none"} /></button>
+                            </div>
+                            {/* View Replies Toggle */}
+                            {replies.length > 0 && (
+                              <button onClick={() => setExpandedThreads(prev => ({...prev, [c.id]: !prev[c.id]}))} className="text-left text-[11px] font-bold text-white/30 hover:text-white/60 mt-2 flex items-center gap-1">
+                                <span className="flex-1 border-t border-white/5 mr-2"></span>
+                                {isThreadExpanded ? <ChevronUp size={12}/> : <ChevronDown size={12}/>}
+                                {isThreadExpanded ? 'הסתר תגובות' : `צפה ב-${replies.length} תגובות`}
+                              </button>
+                            )}
+                          </div>
                         </div>
+                        {/* Nested Replies */}
+                        {isThreadExpanded && replies.map(reply => (
+                          <div key={reply.id} className="flex gap-3 pr-12 mt-2 relative">
+                            <div className="absolute right-[22px] top-[-10px] bottom-6 border-r-2 border-white/5 rounded-br-xl w-4"></div>
+                            <div className="w-8 h-8 rounded-[12px] bg-white/10 shrink-0 overflow-hidden cursor-pointer z-10" onClick={() => { closeOverlay(); navigate(`/profile/${reply.user_id}`); }}>{reply.profiles?.avatar_url ? <img src={reply.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-1.5 text-white/20" />}</div>
+                            <div className="flex flex-col flex-1 z-10">
+                              <div className="bg-white/5 p-3 rounded-2xl rounded-tr-sm cursor-pointer" onClick={() => openOverlay(() => setCommentActionModal(reply))}>
+                                <span className="text-white font-bold text-[11px] mb-1">{reply.profiles?.full_name || 'אנונימי'}</span>
+                                <p className="text-white/90 text-[13px] whitespace-pre-wrap leading-relaxed">{renderCommentText(reply.content)}</p>
+                              </div>
+                              <div className="flex items-center gap-4 mt-2 px-2">
+                                <span className="text-[10px] text-white/40 cursor-pointer font-medium hover:text-white" onClick={() => { setReplyingTo(c); setNewComment(`@${reply.profiles?.full_name} `); }}>השב</span>
+                                <button onClick={() => toggleCommentLike(reply.id)} className={`ml-auto flex items-center gap-1 ${likedComments.has(reply.id) ? 'text-[#e91e63]' : 'text-white/30'}`}><Heart size={10} fill={likedComments.has(reply.id) ? "currentColor" : "none"} /></button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
-                <div className="p-4 border-t border-white/5 flex flex-col gap-2 bg-[#0A0A0A]" onPointerDown={stopPropagation}>
-                  {editingCommentId && <div className="text-[10px] text-[#2196f3] flex justify-between px-2"><span>עורך תגובה...</span><span onClick={() => {setEditingCommentId(null); setNewComment('');}} className="cursor-pointer font-bold">ביטול</span></div>}
-                  <div className="flex gap-2"><input type="text" value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="הוסף תגובה..." className="flex-1 bg-white/5 rounded-full px-4 text-white outline-none" /><button onClick={submitComment} disabled={!newComment.trim()} className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-black active:scale-95 disabled:opacity-50"><Send size={18} /></button></div>
+                <div className="p-4 border-t border-white/5 flex flex-col gap-2 bg-black" onPointerDown={stopPropagation}>
+                  {replyingTo && !editingCommentId && ( <div className="text-[11px] text-[#2196f3] flex items-center justify-between px-3 py-1 bg-[#2196f3]/10 rounded-full w-fit mb-1"><span className="font-bold mr-1">משיב ל-@{replyingTo.profiles?.full_name}</span><X size={12} className="cursor-pointer" onClick={() => {setReplyingTo(null); setNewComment('');}} /></div> )}
+                  {editingCommentId && <div className="text-[11px] text-[#2196f3] flex items-center justify-between px-3 py-1 bg-[#2196f3]/10 rounded-full w-fit mb-1"><span className="font-bold mr-1">עורך תגובה...</span><X size={12} className="cursor-pointer" onClick={() => {setEditingCommentId(null); setNewComment('');}} /></div>}
+                  <div className="flex gap-2 items-center bg-white/5 rounded-full p-1 pl-2">
+                    <input type="text" value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="הוסף תגובה..." className="flex-1 bg-transparent px-4 text-white text-sm outline-none placeholder:text-white/30" />
+                    <button onClick={submitComment} disabled={!newComment.trim()} className="w-9 h-9 bg-white rounded-full flex items-center justify-center text-black active:scale-95 disabled:opacity-50 transition-opacity"><Send size={16} className="rtl:-scale-x-100" /></button>
+                  </div>
                 </div>
               </motion.div>
             </div>
           )}
 
+          {/* COMMENT ACTIONS MODAL */}
           {commentActionModal && (
              <div className="fixed inset-0 z-[99999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="relative z-10 bg-[#0A0A0A] rounded-t-[36px] p-6 flex flex-col gap-3 pb-12">
                  <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/20 rounded-full"/></div>
-                 <button onClick={() => { closeOverlay(); setNewComment(`@${commentActionModal.profiles?.full_name} `); }} className="w-full p-4 bg-white/5 rounded-2xl text-white font-bold flex justify-between items-center text-lg">השב <Reply size={20} className="text-[#2196f3]" /></button>
+                 <button onClick={() => { closeOverlay(); setReplyingTo(commentActionModal.parent_id ? comments.find(c => c.id === commentActionModal.parent_id) : commentActionModal); setNewComment(`@${commentActionModal.profiles?.full_name} `); }} className="w-full p-4 bg-white/5 rounded-2xl text-white font-bold flex justify-between items-center text-lg">השב לתגובה <Reply size={20} className="text-[#2196f3]" /></button>
                  {commentActionModal.user_id === currentUserId && (
                    <>
                      <button onClick={() => { closeOverlay(); setEditingCommentId(commentActionModal.id); setNewComment(commentActionModal.content); }} className="w-full p-4 bg-white/5 rounded-2xl text-white font-bold flex justify-between items-center text-lg">ערוך תגובה <Edit2 size={20} className="text-white/50" /></button>
@@ -451,6 +480,7 @@ export const HomePage: React.FC = () => {
              </div>
           )}
 
+          {/* USER CIRCLES MODAL */}
           {userCirclesModal && (
              <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
@@ -468,6 +498,7 @@ export const HomePage: React.FC = () => {
              </div>
           )}
 
+          {/* POST OPTIONS OVERLAY */}
           {optionsMenuPost && (
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
@@ -480,6 +511,7 @@ export const HomePage: React.FC = () => {
             </div>
           )}
 
+          {/* CREATE POST OVERLAY */}
           {showCreatePost && (
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
@@ -493,6 +525,7 @@ export const HomePage: React.FC = () => {
             </div>
           )}
 
+          {/* FULL DESCRIPTION OVERLAY */}
           {activeDescPost && (
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
