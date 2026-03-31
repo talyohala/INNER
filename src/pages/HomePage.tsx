@@ -212,21 +212,38 @@ export const HomePage: React.FC = () => {
         setComments(prev => prev.map(c => c.id === editingCommentId ? { ...c, content: newComment.trim() } : c));
         setEditingCommentId(null);
       } else {
-        const payload = { post_id: activePost.id, user_id: currentUserId, content: newComment.trim(), parent_id: replyingTo?.id || null };
-        const { data, error } = await supabase.from('comments').insert(payload).select('*, profiles(*)').single();
-        if (error) throw error;
+        // בניית אובייקט חכמה - שולח parent_id רק אם הוא קיים! זה ימנע קריסה גם אם אין עמודה.
+        const payload: any = { 
+          post_id: activePost.id, 
+          user_id: currentUserId, 
+          content: newComment.trim() 
+        };
         
-        // מגן בפני חזרת אובייקט ריק מהשרת
+        if (replyingTo) {
+          payload.parent_id = replyingTo.id;
+        }
+
+        const { data, error } = await supabase.from('comments').insert(payload).select('*, profiles(*)').single();
+        
+        if (error) {
+          console.error("SUPABASE ERROR:", error);
+          throw error;
+        }
+        
         if (data) {
           setComments(prev => [...prev, data]);
           const update = (list: any[]) => list.map(p => p.id === activePost.id ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p);
           setPosts(update(posts)); if (fullScreenVideos) setFullScreenVideos(update(fullScreenVideos));
+          
           if (replyingTo) { setExpandedThreads(prev => ({ ...prev, [replyingTo.id]: true })); }
           triggerFeedback('coin');
         }
       }
       setNewComment(''); setReplyingTo(null);
-    } catch (err) { toast.error('שגיאה בשמירת התגובה'); }
+    } catch (err: any) { 
+      console.error(err);
+      toast.error(`שגיאה בשרת: ${err.message || 'נסה להוסיף עמודת parent_id'}`); 
+    }
   };
 
   const toggleCommentLike = (commentId: string) => {
@@ -242,7 +259,6 @@ export const HomePage: React.FC = () => {
 
   const deleteComment = async (commentId: string) => {
     triggerFeedback('error');
-    // מגן בפני קריסה כשאנחנו בודקים אובייקטים מתים
     setComments(curr => curr.filter(c => c && c.id !== commentId && c.parent_id !== commentId));
     const update = (list: any[]) => list.map(p => p.id === activePost?.id ? { ...p, comments_count: Math.max(0, p.comments_count - 1) } : p);
     setPosts(update(posts)); if (fullScreenVideos) setFullScreenVideos(update(fullScreenVideos));
@@ -399,7 +415,7 @@ export const HomePage: React.FC = () => {
             </motion.div>
           )}
 
-          {/* COMMENTS OVERLAY WITH THREADS */}
+          {/* COMMENTS OVERLAY WITH FAST THREADS */}
           {activeCommentsPostId && (
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
@@ -411,6 +427,7 @@ export const HomePage: React.FC = () => {
                     const isThreadExpanded = expandedThreads[c.id];
                     return (
                       <div key={c.id} className="flex flex-col gap-2">
+                        {/* Main Comment */}
                         <div className="flex gap-3">
                           <div className="w-10 h-10 rounded-[16px] bg-white/10 shrink-0 overflow-hidden cursor-pointer" onClick={() => { closeOverlay(); navigate(`/profile/${c.user_id}`); }}>{c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-2 text-white/20" />}</div>
                           <div className="flex flex-col flex-1">
@@ -422,6 +439,7 @@ export const HomePage: React.FC = () => {
                               <span className="text-[11px] text-white/40 cursor-pointer font-medium hover:text-white" onClick={() => { setReplyingTo(c); setNewComment(`@${c.profiles?.full_name} `); }}>השב</span>
                               <button onClick={() => toggleCommentLike(c.id)} className={`ml-auto flex items-center gap-1 ${likedComments.has(c.id) ? 'text-[#e91e63]' : 'text-white/30'}`}><Heart size={12} fill={likedComments.has(c.id) ? "currentColor" : "none"} /></button>
                             </div>
+                            {/* View Replies Toggle */}
                             {replies.length > 0 && (
                               <button onClick={() => setExpandedThreads(prev => ({...prev, [c.id]: !prev[c.id]}))} className="text-left text-[11px] font-bold text-white/30 hover:text-white/60 mt-2 flex items-center gap-1">
                                 <span className="flex-1 border-t border-white/5 mr-2"></span>
@@ -431,6 +449,7 @@ export const HomePage: React.FC = () => {
                             )}
                           </div>
                         </div>
+                        {/* Nested Replies */}
                         {isThreadExpanded && replies.map(reply => (
                           <div key={reply.id} className="flex gap-3 pr-10 mt-2 relative">
                             <div className="absolute right-[20px] top-[-10px] bottom-6 border-r-2 border-white/5 rounded-br-xl w-4"></div>
@@ -463,6 +482,7 @@ export const HomePage: React.FC = () => {
             </div>
           )}
 
+          {/* COMMENT ACTIONS MODAL */}
           {commentActionModal && (
              <div className="fixed inset-0 z-[99999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
