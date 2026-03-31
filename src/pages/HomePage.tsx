@@ -11,6 +11,7 @@ import {
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 import { Share } from '@capacitor/share';
+import { App as CapApp } from '@capacitor/app';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -53,7 +54,7 @@ export const HomePage: React.FC = () => {
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const scrollTimeout = useRef<any>(null);
   
-  const [onlineUsers, setOnlineUsers] = useState(3420);
+  const [onlineUsers, setOnlineUsers] = useState(0); // מתחיל מ-0 ספירה אמיתית!
   const [pullY, setPullY] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -132,9 +133,34 @@ export const HomePage: React.FC = () => {
 
   useEffect(() => {
     setMounted(true); fetchData(false); checkUnreadNotifications();
-    const interval = setInterval(() => setOnlineUsers(prev => prev + Math.floor(Math.random() * 5) - 2), 5000);
-    return () => clearInterval(interval);
   }, []);
+
+  // מנגנון ספירת משתמשים בזמן אמת (Supabase Presence)
+  useEffect(() => {
+    const presenceChannel = supabase.channel('global_online');
+
+    presenceChannel
+      .on('presence', { event: 'sync' }, () => {
+        const state = presenceChannel.presenceState();
+        let activeCount = 0;
+        for (const key in state) {
+          activeCount += state[key].length; // סופר כמה חיבורים פתוחים יש באמת
+        }
+        setOnlineUsers(activeCount > 0 ? activeCount : 1);
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await presenceChannel.track({
+            online_at: new Date().toISOString(),
+            user_id: currentUserId || 'guest'
+          });
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(presenceChannel);
+    };
+  }, [currentUserId]);
 
   useEffect(() => {
     if (!fullScreenVideos) return;
@@ -212,38 +238,20 @@ export const HomePage: React.FC = () => {
         setComments(prev => prev.map(c => c.id === editingCommentId ? { ...c, content: newComment.trim() } : c));
         setEditingCommentId(null);
       } else {
-        // בניית אובייקט חכמה - שולח parent_id רק אם הוא קיים! זה ימנע קריסה גם אם אין עמודה.
-        const payload: any = { 
-          post_id: activePost.id, 
-          user_id: currentUserId, 
-          content: newComment.trim() 
-        };
-        
-        if (replyingTo) {
-          payload.parent_id = replyingTo.id;
-        }
-
+        const payload: any = { post_id: activePost.id, user_id: currentUserId, content: newComment.trim() };
+        if (replyingTo) { payload.parent_id = replyingTo.id; }
         const { data, error } = await supabase.from('comments').insert(payload).select('*, profiles(*)').single();
-        
-        if (error) {
-          console.error("SUPABASE ERROR:", error);
-          throw error;
-        }
-        
+        if (error) throw error;
         if (data) {
           setComments(prev => [...prev, data]);
           const update = (list: any[]) => list.map(p => p.id === activePost.id ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p);
           setPosts(update(posts)); if (fullScreenVideos) setFullScreenVideos(update(fullScreenVideos));
-          
           if (replyingTo) { setExpandedThreads(prev => ({ ...prev, [replyingTo.id]: true })); }
           triggerFeedback('coin');
         }
       }
       setNewComment(''); setReplyingTo(null);
-    } catch (err: any) { 
-      console.error(err);
-      toast.error(`שגיאה בשרת: ${err.message || 'נסה להוסיף עמודת parent_id'}`); 
-    }
+    } catch (err: any) { toast.error(`שגיאה בשרת: ${err.message}`); }
   };
 
   const toggleCommentLike = (commentId: string) => {
@@ -288,8 +296,6 @@ export const HomePage: React.FC = () => {
   };
 
   const stopPropagation = (e: any) => e.stopPropagation();
-
-  // הגנה קשיחה למניעת ה-null reading bug
   const topLevelComments = comments.filter(c => c && !c.parent_id);
 
   if (loading && posts.length === 0) return <div className="min-h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-white/20" /></div>;
@@ -427,7 +433,6 @@ export const HomePage: React.FC = () => {
                     const isThreadExpanded = expandedThreads[c.id];
                     return (
                       <div key={c.id} className="flex flex-col gap-2">
-                        {/* Main Comment */}
                         <div className="flex gap-3">
                           <div className="w-10 h-10 rounded-[16px] bg-white/10 shrink-0 overflow-hidden cursor-pointer" onClick={() => { closeOverlay(); navigate(`/profile/${c.user_id}`); }}>{c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-2 text-white/20" />}</div>
                           <div className="flex flex-col flex-1">
@@ -439,7 +444,6 @@ export const HomePage: React.FC = () => {
                               <span className="text-[11px] text-white/40 cursor-pointer font-medium hover:text-white" onClick={() => { setReplyingTo(c); setNewComment(`@${c.profiles?.full_name} `); }}>השב</span>
                               <button onClick={() => toggleCommentLike(c.id)} className={`ml-auto flex items-center gap-1 ${likedComments.has(c.id) ? 'text-[#e91e63]' : 'text-white/30'}`}><Heart size={12} fill={likedComments.has(c.id) ? "currentColor" : "none"} /></button>
                             </div>
-                            {/* View Replies Toggle */}
                             {replies.length > 0 && (
                               <button onClick={() => setExpandedThreads(prev => ({...prev, [c.id]: !prev[c.id]}))} className="text-left text-[11px] font-bold text-white/30 hover:text-white/60 mt-2 flex items-center gap-1">
                                 <span className="flex-1 border-t border-white/5 mr-2"></span>
@@ -449,7 +453,6 @@ export const HomePage: React.FC = () => {
                             )}
                           </div>
                         </div>
-                        {/* Nested Replies */}
                         {isThreadExpanded && replies.map(reply => (
                           <div key={reply.id} className="flex gap-3 pr-10 mt-2 relative">
                             <div className="absolute right-[20px] top-[-10px] bottom-6 border-r-2 border-white/5 rounded-br-xl w-4"></div>
@@ -482,7 +485,6 @@ export const HomePage: React.FC = () => {
             </div>
           )}
 
-          {/* COMMENT ACTIONS MODAL */}
           {commentActionModal && (
              <div className="fixed inset-0 z-[99999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
