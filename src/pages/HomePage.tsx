@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { FadeIn, Button } from '../components/ui';
 import { 
   Loader2, Bell, Users, Lock, Flame, Heart, MessageSquare, 
-  Send, X, Paperclip, RefreshCw, UserCircle, Trash2, Edit2, Reply, MoreVertical
+  Send, X, Paperclip, RefreshCw, UserCircle, Trash2, Edit2, Reply, MoreVertical, Play
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -39,6 +40,10 @@ export const HomePage: React.FC = () => {
   
   const [optionsMenuPost, setOptionsMenuPost] = useState<any>(null);
   const [activeDescPost, setActiveDescPost] = useState<any>(null);
+
+  // === מנוע REELS / TIKTOK ===
+  const [fullScreenVideos, setFullScreenVideos] = useState<any[] | null>(null);
+  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
 
   const [onlineUsers, setOnlineUsers] = useState(3420);
   const [pullY, setPullY] = useState(0);
@@ -215,14 +220,34 @@ export const HomePage: React.FC = () => {
 
   const goToProfile = (userId: string | undefined) => {
     if (!userId) return;
-    triggerFeedback('pop'); setActivePost(null); setActiveCommentsPostId(null); setOptionsMenuPost(null); navigate(`/profile/${userId}`);
+    triggerFeedback('pop'); setActivePost(null); setActiveCommentsPostId(null); setOptionsMenuPost(null); setFullScreenVideos(null); navigate(`/profile/${userId}`);
+  };
+
+  // פתיחת הוידאו במצב מסך מלא אקראי (TikTok Mode)
+  const openVideoFullscreen = (clickedPost: any) => {
+    triggerFeedback('pop');
+    // אוספים את כל הוידאוז בפיד
+    const allVideos = posts.filter(p => p.media_type === 'video' || (p.media_url && p.media_url.match(/\.(mp4|webm|mov)$/i)));
+    // מערבבים את כל השאר
+    const otherVideos = allVideos.filter(p => p.id !== clickedPost.id).sort(() => Math.random() - 0.5);
+    setFullScreenVideos([clickedPost, ...otherVideos]);
+    setCurrentVideoIndex(0);
+  };
+
+  // מזהה החלקה ומפעיל סאונד רק לוידאו הנוכחי
+  const handleVideoScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    const index = Math.round(target.scrollTop / target.clientHeight);
+    if (index !== currentVideoIndex) {
+      setCurrentVideoIndex(index);
+      triggerFeedback('pop');
+    }
   };
 
   if (loading && posts.length === 0 && circles.length === 0) return <div className="min-h-screen bg-[#030303] flex items-center justify-center text-white/20 font-black animate-pulse text-xl tracking-widest uppercase">SCANNING...</div>;
 
   return (
     <>
-      {/* אזור הפיד הראשי */}
       <FadeIn className="px-0 pt-8 pb-32 bg-[#030303] min-h-screen relative overflow-x-hidden touch-pan-y" dir="rtl" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
         
         <div className="fixed top-0 left-0 right-0 flex justify-center z-50 pointer-events-none transition-transform duration-200" style={{ transform: `translateY(${Math.max(pullY - 40, -40)}px)`, opacity: pullY / 60 }}>
@@ -318,22 +343,31 @@ export const HomePage: React.FC = () => {
             posts.map((post) => {
               const targetId = post.user_id || post.profiles?.id;
               const isMyPost = post.user_id === currentUserId;
+              const isVideo = post.media_type === 'video' || (post.media_url && post.media_url.match(/\.(mp4|webm|mov)$/i));
               
               return (
-                <div key={post.id} className="flex flex-col pt-0 pb-0 rounded-[36px] bg-white/[0.04] backdrop-blur-2xl border border-white/10 relative overflow-hidden shadow-2xl">
+                <div key={post.id} className="flex flex-col pt-0 pb-0 rounded-[36px] bg-[#0A0A0A] border border-white/10 relative overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
                   
                   {/* 1. מדיה בקצה העליון - Edge to Edge */}
                   {post.media_url && (
-                    <div className="w-full bg-[#050505] relative">
-                      {post.media_type === 'video' || post.media_url.match(/\.(mp4|webm|mov)$/i) ? (
-                        <video src={post.media_url} autoPlay loop muted playsInline className="w-full max-h-[500px] object-cover" />
+                    <div 
+                      className={`w-full bg-[#050505] relative ${isVideo ? 'cursor-pointer' : ''}`}
+                      onClick={() => isVideo ? openVideoFullscreen(post) : null}
+                    >
+                      {isVideo ? (
+                        <>
+                          <video src={post.media_url} autoPlay loop muted playsInline className="w-full max-h-[500px] object-cover" />
+                          <div className="absolute top-4 right-4 w-10 h-10 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 pointer-events-none">
+                            <Play size={18} className="text-white ml-1" />
+                          </div>
+                        </>
                       ) : (
                         <img src={post.media_url} alt="Media" className="w-full max-h-[500px] object-cover" />
                       )}
 
-                      {/* תיאור הפוסט יושב על הוידאו למטה! */}
+                      {/* תיאור הפוסט יושב על המדיה למטה! */}
                       {post.content && (
-                        <div className="absolute bottom-0 left-0 right-0 p-5 pt-16 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex items-end pointer-events-none">
+                        <div className="absolute bottom-0 left-0 right-0 p-5 pt-16 bg-gradient-to-t from-[#0A0A0A] via-black/60 to-transparent flex items-end pointer-events-none">
                           <p onClick={(e) => { e.stopPropagation(); triggerFeedback('pop'); setActiveDescPost(post); }} className="text-white/90 text-[14px] leading-relaxed font-medium text-right line-clamp-2 cursor-pointer active:opacity-50 transition-opacity pointer-events-auto drop-shadow-lg w-full">
                             {post.content}
                           </p>
@@ -351,8 +385,8 @@ export const HomePage: React.FC = () => {
                     </div>
                   )}
                   
-                  {/* פס תחתון משולב - משתמש בימין, לייקים+הודעות+3 נקודות בשמאל */}
-                  <div className={`flex items-center justify-between px-5 py-4 bg-black/40 ${post.media_url ? '' : 'border-t border-white/5'}`}>
+                  {/* פס תחתון משולב */}
+                  <div className={`flex items-center justify-between px-5 py-4 bg-[#0A0A0A] ${post.media_url ? '' : 'border-t border-white/5'}`}>
                     
                     {/* צד ימין: משתמש */}
                     <div className="flex items-center gap-3 cursor-pointer group" onClick={() => goToProfile(targetId)}>
@@ -367,19 +401,20 @@ export const HomePage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* צד שמאל: אקשנים - לב, הודעות, ואז 3 נקודות הכי שמאלי */}
+                    {/* צד שמאל: אקשנים - 3 נקודות הכי שמאלי, הודעות, לב */}
                     <div className="flex items-center gap-4">
+                      
                       <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-1.5 transition-all active:scale-90 ${post.is_liked ? 'text-[#e91e63] drop-shadow-[0_0_10px_rgba(233,30,99,0.5)]' : 'text-white/30 hover:text-[#e91e63]'}`}>
-                        <Heart size={18} fill={post.is_liked ? "currentColor" : "none"} /> <span className="text-[12px] font-black">{post.likes_count}</span>
+                        <span className="text-[12px] font-black">{post.likes_count}</span> <Heart size={18} fill={post.is_liked ? "currentColor" : "none"} /> 
                       </button>
                       
                       <button onClick={() => openComments(post)} className="flex items-center gap-1.5 text-white/30 hover:text-[#2196f3] transition-all active:scale-90">
-                        <MessageSquare size={18} /> <span className="text-[12px] font-black">{post.comments_count}</span>
+                        <span className="text-[12px] font-black">{post.comments_count}</span> <MessageSquare size={18} />
                       </button>
 
                       {/* 3 נקודות - הכי שמאלי בשורה */}
                       {isMyPost && (
-                        <button onClick={() => { triggerFeedback('pop'); setOptionsMenuPost(post); }} className="flex items-center justify-center text-white/30 hover:text-white transition-colors active:scale-90">
+                        <button onClick={() => { triggerFeedback('pop'); setOptionsMenuPost(post); }} className="flex items-center justify-center text-white/30 hover:text-white transition-colors active:scale-90 border-r border-white/10 pr-2">
                           <MoreVertical size={18} />
                         </button>
                       )}
@@ -393,94 +428,159 @@ export const HomePage: React.FC = () => {
         </div>
       </FadeIn>
 
-      {/* ============== BOTTOM SHEETS (Z-99999) ================ */}
+      {/* ============== PORTALS ================ */}
       
-      {/* 1. בוטום שיט: עריכה / מחיקה */}
-      <AnimatePresence>
-        {optionsMenuPost && (
-          <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setOptionsMenuPost(null)} />
-            <motion.div drag="y" dragControls={optionsDragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, { offset }) => { if (offset.y > 50) setOptionsMenuPost(null); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden pb-10">
-              <div className="w-full flex justify-center pt-5 pb-3 cursor-grab active:cursor-grabbing bg-white/[0.02]" onPointerDown={(e) => optionsDragControls.start(e)} style={{ touchAction: "none" }}>
-                <div className="w-16 h-1.5 bg-white/20 rounded-full"></div>
-              </div>
-              <div className="flex flex-col p-4 gap-2">
-                <button onClick={() => startEditingPost(optionsMenuPost)} className="flex items-center justify-between w-full p-4 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors text-white font-black text-lg border border-white/5">
-                  <span>ערוך פוסט</span>
-                  <Edit2 size={20} className="text-white/50" />
-                </button>
-                <button onClick={() => deletePost(optionsMenuPost.id)} className="flex items-center justify-between w-full p-4 rounded-2xl bg-red-500/10 hover:bg-red-500/20 transition-colors text-red-500 font-black text-lg border border-red-500/20 mt-2">
-                  <span>מחק פוסט</span>
-                  <Trash2 size={20} />
-                </button>
+      {/* FULL SCREEN REELS VIEWER */}
+      {mounted && typeof document !== 'undefined' ? createPortal(
+        <AnimatePresence>
+          {fullScreenVideos && (
+            <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed inset-0 z-[999999] bg-black flex flex-col" dir="rtl">
+              <button onClick={() => { setFullScreenVideos(null); setCurrentVideoIndex(0); }} className="absolute top-10 right-5 z-50 w-12 h-12 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center text-white border border-white/10 active:scale-90 transition-transform">
+                <X size={24} />
+              </button>
+              
+              <div className="w-full h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide" onScroll={handleVideoScroll}>
+                {fullScreenVideos.map((vid, idx) => {
+                  const isActive = idx === currentVideoIndex;
+                  return (
+                    <div key={vid.id + idx} className="w-full h-screen snap-center relative bg-black flex items-center justify-center">
+                      <video
+                        src={vid.media_url}
+                        loop
+                        playsInline
+                        className="w-full h-full object-cover"
+                        ref={(el) => {
+                          if (el) {
+                            if (isActive) {
+                              el.muted = false; // סאונד עובד רק בסרטון הפעיל!
+                              el.play().catch(() => {});
+                            } else {
+                              el.pause();
+                              el.muted = true;
+                            }
+                          }
+                        }}
+                        onClick={(e) => {
+                          const v = e.currentTarget;
+                          if (v.paused) v.play(); else v.pause();
+                        }}
+                      />
+                      
+                      <div className="absolute bottom-0 left-0 right-0 p-6 pb-12 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none flex flex-col gap-3">
+                         <div className="flex items-center gap-3">
+                           <div className="w-12 h-12 rounded-full overflow-hidden bg-black border-2 border-white/20">
+                              {vid.profiles?.avatar_url ? <img src={vid.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={24} className="text-white/50 w-full h-full p-2" />}
+                           </div>
+                           <div className="flex flex-col text-right">
+                             <span className="text-white font-black text-lg drop-shadow-md">{vid.profiles?.full_name || 'אנונימי'}</span>
+                           </div>
+                         </div>
+                         <p className="text-white/90 text-[15px] font-medium drop-shadow-md line-clamp-3 text-right">{vid.content}</p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>,
+        document.body
+      ) : null}
 
-      {/* 2. בוטום שיט: תיאור מורחב */}
-      <AnimatePresence>
-        {activeDescPost && (
-          <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setActiveDescPost(null)} />
-            <motion.div drag="y" dragControls={descDragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, { offset }) => { if (offset.y > 100) setActiveDescPost(null); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] max-h-[75vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden pb-10">
-              <div className="w-full flex justify-center pt-5 pb-3 cursor-grab active:cursor-grabbing bg-white/[0.02]" onPointerDown={(e) => descDragControls.start(e)} style={{ touchAction: "none" }}>
-                <div className="w-16 h-1.5 bg-white/20 rounded-full"></div>
-              </div>
-              <div className="flex justify-start items-center px-6 pb-4 border-b border-white/10"><h2 className="text-white font-black text-[16px]">תיאור מלא</h2></div>
-              <div className="flex-1 overflow-y-auto p-6 scrollbar-hide touch-pan-y" onPointerDown={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}>
-                <p className="text-white/90 text-[15px] leading-relaxed font-medium whitespace-pre-wrap text-right">
-                  {activeDescPost.content}
-                </p>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* בוטום שיט: עריכה / מחיקה */}
+      {mounted && typeof document !== 'undefined' ? createPortal(
+        <AnimatePresence>
+          {optionsMenuPost && (
+            <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setOptionsMenuPost(null)} />
+              <motion.div drag="y" dragControls={optionsDragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, { offset }) => { if (offset.y > 50) setOptionsMenuPost(null); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden pb-10">
+                <div className="w-full flex justify-center pt-5 pb-3 cursor-grab active:cursor-grabbing bg-white/[0.02]" onPointerDown={(e) => optionsDragControls.start(e)} style={{ touchAction: "none" }}>
+                  <div className="w-16 h-1.5 bg-white/20 rounded-full"></div>
+                </div>
+                <div className="flex flex-col p-4 gap-2">
+                  <button onClick={() => startEditingPost(optionsMenuPost)} className="flex items-center justify-between w-full p-4 rounded-2xl bg-white/5 hover:bg-white/10 transition-colors text-white font-black text-lg border border-white/5">
+                    <span>ערוך פוסט</span>
+                    <Edit2 size={20} className="text-white/50" />
+                  </button>
+                  <button onClick={() => deletePost(optionsMenuPost.id)} className="flex items-center justify-between w-full p-4 rounded-2xl bg-red-500/10 hover:bg-red-500/20 transition-colors text-red-500 font-black text-lg border border-red-500/20 mt-2">
+                    <span>מחק פוסט</span>
+                    <Trash2 size={20} />
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      ) : null}
 
-      {/* 3. בוטום שיט: תגובות */}
-      <AnimatePresence>
-        {activeCommentsPostId && (
-          <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => { setActiveCommentsPostId(null); setActivePost(null); }} />
-            <motion.div drag="y" dragControls={commentsDragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, { offset }) => { if (offset.y > 100) { setActiveCommentsPostId(null); setActivePost(null); } }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[85vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
-              <div className="w-full flex justify-center pt-5 pb-3 cursor-grab active:cursor-grabbing bg-white/[0.02]" onPointerDown={(e) => commentsDragControls.start(e)} style={{ touchAction: "none" }}>
-                <div className="w-16 h-1.5 bg-white/20 rounded-full"></div>
-              </div>
-              <div className="flex justify-start items-center px-6 pb-4 border-b border-white/10"><h2 className="text-white font-black text-[16px]">תגובות ({activePost?.comments_count || 0})</h2></div>
-              <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 scrollbar-hide touch-pan-y" onPointerDown={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}>
-                {loadingComments ? <Loader2 className="animate-spin mx-auto text-white/40 mt-10" /> : 
-                  comments.map(comment => {
-                    const targetId = comment.user_id || comment.profiles?.id;
-                    const isMyComment = comment.user_id === currentUserId;
-                    return (
-                      <div key={comment.id} className="flex gap-4">
-                        <div className="w-10 h-10 rounded-[16px] bg-black shrink-0 overflow-hidden border border-white/10 shadow-inner p-0.5 cursor-pointer" onClick={() => goToProfile(targetId)}>
-                          <div className="w-full h-full rounded-[12px] overflow-hidden bg-[#111]">
-                            {comment.profiles?.avatar_url ? <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={18} className="text-white/20" /></div>}
+      {/* בוטום שיט: תיאור מורחב */}
+      {mounted && typeof document !== 'undefined' ? createPortal(
+        <AnimatePresence>
+          {activeDescPost && (
+            <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setActiveDescPost(null)} />
+              <motion.div drag="y" dragControls={descDragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, { offset }) => { if (offset.y > 100) setActiveDescPost(null); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] max-h-[75vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden pb-10">
+                <div className="w-full flex justify-center pt-5 pb-3 cursor-grab active:cursor-grabbing bg-white/[0.02]" onPointerDown={(e) => descDragControls.start(e)} style={{ touchAction: "none" }}>
+                  <div className="w-16 h-1.5 bg-white/20 rounded-full"></div>
+                </div>
+                <div className="flex justify-start items-center px-6 pb-4 border-b border-white/10"><h2 className="text-white font-black text-[16px]">תיאור מלא</h2></div>
+                <div className="flex-1 overflow-y-auto p-6 scrollbar-hide touch-pan-y" onPointerDown={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}>
+                  <p className="text-white/90 text-[15px] leading-relaxed font-medium whitespace-pre-wrap text-right">
+                    {activeDescPost.content}
+                  </p>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      ) : null}
+
+      {/* בוטום שיט: תגובות */}
+      {mounted && typeof document !== 'undefined' ? createPortal(
+        <AnimatePresence>
+          {activeCommentsPostId && (
+            <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => { setActiveCommentsPostId(null); setActivePost(null); }} />
+              <motion.div drag="y" dragControls={commentsDragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, { offset }) => { if (offset.y > 100) { setActiveCommentsPostId(null); setActivePost(null); } }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[85vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
+                <div className="w-full flex justify-center pt-5 pb-3 cursor-grab active:cursor-grabbing bg-white/[0.02]" onPointerDown={(e) => commentsDragControls.start(e)} style={{ touchAction: "none" }}>
+                  <div className="w-16 h-1.5 bg-white/20 rounded-full"></div>
+                </div>
+                <div className="flex justify-start items-center px-6 pb-4 border-b border-white/10"><h2 className="text-white font-black text-[16px]">תגובות ({activePost?.comments_count || 0})</h2></div>
+                <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 scrollbar-hide touch-pan-y" onPointerDown={(e) => { if (e.currentTarget.scrollTop > 0) e.stopPropagation(); }}>
+                  {loadingComments ? <Loader2 className="animate-spin mx-auto text-white/40 mt-10" /> : 
+                    comments.map(comment => {
+                      const targetId = comment.user_id || comment.profiles?.id;
+                      const isMyComment = comment.user_id === currentUserId;
+                      return (
+                        <div key={comment.id} className="flex gap-4">
+                          <div className="w-10 h-10 rounded-[16px] bg-black shrink-0 overflow-hidden border border-white/10 shadow-inner p-0.5 cursor-pointer" onClick={() => goToProfile(targetId)}>
+                            <div className="w-full h-full rounded-[12px] overflow-hidden bg-[#111]">
+                              {comment.profiles?.avatar_url ? <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle size={18} className="text-white/20" /></div>}
+                            </div>
+                          </div>
+                          <div className="flex flex-col flex-1 bg-white/[0.04] p-4 rounded-[24px] rounded-tr-sm border border-white/5 shadow-sm">
+                            <span className="text-white font-black text-[13px] mb-1.5 text-right w-fit cursor-pointer hover:text-[#e5e4e2] transition-colors" onClick={() => goToProfile(targetId)}>{comment.profiles?.full_name || 'אנונימי'}</span>
+                            <p className="text-white/80 text-[14px] text-right leading-relaxed">{comment.content}</p>
+                            {isMyComment && <button onClick={() => deleteComment(comment.id)} className="text-red-400 text-[11px] font-bold mt-2 flex items-center gap-1 w-fit"><Trash2 size={12}/> מחק</button>}
                           </div>
                         </div>
-                        <div className="flex flex-col flex-1 bg-white/[0.04] p-4 rounded-[24px] rounded-tr-sm border border-white/5 shadow-sm">
-                          <span className="text-white font-black text-[13px] mb-1.5 text-right w-fit cursor-pointer hover:text-[#e5e4e2] transition-colors" onClick={() => goToProfile(targetId)}>{comment.profiles?.full_name || 'אנונימי'}</span>
-                          <p className="text-white/80 text-[14px] text-right leading-relaxed">{comment.content}</p>
-                          {isMyComment && <button onClick={() => deleteComment(comment.id)} className="text-red-400 text-[11px] font-bold mt-2 flex items-center gap-1 w-fit"><Trash2 size={12}/> מחק</button>}
-                        </div>
-                      </div>
-                    );
-                  })
-                }
-              </div>
-              <div className="p-5 border-t border-white/10 bg-black/90 backdrop-blur-2xl mt-auto pb-8" onPointerDown={e => e.stopPropagation()}>
-                <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-full pr-2 pl-5 h-14 shadow-inner">
-                  <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="הוסף תגובה..." className="flex-1 bg-transparent border-none text-white text-[15px] text-right outline-none placeholder:text-white/30" />
-                  <button onClick={submitComment} disabled={!newComment.trim()} className="w-11 h-11 rounded-full bg-white text-black flex items-center justify-center shrink-0 active:scale-95 disabled:opacity-50 transition-opacity shadow-[0_0_15px_rgba(255,255,255,0.2)]"><Send size={18} className="rtl:-scale-x-100 -ml-0.5 text-[#2196f3]" /></button>
+                      );
+                    })
+                  }
                 </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+                <div className="p-5 border-t border-white/10 bg-black/90 backdrop-blur-2xl mt-auto pb-8" onPointerDown={e => e.stopPropagation()}>
+                  <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-full pr-2 pl-5 h-14 shadow-inner">
+                    <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="הוסף תגובה..." className="flex-1 bg-transparent border-none text-white text-[15px] text-right outline-none placeholder:text-white/30" />
+                    <button onClick={submitComment} disabled={!newComment.trim()} className="w-11 h-11 rounded-full bg-white text-black flex items-center justify-center shrink-0 active:scale-95 disabled:opacity-50 transition-opacity shadow-[0_0_15px_rgba(255,255,255,0.2)]"><Send size={18} className="rtl:-scale-x-100 -ml-0.5 text-[#2196f3]" /></button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>, document.body
+      ) : null}
     </>
   );
 };
