@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence, useDragControls } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { FadeIn, Button } from '../components/ui';
 import { 
@@ -11,18 +11,10 @@ import {
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 import { Share } from '@capacitor/share';
-import { App as CapApp } from '@capacitor/app';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  const commentsDragControls = useDragControls();
-  const optionsDragControls = useDragControls();
-  const descDragControls = useDragControls();
-  const createPostDragControls = useDragControls();
-  const circlesDragControls = useDragControls();
-  const commentActionDragControls = useDragControls();
   
   const [mounted, setMounted] = useState(false);
   const [posts, setPosts] = useState<any[]>([]);
@@ -78,6 +70,7 @@ export const HomePage: React.FC = () => {
     };
   }, [activeCommentsPostId, optionsMenuPost, activeDescPost, showCreatePost, fullScreenVideos, commentActionModal, userCirclesModal]);
 
+  // מנגנון ה-History API הטבעי לניהול כפתור החזור באנדרואיד
   useEffect(() => {
     const handlePopState = () => {
       const s = stateRef.current;
@@ -292,14 +285,13 @@ export const HomePage: React.FC = () => {
             <div className="w-10"></div>
             <div className="flex flex-col items-center absolute left-1/2 -translate-x-1/2">
               <h1 className="text-3xl font-black text-white tracking-tighter uppercase drop-shadow-md">INNER</h1>
-              {/* עיצוב המספרים השקוף הנקי והחדש */}
               <div className="flex items-center gap-1.5 mt-1">
                 <span className="w-1.5 h-1.5 bg-[#8bc34a] rounded-full animate-pulse shadow-[0_0_8px_#8bc34a]"></span>
                 <span className="text-[10px] font-black text-white/80 tracking-widest">{onlineUsers.toLocaleString()}</span>
               </div>
             </div>
-            {/* פעמון ההתראות בצבע לבן */}
-            <button onClick={() => navigate('/notifications')} className="w-10 h-10 flex justify-center items-center bg-white/[0.04] rounded-full active:scale-90 relative">
+            {/* כפתור הפעמון - עכשיו עם מסגרת עגולה מלאה */}
+            <button onClick={() => navigate('/notifications')} className="w-10 h-10 flex justify-center items-center bg-white/[0.04] border border-white/10 rounded-full active:scale-90 relative shadow-sm backdrop-blur-sm">
               <Bell size={18} className="text-white" />
               {unreadCount > 0 && <span className="absolute top-2 right-2.5 w-2 h-2 bg-[#e91e63] rounded-full border border-black animate-pulse"></span>}
             </button>
@@ -372,6 +364,7 @@ export const HomePage: React.FC = () => {
         </div>
       </FadeIn>
 
+      {/* PORTALS (Z-999999) */}
       {mounted && typeof document !== 'undefined' && createPortal(
         <AnimatePresence>
           {fullScreenVideos && (
@@ -380,21 +373,30 @@ export const HomePage: React.FC = () => {
                 {fullScreenVideos.map((vid, idx) => (
                   <div key={vid.id + idx} className="w-full h-screen snap-center relative bg-black flex items-center justify-center">
                     <video src={vid.media_url} loop playsInline className="w-full h-full object-cover reels-video" onClick={(e) => e.currentTarget.paused ? e.currentTarget.play() : e.currentTarget.pause()} />
-                    <div className="absolute bottom-36 left-4 flex flex-col gap-6 items-center z-50">
+                    
+                    {/* הכפתורים הועלו למעלה ל-bottom-48 במקום bottom-36 */}
+                    <div className="absolute bottom-48 left-4 flex flex-col gap-6 items-center z-50">
                       <button onClick={(e) => { e.stopPropagation(); handleLike(vid.id, vid.is_liked); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform"><Heart size={35} className={vid.is_liked ? 'text-[#e91e63]' : 'text-white'} fill={vid.is_liked ? 'currentColor' : 'none'} strokeWidth={1.5} /><span className="text-white text-[13px] font-black drop-shadow-md">{vid.likes_count}</span></button>
                       <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(vid); setActiveCommentsPostId(vid.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', vid.id).order('created_at',{ascending:true}).then(r => {setComments(r.data||[]); setLoadingComments(false);}); }); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform"><MessageSquare size={35} className="text-white" strokeWidth={1.5} /><span className="text-white text-[13px] font-black drop-shadow-md">{vid.comments_count}</span></button>
                       <button onClick={(e) => { e.stopPropagation(); handleShare(vid); }} className="active:scale-90 transition-transform"><Share2 size={35} className="text-white" strokeWidth={1.5} /></button>
                     </div>
+
                     <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end pointer-events-none">
+                      {/* תיקון למועדונים במסך מלא - לחיצה עובדת חלק */}
                       {vid.user_circles && vid.user_circles.length > 0 && (
                         <div className="flex items-center gap-2 mb-4 overflow-x-auto scrollbar-hide pr-2 pointer-events-auto">
                           {vid.user_circles.slice(0, 5).map((c: any) => (
-                            <div key={c.id} onClick={() => { closeOverlay(); navigate(`/circle/${c.slug||c.id}`); }} className="w-8 h-8 rounded-full bg-black shrink-0 overflow-hidden border border-white/20 shadow-md cursor-pointer">{c.cover_url ? <img src={c.cover_url} className="w-full h-full object-cover"/> : <Users size={14} className="m-1.5 text-white/50"/>}</div>
+                            <div key={c.id} onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/circle/${c.slug||c.id}`), 50); }} className="w-8 h-8 rounded-full bg-black shrink-0 overflow-hidden border border-white/20 shadow-md cursor-pointer pointer-events-auto">
+                              {c.cover_url ? <img src={c.cover_url} className="w-full h-full object-cover"/> : <Users size={14} className="m-1.5 text-white/50"/>}
+                            </div>
                           ))}
-                          {vid.user_circles.length > 5 && ( <div onClick={() => openOverlay(() => setUserCirclesModal(vid.user_circles))} className="w-8 h-8 rounded-full border border-white/20 bg-white/10 flex flex-col items-center justify-center shrink-0 cursor-pointer active:scale-95 shadow-md"><ChevronLeft size={12} className="text-white" /></div> )}
+                          {vid.user_circles.length > 5 && ( 
+                            <div onClick={(e) => { e.stopPropagation(); openOverlay(() => setUserCirclesModal(vid.user_circles)); }} className="w-8 h-8 rounded-full border border-white/20 bg-white/10 flex flex-col items-center justify-center shrink-0 cursor-pointer active:scale-95 shadow-md pointer-events-auto"><ChevronLeft size={12} className="text-white" /></div> 
+                          )}
                         </div>
                       )}
-                      <div className="flex items-center gap-3 mb-2 cursor-pointer w-fit pr-2 pointer-events-auto" onClick={() => { closeOverlay(); navigate(`/profile/${vid.user_id}`); }}>
+                      {/* פרופיל קליקבילי */}
+                      <div className="flex items-center gap-3 mb-2 cursor-pointer w-fit pr-2 pointer-events-auto" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${vid.user_id}`), 50); }}>
                         <div className="w-12 h-12 rounded-full overflow-hidden bg-black border-2 border-white/20 shrink-0 shadow-lg">{vid.profiles?.avatar_url ? <img src={vid.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={24} className="text-white/50 w-full h-full p-2" />}</div>
                         <span className="text-white font-black text-[17px] drop-shadow-md">{vid.profiles?.full_name || 'אנונימי'}</span>
                       </div>
