@@ -124,9 +124,9 @@ export const ChatPage: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-[99999] flex flex-col bg-[#0C0C0C]" dir="rtl">
+    <div className="fixed inset-0 z-[80] flex flex-col h-[100dvh] bg-[#0C0C0C]" dir="rtl">
       {/* פאנל עליון */}
-      <div className="flex items-center justify-between p-4 bg-[#111] border-b border-white/10 shrink-0 pt-10 shadow-md">
+      <div className="flex items-center justify-between p-4 bg-[#111] border-b border-white/10 shrink-0 pt-10 shadow-md z-20">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center bg-white/5 rounded-full active:scale-95"><ChevronLeft size={20} className="text-white" /></button>
           <div className="w-10 h-10 rounded-full bg-black overflow-hidden border border-white/20 flex items-center justify-center cursor-pointer" onClick={() => navigate(`/profile/${userId}`)}>
@@ -136,7 +136,7 @@ export const ChatPage: React.FC = () => {
         </div>
       </div>
 
-      {/* אזור ההודעות (היחיד שנגלל) */}
+      {/* אזור ההודעות */}
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-6" ref={scrollRef}>
         {loading ? <Loader2 className="animate-spin m-auto text-white/20" /> : messages.map((msg) => {
           const isMine = msg.sender_id === user?.id;
@@ -165,8 +165,8 @@ export const ChatPage: React.FC = () => {
         })}
       </div>
 
-      {/* אזור ההקלדה - נעוץ למטה */}
-      <div className="p-4 bg-[#111] border-t border-white/10 shrink-0 pb-8 z-20">
+      {/* אזור ההקלדה - עם ריווח תחתון גדול (pb-[100px]) כדי לשבת מעל התפריט של האפליקציה */}
+      <div className="p-4 bg-[#111] border-t border-white/10 shrink-0 pb-[100px] z-20">
         {editingMessageId && (
           <div className="text-[11px] text-[#2196f3] flex items-center justify-between px-3 py-1 bg-[#2196f3]/10 rounded-full w-fit mb-2">
             <span className="font-bold mr-1">עורך הודעה...</span>
@@ -179,7 +179,7 @@ export const ChatPage: React.FC = () => {
         </div>
       </div>
 
-      {/* הבוטום שיט של ההודעות מכסה את הכל (z-9999999) */}
+      {/* הבוטום שיט לעריכה/מחיקה */}
       <AnimatePresence>
         {messageActionModal && (
           <div className="fixed inset-0 z-[9999999] flex flex-col justify-end">
