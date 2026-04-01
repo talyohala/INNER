@@ -63,7 +63,6 @@ export const HomePage: React.FC = () => {
   const [showAllCircles, setShowAllCircles] = useState<Record<string, boolean>>({});
   const [userCirclesModal, setUserCirclesModal] = useState<any[] | null>(null);
   
-  // סטייט עבור כפתור גלילה למעלה
   const [showScrollTop, setShowScrollTop] = useState(false);
   const lastScrollY = useRef(0);
   
@@ -94,7 +93,6 @@ export const HomePage: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // מאזין גלילה עבור כפתור ה-Scroll to Top (מופיע רק בגלילה למעלה)
   useEffect(() => {
     const handleScroll = () => {
       const currentY = window.scrollY;
@@ -114,7 +112,7 @@ export const HomePage: React.FC = () => {
   const isAnyModalOpen = () => Object.values(stateRef.current).some(Boolean);
 
   const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo(0, 0); // קפיצה מיידית דוך למעלה
   };
 
   const checkUnreadNotifications = async () => {
@@ -226,7 +224,6 @@ export const HomePage: React.FC = () => {
 
   const handleShare = async (post: any) => {
     triggerFeedback('pop');
-    // לינק חכם שמכיל את מזהה הפוסט, ככה שאפשר לפתוח אותו ישירות בעתיד
     const publicUrl = `https://inner-app.com/post/${post.id}`; 
     const textToShare = `${post.content ? post.content + '\n\n' : ''}צפה בפוסט הזה ב-INNER!`;
     try {
@@ -321,7 +318,6 @@ export const HomePage: React.FC = () => {
     <>
       <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*" />
 
-      {/* כפתור חץ גלילה למעלה (Scroll to Top) */}
       <AnimatePresence>
         {showScrollTop && !isAnyModalOpen() && (
           <motion.button
@@ -371,8 +367,8 @@ export const HomePage: React.FC = () => {
               <div className="w-12 h-12 flex items-center justify-center text-white/40 rounded-full border border-white/10 cursor-pointer hover:bg-white/5 transition-colors" onClick={() => fileInputRef.current?.click()}>
                 <Paperclip size={20} />
               </div>
-              <button onClick={handlePost} disabled={posting || (!newPost.trim() && !selectedFile)} className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(255,255,255,0.2)] disabled:opacity-50 active:scale-95 transition-all">
-                {posting ? <Loader2 className="animate-spin w-5 h-5"/> : <Send size={24} className="rtl:-scale-x-100" />}
+              <button onClick={handlePost} disabled={posting || (!newPost.trim() && !selectedFile)} className="w-12 h-12 rounded-full bg-[#2196f3] text-white flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(33,150,243,0.4)] disabled:opacity-50 active:scale-95 transition-all">
+                {posting ? <Loader2 className="animate-spin w-5 h-5"/> : <Send size={20} className="rtl:-scale-x-100 -ml-1 text-white" />}
               </button>
             </div>
           </div>
@@ -418,17 +414,16 @@ export const HomePage: React.FC = () => {
                     </div>
                   </div>
                 )}
-                
-                {/* כפתורי הפיד - מוגדלים ל-22 פיקסל */}
                 <div className="flex items-center justify-between px-5 py-4 bg-[#0A0A0A]">
                   <div className="flex items-center gap-3 cursor-pointer group" onClick={() => navigate(`/profile/${post.user_id}`)}>
                     <div className="w-10 h-10 rounded-full bg-black border border-white/10 overflow-hidden shrink-0">{post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-2 text-white/20" />}</div>
                     <div className="flex flex-col text-right"><span className="text-white font-black text-[14px]">{post.profiles?.full_name || 'אנונימי'}</span><span className="text-white/30 text-[10px]">{new Date(post.created_at).toLocaleDateString('he-IL')}</span></div>
                   </div>
+                  {/* האייקונים קוצצו ל-20 פיקסלים עם מרווח אלגנטי (gap-5) */}
                   <div className="flex items-center gap-5 flex-row-reverse">
-                    {isMyPost && <button onClick={() => openOverlay(() => setOptionsMenuPost(post))} className="text-white/30 active:scale-90 border-r border-white/10 pr-4"><MoreVertical size={22} /></button>}
-                    <button onClick={() => openOverlay(() => { setActivePost(post); setActiveCommentsPostId(post.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', post.id).order('created_at',{ascending:true}).then(r => {setComments(r.data||[]); setLoadingComments(false);}); })} className="flex items-center gap-1.5 text-white/30 active:scale-90"><MessageSquare size={22} /><span className="text-[13px] font-black">{post.comments_count}</span></button>
-                    <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-1.5 active:scale-90 ${post.is_liked ? 'text-[#e91e63]' : 'text-white/30'}`}><Heart size={22} fill={post.is_liked ? "currentColor" : "none"} /><span className="text-[13px] font-black">{post.likes_count}</span></button>
+                    {isMyPost && <button onClick={() => openOverlay(() => setOptionsMenuPost(post))} className="text-white/30 active:scale-90 border-r border-white/10 pr-4"><MoreVertical size={20} /></button>}
+                    <button onClick={() => openOverlay(() => { setActivePost(post); setActiveCommentsPostId(post.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', post.id).order('created_at',{ascending:true}).then(r => {setComments(r.data||[]); setLoadingComments(false);}); })} className="flex items-center gap-1.5 text-white/30 active:scale-90"><MessageSquare size={20} /><span className="text-[13px] font-black">{post.comments_count}</span></button>
+                    <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-1.5 active:scale-90 ${post.is_liked ? 'text-[#e91e63]' : 'text-white/30'}`}><Heart size={20} fill={post.is_liked ? "currentColor" : "none"} /><span className="text-[13px] font-black">{post.likes_count}</span></button>
                   </div>
                 </div>
               </div>
@@ -437,6 +432,7 @@ export const HomePage: React.FC = () => {
         </div>
       </FadeIn>
 
+      {/* PORTALS (Z-999999) */}
       {mounted && typeof document !== 'undefined' && createPortal(
         <AnimatePresence>
           {fullScreenMedia && (
@@ -535,7 +531,8 @@ export const HomePage: React.FC = () => {
                   {editingCommentId && <div className="text-[10px] text-[#2196f3] flex justify-between px-2"><span>עורך תגובה...</span><span onClick={() => {setEditingCommentId(null); setNewComment('');}} className="cursor-pointer font-bold">ביטול</span></div>}
                   <div className="flex gap-2 items-center bg-white/5 rounded-full p-1 pl-2">
                     <input type="text" value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="הוסף תגובה..." className="flex-1 bg-transparent px-4 text-white text-sm outline-none placeholder:text-white/30" />
-                    <button onClick={submitComment} disabled={!newComment.trim()} className="w-9 h-9 bg-white rounded-full flex items-center justify-center text-black active:scale-95 disabled:opacity-50 transition-opacity"><Send size={16} className="rtl:-scale-x-100" /></button>
+                    {/* כפתור השליחה של התגובה - תכלת ולבן עם אייקון מרוכז */}
+                    <button onClick={submitComment} disabled={!newComment.trim()} className="w-9 h-9 bg-[#2196f3] rounded-full flex items-center justify-center text-white active:scale-95 disabled:opacity-50 transition-opacity shadow-[0_0_10px_rgba(33,150,243,0.3)]"><Send size={16} className="rtl:-scale-x-100 -ml-0.5" /></button>
                   </div>
                 </div>
               </motion.div>
