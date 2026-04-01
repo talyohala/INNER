@@ -29,7 +29,7 @@ export const ChatPage: React.FC = () => {
   useMotionValueEvent(scrollY, "change", (latest) => {
     const diff = latest - lastY.current;
     if (Math.abs(diff) > 5) {
-      if (diff > 0 && latest > 50) setShowHeader(false);
+      if (diff > 0 && latest > 30) setShowHeader(false);
       else setShowHeader(true);
     }
     lastY.current = latest;
@@ -123,25 +123,25 @@ export const ChatPage: React.FC = () => {
   return (
     <div className="fixed inset-0 z-[80] flex flex-col h-[100dvh] bg-[#0C0C0C]" dir="rtl">
       
-      {/* הדר קומפקטי - פינות מעוגלות רק למטה, ללא חץ חזור */}
+      {/* הדר סופר-קומפקטי וצמוד למעלה */}
       <motion.div 
         initial={{ y: 0 }}
-        animate={{ y: showHeader ? 0 : -120 }}
-        transition={{ duration: 0.25, ease: "easeInOut" }}
-        className="fixed top-0 left-0 right-0 z-50 flex flex-col items-center justify-center pt-10 pb-3 bg-[#111]/95 backdrop-blur-xl border-b border-white/5 rounded-b-[30px] shadow-xl"
+        animate={{ y: showHeader ? 0 : -100 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+        className="fixed top-0 left-0 right-0 z-50 flex flex-col items-center justify-center pt-4 pb-2 bg-[#111]/95 backdrop-blur-xl border-b border-white/5 rounded-b-[24px] shadow-xl"
         onClick={() => navigate(`/profile/${userId}`)}
       >
         <div className="relative">
-          <div className="w-11 h-11 rounded-full bg-black overflow-hidden border border-white/10 flex items-center justify-center">
-            {targetProfile?.avatar_url ? <img src={targetProfile.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={24} className="text-white/20" />}
+          <div className="w-9 h-9 rounded-full bg-black overflow-hidden border border-white/10 flex items-center justify-center">
+            {targetProfile?.avatar_url ? <img src={targetProfile.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={20} className="text-white/20" />}
           </div>
-          <div className="absolute bottom-0 right-0 w-3 h-3 bg-[#10b981] border-2 border-[#111] rounded-full"></div>
+          <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[#10b981] border-2 border-[#111] rounded-full"></div>
         </div>
-        <span className="text-white font-bold text-[14px] mt-1 tracking-tight">{targetProfile?.full_name || '...'}</span>
+        <span className="text-white font-bold text-[13px] mt-0.5 tracking-tight">{targetProfile?.full_name || '...'}</span>
       </motion.div>
 
-      {/* אזור ההודעות - פחות פאדינג בגלל שההדר קטן יותר */}
-      <div className="flex-1 overflow-y-auto px-4 pt-32 pb-4 flex flex-col gap-6 scrollbar-hide" ref={scrollRef}>
+      {/* אזור ההודעות */}
+      <div className="flex-1 overflow-y-auto px-4 pt-24 pb-4 flex flex-col gap-5 scrollbar-hide" ref={scrollRef}>
         {loading ? <Loader2 className="animate-spin m-auto text-white/20" /> : messages.map((msg) => {
           const isMine = msg.sender_id === user?.id;
           const profileInfo = isMine ? myProfile : targetProfile;
@@ -163,11 +163,23 @@ export const ChatPage: React.FC = () => {
         })}
       </div>
 
-      {/* שורת הקלדה */}
+      {/* שורת הקלדה עם כפתור שליחה מותנה */}
       <div className="p-4 bg-[#0C0C0C]/90 backdrop-blur-md border-t border-white/5 shrink-0 pb-[100px] z-20">
         <div className="flex gap-2 items-center bg-white/5 rounded-full p-1 pl-2 border border-white/10">
-          <input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="הודעה..." className="flex-1 bg-transparent px-4 text-white outline-none text-[15px]" />
-          <button onClick={sendMessage} disabled={!newMessage.trim()} className="w-9 h-9 bg-[#2196f3] rounded-full flex items-center justify-center text-white active:scale-90 transition-all shadow-md"><Send size={16} className="rtl:-scale-x-100" /></button>
+          <input 
+            type="text" 
+            value={newMessage} 
+            onChange={e => setNewMessage(e.target.value)} 
+            placeholder="הודעה..." 
+            className="flex-1 bg-transparent px-4 text-white outline-none text-[15px]" 
+          />
+          <button 
+            onClick={sendMessage} 
+            disabled={!newMessage.trim()} 
+            className={`w-9 h-9 rounded-full flex items-center justify-center text-white transition-all duration-300 shadow-md ${newMessage.trim() ? 'bg-[#2196f3] scale-100' : 'bg-white/10 opacity-30 scale-90'}`}
+          >
+            <Send size={16} className="rtl:-scale-x-100" />
+          </button>
         </div>
       </div>
 
