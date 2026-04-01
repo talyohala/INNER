@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useScroll, useMotionValueEvent } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -57,7 +58,7 @@ export const ChatPage: React.FC = () => {
 
     loadChat();
 
-    const channel = supabase.channel('chat_updates')
+    const channel = supabase.channel('chat_updates_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'direct_messages' }, (payload) => {
         if (payload.eventType === 'INSERT') {
           const msg = payload.new;
@@ -79,8 +80,6 @@ export const ChatPage: React.FC = () => {
       if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }, 100);
   };
-
-  useEffect(() => { scrollToBottom(); }, [loading]);
 
   const handlePressStart = (msg: any) => {
     pressTimer.current = setTimeout(() => {
@@ -122,15 +121,17 @@ export const ChatPage: React.FC = () => {
     await supabase.from('direct_messages').delete().eq('id', msgId);
   };
 
+  const stopPropagation = (e: React.MouseEvent | React.TouchEvent) => e.stopPropagation();
+
   return (
     <div className="fixed inset-0 z-[80] flex flex-col h-[100dvh] bg-[#0C0C0C]" dir="rtl">
       
-      {/* הדר סופר-קומפקטי */}
+      {/* הדר */}
       <motion.div 
         initial={{ y: 0 }}
         animate={{ y: showHeader ? 0 : -100 }}
-        transition={{ duration: 0.2, ease: "easeOut" }}
-        className="fixed top-0 left-0 right-0 z-50 flex flex-col items-center justify-center pt-4 pb-2 bg-[#111]/95 backdrop-blur-xl border-b border-white/5 rounded-b-[24px] shadow-xl"
+        transition={{ duration: 0.2 }}
+        className="fixed top-0 left-0 right-0 z-[90] flex flex-col items-center justify-center pt-4 pb-2 bg-[#111]/95 backdrop-blur-xl border-b border-white/5 rounded-b-[24px] shadow-xl"
         onClick={() => navigate(`/profile/${userId}`)}
       >
         <div className="relative">
@@ -142,7 +143,7 @@ export const ChatPage: React.FC = () => {
         <span className="text-white font-bold text-[13px] mt-0.5 tracking-tight">{targetProfile?.full_name || '...'}</span>
       </motion.div>
 
-      {/* אזור ההודעות */}
+      {/* הודעות */}
       <div className="flex-1 overflow-y-auto px-4 pt-24 pb-4 flex flex-col gap-5 scrollbar-hide" ref={scrollRef}>
         {loading ? <Loader2 className="animate-spin m-auto text-white/20" /> : messages.map((msg) => {
           const isMine = msg.sender_id === user?.id;
@@ -165,50 +166,49 @@ export const ChatPage: React.FC = () => {
         })}
       </div>
 
-      {/* שורת הקלדה */}
-      <div className="p-4 bg-[#0C0C0C]/90 backdrop-blur-md border-t border-white/5 shrink-0 pb-[100px] z-20">
+      {/* הקלדה */}
+      <div className="p-4 bg-[#0C0C0C]/90 backdrop-blur-md border-t border-white/5 shrink-0 pb-[100px] z-[90]">
+        {editingMessageId && (
+          <div className="text-[11px] text-[#2196f3] flex items-center justify-between px-3 py-1 bg-[#2196f3]/10 rounded-full w-fit mb-2">
+            <span className="font-bold mr-1">עורך...</span>
+            <X size={12} className="cursor-pointer" onClick={() => { setEditingMessageId(null); setNewMessage(''); }} />
+          </div>
+        )}
         <div className="flex gap-2 items-center bg-white/5 rounded-full p-1 pl-2 border border-white/10">
-          <input 
-            type="text" 
-            value={newMessage} 
-            onChange={e => setNewMessage(e.target.value)} 
-            placeholder="הודעה..." 
-            className="flex-1 bg-transparent px-4 text-white outline-none text-[15px]" 
-          />
-          <button 
-            onClick={sendMessage} 
-            disabled={!newMessage.trim()} 
-            className={`w-9 h-9 rounded-full flex items-center justify-center text-white transition-all duration-300 shadow-md ${newMessage.trim() ? 'bg-[#2196f3] scale-100' : 'bg-white/10 opacity-30 scale-90'}`}
-          >
-            <Send size={16} className="rtl:-scale-x-100" />
-          </button>
+          <input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="הודעה..." className="flex-1 bg-transparent px-4 text-white outline-none text-[15px]" />
+          <button onClick={sendMessage} disabled={!newMessage.trim()} className={`w-9 h-9 rounded-full flex items-center justify-center text-white transition-all ${newMessage.trim() ? 'bg-[#2196f3] opacity-100' : 'bg-white/10 opacity-30'}`}><Send size={16} className="rtl:-scale-x-100" /></button>
         </div>
       </div>
 
-      {/* בוטום שיט מעוצב בלבן - מסתיר את התפריט התחתון (Z-INDEX מקסימלי) */}
-      <AnimatePresence>
-        {messageActionModal && (
-          <div className="fixed inset-0 z-[9999999] flex flex-col justify-end">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMessageActionModal(null)} />
-            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 300 }} className="relative z-10 bg-white rounded-t-[36px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-10px_50px_rgba(0,0,0,0.2)]">
-              <div className="w-full flex justify-center mb-2"><div className="w-16 h-1.5 bg-black/10 rounded-full"/></div>
-              
-              {messageActionModal.sender_id === user?.id ? (
-                <>
-                  <button onClick={() => { setEditingMessageId(messageActionModal.id); setNewMessage(messageActionModal.content); setMessageActionModal(null); }} className="w-full p-4 bg-black/5 rounded-2xl text-black font-black flex justify-between items-center text-lg active:bg-black/10 transition-colors">
-                    ערוך הודעה <Edit2 size={20} className="text-black/40" />
-                  </button>
-                  <button onClick={() => { if(window.confirm('למחוק הודעה?')){ deleteMessage(messageActionModal.id); setMessageActionModal(null); } }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-600 font-black flex justify-between items-center text-lg active:bg-red-500/20 transition-colors">
-                    מחק הודעה <Trash2 size={20} />
-                  </button>
-                </>
-              ) : (
-                <div className="text-center p-6 text-black/40 font-bold italic">הודעה של {targetProfile?.full_name}</div>
-              )}
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* PORTAL - מודאל עריכה/מחיקה שבורח מהתפריט התחתון */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {messageActionModal && (
+            <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation}>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMessageActionModal(null)} />
+              <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 300 }} className="relative z-[10000000] bg-white rounded-t-[36px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-10px_50px_rgba(0,0,0,0.3)]">
+                <div className="w-full flex justify-center mb-2"><div className="w-16 h-1.5 bg-black/10 rounded-full"/></div>
+                
+                {messageActionModal.sender_id === user?.id ? (
+                  <>
+                    <button onClick={() => { setEditingMessageId(messageActionModal.id); setNewMessage(messageActionModal.content); setMessageActionModal(null); }} className="w-full p-4 bg-black/5 rounded-2xl text-black font-black flex justify-between items-center text-lg active:bg-black/10 transition-colors">
+                      ערוך הודעה <Edit2 size={20} className="text-black/40" />
+                    </button>
+                    <button onClick={() => { if(window.confirm('למחוק הודעה?')){ deleteMessage(messageActionModal.id); setMessageActionModal(null); } }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-600 font-black flex justify-between items-center text-lg active:bg-red-500/20 transition-colors">
+                      מחק הודעה <Trash2 size={20} />
+                    </button>
+                  </>
+                ) : (
+                  <div className="text-center p-6 text-black/40 font-bold italic border border-dashed border-black/10 rounded-2xl">
+                    הודעה מאת {targetProfile?.full_name}
+                  </div>
+                )}
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 };
