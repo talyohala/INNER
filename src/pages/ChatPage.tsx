@@ -66,6 +66,8 @@ export const ChatPage: React.FC = () => {
             scrollToBottom();
           }
         }
+        if (payload.eventType === 'DELETE') setMessages(prev => prev.filter(m => m.id !== payload.old.id));
+        if (payload.eventType === 'UPDATE') setMessages(prev => prev.map(m => m.id === payload.new.id ? payload.new : m));
       })
       .subscribe();
 
@@ -123,7 +125,7 @@ export const ChatPage: React.FC = () => {
   return (
     <div className="fixed inset-0 z-[80] flex flex-col h-[100dvh] bg-[#0C0C0C]" dir="rtl">
       
-      {/* הדר סופר-קומפקטי וצמוד למעלה */}
+      {/* הדר סופר-קומפקטי */}
       <motion.div 
         initial={{ y: 0 }}
         animate={{ y: showHeader ? 0 : -100 }}
@@ -163,7 +165,7 @@ export const ChatPage: React.FC = () => {
         })}
       </div>
 
-      {/* שורת הקלדה עם כפתור שליחה מותנה */}
+      {/* שורת הקלדה */}
       <div className="p-4 bg-[#0C0C0C]/90 backdrop-blur-md border-t border-white/5 shrink-0 pb-[100px] z-20">
         <div className="flex gap-2 items-center bg-white/5 rounded-full p-1 pl-2 border border-white/10">
           <input 
@@ -183,20 +185,25 @@ export const ChatPage: React.FC = () => {
         </div>
       </div>
 
-      {/* מחיקה/עריכה */}
+      {/* בוטום שיט מעוצב בלבן - מסתיר את התפריט התחתון (Z-INDEX מקסימלי) */}
       <AnimatePresence>
         {messageActionModal && (
           <div className="fixed inset-0 z-[9999999] flex flex-col justify-end">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setMessageActionModal(null)} />
-            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="relative z-10 bg-[#1a1a1a] rounded-t-[30px] p-6 flex flex-col gap-3 pb-12 shadow-2xl">
-              <div className="w-full flex justify-center mb-2"><div className="w-10 h-1 bg-white/10 rounded-full"/></div>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMessageActionModal(null)} />
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 300 }} className="relative z-10 bg-white rounded-t-[36px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-10px_50px_rgba(0,0,0,0.2)]">
+              <div className="w-full flex justify-center mb-2"><div className="w-16 h-1.5 bg-black/10 rounded-full"/></div>
+              
               {messageActionModal.sender_id === user?.id ? (
                 <>
-                  <button onClick={() => { setEditingMessageId(messageActionModal.id); setNewMessage(messageActionModal.content); setMessageActionModal(null); }} className="w-full p-4 bg-white/5 rounded-2xl text-white font-bold flex justify-between items-center">ערוך הודעה <Edit2 size={18} className="text-white/40" /></button>
-                  <button onClick={() => { if(window.confirm('למחוק?')){ deleteMessage(messageActionModal.id); setMessageActionModal(null); } }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 font-bold flex justify-between items-center mt-2">מחק הודעה <Trash2 size={18} /></button>
+                  <button onClick={() => { setEditingMessageId(messageActionModal.id); setNewMessage(messageActionModal.content); setMessageActionModal(null); }} className="w-full p-4 bg-black/5 rounded-2xl text-black font-black flex justify-between items-center text-lg active:bg-black/10 transition-colors">
+                    ערוך הודעה <Edit2 size={20} className="text-black/40" />
+                  </button>
+                  <button onClick={() => { if(window.confirm('למחוק הודעה?')){ deleteMessage(messageActionModal.id); setMessageActionModal(null); } }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-600 font-black flex justify-between items-center text-lg active:bg-red-500/20 transition-colors">
+                    מחק הודעה <Trash2 size={20} />
+                  </button>
                 </>
               ) : (
-                <div className="text-center p-4 text-white/30 font-bold">הודעה של {targetProfile?.full_name}</div>
+                <div className="text-center p-6 text-black/40 font-bold italic">הודעה של {targetProfile?.full_name}</div>
               )}
             </motion.div>
           </div>
