@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { Loader2, ChevronLeft, Send, UserCircle, Edit2, Trash2 } from 'lucide-react';
+import { Loader2, ChevronLeft, Send, UserCircle, Edit2, Trash2, X } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 
@@ -17,7 +17,6 @@ export const ChatPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [targetProfile, setTargetProfile] = useState<any>(null);
   
-  // States for Long Press & Modals
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [messageActionModal, setMessageActionModal] = useState<any | null>(null);
   const pressTimer = useRef<any>(null);
@@ -51,7 +50,6 @@ export const ChatPage: React.FC = () => {
           const msg = payload.new;
           if ((msg.sender_id === user.id && msg.receiver_id === userId) || (msg.sender_id === userId && msg.receiver_id === user.id)) {
             setMessages(prev => {
-              // מונע כפילויות של הודעות שנשלחו באותו רגע מהמכשיר שלי
               if(prev.find(m => m.id === msg.id)) return prev;
               return [...prev, msg];
             });
@@ -84,7 +82,7 @@ export const ChatPage: React.FC = () => {
     pressTimer.current = setTimeout(() => {
       triggerFeedback('pop');
       setMessageActionModal(msg);
-    }, 500); // חצי שנייה לחיצה ארוכה
+    }, 500);
   };
 
   const handlePressEnd = () => {
@@ -96,7 +94,6 @@ export const ChatPage: React.FC = () => {
     const content = newMessage.trim();
     setNewMessage('');
     
-    // מנגנון עריכה
     if (editingMessageId) {
       const msgId = editingMessageId;
       setEditingMessageId(null);
@@ -105,7 +102,7 @@ export const ChatPage: React.FC = () => {
       return;
     }
 
-    // מנגנון שליחה מהירה (Optimistic UI)
+    // שליחה מהירה (Optimistic)
     const tempId = `temp_${Date.now()}`;
     const optimisticMsg = { id: tempId, sender_id: user.id, receiver_id: userId, content, created_at: new Date().toISOString() };
     setMessages(prev => [...prev, optimisticMsg]);
@@ -156,7 +153,7 @@ export const ChatPage: React.FC = () => {
                   onMouseDown={() => handlePressStart(msg)}
                   onMouseUp={handlePressEnd}
                   onMouseLeave={handlePressEnd}
-                  className={`p-3 rounded-2xl cursor-pointer w-fit max-w-[85%] ${isMine ? 'bg-[#2196f3]/20 border border-[#2196f3]/30 rounded-tr-sm' : 'bg-white/5 border border-white/10 rounded-tr-sm'}`}
+                  className={`p-3 rounded-2xl cursor-pointer w-fit max-w-[85%] ${isMine ? 'bg-[#2196f3]/20 border border-[#2196f3]/30 rounded-tr-sm self-start' : 'bg-white/5 border border-white/10 rounded-tr-sm self-end'}`}
                 >
                   <span className="text-white font-bold text-[11px] mb-1 block">{profileInfo?.full_name || 'אנונימי'}</span>
                   <p className="text-white/90 text-[14px] whitespace-pre-wrap leading-relaxed">{msg.content}</p>
