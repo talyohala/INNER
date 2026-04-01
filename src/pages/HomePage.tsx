@@ -112,7 +112,7 @@ export const HomePage: React.FC = () => {
   const isAnyModalOpen = () => Object.values(stateRef.current).some(Boolean);
 
   const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'instant' });
+    window.scrollTo({ top: 0, behavior: 'instant' }); 
   };
 
   const checkUnreadNotifications = async () => {
@@ -263,8 +263,14 @@ export const HomePage: React.FC = () => {
     closeOverlay();
   };
 
-  const handleSavePost = () => {
-    toast.success('הפוסט נשמר במועדפים!', { icon: '⭐' });
+  const handleSavePost = async (post: any) => {
+    try {
+      await supabase.from('saved_posts').insert({ user_id: currentUserId, post_id: post.id });
+      toast.success('הפוסט נשמר במועדפים!', { icon: '⭐' });
+    } catch(e: any) {
+      if(e.code === '23505') toast.success('הפוסט כבר שמור אצלך', { icon: '⭐' });
+      else toast.error('שגיאה בשמירה');
+    }
     closeOverlay();
   };
 
@@ -359,7 +365,7 @@ export const HomePage: React.FC = () => {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.5, y: 20 }}
             onClick={scrollToTop}
-            className="fixed bottom-24 right-5 z-[80] w-12 h-12 bg-white/10 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center shadow-[0_5px_15px_rgba(0,0,0,0.5)] active:scale-90 transition-transform"
+            className="fixed bottom-24 right-5 z-[80] w-12 h-12 bg-white/10 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center shadow-[0_5px_15px_rgba(0,0,0,0.5)] active:scale-90"
           >
             <ArrowUp size={24} className="text-white drop-shadow-md" />
           </motion.button>
@@ -465,7 +471,6 @@ export const HomePage: React.FC = () => {
         </div>
       </FadeIn>
 
-      {/* PORTALS (Z-999999) */}
       {mounted && typeof document !== 'undefined' && createPortal(
         <AnimatePresence>
           {fullScreenMedia && (
@@ -525,7 +530,6 @@ export const HomePage: React.FC = () => {
                     return (
                       <div key={c.id} className="flex flex-col gap-2">
                         <div className="flex gap-3">
-                          {/* תיקון תמונת פליקסבוקס עגולה לגמרי עם click event ברור לניווט */}
                           <div className="w-10 h-10 min-w-[40px] rounded-full bg-black/5 shrink-0 overflow-hidden cursor-pointer border border-black/10 flex items-center justify-center" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${c.user_id}`), 50); }}>
                             {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover object-center" /> : <UserCircle className="w-full h-full p-2 text-black/20" />}
                           </div>
@@ -550,7 +554,6 @@ export const HomePage: React.FC = () => {
                         {isThreadExpanded && replies.map(reply => (
                           <div key={reply.id} className="flex gap-3 pr-10 mt-2 relative">
                             <div className="absolute right-[20px] top-[-10px] bottom-6 border-r-2 border-black/10 rounded-br-xl w-4"></div>
-                            {/* תיקון צורת תמונה לילד */}
                             <div className="w-8 h-8 min-w-[32px] rounded-full bg-black/5 shrink-0 overflow-hidden cursor-pointer z-10 border border-black/10 flex items-center justify-center" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${reply.user_id}`), 50); }}>
                               {reply.profiles?.avatar_url ? <img src={reply.profiles.avatar_url} className="w-full h-full object-cover object-center" /> : <UserCircle className="w-full h-full p-1.5 text-black/20" />}
                             </div>
@@ -615,6 +618,7 @@ export const HomePage: React.FC = () => {
              </div>
           )}
 
+          {/* OPTIONS MENU (3-DOTS) ADVANCED OVERLAY */}
           {optionsMenuPost && (
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
@@ -627,7 +631,7 @@ export const HomePage: React.FC = () => {
                   </button>
                 )}
                 
-                <button onClick={handleSavePost} className="w-full p-4 bg-black/5 rounded-2xl text-black font-bold flex justify-between items-center text-lg active:bg-black/10 transition-colors">
+                <button onClick={() => handleSavePost(optionsMenuPost)} className="w-full p-4 bg-black/5 rounded-2xl text-black font-bold flex justify-between items-center text-lg active:bg-black/10 transition-colors">
                   שמור במועדפים <Bookmark size={20} className="text-black/40" />
                 </button>
                 
@@ -660,6 +664,7 @@ export const HomePage: React.FC = () => {
                 <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-black/15 rounded-full"/></div>
                 <div className="flex justify-between items-center mb-2"><h3 className="text-black font-black text-lg">{editingPost ? 'עריכה' : 'חדש'}</h3><button onClick={closeOverlay} className="text-black/40"><X size={20} /></button></div>
                 <textarea value={newPost} onChange={e => setNewPost(e.target.value)} placeholder="כתוב משהו..." className="h-32 bg-black/5 rounded-2xl p-4 text-black outline-none resize-none border border-black/10 placeholder:text-black/40" onPointerDown={stopPropagation} onTouchStart={stopPropagation} />
+                {!editingPost && ( <div onClick={() => fileInputRef.current?.click()} className="p-4 bg-black/5 rounded-2xl border-2 border-dashed border-black/20 text-center text-black/50 cursor-pointer"><input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*" />{selectedFile ? selectedFile.name : 'צרף מדיה (תמונה/וידאו)'}</div> )}
                 <Button onClick={handlePost} disabled={posting || (!newPost.trim() && !selectedFile && !editingPost)} className="h-14 bg-[#2196f3] text-white font-black rounded-2xl mt-2 shadow-md">{posting ? <Loader2 className="animate-spin"/> : 'שמור עריכה'}</Button>
               </motion.div>
             </div>

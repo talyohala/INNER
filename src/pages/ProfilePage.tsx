@@ -217,7 +217,6 @@ export const ProfilePage: React.FC = () => {
       </div>
 
       <div className="fixed top-6 left-4 right-4 flex justify-between items-center z-50 pointer-events-none">
-        {/* הוסר החץ חזור למשתמשים אחרים! נשאר רק כפתור העריכה אם זה הפרופיל שלך */}
         <div className="w-10"></div>
         {isMyProfile && (
           <button onClick={() => { triggerFeedback('pop'); navigate('/edit-profile'); }} className="pointer-events-auto w-10 h-10 flex justify-center items-center bg-black/40 backdrop-blur-xl border border-white/10 rounded-full shadow-lg active:scale-90 transition-all hover:bg-black/60"><Edit2 size={16} className="text-white" /></button>
@@ -258,8 +257,6 @@ export const ProfilePage: React.FC = () => {
                 <Button onClick={handleFollowToggle} disabled={followLoading} className={`flex-1 h-12 rounded-[20px] font-black text-[14px] flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 ${isFollowing ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-black shadow-lg'}`}>
                   {followLoading ? <Loader2 size={18} className="animate-spin" /> : isFollowing ? <><span>נעקב</span> <UserCheck size={18} /></> : <><span>עקוב</span> <UserPlus size={18} /></>}
                 </Button>
-                
-                {/* כפתור ההודעה בצבע תכלת וטקסט לבן */}
                 <Button onClick={() => navigate(`/chat/${userProfile.id}`)} className="flex-1 h-12 bg-[#2196f3] text-white rounded-[20px] font-black text-[14px] flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg">
                   <span>הודעה</span> <MessageCircle size={18} className="text-white" />
                 </Button>
@@ -284,7 +281,6 @@ export const ProfilePage: React.FC = () => {
 
           <div className="w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent my-6"></div>
 
-          {/* טאבים מותאמים עם טקסט לבן */}
           <div className="w-full mb-10">
             <div className="flex border-b border-white/10 w-full mb-5 pb-1">
               <button onClick={() => setActiveTab('posts')} className={`flex-1 pb-3 text-[13px] font-black transition-colors border-b-2 flex items-center justify-center gap-1.5 ${activeTab === 'posts' ? 'text-white border-white' : 'text-white/40 border-transparent hover:text-white/70'}`}>

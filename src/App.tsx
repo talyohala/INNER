@@ -14,7 +14,7 @@ import { WalletPage } from './pages/WalletPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { BoostStorePage } from './pages/BoostStorePage';
 import { SettingsPage } from './pages/SettingsPage';
-import { ChatPage } from './pages/ChatPage'; // נוסף!
+import { ChatPage } from './pages/ChatPage';
 
 class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: any}> {
   constructor(props: any) { super(props); this.state = { hasError: false, error: null }; }
@@ -62,7 +62,7 @@ export const App = () => {
                 <Route path="/notifications" element={<PrivateRoute><NotificationsPage /></PrivateRoute>} />
                 <Route path="/store" element={<PrivateRoute><BoostStorePage /></PrivateRoute>} />
                 <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
-                <Route path="/chat/:userId" element={<PrivateRoute><ChatPage /></PrivateRoute>} /> {/* הנתיב החדש */}
+                <Route path="/chat/:userId" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
                 <Route path="*" element={<Navigate to="/" />} />
               </Routes>
             </Layout>
