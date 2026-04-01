@@ -1,11 +1,8 @@
 import React from 'react';
-// התיקון הקריטי ל-APK ולרענון הדף: שימוש ב-HashRouter במקום BrowserRouter
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Layout } from './components/Layout';
-
 import { AuthPage } from './pages/AuthPage';
 import { HomePage } from './pages/HomePage';
 import { ExplorePage } from './pages/ExplorePage';
@@ -17,6 +14,7 @@ import { WalletPage } from './pages/WalletPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { BoostStorePage } from './pages/BoostStorePage';
 import { SettingsPage } from './pages/SettingsPage';
+import { ChatPage } from './pages/ChatPage'; // נוסף!
 
 class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: any}> {
   constructor(props: any) { super(props); this.state = { hasError: false, error: null }; }
@@ -64,6 +62,7 @@ export const App = () => {
                 <Route path="/notifications" element={<PrivateRoute><NotificationsPage /></PrivateRoute>} />
                 <Route path="/store" element={<PrivateRoute><BoostStorePage /></PrivateRoute>} />
                 <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
+                <Route path="/chat/:userId" element={<PrivateRoute><ChatPage /></PrivateRoute>} /> {/* הנתיב החדש */}
                 <Route path="*" element={<Navigate to="/" />} />
               </Routes>
             </Layout>
