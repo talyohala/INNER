@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { Loader2, ChevronLeft, Send, UserCircle, Edit2, Trash2, X } from 'lucide-react';
+import { Loader2, Send, UserCircle, Edit2, Trash2, X } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 
@@ -125,15 +125,16 @@ export const ChatPage: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-[80] flex flex-col h-[100dvh] bg-[#0C0C0C]" dir="rtl">
-      {/* פאנל עליון */}
-      <div className="flex items-center justify-between p-4 bg-[#111] border-b border-white/10 shrink-0 pt-10 shadow-md z-20">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center bg-white/5 rounded-full active:scale-95"><ChevronLeft size={20} className="text-white" /></button>
-          <div className="w-10 h-10 rounded-full bg-black overflow-hidden border border-white/20 flex items-center justify-center cursor-pointer" onClick={() => navigate(`/profile/${userId}`)}>
+      {/* פאנל עליון מינימליסטי ומרכזי */}
+      <div className="flex flex-col items-center justify-center pt-8 pb-3 bg-black/60 backdrop-blur-2xl border-b border-white/5 shrink-0 z-20">
+        <div className="relative cursor-pointer" onClick={() => navigate(`/profile/${userId}`)}>
+          <div className="w-12 h-12 rounded-full bg-[#111] overflow-hidden border border-white/10 flex items-center justify-center shadow-lg">
             {targetProfile?.avatar_url ? <img src={targetProfile.avatar_url} className="w-full h-full object-cover object-center" /> : <UserCircle size={24} className="text-white/20" />}
           </div>
-          <span className="text-white font-bold cursor-pointer" onClick={() => navigate(`/profile/${userId}`)}>{targetProfile?.full_name || 'טוען...'}</span>
+          {/* נקודה ירוקה למראה מודרני */}
+          <div className="absolute bottom-0.5 right-0 w-3 h-3 bg-[#10b981] border-2 border-[#0C0C0C] rounded-full"></div>
         </div>
+        <span className="text-white font-bold text-[14px] mt-1.5 cursor-pointer tracking-tight" onClick={() => navigate(`/profile/${userId}`)}>{targetProfile?.full_name || 'טוען...'}</span>
       </div>
 
       {/* אזור ההודעות */}
@@ -165,7 +166,7 @@ export const ChatPage: React.FC = () => {
         })}
       </div>
 
-      {/* אזור ההקלדה - עם ריווח תחתון גדול (pb-[100px]) כדי לשבת מעל התפריט של האפליקציה */}
+      {/* אזור ההקלדה */}
       <div className="p-4 bg-[#111] border-t border-white/10 shrink-0 pb-[100px] z-20">
         {editingMessageId && (
           <div className="text-[11px] text-[#2196f3] flex items-center justify-between px-3 py-1 bg-[#2196f3]/10 rounded-full w-fit mb-2">
