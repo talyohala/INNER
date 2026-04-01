@@ -21,11 +21,9 @@ export const ChatPage: React.FC = () => {
 
     const loadChat = async () => {
       setLoading(true);
-      // נטען את פרטי המשתמש שאנחנו מדברים איתו
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single();
       if (profile) setTargetProfile(profile);
 
-      // נטען הודעות היסטוריות (צריך לוודא שיש לך טבלת direct_messages, או שזה זמני יקרוס וידרוש הוספה)
       try {
         const { data: msgs } = await supabase
           .from('direct_messages')
@@ -35,14 +33,13 @@ export const ChatPage: React.FC = () => {
         
         setMessages(msgs || []);
       } catch (err) {
-        console.error("No direct_messages table yet", err);
+        console.error("Error loading messages", err);
       }
       setLoading(false);
     };
 
     loadChat();
 
-    // מאזין בזמן אמת להודעות חדשות
     const channel = supabase.channel('direct_messages_updates')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, (payload) => {
         const msg = payload.new;
@@ -69,17 +66,19 @@ export const ChatPage: React.FC = () => {
   const sendMessage = async () => {
     if (!newMessage.trim() || !user || !userId) return;
     try {
-      const msg = { sender_id: user.id, receiver_id: userId, content: newComment.trim() };
+      const msg = { sender_id: user.id, receiver_id: userId, content: newMessage.trim() };
       setNewMessage('');
       await supabase.from('direct_messages').insert(msg);
       triggerFeedback('coin');
-    } catch (e) {}
+      scrollToBottom();
+    } catch (e) {
+      console.error('Error sending message:', e);
+    }
   };
 
   return (
     <div className="flex flex-col h-screen bg-[#0A0A0A]" dir="rtl">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 bg-[#111] border-b border-white/10 shrink-0">
+      <div className="flex items-center justify-between p-4 bg-[#111] border-b border-white/10 shrink-0 mt-8">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center bg-white/5 rounded-full active:scale-95"><ChevronLeft size={20} className="text-white" /></button>
           <div className="w-10 h-10 rounded-full bg-black overflow-hidden border border-white/20">
@@ -89,7 +88,6 @@ export const ChatPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4" ref={scrollRef}>
         {loading ? <Loader2 className="animate-spin m-auto text-white/20" /> : messages.map((msg, idx) => {
           const isMine = msg.sender_id === user?.id;
@@ -101,7 +99,6 @@ export const ChatPage: React.FC = () => {
         })}
       </div>
 
-      {/* Input */}
       <div className="p-4 bg-[#111] border-t border-white/10 shrink-0 pb-10">
         <div className="flex gap-2 items-center bg-black/40 rounded-full p-1 pl-2 border border-white/10">
           <input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="הקלד הודעה..." className="flex-1 bg-transparent px-4 text-white outline-none" />

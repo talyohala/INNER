@@ -43,7 +43,6 @@ export const ProfilePage: React.FC = () => {
   const [usersListData, setUsersListData] = useState<any[]>([]);
   const [loadingUsersList, setLoadingUsersList] = useState(false);
 
-  // נוספו טאבים חדשים!
   const [activeTab, setActiveTab] = useState<'posts' | 'joined' | 'owned' | 'saved'>('posts');
 
   const isMyProfile = !routeId || routeId === authProfile?.username || routeId === user?.id;
@@ -60,13 +59,11 @@ export const ProfilePage: React.FC = () => {
           const headers = authData.user ? { 'x-user-id': authData.user.id } : {};
           const result = await apiFetch<any>('/api/profile/collection', { headers });
           
-          // שולף גם את הפוסטים של המשתמש מהמסד
           const { data: myPosts } = await supabase.from('posts').select('*').eq('user_id', result.profile?.id).order('created_at', { ascending: false });
-          // שולף פוסטים שמורים (בהנחה שנוסיף טבלת saved_posts בעתיד, כרגע זה יהיה ריק כדי לא לקרוס)
           let mySavedPosts = [];
           try {
             const { data: saved } = await supabase.from('saved_posts').select('post_id, posts(*)').eq('user_id', result.profile?.id);
-            mySavedPosts = saved?.map(s => s.posts) || [];
+            mySavedPosts = saved?.map((s: any) => s.posts) || [];
           } catch(e) {}
 
           setData({ ...result, posts: myPosts || [], savedPosts: mySavedPosts });
@@ -179,7 +176,36 @@ export const ProfilePage: React.FC = () => {
 
   const userListsSheets = mounted && typeof document !== 'undefined' ? createPortal(
     <AnimatePresence>
-      {/* ... הבוטום שיטים של העוקבים שנשארו אותו הדבר... (נחתך למען קריאות, הכל שמור) */}
+      {showFollowersList && (
+        <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
+           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowFollowersList(false)} />
+           <motion.div drag="y" dragControls={followersDragControls} dragListener={false} dragConstraints={{ top: 0 }} dragElastic={0.2} onDragEnd={(e, { offset }) => { if (offset.y > 100) setShowFollowersList(false); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[90vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
+             <div onPointerDown={(e) => followersDragControls.start(e)} style={{ touchAction: "none" }} className="w-full flex flex-col items-center pt-5 pb-4 cursor-grab"><div className="w-16 h-1.5 bg-white/20 rounded-full mb-4"></div><h3 className="text-[16px] font-black text-white px-6 w-full text-right">עוקבים ({followersCount})</h3></div>
+             <div className="flex-1 overflow-y-auto p-4 flex flex-col scrollbar-hide">
+                {loadingUsersList ? <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-white/20" /></div> : usersListData.map((u) => (
+                  <div key={u.id} className="flex items-center justify-between p-4 border-b border-white/5 cursor-pointer" onClick={() => { setShowFollowersList(false); navigate(`/profile/${u.id}`); }}>
+                    <div className="flex items-center gap-4 text-right"><div className="w-12 h-12 rounded-full bg-black overflow-hidden border border-white/10">{u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={20} className="text-white/20 w-full h-full p-2" />}</div><div className="flex flex-col"><span className="text-white text-[15px] font-black">{u.full_name || 'משתמש'}</span><span className="text-white/40 text-[10px] font-bold">@{u.username || 'user'}</span></div></div>
+                  </div>
+                ))}
+             </div>
+           </motion.div>
+        </div>
+      )}
+      {showFollowingList && (
+        <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
+           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowFollowingList(false)} />
+           <motion.div drag="y" dragControls={followingDragControls} dragListener={false} dragConstraints={{ top: 0 }} dragElastic={0.2} onDragEnd={(e, { offset }) => { if (offset.y > 100) setShowFollowingList(false); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[36px] h-[90vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
+             <div onPointerDown={(e) => followingDragControls.start(e)} style={{ touchAction: "none" }} className="w-full flex flex-col items-center pt-5 pb-4 cursor-grab"><div className="w-16 h-1.5 bg-white/20 rounded-full mb-4"></div><h3 className="text-[16px] font-black text-white px-6 w-full text-right">נעקבים ({followingCount})</h3></div>
+             <div className="flex-1 overflow-y-auto p-4 flex flex-col scrollbar-hide">
+                {loadingUsersList ? <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-white/20" /></div> : usersListData.map((u) => (
+                  <div key={u.id} className="flex items-center justify-between p-4 border-b border-white/5 cursor-pointer" onClick={() => { setShowFollowingList(false); navigate(`/profile/${u.id}`); }}>
+                    <div className="flex items-center gap-4 text-right"><div className="w-12 h-12 rounded-full bg-black overflow-hidden border border-white/10">{u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={20} className="text-white/20 w-full h-full p-2" />}</div><div className="flex flex-col"><span className="text-white text-[15px] font-black">{u.full_name || 'משתמש'}</span><span className="text-white/40 text-[10px] font-bold">@{u.username || 'user'}</span></div></div>
+                  </div>
+                ))}
+             </div>
+           </motion.div>
+        </div>
+      )}
     </AnimatePresence>
   , document.body) : null;
 
@@ -191,10 +217,8 @@ export const ProfilePage: React.FC = () => {
       </div>
 
       <div className="fixed top-6 left-4 right-4 flex justify-between items-center z-50 pointer-events-none">
-        {!isMyProfile ? (
-          <button onClick={() => { triggerFeedback('pop'); navigate(-1); }} className="pointer-events-auto w-10 h-10 flex justify-center items-center bg-black/40 backdrop-blur-xl border border-white/10 rounded-full shadow-lg active:scale-90 transition-all hover:bg-black/60"><ChevronLeft size={20} className="text-white" /></button>
-        ) : <div className="w-10"></div>}
-        
+        {/* הוסר החץ חזור למשתמשים אחרים! נשאר רק כפתור העריכה אם זה הפרופיל שלך */}
+        <div className="w-10"></div>
         {isMyProfile && (
           <button onClick={() => { triggerFeedback('pop'); navigate('/edit-profile'); }} className="pointer-events-auto w-10 h-10 flex justify-center items-center bg-black/40 backdrop-blur-xl border border-white/10 rounded-full shadow-lg active:scale-90 transition-all hover:bg-black/60"><Edit2 size={16} className="text-white" /></button>
         )}
@@ -229,16 +253,15 @@ export const ProfilePage: React.FC = () => {
               <span><span>מוניטין</span> <span className="font-black text-white">{trueReputation}</span></span>
             </div>
 
-            {/* כאן הוספתי את הפאנל תקשורת המהיר למשתמשים אחרים! */}
             {!isMyProfile && (
               <div className="flex justify-center gap-3 mb-6 w-full px-4">
                 <Button onClick={handleFollowToggle} disabled={followLoading} className={`flex-1 h-12 rounded-[20px] font-black text-[14px] flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 ${isFollowing ? 'bg-white/10 text-white border border-white/10' : 'bg-white text-black shadow-lg'}`}>
                   {followLoading ? <Loader2 size={18} className="animate-spin" /> : isFollowing ? <><span>נעקב</span> <UserCheck size={18} /></> : <><span>עקוב</span> <UserPlus size={18} /></>}
                 </Button>
                 
-                {/* כפתור ההודעה שפותח את הצ'אט האישי */}
-                <Button onClick={() => navigate(`/chat/${userProfile.id}`)} className="flex-1 h-12 bg-[#2196f3]/10 border border-[#2196f3]/30 text-[#2196f3] rounded-[20px] font-black text-[14px] flex items-center justify-center gap-2 transition-all active:scale-95 shadow-inner">
-                  <span>הודעה</span> <MessageCircle size={18} />
+                {/* כפתור ההודעה בצבע תכלת וטקסט לבן */}
+                <Button onClick={() => navigate(`/chat/${userProfile.id}`)} className="flex-1 h-12 bg-[#2196f3] text-white rounded-[20px] font-black text-[14px] flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg">
+                  <span>הודעה</span> <MessageCircle size={18} className="text-white" />
                 </Button>
               </div>
             )}
@@ -261,10 +284,10 @@ export const ProfilePage: React.FC = () => {
 
           <div className="w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent my-6"></div>
 
-          {/* שורת הטאבים המלאה והחדשה (פוסטים | מועדונים | שמורים) */}
+          {/* טאבים מותאמים עם טקסט לבן */}
           <div className="w-full mb-10">
             <div className="flex border-b border-white/10 w-full mb-5 pb-1">
-              <button onClick={() => setActiveTab('posts')} className={`flex-1 pb-3 text-[13px] font-black transition-colors border-b-2 flex items-center justify-center gap-1.5 ${activeTab === 'posts' ? 'text-[#2196f3] border-[#2196f3]' : 'text-white/40 border-transparent hover:text-white/70'}`}>
+              <button onClick={() => setActiveTab('posts')} className={`flex-1 pb-3 text-[13px] font-black transition-colors border-b-2 flex items-center justify-center gap-1.5 ${activeTab === 'posts' ? 'text-white border-white' : 'text-white/40 border-transparent hover:text-white/70'}`}>
                 <LayoutGrid size={16} /> <span>פוסטים</span>
               </button>
               <button onClick={() => setActiveTab('joined')} className={`flex-1 pb-3 text-[13px] font-black transition-colors border-b-2 flex items-center justify-center gap-1.5 ${activeTab === 'joined' ? 'text-white border-white' : 'text-white/40 border-transparent hover:text-white/70'}`}>
@@ -320,6 +343,7 @@ export const ProfilePage: React.FC = () => {
           </div>
         </div>
       </FadeIn>
+      {userListsSheets}
     </div>
   );
 };
