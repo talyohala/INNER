@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 import { FadeIn, Button } from '../components/ui';
 import { 
   Loader2, Bell, Users, Heart, MessageSquare, 
-  Send, X, Paperclip, RefreshCw, UserCircle, Trash2, Edit2, Share2, MoreVertical, ChevronLeft, Reply, ChevronDown, ChevronUp, Download, Link, Bookmark
+  Send, X, Paperclip, RefreshCw, UserCircle, Trash2, Edit2, Share2, MoreVertical, ChevronLeft, Reply, ChevronDown, ChevronUp, ArrowUp, Download, Link, Bookmark
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -112,7 +112,7 @@ export const HomePage: React.FC = () => {
   const isAnyModalOpen = () => Object.values(stateRef.current).some(Boolean);
 
   const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'instant' }); // קפיצה מיידית לראש הדף
+    window.scrollTo({ top: 0, behavior: 'instant' }); // קפיצה מיידית דוך למעלה
   };
 
   const checkUnreadNotifications = async () => {
@@ -449,15 +449,14 @@ export const HomePage: React.FC = () => {
                     </div>
                   </div>
                 )}
-                
-                {/* אייקונים מוגדלים ל-20px עם מרווח קרוב יותר (gap-3) */}
                 <div className="flex items-center justify-between px-5 py-4 bg-[#0A0A0A]">
                   <div className="flex items-center gap-3 cursor-pointer group" onClick={() => navigate(`/profile/${post.user_id}`)}>
                     <div className="w-10 h-10 rounded-full bg-black border border-white/10 overflow-hidden shrink-0">{post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-2 text-white/20" />}</div>
                     <div className="flex flex-col text-right"><span className="text-white font-black text-[14px]">{post.profiles?.full_name || 'אנונימי'}</span><span className="text-white/30 text-[10px]">{new Date(post.created_at).toLocaleDateString('he-IL')}</span></div>
                   </div>
+                  {/* תיקון גודל ל-20 פיקסל, ומרווח קטן יותר (gap-3) לאסתטיקה מושלמת */}
                   <div className="flex items-center gap-3 flex-row-reverse">
-                    {isMyPost && <button onClick={() => openOverlay(() => setOptionsMenuPost(post))} className="text-white/30 active:scale-90 border-r border-white/10 pr-3"><MoreVertical size={20} /></button>}
+                    <button onClick={() => openOverlay(() => setOptionsMenuPost(post))} className="text-white/30 active:scale-90 border-r border-white/10 pr-3"><MoreVertical size={20} /></button>
                     <button onClick={() => openOverlay(() => { setActivePost(post); setActiveCommentsPostId(post.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', post.id).order('created_at',{ascending:true}).then(r => {setComments(r.data||[]); setLoadingComments(false);}); })} className="flex items-center gap-1.5 text-white/30 active:scale-90"><MessageSquare size={20} /><span className="text-[13px] font-black">{post.comments_count}</span></button>
                     <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-1.5 active:scale-90 ${post.is_liked ? 'text-[#e91e63]' : 'text-white/30'}`}><Heart size={20} fill={post.is_liked ? "currentColor" : "none"} /><span className="text-[13px] font-black">{post.likes_count}</span></button>
                   </div>
@@ -468,6 +467,7 @@ export const HomePage: React.FC = () => {
         </div>
       </FadeIn>
 
+      {/* PORTALS (Z-999999) */}
       {mounted && typeof document !== 'undefined' && createPortal(
         <AnimatePresence>
           {fullScreenMedia && (
@@ -487,9 +487,7 @@ export const HomePage: React.FC = () => {
                         <button onClick={(e) => { e.stopPropagation(); handleLike(vid.id, vid.is_liked); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform"><Heart size={35} className={vid.is_liked ? 'text-[#e91e63]' : 'text-white'} fill={vid.is_liked ? 'currentColor' : 'none'} strokeWidth={1.5} /><span className="text-white text-[13px] font-black drop-shadow-md">{vid.likes_count}</span></button>
                         <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(vid); setActiveCommentsPostId(vid.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', vid.id).order('created_at',{ascending:true}).then(r => {setComments(r.data||[]); setLoadingComments(false);}); }); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform"><MessageSquare size={35} className="text-white" strokeWidth={1.5} /><span className="text-white text-[13px] font-black drop-shadow-md">{vid.comments_count}</span></button>
                         <button onClick={(e) => { e.stopPropagation(); handleShare(vid); }} className="active:scale-90 transition-transform"><Share2 size={35} className="text-white" strokeWidth={1.5} /></button>
-                        {vid.user_id === currentUserId && (
-                          <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }} className="active:scale-90 transition-transform"><MoreVertical size={35} className="text-white" strokeWidth={1.5} /></button>
-                        )}
+                        <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }} className="active:scale-90 transition-transform"><MoreVertical size={35} className="text-white" strokeWidth={1.5} /></button>
                       </div>
 
                       <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end pointer-events-none">
@@ -570,49 +568,10 @@ export const HomePage: React.FC = () => {
                   {editingCommentId && <div className="text-[10px] text-[#2196f3] flex justify-between px-2"><span>עורך תגובה...</span><span onClick={() => {setEditingCommentId(null); setNewComment('');}} className="cursor-pointer font-bold">ביטול</span></div>}
                   <div className="flex gap-2 items-center bg-white/5 rounded-full p-1 pl-2">
                     <input type="text" value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="הוסף תגובה..." className="flex-1 bg-transparent px-4 text-white text-sm outline-none placeholder:text-white/30" />
-                    {/* כפתור שליחה תכלת לבן במרכז */}
+                    {/* כפתור תגובה עם מטוס נייר תכלת ורקע לבן */}
                     <button onClick={submitComment} disabled={!newComment.trim()} className="w-9 h-9 bg-white rounded-full flex items-center justify-center text-[#2196f3] active:scale-95 disabled:opacity-50 transition-opacity"><Send size={18} className="rtl:-scale-x-100 -ml-0.5" /></button>
                   </div>
                 </div>
-              </motion.div>
-            </div>
-          )}
-
-          {/* OPTIONS MENU (3-DOTS) ADVANCED OVERLAY */}
-          {optionsMenuPost && (
-            <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
-              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="relative z-10 bg-[#0A0A0A] rounded-t-[36px] p-6 flex flex-col gap-2 pb-12">
-                <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/20 rounded-full"/></div>
-                
-                {optionsMenuPost.media_url && (
-                  <button onClick={() => handleDownloadMedia(optionsMenuPost.media_url)} className="w-full p-4 bg-white/5 rounded-2xl text-white font-bold flex justify-between items-center text-lg active:bg-white/10 transition-colors">
-                    שמור למכשיר <Download size={20} className="text-white/50" />
-                  </button>
-                )}
-                
-                <button onClick={handleSavePost} className="w-full p-4 bg-white/5 rounded-2xl text-white font-bold flex justify-between items-center text-lg active:bg-white/10 transition-colors">
-                  שמור במועדפים <Bookmark size={20} className="text-white/50" />
-                </button>
-                
-                <button onClick={() => handleCopyLink(optionsMenuPost)} className="w-full p-4 bg-white/5 rounded-2xl text-white font-bold flex justify-between items-center text-lg active:bg-white/10 transition-colors">
-                  העתק קישור <Link size={20} className="text-white/50" />
-                </button>
-
-                <button onClick={() => { closeOverlay(); setTimeout(() => handleShare(optionsMenuPost), 100); }} className="w-full p-4 bg-white/5 rounded-2xl text-white font-bold flex justify-between items-center text-lg active:bg-white/10 transition-colors mt-2 border border-[#2196f3]/20">
-                  שתף פוסט <Share2 size={20} className="text-[#2196f3]" />
-                </button>
-                
-                {optionsMenuPost.user_id === currentUserId && (
-                  <>
-                    <button onClick={() => { closeOverlay(); setTimeout(() => openOverlay(() => { setEditingPost(optionsMenuPost); setNewPost(optionsMenuPost.content || ''); setShowCreatePost(true); }), 100); }} className="w-full p-4 bg-white/5 rounded-2xl text-white font-bold flex justify-between items-center text-lg active:bg-white/10 transition-colors mt-4">
-                      ערוך פוסט <Edit2 size={20} className="text-white/50" />
-                    </button>
-                    <button onClick={() => { if(window.confirm('למחוק פוסט?')){ deletePost(optionsMenuPost.id); } }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 font-bold flex justify-between items-center text-lg mt-2 active:bg-red-500/20 transition-colors">
-                      מחק פוסט <Trash2 size={20} />
-                    </button>
-                  </>
-                )}
               </motion.div>
             </div>
           )}
@@ -650,7 +609,45 @@ export const HomePage: React.FC = () => {
              </div>
           )}
 
-          {/* EDIT POST OVERLAY */}
+          {optionsMenuPost && (
+            <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
+              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="relative z-10 bg-[#0A0A0A] rounded-t-[36px] p-6 flex flex-col gap-2 pb-12">
+                <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/20 rounded-full"/></div>
+                
+                {/* תפריט מורחב ומקצועי לשלוש נקודות */}
+                {optionsMenuPost.media_url && (
+                  <button onClick={() => handleDownloadMedia(optionsMenuPost.media_url)} className="w-full p-4 bg-white/5 rounded-2xl text-white font-bold flex justify-between items-center text-lg active:bg-white/10 transition-colors">
+                    שמור למכשיר <Download size={20} className="text-white/50" />
+                  </button>
+                )}
+                
+                <button onClick={handleSavePost} className="w-full p-4 bg-white/5 rounded-2xl text-white font-bold flex justify-between items-center text-lg active:bg-white/10 transition-colors">
+                  שמור במועדפים <Bookmark size={20} className="text-white/50" />
+                </button>
+                
+                <button onClick={() => handleCopyLink(optionsMenuPost)} className="w-full p-4 bg-white/5 rounded-2xl text-white font-bold flex justify-between items-center text-lg active:bg-white/10 transition-colors">
+                  העתק קישור <Link size={20} className="text-white/50" />
+                </button>
+
+                <button onClick={() => { closeOverlay(); setTimeout(() => handleShare(optionsMenuPost), 100); }} className="w-full p-4 bg-white/5 rounded-2xl text-white font-bold flex justify-between items-center text-lg active:bg-white/10 transition-colors mt-2 border border-[#2196f3]/20">
+                  שתף פוסט <Share2 size={20} className="text-[#2196f3]" />
+                </button>
+
+                {optionsMenuPost.user_id === currentUserId && (
+                  <>
+                    <button onClick={() => { closeOverlay(); setTimeout(() => openOverlay(() => { setEditingPost(optionsMenuPost); setNewPost(optionsMenuPost.content || ''); setShowCreatePost(true); }), 100); }} className="w-full p-4 bg-white/5 rounded-2xl text-white font-bold flex justify-between items-center text-lg active:bg-white/10 transition-colors mt-4">
+                      ערוך פוסט <Edit2 size={20} className="text-white/50" />
+                    </button>
+                    <button onClick={() => { if(window.confirm('למחוק פוסט?')){ deletePost(optionsMenuPost.id); } }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 font-bold flex justify-between items-center text-lg mt-2 active:bg-red-500/20 transition-colors">
+                      מחק פוסט <Trash2 size={20} />
+                    </button>
+                  </>
+                )}
+              </motion.div>
+            </div>
+          )}
+
           {showCreatePost && (
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
@@ -658,8 +655,7 @@ export const HomePage: React.FC = () => {
                 <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/20 rounded-full"/></div>
                 <div className="flex justify-between items-center mb-2"><h3 className="text-white font-black text-lg">{editingPost ? 'עריכה' : 'חדש'}</h3><button onClick={closeOverlay} className="text-white/40"><X size={20} /></button></div>
                 <textarea value={newPost} onChange={e => setNewPost(e.target.value)} placeholder="כתוב משהו..." className="h-32 bg-white/5 rounded-2xl p-4 text-white outline-none resize-none border border-white/10" onPointerDown={stopPropagation} onTouchStart={stopPropagation} />
-                {!editingPost && ( <div onClick={() => fileInputRef.current?.click()} className="p-4 bg-white/5 rounded-2xl border-2 border-dashed border-white/10 text-center text-white/40 cursor-pointer"><input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*" />{selectedFile ? selectedFile.name : 'צרף מדיה (תמונה/וידאו)'}</div> )}
-                <Button onClick={handlePost} disabled={posting || (!newPost.trim() && !selectedFile && !editingPost)} className="h-14 bg-[#2196f3] text-white font-black rounded-2xl mt-2">{posting ? <Loader2 className="animate-spin"/> : 'פרסם'}</Button>
+                <Button onClick={handlePost} disabled={posting || (!newPost.trim() && !selectedFile && !editingPost)} className="h-14 bg-[#2196f3] text-white font-black rounded-2xl mt-2">{posting ? <Loader2 className="animate-spin"/> : 'שמור שינויים'}</Button>
               </motion.div>
             </div>
           )}
