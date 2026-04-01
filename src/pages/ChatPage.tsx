@@ -102,7 +102,6 @@ export const ChatPage: React.FC = () => {
       return;
     }
 
-    // שליחה מהירה (Optimistic)
     const tempId = `temp_${Date.now()}`;
     const optimisticMsg = { id: tempId, sender_id: user.id, receiver_id: userId, content, created_at: new Date().toISOString() };
     setMessages(prev => [...prev, optimisticMsg]);
@@ -125,8 +124,9 @@ export const ChatPage: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-[#0C0C0C]" dir="rtl">
-      <div className="flex items-center justify-between p-4 bg-[#111] border-b border-white/10 shrink-0 mt-8 z-20 shadow-md">
+    <div className="fixed inset-0 z-[99999] flex flex-col bg-[#0C0C0C]" dir="rtl">
+      {/* פאנל עליון */}
+      <div className="flex items-center justify-between p-4 bg-[#111] border-b border-white/10 shrink-0 pt-10 shadow-md">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center bg-white/5 rounded-full active:scale-95"><ChevronLeft size={20} className="text-white" /></button>
           <div className="w-10 h-10 rounded-full bg-black overflow-hidden border border-white/20 flex items-center justify-center cursor-pointer" onClick={() => navigate(`/profile/${userId}`)}>
@@ -136,6 +136,7 @@ export const ChatPage: React.FC = () => {
         </div>
       </div>
 
+      {/* אזור ההודעות (היחיד שנגלל) */}
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-6" ref={scrollRef}>
         {loading ? <Loader2 className="animate-spin m-auto text-white/20" /> : messages.map((msg) => {
           const isMine = msg.sender_id === user?.id;
@@ -164,7 +165,8 @@ export const ChatPage: React.FC = () => {
         })}
       </div>
 
-      <div className="p-4 bg-[#111] border-t border-white/10 shrink-0 pb-10 z-20">
+      {/* אזור ההקלדה - נעוץ למטה */}
+      <div className="p-4 bg-[#111] border-t border-white/10 shrink-0 pb-8 z-20">
         {editingMessageId && (
           <div className="text-[11px] text-[#2196f3] flex items-center justify-between px-3 py-1 bg-[#2196f3]/10 rounded-full w-fit mb-2">
             <span className="font-bold mr-1">עורך הודעה...</span>
@@ -177,9 +179,10 @@ export const ChatPage: React.FC = () => {
         </div>
       </div>
 
+      {/* הבוטום שיט של ההודעות מכסה את הכל (z-9999999) */}
       <AnimatePresence>
         {messageActionModal && (
-          <div className="fixed inset-0 z-[999999] flex flex-col justify-end">
+          <div className="fixed inset-0 z-[9999999] flex flex-col justify-end">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMessageActionModal(null)} />
             <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="relative z-10 bg-white rounded-t-[36px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-10px_50px_rgba(0,0,0,0.1)]">
               <div className="w-full py-4 flex justify-center"><div className="w-16 h-1.5 bg-black/15 rounded-full"/></div>
