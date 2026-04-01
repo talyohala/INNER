@@ -429,7 +429,12 @@ export const HomePage: React.FC = () => {
                     setFullScreenMedia([post, ...vids.filter(v => v.id !== post.id).sort(()=>Math.random()-0.5)]);
                     setCurrentMediaIndex(0);
                   })}>
-                    {isVideo ? <video src={post.media_url} autoPlay loop muted playsInline className="w-full max-h-[500px] object-cover" /> : <img src={post.media_url} className="w-full max-h-[500px] object-cover" />}
+                    {/* כאן ההגנה על תמונות שבורות */}
+                    {isVideo ? 
+                      <video src={post.media_url} autoPlay loop muted playsInline className="w-full max-h-[500px] object-cover" /> 
+                      : 
+                      <img src={post.media_url} className="w-full max-h-[500px] object-cover" onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Media+Unavailable'; }} />
+                    }
                     {post.content && (
                       <div className="absolute bottom-0 left-0 right-0 p-5 pt-16 bg-gradient-to-t from-[#0A0A0A] via-black/60 to-transparent flex items-end pointer-events-none">
                         <p onClick={(e) => { e.stopPropagation(); openOverlay(() => setActiveDescPost(post)); }} className="text-white/90 text-sm leading-relaxed text-right line-clamp-2 w-full pr-2 cursor-pointer active:opacity-50 pointer-events-auto">{post.content}</p>
@@ -471,6 +476,7 @@ export const HomePage: React.FC = () => {
         </div>
       </FadeIn>
 
+      {/* PORTALS (Z-999999) */}
       {mounted && typeof document !== 'undefined' && createPortal(
         <AnimatePresence>
           {fullScreenMedia && (
@@ -483,7 +489,7 @@ export const HomePage: React.FC = () => {
                       {isVid ? (
                         <video src={vid.media_url} loop playsInline className="w-full h-full object-cover full-media-item" onClick={(e) => e.currentTarget.paused ? e.currentTarget.play() : e.currentTarget.pause()} />
                       ) : (
-                        <img src={vid.media_url} className="w-full h-full object-contain full-media-item" />
+                        <img src={vid.media_url} className="w-full h-full object-contain full-media-item" onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Media+Unavailable'; }} />
                       )}
                       
                       <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }} className="absolute bottom-6 left-4 z-[60] active:scale-90 transition-transform drop-shadow-md">
