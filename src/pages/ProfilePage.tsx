@@ -3,10 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useDragControls, useScroll, useTransform } from 'framer-motion';
 import { 
-  UserCircle, Edit2, Zap, ChevronLeft, ChevronDown, ChevronUp, Loader2, Users, Crown, 
-  Activity, Heart, MessageSquare, ShoppingBag, Link as LinkIcon, UserPlus, 
-  UserCheck, Shield, Wallet, Flame, MapPin, Calendar, GraduationCap, 
-  MessageCircle, Bookmark, LayoutGrid, MoreVertical, Share2, Reply, Trash2, X, Send, Download, Link
+  UserCircle, Loader2, Heart, MessageSquare, MoreVertical, Share2, Reply, Trash2, X, Send, Download, Link as LinkIcon
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
@@ -32,7 +29,6 @@ export const ProfilePage: React.FC = () => {
 
   const [data, setData] = useState<any>({ profile: {}, memberships: [], ownedCircles: [], posts: [], savedPosts: [] });
   const [loadingData, setLoadingData] = useState(true);
-  const [isBioExpanded, setIsBioExpanded] = useState(false);
 
   const [isFollowing, setIsFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
@@ -65,33 +61,28 @@ export const ProfilePage: React.FC = () => {
   
   const [optionsMenuPost, setOptionsMenuPost] = useState<any>(null);
   const [activeDescPost, setActiveDescPost] = useState<any>(null);
-  const [userCirclesModal, setUserCirclesModal] = useState<any[] | null>(null);
 
   const commentsDragControls = useDragControls();
   const optionsDragControls = useDragControls();
-  const descDragControls = useDragControls();
-  const circlesDragControls = useDragControls();
-  const commentActionDragControls = useDragControls();
 
   const isMyProfile = !routeId || routeId === authProfile?.username || routeId === user?.id;
 
   const stateRef = useRef({ 
     comments: false, options: false, desc: false, 
-    fullscreen: false, commentAction: false, userCircles: false 
+    fullscreen: false, commentAction: false
   });
   
   useEffect(() => {
     stateRef.current = {
       comments: !!activeCommentsPostId, options: !!optionsMenuPost, desc: !!activeDescPost,
-      fullscreen: !!fullScreenMedia, commentAction: !!commentActionModal, userCircles: !!userCirclesModal
+      fullscreen: !!fullScreenMedia, commentAction: !!commentActionModal
     };
-  }, [activeCommentsPostId, optionsMenuPost, activeDescPost, fullScreenMedia, commentActionModal, userCirclesModal]);
+  }, [activeCommentsPostId, optionsMenuPost, activeDescPost, fullScreenMedia, commentActionModal]);
 
   useEffect(() => {
     const handlePopState = () => {
       const s = stateRef.current;
       if (s.commentAction) { setCommentActionModal(null); }
-      else if (s.userCircles) { setUserCirclesModal(null); }
       else if (s.comments) { setActiveCommentsPostId(null); setActivePost(null); setReplyingTo(null); }
       else if (s.options) { setOptionsMenuPost(null); }
       else if (s.desc) { setActiveDescPost(null); }
@@ -116,11 +107,9 @@ export const ProfilePage: React.FC = () => {
 
         if (isMyProfile) {
           const headers = authData.user ? { 'x-user-id': authData.user.id } : {};
-          // מגן בפני קריסה אם השרת לא עונה
           const result = await apiFetch<any>('/api/profile/collection', { headers }).catch(() => ({ profile: authProfile }));
           targetId = result.profile?.id || authProfile?.id;
 
-          // מושך הכל מ-Supabase בצורה אמינה שלא יכולה להיתקע
           const [{ data: memberships }, { data: ownedCircles }, { data: myPosts }] = await Promise.all([
             supabase.from('circle_members').select('circle:circles(*)').eq('user_id', targetId).neq('role', 'admin'),
             supabase.from('circles').select('*').eq('owner_id', targetId),
@@ -205,7 +194,7 @@ export const ProfilePage: React.FC = () => {
         await apiFetch(`/api/profile/${targetId}/follow`, { method: 'POST', headers: { 'x-user-id': myId } });
         setIsFollowing(false); setFollowersCount(prev => Math.max(0, prev - 1));
       } else {
-        // Handled by API above
+        await apiFetch(`/api/profile/${targetId}/follow`, { method: 'POST', headers: { 'x-user-id': myId } });
         setIsFollowing(true); setFollowersCount(prev => prev + 1); triggerFeedback('success');
       }
     } catch (err: any) { toast.error('שגיאה'); } finally { setFollowLoading(false); }
@@ -231,7 +220,6 @@ export const ProfilePage: React.FC = () => {
     } catch (err) {} finally { setLoadingUsersList(false); }
   };
 
-  // פונקציות מסך מלא ופוסטים
   useEffect(() => {
     if (!fullScreenMedia) return;
     const observer = new IntersectionObserver((entries) => {
@@ -343,6 +331,11 @@ export const ProfilePage: React.FC = () => {
     await supabase.from('posts').delete().eq('id', postId);
   };
 
+  const toggleCommentLike = (commentId: string) => {
+    setLikedComments(prev => { const next = new Set(prev); if (next.has(commentId)) next.delete(commentId); else next.add(commentId); return next; });
+    triggerFeedback('pop');
+  };
+
   const stopPropagation = (e: any) => e.stopPropagation();
 
   if (authLoading || loadingData) return <div className="min-h-screen bg-[#0C0C0C] flex items-center justify-center"><Loader2 className="animate-spin text-white/20" /></div>;
@@ -359,8 +352,6 @@ export const ProfilePage: React.FC = () => {
   const userSavedPosts = data.savedPosts || [];
   const displayLink = userProfile?.social_link ? userProfile.social_link.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '') : '';
 
-  const getSafeDate = (dateStr: string) => { try { return new Date(dateStr).toLocaleDateString('he-IL'); } catch (e) { return dateStr; } };
-
   return (
     <div className="bg-[#0C0C0C] min-h-screen relative font-sans" dir="rtl">
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden flex justify-center">
@@ -371,7 +362,9 @@ export const ProfilePage: React.FC = () => {
       <div className="fixed top-6 left-4 right-4 flex justify-between items-center z-50 pointer-events-none">
         <div className="w-10"></div>
         {isMyProfile && (
-          <button onClick={() => { triggerFeedback('pop'); navigate('/edit-profile'); }} className="pointer-events-auto w-10 h-10 flex justify-center items-center bg-black/40 backdrop-blur-xl border border-white/10 rounded-full shadow-lg active:scale-90 transition-all hover:bg-black/60"><Edit2 size={16} className="text-white" /></button>
+          <button onClick={() => { triggerFeedback('pop'); navigate('/edit-profile'); }} className="pointer-events-auto w-10 h-10 flex justify-center items-center bg-black/40 backdrop-blur-xl border border-white/10 rounded-full shadow-lg active:scale-90 transition-all hover:bg-black/60">
+            <span className="text-white text-xs font-black">עריכה</span>
+          </button>
         )}
       </div>
 
@@ -392,25 +385,24 @@ export const ProfilePage: React.FC = () => {
           </motion.div>
 
           <div className="text-center mt-3 w-full">
-            <h2 className="text-[20px] font-black text-white tracking-tight flex items-center justify-center gap-1.5">
-              <span>{userProfile?.full_name || 'משתמש'}</span>
-              {currentLevel >= 5 && <Crown size={14} className="text-[#ffc107] drop-shadow-[0_0_8px_rgba(255,193,7,0.5)]" />}
+            <h2 className="text-[20px] font-black text-white tracking-tight">
+              {userProfile?.full_name || 'משתמש'}
             </h2>
             <p className="text-white/30 font-bold text-[12px] tracking-widest mb-4" dir="ltr">@{userProfile?.username || 'user'}</p>
 
             <div className="flex items-center justify-center gap-2 text-[13px] text-white/50 font-medium mb-5 w-full max-w-[280px] mx-auto flex-wrap">
-              <span className="cursor-pointer hover:text-white transition-colors" onClick={() => openUsersListSheet('followers')}><span>עוקבים</span> <span className="font-black text-white">{followersCount}</span></span><span>•</span>
-              <span className="cursor-pointer hover:text-white transition-colors" onClick={() => openUsersListSheet('following')}><span>נעקבים</span> <span className="font-black text-white">{followingCount}</span></span><span>•</span>
-              <span><span>מוניטין</span> <span className="font-black text-white">{trueReputation}</span></span>
+              <span className="cursor-pointer hover:text-white transition-colors" onClick={() => openUsersListSheet('followers')}>עוקבים <span className="font-black text-white">{followersCount}</span></span><span>•</span>
+              <span className="cursor-pointer hover:text-white transition-colors" onClick={() => openUsersListSheet('following')}>נעקבים <span className="font-black text-white">{followingCount}</span></span><span>•</span>
+              <span>מוניטין <span className="font-black text-white">{trueReputation}</span></span>
             </div>
 
             {!isMyProfile && (
               <div className="flex justify-center gap-3 mb-6 w-full px-4">
-                <Button onClick={handleFollowToggle} disabled={followLoading} className={`flex-1 h-12 rounded-[20px] font-black text-[14px] flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 ${isFollowing ? 'bg-white/10 text-white border border-white/10' : 'bg-white/10 border border-white/20 text-white shadow-lg'}`}>
-                  {followLoading ? <Loader2 size={18} className="animate-spin" /> : isFollowing ? <><span>נעקב</span> <UserCheck size={18} /></> : <><span>עקוב</span> <UserPlus size={18} /></>}
+                <Button onClick={handleFollowToggle} disabled={followLoading} className={`flex-1 h-12 rounded-full font-black text-[14px] flex items-center justify-center transition-all active:scale-95 disabled:opacity-50 ${isFollowing ? 'bg-white/10 text-white border border-white/10' : 'bg-white/10 border border-white/20 text-white shadow-lg'}`}>
+                  {followLoading ? <Loader2 size={18} className="animate-spin" /> : isFollowing ? 'נעקב' : 'עקוב'}
                 </Button>
-                <Button onClick={() => navigate(`/chat/${userProfile.id}`)} className="flex-1 h-12 bg-white text-black rounded-[20px] font-black text-[14px] flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg">
-                  <span>הודעה</span> <MessageCircle size={18} className="text-black" />
+                <Button onClick={() => navigate(`/chat/${userProfile.id}`)} className="flex-1 h-12 bg-white text-black rounded-full font-black text-[14px] flex items-center justify-center transition-all active:scale-95 shadow-lg">
+                  הודעה
                 </Button>
               </div>
             )}
@@ -418,15 +410,15 @@ export const ProfilePage: React.FC = () => {
             {(userProfile?.zodiac || userProfile?.social_link) && (
               <div className="flex flex-col items-center gap-1.5 mb-5">
                 {userProfile?.social_link && <a href={userProfile.social_link.startsWith('http') ? userProfile.social_link : `https://${userProfile.social_link}`} target="_blank" rel="noopener noreferrer" className="text-[#e5e4e2] text-[12px] font-bold flex items-center gap-1.5 hover:text-white transition-colors"><span dir="ltr" className="tracking-wide">{displayLink}</span> <LinkIcon size={12} className="text-[#e5e4e2]/60" /></a>}
-                {userProfile?.zodiac && <span className="text-white/40 text-[12px] font-medium flex items-center gap-1.5"><span>{userProfile.zodiac}</span></span>}
+                {userProfile?.zodiac && <span className="text-white/40 text-[12px] font-medium">{userProfile.zodiac}</span>}
               </div>
             )}
           </div>
 
           <div className="w-full flex flex-col gap-3 px-2 mb-5">
             <div className="flex justify-between items-center w-full">
-              <span className="text-white/50 text-[12px] font-bold flex items-center gap-1.5"><span>רצף: <span className="text-white">{streak} ימים</span></span> <Flame size={14} className="text-[#ff5722]" /></span>
-              {isMyProfile && <span className="text-white/50 text-[12px] font-bold flex items-center gap-1"><span className="text-white">{currentXP}</span> / {xpToNextLevel} <Zap size={12} className="text-[#e5e4e2]" /></span>}
+              <span className="text-white/50 text-[12px] font-bold">רצף: <span className="text-white">{streak} ימים</span></span>
+              {isMyProfile && <span className="text-white/50 text-[12px] font-bold"><span className="text-white">{currentXP}</span> / {xpToNextLevel}</span>}
             </div>
             {isMyProfile && <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden relative shadow-inner"><motion.div initial={{ width: 0 }} animate={{ width: `${xpProgress}%` }} transition={{ duration: 1.5, ease: "easeOut" }} className="absolute top-0 right-0 h-full bg-gradient-to-l from-[#ff5722] via-[#d500f9] to-[#2196f3] rounded-full" /></div>}
           </div>
@@ -434,16 +426,17 @@ export const ProfilePage: React.FC = () => {
           <div className="w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent my-6"></div>
 
           <div className="w-full mb-10">
-            <div className="flex border-b border-white/10 w-full mb-5 pb-1">
-              <button onClick={() => setActiveTab('posts')} className={`flex-1 pb-3 text-[13px] font-black transition-colors border-b-2 flex items-center justify-center gap-1.5 ${activeTab === 'posts' ? 'text-white border-white' : 'text-white/40 border-transparent hover:text-white/70'}`}>
-                <LayoutGrid size={16} /> <span>פוסטים</span>
+            {/* טאבים בסגנון מתג קפסולה אחיד עגול הרמטית */}
+            <div className="flex w-full mb-5 bg-white/5 p-1 rounded-full border border-white/5 shadow-inner">
+              <button onClick={() => setActiveTab('posts')} className={`flex-1 py-3 text-[13px] font-black transition-all rounded-full flex items-center justify-center ${activeTab === 'posts' ? 'bg-[#1A1C20] text-white shadow-md' : 'text-white/40 hover:text-white/70'}`}>
+                פוסטים
               </button>
-              <button onClick={() => setActiveTab('joined')} className={`flex-1 pb-3 text-[13px] font-black transition-colors border-b-2 flex items-center justify-center gap-1.5 ${activeTab === 'joined' ? 'text-white border-white' : 'text-white/40 border-transparent hover:text-white/70'}`}>
-                <Users size={16} /> <span>מועדונים</span>
+              <button onClick={() => setActiveTab('joined')} className={`flex-1 py-3 text-[13px] font-black transition-all rounded-full flex items-center justify-center ${activeTab === 'joined' ? 'bg-[#1A1C20] text-white shadow-md' : 'text-white/40 hover:text-white/70'}`}>
+                מועדונים
               </button>
               {isMyProfile && (
-                <button onClick={() => setActiveTab('saved')} className={`flex-1 pb-3 text-[13px] font-black transition-colors border-b-2 flex items-center justify-center gap-1.5 ${activeTab === 'saved' ? 'text-white border-white' : 'text-white/40 border-transparent hover:text-white/70'}`}>
-                  <Bookmark size={16} /> <span>שמורים</span>
+                <button onClick={() => setActiveTab('saved')} className={`flex-1 py-3 text-[13px] font-black transition-all rounded-full flex items-center justify-center ${activeTab === 'saved' ? 'bg-[#1A1C20] text-white shadow-md' : 'text-white/40 hover:text-white/70'}`}>
+                  שמורים
                 </button>
               )}
             </div>
@@ -452,13 +445,13 @@ export const ProfilePage: React.FC = () => {
               {activeTab === 'posts' && (
                 <motion.div key="posts" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-1">
                   {userPosts.length === 0 ? (
-                    <div className="col-span-3 text-center py-10 text-white/30 text-xs">אין פוסטים עדיין</div>
+                    <div className="col-span-3 text-center py-10 text-white/30 text-xs font-bold">אין פוסטים עדיין</div>
                   ) : (
                     userPosts.map((post: any) => (
                       <div key={post.id} onClick={() => { 
                         const mediaPosts = userPosts.filter((p:any) => p.media_url);
                         openOverlay(() => setFullScreenMedia([post, ...mediaPosts.filter((v:any) => v.id !== post.id)]));
-                      }} className="aspect-square bg-white/5 relative overflow-hidden cursor-pointer active:opacity-70 border border-white/5">
+                      }} className="aspect-square bg-white/5 relative overflow-hidden cursor-pointer active:opacity-70 border border-white/5 rounded-[24px]">
                         {post.media_url ? (post.media_type === 'video' ? <video src={post.media_url} className="w-full h-full object-cover" /> : <img src={post.media_url} onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Image'; }} className="w-full h-full object-cover" />) : <div className="w-full h-full flex items-center justify-center p-2 text-center text-white/50 text-[9px] line-clamp-3">{post.content}</div>}
                       </div>
                     ))
@@ -469,8 +462,8 @@ export const ProfilePage: React.FC = () => {
               {activeTab === 'joined' && (
                 <motion.div key="joined" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-1">
                    {joinedCircles.map((circle: any) => (
-                     <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className="aspect-square bg-[#111] relative overflow-hidden cursor-pointer border border-white/5">
-                        {circle.cover_url ? <img src={circle.cover_url} onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Image'; }} className="w-full h-full object-cover opacity-80" /> : <Users size={20} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white/20" />}
+                     <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className="aspect-square bg-[#111] relative overflow-hidden cursor-pointer border border-white/5 rounded-[24px]">
+                        {circle.cover_url ? <img src={circle.cover_url} onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Image'; }} className="w-full h-full object-cover opacity-80" /> : <div className="w-full h-full flex items-center justify-center text-white/20 font-black text-xl">{circle.name?.charAt(0)}</div>}
                         <div className="absolute bottom-0 w-full p-1 bg-black/60 backdrop-blur-sm text-center"><span className="text-white text-[9px] font-bold line-clamp-1">{circle.name}</span></div>
                      </div>
                    ))}
@@ -480,13 +473,13 @@ export const ProfilePage: React.FC = () => {
               {activeTab === 'saved' && isMyProfile && (
                 <motion.div key="saved" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-1">
                   {userSavedPosts.length === 0 ? (
-                    <div className="col-span-3 text-center py-10 text-white/30 text-xs">אין פוסטים שמורים</div>
+                    <div className="col-span-3 text-center py-10 text-white/30 text-xs font-bold">אין פוסטים שמורים</div>
                   ) : (
                     userSavedPosts.map((post: any) => (
                       <div key={post.id} onClick={() => { 
                         const mediaPosts = userSavedPosts.filter((p:any) => p.media_url);
                         openOverlay(() => setFullScreenMedia([post, ...mediaPosts.filter((v:any) => v.id !== post.id)]));
-                      }} className="aspect-square bg-white/5 relative overflow-hidden cursor-pointer active:opacity-70 border border-white/5">
+                      }} className="aspect-square bg-white/5 relative overflow-hidden cursor-pointer active:opacity-70 border border-white/5 rounded-[24px]">
                         {post.media_url ? (post.media_type === 'video' ? <video src={post.media_url} className="w-full h-full object-cover" /> : <img src={post.media_url} onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Image'; }} className="w-full h-full object-cover" />) : <div className="w-full h-full flex items-center justify-center p-2 text-center text-white/50 text-[9px] line-clamp-3">{post.content}</div>}
                       </div>
                     ))
@@ -498,7 +491,6 @@ export const ProfilePage: React.FC = () => {
         </div>
       </FadeIn>
 
-      {/* PORTALS FOR FULLSCREEN MEDIA IN PROFILE */}
       {mounted && typeof document !== 'undefined' && createPortal(
         <AnimatePresence>
           {fullScreenMedia && (
@@ -541,32 +533,30 @@ export const ProfilePage: React.FC = () => {
         document.body
       )}
 
-      {/* WHITE BOTTOM SHEETS FOR PROFILE */}
       {mounted && typeof document !== 'undefined' && createPortal(
         <AnimatePresence>
           {activeCommentsPostId && (
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
-              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 400 }} className="relative z-10 bg-white rounded-t-[36px] h-[80vh] flex flex-col overflow-hidden pb-10 shadow-[0_-10px_50px_rgba(0,0,0,0.1)]">
-                <div className="w-full py-6 flex justify-center cursor-grab active:cursor-grabbing border-b border-black/5" onPointerDown={e => commentsDragControls.start(e)} style={{ touchAction: "none" }}><div className="w-16 h-1.5 bg-black/15 rounded-full"/></div>
+              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 400 }} className="relative z-10 bg-[#0F0F0F] rounded-t-[40px] h-[80vh] flex flex-col overflow-hidden pb-10 shadow-[0_-10px_50px_rgba(0,0,0,0.1)]">
+                <div className="w-full py-6 flex justify-center cursor-grab active:cursor-grabbing border-b border-white/5" onPointerDown={e => commentsDragControls.start(e)} style={{ touchAction: "none" }}><div className="w-16 h-1.5 bg-white/20 rounded-full"/></div>
                 <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6" onPointerDown={stopPropagation} onTouchStart={stopPropagation}>
-                  {loadingComments ? <Loader2 className="animate-spin mx-auto text-black/20 mt-4" /> : comments.filter(c => c && !c.parent_id).map(c => {
+                  {loadingComments ? <Loader2 className="animate-spin mx-auto text-white/20 mt-4" /> : comments.filter(c => c && !c.parent_id).map(c => {
                     const replies = comments.filter(r => r && r.parent_id === c.id);
-                    const isThreadExpanded = expandedThreads[c.id];
                     return (
                       <div key={c.id} className="flex flex-col gap-2">
                         <div className="flex gap-3">
-                          <div className="w-10 h-10 min-w-[40px] rounded-full bg-black/5 shrink-0 overflow-hidden cursor-pointer border border-black/10 flex items-center justify-center" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${c.user_id}`), 50); }}>
-                            {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover object-center" /> : <UserCircle className="w-full h-full p-2 text-black/20" />}
+                          <div className="w-10 h-10 min-w-[40px] rounded-full bg-[#111] shrink-0 overflow-hidden cursor-pointer border border-white/10 flex items-center justify-center" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${c.user_id}`), 50); }}>
+                            {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover object-center" /> : <UserCircle className="w-full h-full p-2 text-white/20" />}
                           </div>
                           <div className="flex flex-col flex-1">
-                            <div className="bg-black/5 p-3 rounded-2xl rounded-tr-sm cursor-pointer" onClick={() => openOverlay(() => setCommentActionModal(c))}>
-                              <span className="text-black font-bold text-xs mb-1 inline-block" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${c.user_id}`), 50); }}>{c.profiles?.full_name || 'אנונימי'}</span>
-                              <p className="text-black/80 text-sm whitespace-pre-wrap leading-relaxed">{c.content}</p>
+                            <div className="bg-[#111] p-3 rounded-[24px] rounded-tr-sm cursor-pointer" onClick={() => openOverlay(() => setCommentActionModal(c))}>
+                              <span className="text-white font-bold text-xs mb-1 inline-block" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${c.user_id}`), 50); }}>{c.profiles?.full_name || 'אנונימי'}</span>
+                              <p className="text-white/80 text-sm whitespace-pre-wrap leading-relaxed">{c.content}</p>
                             </div>
                             <div className="flex items-center gap-4 mt-2 px-2">
-                              <span className="text-[11px] text-black/40 cursor-pointer font-medium hover:text-black" onClick={() => { setReplyingTo(c); setNewComment(`@${c.profiles?.full_name} `); }}>השב</span>
-                              <button onClick={() => toggleCommentLike(c.id)} className={`ml-auto flex items-center gap-1 ${likedComments.has(c.id) ? 'text-[#e91e63]' : 'text-black/30'}`}><Heart size={12} fill={likedComments.has(c.id) ? "currentColor" : "none"} /></button>
+                              <span className="text-[11px] text-white/40 cursor-pointer font-medium hover:text-white" onClick={() => { setReplyingTo(c); setNewComment(`@${c.profiles?.full_name} `); }}>השב</span>
+                              <button onClick={() => toggleCommentLike(c.id)} className={`ml-auto flex items-center gap-1 ${likedComments.has(c.id) ? 'text-[#e91e63]' : 'text-white/30'}`}><Heart size={12} fill={likedComments.has(c.id) ? "currentColor" : "none"} /></button>
                             </div>
                           </div>
                         </div>
@@ -574,10 +564,10 @@ export const ProfilePage: React.FC = () => {
                     );
                   })}
                 </div>
-                <div className="p-4 border-t border-black/10 flex flex-col gap-2 bg-white" onPointerDown={stopPropagation}>
+                <div className="p-4 border-t border-white/10 flex flex-col gap-2 bg-[#0A0A0A]" onPointerDown={stopPropagation}>
                   {replyingTo && <div className="text-[11px] text-[#2196f3] flex items-center justify-between px-3 py-1 bg-[#2196f3]/10 rounded-full w-fit mb-1"><span className="font-bold mr-1">משיב ל-@{replyingTo.profiles?.full_name}</span><X size={12} className="cursor-pointer" onClick={() => {setReplyingTo(null); setNewComment('');}} /></div>}
-                  <div className="flex gap-2 items-center bg-black/5 rounded-full p-1 pl-2">
-                    <input type="text" value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="הוסף תגובה..." className="flex-1 bg-transparent px-4 text-black text-sm outline-none placeholder:text-black/40" />
+                  <div className="flex gap-2 items-center bg-[#111] rounded-full p-1 pl-2">
+                    <input type="text" value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="הוסף תגובה..." className="flex-1 bg-transparent px-4 text-white text-sm outline-none placeholder:text-white/40" />
                     <button onClick={submitComment} disabled={!newComment.trim()} className="w-9 h-9 bg-[#2196f3] rounded-full flex items-center justify-center text-white active:scale-95 disabled:opacity-50 transition-opacity"><Send size={16} className="rtl:-scale-x-100 -ml-0.5" /></button>
                   </div>
                 </div>
@@ -588,36 +578,36 @@ export const ProfilePage: React.FC = () => {
           {optionsMenuPost && (
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
-              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="relative z-10 bg-white rounded-t-[36px] p-6 flex flex-col gap-2 pb-12 shadow-[0_-10px_50px_rgba(0,0,0,0.1)]">
-                <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-black/15 rounded-full"/></div>
+              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="relative z-10 bg-[#0A0A0A] rounded-t-[40px] p-6 flex flex-col gap-2 pb-12 shadow-[0_-10px_50px_rgba(0,0,0,0.8)] border-t border-white/10">
+                <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/20 rounded-full"/></div>
                 
                 {optionsMenuPost.media_url && (
-                  <button onClick={() => handleDownloadMedia(optionsMenuPost.media_url)} className="w-full p-4 bg-black/5 rounded-2xl text-black font-bold flex justify-between items-center text-lg active:bg-black/10 transition-colors">
-                    שמור למכשיר <Download size={20} className="text-black/40" />
+                  <button onClick={() => handleDownloadMedia(optionsMenuPost.media_url)} className="w-full p-4 bg-white/5 rounded-full text-white font-bold flex justify-center items-center text-lg active:bg-white/10 transition-colors">
+                    שמור למכשיר
                   </button>
                 )}
                 
                 <button onClick={async () => {
                   try {
                     await supabase.from('saved_posts').insert({ user_id: user?.id, post_id: optionsMenuPost.id });
-                    toast.success('הפוסט נשמר במועדפים!', { icon: '⭐' });
+                    toast.success('הפוסט נשמר במועדפים!');
                   } catch(e:any) { toast.error('הפוסט כבר שמור אצלך'); }
                   closeOverlay();
-                }} className="w-full p-4 bg-black/5 rounded-2xl text-black font-bold flex justify-between items-center text-lg active:bg-black/10 transition-colors">
-                  שמור במועדפים <Bookmark size={20} className="text-black/40" />
+                }} className="w-full p-4 bg-white/5 rounded-full text-white font-bold flex justify-center items-center text-lg active:bg-white/10 transition-colors mt-2">
+                  שמור במועדפים
                 </button>
 
-                <button onClick={() => handleCopyLink(optionsMenuPost)} className="w-full p-4 bg-black/5 rounded-2xl text-black font-bold flex justify-between items-center text-lg active:bg-black/10 transition-colors">
-                  העתק קישור <Link size={20} className="text-black/40" />
+                <button onClick={() => handleCopyLink(optionsMenuPost)} className="w-full p-4 bg-white/5 rounded-full text-white font-bold flex justify-center items-center text-lg active:bg-white/10 transition-colors mt-2">
+                  העתק קישור
                 </button>
 
-                <button onClick={() => { closeOverlay(); setTimeout(() => handleShare(optionsMenuPost), 100); }} className="w-full p-4 bg-[#2196f3]/10 rounded-2xl text-[#2196f3] font-bold flex justify-between items-center text-lg active:bg-[#2196f3]/20 transition-colors mt-2">
-                  שתף פוסט <Share2 size={20} className="text-[#2196f3]" />
+                <button onClick={() => { closeOverlay(); setTimeout(() => handleShare(optionsMenuPost), 100); }} className="w-full p-4 bg-[#2196f3]/10 rounded-full text-[#2196f3] font-bold flex justify-center items-center text-lg active:bg-[#2196f3]/20 transition-colors mt-2">
+                  שתף פוסט
                 </button>
                 
-                {optionsMenuPost.user_id === currentUserId && (
-                  <button onClick={() => { if(window.confirm('למחוק פוסט?')){ deletePost(optionsMenuPost.id); } }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-600 font-bold flex justify-between items-center text-lg mt-4 active:bg-red-500/20 transition-colors">
-                    מחק פוסט <Trash2 size={20} />
+                {optionsMenuPost.user_id === user?.id && (
+                  <button onClick={() => { if(window.confirm('למחוק פוסט?')){ deletePost(optionsMenuPost.id); } }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-full text-red-500 font-bold flex justify-center items-center text-lg mt-4 active:bg-red-500/20 transition-colors">
+                    מחק פוסט
                   </button>
                 )}
               </motion.div>
@@ -627,12 +617,12 @@ export const ProfilePage: React.FC = () => {
           {showFollowersList && (
             <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowFollowersList(false)} />
-               <motion.div drag="y" dragControls={followersDragControls} dragListener={false} dragConstraints={{ top: 0 }} dragElastic={0.2} onDragEnd={(e, { offset }) => { if (offset.y > 100) setShowFollowersList(false); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="bg-white border-t border-black/10 rounded-t-[36px] h-[90vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.1)] relative overflow-hidden">
-                 <div onPointerDown={(e) => followersDragControls.start(e)} style={{ touchAction: "none" }} className="w-full flex flex-col items-center pt-5 pb-4 cursor-grab border-b border-black/5"><div className="w-16 h-1.5 bg-black/15 rounded-full mb-4"></div><h3 className="text-[16px] font-black text-black px-6 w-full text-right">עוקבים ({followersCount})</h3></div>
+               <motion.div drag="y" dragControls={followersDragControls} dragListener={false} dragConstraints={{ top: 0 }} dragElastic={0.2} onDragEnd={(e, { offset }) => { if (offset.y > 100) setShowFollowersList(false); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[40px] h-[90vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
+                 <div onPointerDown={(e) => followersDragControls.start(e)} style={{ touchAction: "none" }} className="w-full flex flex-col items-center pt-5 pb-4 cursor-grab border-b border-white/5"><div className="w-16 h-1.5 bg-white/20 rounded-full mb-4"></div><h3 className="text-[16px] font-black text-white px-6 w-full text-right">עוקבים ({followersCount})</h3></div>
                  <div className="flex-1 overflow-y-auto p-4 flex flex-col scrollbar-hide">
-                    {loadingUsersList ? <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-black/20" /></div> : usersListData.map((u) => (
-                      <div key={u.id} className="flex items-center justify-between p-4 border-b border-black/5 cursor-pointer hover:bg-black/5" onClick={() => { setShowFollowersList(false); navigate(`/profile/${u.id}`); }}>
-                        <div className="flex items-center gap-4 text-right"><div className="w-12 h-12 rounded-full bg-black/5 overflow-hidden border border-black/10">{u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={20} className="text-black/30 w-full h-full p-2" />}</div><div className="flex flex-col"><span className="text-black text-[15px] font-black">{u.full_name || 'משתמש'}</span><span className="text-black/50 text-[10px] font-bold">@{u.username || 'user'}</span></div></div>
+                    {loadingUsersList ? <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-white/20" /></div> : usersListData.map((u) => (
+                      <div key={u.id} className="flex items-center justify-between p-4 border-b border-white/5 cursor-pointer hover:bg-white/5" onClick={() => { setShowFollowersList(false); navigate(`/profile/${u.id}`); }}>
+                        <div className="flex items-center gap-4 text-right"><div className="w-12 h-12 rounded-full bg-[#111] overflow-hidden border border-white/10">{u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={20} className="text-white/30 w-full h-full p-2" />}</div><div className="flex flex-col"><span className="text-white text-[15px] font-black">{u.full_name || 'משתמש'}</span><span className="text-white/50 text-[10px] font-bold">@{u.username || 'user'}</span></div></div>
                       </div>
                     ))}
                  </div>
@@ -642,12 +632,12 @@ export const ProfilePage: React.FC = () => {
           {showFollowingList && (
             <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl">
                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowFollowingList(false)} />
-               <motion.div drag="y" dragControls={followingDragControls} dragListener={false} dragConstraints={{ top: 0 }} dragElastic={0.2} onDragEnd={(e, { offset }) => { if (offset.y > 100) setShowFollowingList(false); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="bg-white border-t border-black/10 rounded-t-[36px] h-[90vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.1)] relative overflow-hidden">
-                 <div onPointerDown={(e) => followingDragControls.start(e)} style={{ touchAction: "none" }} className="w-full flex flex-col items-center pt-5 pb-4 cursor-grab border-b border-black/5"><div className="w-16 h-1.5 bg-black/15 rounded-full mb-4"></div><h3 className="text-[16px] font-black text-black px-6 w-full text-right">נעקבים ({followingCount})</h3></div>
+               <motion.div drag="y" dragControls={followingDragControls} dragListener={false} dragConstraints={{ top: 0 }} dragElastic={0.2} onDragEnd={(e, { offset }) => { if (offset.y > 100) setShowFollowingList(false); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="bg-[#0A0A0A] border-t border-white/10 rounded-t-[40px] h-[90vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
+                 <div onPointerDown={(e) => followingDragControls.start(e)} style={{ touchAction: "none" }} className="w-full flex flex-col items-center pt-5 pb-4 cursor-grab border-b border-white/5"><div className="w-16 h-1.5 bg-white/20 rounded-full mb-4"></div><h3 className="text-[16px] font-black text-white px-6 w-full text-right">נעקבים ({followingCount})</h3></div>
                  <div className="flex-1 overflow-y-auto p-4 flex flex-col scrollbar-hide">
-                    {loadingUsersList ? <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-black/20" /></div> : usersListData.map((u) => (
-                      <div key={u.id} className="flex items-center justify-between p-4 border-b border-black/5 cursor-pointer hover:bg-black/5" onClick={() => { setShowFollowingList(false); navigate(`/profile/${u.id}`); }}>
-                        <div className="flex items-center gap-4 text-right"><div className="w-12 h-12 rounded-full bg-black/5 overflow-hidden border border-black/10">{u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={20} className="text-black/30 w-full h-full p-2" />}</div><div className="flex flex-col"><span className="text-black text-[15px] font-black">{u.full_name || 'משתמש'}</span><span className="text-black/50 text-[10px] font-bold">@{u.username || 'user'}</span></div></div>
+                    {loadingUsersList ? <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-white/20" /></div> : usersListData.map((u) => (
+                      <div key={u.id} className="flex items-center justify-between p-4 border-b border-white/5 cursor-pointer hover:bg-white/5" onClick={() => { setShowFollowingList(false); navigate(`/profile/${u.id}`); }}>
+                        <div className="flex items-center gap-4 text-right"><div className="w-12 h-12 rounded-full bg-[#111] overflow-hidden border border-white/10">{u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={20} className="text-white/30 w-full h-full p-2" />}</div><div className="flex flex-col"><span className="text-white text-[15px] font-black">{u.full_name || 'משתמש'}</span><span className="text-white/50 text-[10px] font-bold">@{u.username || 'user'}</span></div></div>
                       </div>
                     ))}
                  </div>

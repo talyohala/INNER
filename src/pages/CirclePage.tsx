@@ -4,18 +4,20 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion'; 
 import { supabase } from '../lib/supabase';              
 import { apiFetch } from '../lib/api';
-import { FadeIn, GlassCard, Button, Input } from '../components/ui';
+import { FadeIn, Button } from '../components/ui';
 import { 
   Users, Loader2, ArrowRight, MessageSquare, Heart, Activity, 
-  Send, Lock, X, UserCircle, Trash2, Edit2, Reply, MoreVertical, Paperclip, Share2, Download, Link, Bookmark
+  Send, Lock, X, UserCircle, Trash2, Edit2, Reply, MoreVertical, Paperclip, Share2, Download, Link, Bookmark, ShieldAlert, Image as ImageIcon
 } from 'lucide-react';         
 import { triggerFeedback } from '../lib/sound';          
 import toast from 'react-hot-toast';
 import { Share } from '@capacitor/share';
+import { useAuth } from '../context/AuthContext';
 
 export const CirclePage: React.FC = () => {                
   const { slug } = useParams();
   const navigate = useNavigate();
+  const { profile: myProfile } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const commentsDragControls = useDragControls();
@@ -130,37 +132,35 @@ export const CirclePage: React.FC = () => {
 
   const handleJoin = async () => {
     if (!currentUserId) return toast.error('יש להתחבר תחילה');
+    
+    const reqLevel = data.circle.min_level || 1;
+    const curLevel = myProfile?.level || 1;
+    if (curLevel < reqLevel) {
+        triggerFeedback('error');
+        return toast.error(`הסלקטור חסם אותך. דרושה רמה ${reqLevel}.`, { style: { background: '#111', color: '#a855f7', border: '1px solid rgba(168,85,247,0.3)' } });
+    }
+
     setJoining(true); triggerFeedback('pop');
     try {
       if (data.isMember) {
         await supabase.from('circle_members').delete().match({ circle_id: data.circle.id, user_id: currentUserId });
         setData((prev: any) => ({ ...prev, isMember: false, circle: { ...prev.circle, members_count: Math.max((prev.circle.members_count || 1) - 1, 0) } }));
       } else {
-        const { error } = await supabase.rpc('secure_join_circle', {
-          p_user_id: currentUserId,
-          p_circle_id: data.circle.id,
-          p_price: data.circle.is_private ? data.circle.join_price : 0,
-          p_owner_id: data.circle.owner_id,
-          p_circle_name: data.circle.name,
-          p_user_name: 'משתמש'
-        });
-        
-        if (error) throw error;
-        
-        setData((prev: any) => ({ ...prev, isMember: true, circle: { ...prev.circle, members_count: (prev.circle.members_count || 0) + 1 } }));                                    
-        triggerFeedback('success'); toast.success('ברוך הבא למועדון!');  
-        fetchCircleData(); 
+        const res = await apiFetch(`/api/circles/${data.circle.slug}/join`, { method: 'POST', headers: { 'x-user-id': currentUserId } });
+        if (res) {
+          setData((prev: any) => ({ ...prev, isMember: true, circle: { ...prev.circle, members_count: (prev.circle.members_count || 0) + 1 } }));                                    
+          triggerFeedback('success'); toast.success('ברוך הבא למועדון!');  
+          fetchCircleData(); 
+        }
       }                                                      
     } catch (err: any) { 
-      toast.error(err.message.includes('Not enough') ? 'אין מספיק יתרה' : 'שגיאה בהצטרפות'); 
+      toast.error(err.message || 'שגיאה בהצטרפות'); 
     } finally { setJoining(false); }
   };                                                                                                                
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) {
-      setSelectedFile(file);
-    }
+    if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) setSelectedFile(file);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -217,9 +217,7 @@ export const CirclePage: React.FC = () => {
       } else {
         const payload: any = { post_id: activePost.id, user_id: currentUserId, content: newComment.trim() };
         if (replyingTo) { payload.parent_id = replyingTo.id; }
-        
         const data = await apiFetch(`/api/posts/${activePost.id}/comments`, { method: 'POST', headers: { 'x-user-id': currentUserId }, body: JSON.stringify({ content: newComment.trim() }) });
-        
         if (data) {
           setComments(prev => [...prev, data]);
           const update = (list: any[]) => list.map(p => p.id === activePost.id ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p);
@@ -296,19 +294,23 @@ export const CirclePage: React.FC = () => {
 
   const { circle, isMember, posts } = data;                
   const activeNow = Math.floor((circle.members_count || 1) * 0.4) + 1;
+  const requiredLevel = circle.min_level || 1;
+  const currentLevel = myProfile?.level || 1;
+  const levelTooLow = requiredLevel > currentLevel;
                                                            
   return (
-    <FadeIn className="px-4 pt-8 pb-32 bg-[#0A0A0A] min-h-screen font-sans flex flex-col gap-6 relative overflow-x-hidden" dir="rtl">                                                              
+    <FadeIn className="pt-8 pb-32 bg-[#0A0A0A] min-h-screen font-sans flex flex-col gap-6 relative overflow-x-hidden" dir="rtl">                                                              
       
-      <div className="flex items-center justify-between relative z-10 px-1">
+      {/* Header סופר נקי מקצה לקצה */}
+      <div className="flex items-center justify-between relative z-10 px-5">
         <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center text-white/80 bg-white/5 border border-white/10 rounded-full z-10 shadow-inner active:scale-90 transition-transform"><ArrowRight size={18} /></button>
         <div className="flex flex-col items-center w-full absolute left-0 right-0 pointer-events-none">
-          <h1 className="text-[18px] font-black text-white tracking-tight drop-shadow-md truncate max-w-[200px]">{circle.name}</h1>
+          <h1 className="text-[16px] font-black text-white tracking-tight drop-shadow-md truncate max-w-[200px]">{circle.name}</h1>
           <span className="text-[10px] text-green-400 font-bold flex items-center gap-1.5 mt-0.5"><span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_#22c55e]"></span> LIVE</span>                                 
         </div>                                                 
       </div>                                             
       
-      <GlassCard className="p-0 flex flex-col items-center text-center relative overflow-hidden min-h-[260px] justify-center mt-2 border border-white/5 shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-[36px]">                                                                
+      <div className="flex flex-col items-center text-center relative overflow-hidden min-h-[280px] justify-center w-full border-b border-white/5">                                                                
         {circle.cover_url ? (                                     
           <div className="absolute inset-0 z-0">
             <img src={circle.cover_url} className="w-full h-full object-cover opacity-50" />
@@ -320,34 +322,21 @@ export const CirclePage: React.FC = () => {
         <div className="relative z-10 flex flex-col items-center p-6 w-full mt-auto pb-8">                                       
           <h2 className="text-3xl font-black text-white drop-shadow-lg mb-3">{circle.name}</h2>                             
           <p className="text-white/80 text-[13px] font-medium max-w-[280px] mb-6 leading-relaxed drop-shadow-md">{circle.description}</p>                                                
-          <div className="flex items-center gap-4 bg-black/60 backdrop-blur-xl rounded-[20px] py-3.5 px-8 w-fit text-white font-black text-[11px] justify-center uppercase tracking-widest border border-white/10 shadow-2xl">
-            <span className="flex flex-col items-center gap-1.5 text-white/70"><Users size={16} className="text-white" /> {circle.members_count || 0} חברים</span>                       
+          <div className="flex items-center gap-4 bg-black/60 backdrop-blur-xl rounded-full py-3.5 px-8 w-fit text-white font-black text-[11px] justify-center uppercase tracking-widest border border-white/10 shadow-2xl">
+            <span className="flex flex-col items-center gap-1.5 text-white/70">{circle.members_count || 0} חברים</span>                       
             <div className="w-px h-8 bg-white/20 mx-2"></div>             
-            <span className="flex flex-col items-center gap-1.5 text-green-400"><Activity size={16} /> {activeNow} אונליין</span>
+            <span className="flex flex-col items-center gap-1.5 text-green-400">{activeNow} אונליין</span>
           </div>                                                 
         </div>                                                 
-      </GlassCard>                                                                                                      
+      </div>                                                                                                      
       
-      <div className="relative">
-        {!isMember && (                                            
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center backdrop-blur-2xl bg-[#0A0A0A]/80 rounded-[36px] border border-white/5 p-6 h-[400px]">
-            <motion.div animate={{ y: [0, -10, 0] }} transition={{ repeat: Infinity, duration: 3 }} className="w-20 h-20 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-5 shadow-inner">
-              <Lock size={28} className="text-white/60" />
-            </motion.div>
-            <h2 className="text-white font-black text-2xl mb-2 tracking-tight">תוכן חסוי</h2>                                                 
-            <p className="text-white/50 text-[13px] text-center mb-8 max-w-[250px] leading-relaxed">רק חברי המועדון יכולים לראות את הפוסטים, להשתתף בשיח ולהיחשף לדרופים.</p>                                                            
-            <Button onClick={handleJoin} disabled={joining} className="w-full h-14 rounded-full text-sm uppercase tracking-widest bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.2)]">
-              {joining ? <Loader2 className="animate-spin" /> : circle.is_private && circle.join_price > 0 ? `הצטרף תמורת ${circle.join_price} CRD` : 'הצטרף עכשיו (חינם)'}
-            </Button>                                                      
-          </div>                                                 
-        )}                                                                                                                
-        
-        <div className={`flex flex-col gap-6 ${!isMember ? 'opacity-10 pointer-events-none h-[400px] overflow-hidden' : ''}`}>                                                       
-          
-          {isMember && (
-            <GlassCard className="p-5 rounded-[36px] border border-white/10 bg-white/[0.04] shadow-2xl relative z-10 flex flex-col gap-3">                  
+      <div className="relative flex flex-col gap-6 w-full">
+        {/* קופסת יצירת פוסט (רק לחברים) */}
+        {isMember && (
+          <div className="px-4 w-full">
+            <div className="p-4 rounded-[28px] border border-white/10 bg-white/[0.02] shadow-lg relative z-10 flex flex-col gap-3">                  
               <div className="flex gap-3 items-start">
-                <div className="w-10 h-10 rounded-[14px] bg-[#111] border border-white/10 shrink-0 overflow-hidden shadow-inner">
+                <div className="w-10 h-10 rounded-full bg-[#111] border border-white/10 shrink-0 overflow-hidden shadow-inner">
                   {supabase.auth.getUser() ? <UserCircle className="w-full h-full p-2 text-white/10" /> : null}
                 </div>
                 <textarea value={newPost} onChange={(e) => setNewPost(e.target.value)} placeholder="כתוב משהו למועדון..." className="w-full bg-transparent border-none text-white/90 text-[15px] font-medium outline-none resize-none placeholder:text-white/30 pt-2 min-h-[60px]" />                                            
@@ -367,33 +356,91 @@ export const CirclePage: React.FC = () => {
                   {posting ? <Loader2 size={14} className="animate-spin" /> : 'שדר'}
                 </Button>                 
               </div>
-            </GlassCard>
-          )}
+            </div>
+          </div>
+        )}
 
+        {/* פיד אדג'-טו-אדג' (כולל מצב נעול המטורף) */}
+        <div className="flex flex-col gap-8 w-full px-0">
           {posts?.map((post: any) => {
             const hasMedia = !!post.media_url;
             const isVideo = post.media_url?.match(/\.(mp4|webm|mov)$/i);
-            return (
-              <div key={post.id} className="flex flex-col rounded-[36px] bg-[#0A0A0A] border border-white/10 overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
-                
-                <div className="flex items-center justify-between p-5 border-b border-white/5 bg-white/[0.02]">
-                  <div className="flex items-center gap-4 cursor-pointer group" onClick={() => navigate(`/profile/${post.user_id}`)}>
-                    <div className="w-12 h-12 rounded-[20px] bg-[#111] border border-white/10 overflow-hidden shrink-0 shadow-inner group-hover:opacity-80 transition-opacity p-0.5">
-                      <div className="w-full h-full rounded-[16px] overflow-hidden bg-[#111]">
+
+            // === עיצוב פוסט נעול (Lock Screen מרהיב) למשתמשים שאינם חברים ===
+            if (!isMember) {
+              return (
+                <div key={post.id} className="flex flex-col bg-[#0A0A0A] border-y border-white/5 overflow-hidden shadow-lg w-full relative">
+                  {/* הדר הפוסט (מוצג רגיל) */}
+                  <div className="flex items-center justify-between p-4 px-5 z-10">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-[#111] border border-white/10 overflow-hidden shrink-0">
                         {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-2 text-white/20" />}
                       </div>
+                      <div className="flex flex-col text-right">
+                        <span className="text-white font-black text-[14px] drop-shadow-sm">{post.profiles?.full_name || 'אנונימי'}</span>
+                        <span className="text-white/40 text-[10px] font-bold mt-0.5">{new Date(post.created_at).toLocaleDateString('he-IL')}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* התוכן המרכזי - הנעול והמטושטש! Edge to Edge */}
+                  <div className="w-full relative aspect-[4/5] bg-black overflow-hidden flex items-center justify-center">
+                    {/* רקע התמונה מטושטש */}
+                    {hasMedia ? (
+                        <img src={post.media_url} className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-40 scale-110" />
+                    ) : (
+                        <div className="absolute inset-0 w-full h-full bg-gradient-to-b from-[#111] to-[#050505]"></div>
+                    )}
+                    
+                    {/* כרטיסיית הזכוכית שדורשת הצטרפות */}
+                    <div className="relative z-20 w-[280px] bg-white/10 backdrop-blur-2xl rounded-[32px] p-6 flex flex-col items-center border border-white/20 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+                      {/* תמונת פרופיל חותכת את הכרטיסייה + מנעול */}
+                      <div className="absolute -top-7 relative flex justify-center w-full">
+                         <div className="relative">
+                           <img src={post.profiles?.avatar_url || 'https://placehold.co/100x100/111/333'} className="w-14 h-14 rounded-full border-4 border-[#1a1a1a] object-cover" />
+                           <div className="absolute bottom-0 right-0 bg-white text-black rounded-full p-1 shadow-md">
+                             {levelTooLow ? <ShieldAlert size={10} className="text-[#a855f7]" /> : <Lock size={10}/>}
+                           </div>
+                         </div>
+                      </div>
+                      
+                      <h3 className="text-white font-black mt-4 text-lg">{levelTooLow ? 'נעול ע"י סלקטור' : 'Unlock to view'}</h3>
+                      <p className="text-white/60 text-xs font-bold mt-1 flex items-center gap-1.5 uppercase tracking-widest">
+                        {hasMedia ? <><ImageIcon size={12}/> Media Content</> : <><MessageSquare size={12}/> Text Post</>}
+                      </p>
+                      
+                      <button 
+                        onClick={handleJoin} 
+                        disabled={joining || levelTooLow} 
+                        className={`mt-6 w-full font-black rounded-full py-3.5 text-sm uppercase tracking-widest shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2 ${levelTooLow ? 'bg-white/10 text-white/40 cursor-not-allowed shadow-none' : 'bg-white text-black hover:bg-gray-200'}`}
+                      >
+                        {joining ? <Loader2 size={16} className="animate-spin" /> : levelTooLow ? `דרושה רמה ${requiredLevel}` : circle.is_private && circle.join_price > 0 ? `הצטרף - ${circle.join_price} CRD` : 'הצטרף עכשיו'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            // === עיצוב פוסט רגיל (לחברים) Edge to Edge ===
+            return (
+              <div key={post.id} className="flex flex-col bg-[#0A0A0A] border-y border-white/5 overflow-hidden w-full relative">
+                <div className="flex items-center justify-between p-4 px-5">
+                  <div className="flex items-center gap-3 cursor-pointer group" onClick={() => navigate(`/profile/${post.user_id}`)}>
+                    <div className="w-10 h-10 rounded-full bg-[#111] border border-white/10 overflow-hidden shrink-0 shadow-inner">
+                      {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-2 text-white/20" />}
                     </div>
                     <div className="flex flex-col text-right">
-                      <span className="text-white font-black text-[15px] drop-shadow-sm">{post.profiles?.full_name || 'אנונימי'}</span>
-                      <span className="text-white/40 text-[11px] font-bold mt-0.5">{new Date(post.created_at).toLocaleDateString('he-IL')}</span>
+                      <span className="text-white font-black text-[14px] drop-shadow-sm">{post.profiles?.full_name || 'אנונימי'}</span>
+                      <span className="text-white/40 text-[10px] font-bold mt-0.5">{new Date(post.created_at).toLocaleDateString('he-IL')}</span>
                     </div>
                   </div>
                   <button onClick={() => openOverlay(() => setOptionsMenuPost(post))} className="text-white/30 hover:text-white transition-colors p-2"><MoreVertical size={20}/></button>
                 </div>
 
                 {hasMedia && (
-                  <div className="w-full bg-[#050505] relative cursor-pointer group" onClick={() => openOverlay(() => setFullScreenMedia([post]))}>
-                    {isVideo ? <video src={post.media_url} autoPlay loop muted playsInline className="w-full max-h-[500px] object-cover group-hover:scale-[1.01] transition-transform duration-500" /> : <img src={post.media_url} className="w-full max-h-[500px] object-cover group-hover:scale-[1.01] transition-transform duration-500" />}
+                  <div className="w-full bg-[#050505] relative cursor-pointer" onClick={() => openOverlay(() => { const vids = posts.filter((p) => p.media_url); setFullScreenMedia([post, ...vids.filter((v) => v.id !== post.id).sort(() => Math.random() - 0.5)]); setCurrentMediaIndex(0); })}>
+                    {isVideo ? <video src={post.media_url} autoPlay loop muted playsInline className="w-full aspect-[4/5] object-cover" /> : <img src={post.media_url} onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Media+Unavailable'; }} className="w-full aspect-[4/5] object-cover" />}
                     {post.content && (
                       <div className="absolute bottom-0 left-0 right-0 p-5 pt-16 bg-gradient-to-t from-[#0A0A0A] via-black/60 to-transparent flex items-end">
                         <p onClick={(e) => { e.stopPropagation(); openOverlay(() => setActiveDescPost(post)); }} className="text-white/90 text-[15px] leading-relaxed text-right line-clamp-2 w-full pr-1">{post.content}</p>
@@ -403,12 +450,12 @@ export const CirclePage: React.FC = () => {
                 )}
 
                 {!hasMedia && post.content && (
-                  <div className="p-6 pb-4">
+                  <div className="p-4 px-5">
                     <p onClick={() => openOverlay(() => setActiveDescPost(post))} className="text-white/90 text-[15px] leading-relaxed text-right line-clamp-4 cursor-pointer active:opacity-50">{post.content}</p>
                   </div>
                 )}
 
-                <div className="flex items-center gap-6 px-6 py-4 border-t border-white/5 bg-white/[0.01]">
+                <div className="flex items-center gap-6 px-5 py-4">
                   <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-2 transition-all active:scale-90 ${post.is_liked ? 'text-red-500' : 'text-white/30 hover:text-red-400'}`}>
                     <Heart size={22} fill={post.is_liked ? "currentColor" : "none"} strokeWidth={post.is_liked ? 0 : 2} /> <span className="text-[14px] font-black">{post.likes_count}</span>
                   </button>
@@ -425,6 +472,7 @@ export const CirclePage: React.FC = () => {
         </div>
       </div>                                                                                                            
       
+      {/* PORTALS (Comments, Options, etc) remain exactly the same functionally, just visual updates */}
       {mounted && typeof document !== 'undefined' && createPortal(
         <AnimatePresence>
           {fullScreenMedia && (
@@ -476,7 +524,7 @@ export const CirclePage: React.FC = () => {
                 <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 scrollbar-hide">
                     {loadingComments ? <Loader2 className="animate-spin mx-auto text-white/20 mt-10" /> : comments.filter(c => c && !c.parent_id).map((c, i) => (
                         <div key={i} className="flex gap-3">
-                            <div className="w-12 h-12 rounded-[16px] bg-[#111] overflow-hidden shrink-0 border border-white/10">
+                            <div className="w-12 h-12 rounded-full bg-[#111] overflow-hidden shrink-0 border border-white/10">
                                 {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={24} className="m-auto mt-3 text-white/20" />}
                             </div>
                             <div className="bg-[#111] p-4 rounded-[24px] rounded-tr-sm border border-white/5 flex-1 shadow-inner cursor-pointer" onClick={() => openOverlay(() => setCommentActionModal(c))}>
@@ -487,8 +535,8 @@ export const CirclePage: React.FC = () => {
                     ))}
                 </div>
                 <div className="p-4 bg-[#0A0A0A] border-t border-white/5 flex gap-2 pb-8">
-                    <input type="text" value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="הוסף תגובה..." className="flex-1 bg-[#111] border border-white/10 text-white rounded-[20px] px-5 outline-none text-[15px]" />
-                    <Button onClick={submitComment} disabled={!newComment.trim()} className="w-14 h-14 p-0 rounded-[20px] shrink-0 bg-[#2196f3] text-white hover:bg-[#2196f3]/80 shadow-md">
+                    <input type="text" value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="הוסף תגובה..." className="flex-1 bg-[#111] border border-white/10 text-white rounded-full px-5 outline-none text-[15px]" />
+                    <Button onClick={submitComment} disabled={!newComment.trim()} className="w-14 h-14 p-0 rounded-full shrink-0 bg-[#2196f3] text-white hover:bg-[#2196f3]/80 shadow-md">
                         <Send size={20} className="rtl:-scale-x-100 -ml-1" />
                     </Button>
                 </div>
@@ -503,36 +551,36 @@ export const CirclePage: React.FC = () => {
                 <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/20 rounded-full"/></div>
                 
                 {optionsMenuPost.media_url && (
-                  <button onClick={() => handleDownloadMedia(optionsMenuPost.media_url)} className="w-full p-4 bg-white/5 rounded-2xl text-white/90 font-bold flex justify-between items-center text-lg active:bg-white/10 transition-colors">
-                    שמור למכשיר <Download size={20} className="text-white/40" />
+                  <button onClick={() => handleDownloadMedia(optionsMenuPost.media_url)} className="w-full p-4 bg-white/5 rounded-full text-white/90 font-bold flex justify-center items-center text-lg active:bg-white/10 transition-colors">
+                    שמור למכשיר
                   </button>
                 )}
                 
                 <button onClick={async () => {
                   try {
                     await supabase.from('saved_posts').insert({ user_id: currentUserId, post_id: optionsMenuPost.id });
-                    toast.success('הפוסט נשמר במועדפים!', { icon: '⭐' });
+                    toast.success('הפוסט נשמר במועדפים!');
                   } catch(e:any) { toast.error('הפוסט כבר שמור אצלך'); }
                   closeOverlay();
-                }} className="w-full p-4 bg-white/5 rounded-2xl text-white/90 font-bold flex justify-between items-center text-lg active:bg-white/10 transition-colors">
-                  שמור במועדפים <Bookmark size={20} className="text-white/40" />
+                }} className="w-full p-4 bg-white/5 rounded-full text-white/90 font-bold flex justify-center items-center text-lg active:bg-white/10 transition-colors mt-2">
+                  שמור במועדפים
                 </button>
 
-                <button onClick={() => handleCopyLink(optionsMenuPost)} className="w-full p-4 bg-white/5 rounded-2xl text-white/90 font-bold flex justify-between items-center text-lg active:bg-white/10 transition-colors">
-                  העתק קישור <Link size={20} className="text-white/40" />
+                <button onClick={() => handleCopyLink(optionsMenuPost)} className="w-full p-4 bg-white/5 rounded-full text-white/90 font-bold flex justify-center items-center text-lg active:bg-white/10 transition-colors mt-2">
+                  העתק קישור
                 </button>
 
-                <button onClick={() => { closeOverlay(); setTimeout(() => handleShare(optionsMenuPost), 100); }} className="w-full p-4 bg-[#2196f3]/10 rounded-2xl text-[#2196f3] font-bold flex justify-between items-center text-lg active:bg-[#2196f3]/20 transition-colors mt-2">
-                  שתף פוסט <Share2 size={20} className="text-[#2196f3]" />
+                <button onClick={() => { closeOverlay(); setTimeout(() => handleShare(optionsMenuPost), 100); }} className="w-full p-4 bg-[#2196f3]/10 rounded-full text-[#2196f3] font-bold flex justify-center items-center text-lg active:bg-[#2196f3]/20 transition-colors mt-2">
+                  שתף פוסט
                 </button>
                 
                 {optionsMenuPost.user_id === currentUserId && (
                   <>
-                    <button onClick={() => { closeOverlay(); setTimeout(() => openOverlay(() => { setEditingPost(optionsMenuPost); setNewPost(optionsMenuPost.content || ''); setShowCreatePost(true); }), 100); }} className="w-full p-4 bg-white/5 rounded-2xl text-white/90 font-bold flex justify-between items-center text-lg active:bg-white/10 transition-colors mt-4">
-                      ערוך פוסט <Edit2 size={20} className="text-white/40" />
+                    <button onClick={() => { closeOverlay(); setTimeout(() => { openOverlay(() => { setEditingPost(optionsMenuPost); setNewPost(optionsMenuPost.content || ''); setShowCreatePost(true); }); }, 100); }} className="w-full p-4 bg-white/5 rounded-full text-white/90 font-bold flex justify-center items-center text-lg active:bg-white/10 transition-colors mt-4">
+                      ערוך פוסט
                     </button>
-                    <button onClick={() => { if(window.confirm('למחוק פוסט?')){ deletePost(optionsMenuPost.id); } }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 font-bold flex justify-between items-center text-lg mt-2 active:bg-red-500/20 transition-colors">
-                      מחק פוסט <Trash2 size={20} />
+                    <button onClick={() => { if(window.confirm('למחוק פוסט?')){ deletePost(optionsMenuPost.id); } }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-full text-red-500 font-bold flex justify-center items-center text-lg mt-2 active:bg-red-500/20 transition-colors">
+                      מחק פוסט
                     </button>
                   </>
                 )}
@@ -545,11 +593,11 @@ export const CirclePage: React.FC = () => {
                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="relative z-10 bg-[#0A0A0A] rounded-t-[40px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-10px_50px_rgba(0,0,0,0.8)] border-t border-white/10">
                  <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/20 rounded-full"/></div>
-                 <button onClick={() => { closeOverlay(); setReplyingTo(commentActionModal.parent_id ? comments.find(c => c?.id === commentActionModal.parent_id) : commentActionModal); setNewComment(`@${commentActionModal.profiles?.full_name} `); }} className="w-full p-4 bg-white/5 rounded-2xl text-white/90 font-bold flex justify-between items-center text-lg hover:bg-white/10 transition-colors">השב לתגובה <Reply size={20} className="text-[#2196f3]" /></button>
+                 <button onClick={() => { closeOverlay(); setReplyingTo(commentActionModal.parent_id ? comments.find(c => c?.id === commentActionModal.parent_id) : commentActionModal); setNewComment(`@${commentActionModal.profiles?.full_name} `); }} className="w-full p-4 bg-white/5 rounded-full text-white/90 font-bold flex justify-center items-center text-lg hover:bg-white/10 transition-colors">השב לתגובה</button>
                  {commentActionModal.user_id === currentUserId && (
                    <>
-                     <button onClick={() => { closeOverlay(); setEditingCommentId(commentActionModal.id); setNewComment(commentActionModal.content); }} className="w-full p-4 bg-white/5 rounded-2xl text-white/90 font-bold flex justify-between items-center text-lg hover:bg-white/10 transition-colors">ערוך תגובה <Edit2 size={20} className="text-white/40" /></button>
-                     <button onClick={() => { if(window.confirm('למחוק תגובה?')){ closeOverlay(); deleteComment(commentActionModal.id); } }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 font-bold flex justify-between items-center text-lg mt-2 hover:bg-red-500/20 transition-colors">מחק תגובה <Trash2 size={20} /></button>
+                     <button onClick={() => { closeOverlay(); setEditingCommentId(commentActionModal.id); setNewComment(commentActionModal.content); }} className="w-full p-4 bg-white/5 rounded-full text-white/90 font-bold flex justify-center items-center text-lg hover:bg-white/10 transition-colors">ערוך תגובה</button>
+                     <button onClick={() => { if(window.confirm('למחוק תגובה?')){ closeOverlay(); deleteComment(commentActionModal.id); } }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-full text-red-500 font-bold flex justify-center items-center text-lg mt-2 hover:bg-red-500/20 transition-colors">מחק תגובה</button>
                    </>
                  )}
                </motion.div>
@@ -561,7 +609,7 @@ export const CirclePage: React.FC = () => {
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
               <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="relative z-10 bg-[#0A0A0A] rounded-t-[40px] flex flex-col overflow-hidden pb-10 max-h-[75vh] shadow-[0_-10px_50px_rgba(0,0,0,0.8)] border-t border-white/10">
                 <div className="w-full py-6 flex justify-center cursor-grab active:cursor-grabbing border-b border-white/5"><div className="w-16 h-1.5 bg-white/20 rounded-full"/></div>
-                <div className="px-6 py-4 border-b border-white/5"><h2 className="text-white font-black text-lg">תיאור מלא</h2></div>
+                <div className="px-6 py-4 border-b border-white/5"><h2 className="text-white font-black text-lg text-center">תיאור מלא</h2></div>
                 <div className="p-6 overflow-y-auto" onPointerDown={stopPropagation} onTouchStart={stopPropagation}><p className="text-white/90 text-[15px] leading-relaxed text-right whitespace-pre-wrap">{activeDescPost.content}</p></div>
               </motion.div>
             </div>
