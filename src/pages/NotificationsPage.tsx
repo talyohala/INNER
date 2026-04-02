@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useScroll, useMotionValueEvent } from 'framer-motion';
 import { 
-  Bell, Loader2, Heart, Gift, MessageSquare, 
-  UserPlus, ShieldAlert, Trash2, CheckCheck, UserCircle, MoreVertical, ExternalLink 
+  Loader2, Heart, Gift, MessageSquare, 
+  UserPlus, ShieldAlert, Trash2, CheckCheck, UserCircle, MoreVertical, ExternalLink, ArrowRight, Wallet, ShoppingBag, Activity 
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { FadeIn } from '../components/ui';
@@ -55,7 +55,7 @@ export const NotificationsPage: React.FC = () => {
       if (!authData.user) return;
       setCurrentUserId(authData.user.id);
 
-      // שולף התראות יחד עם פרטי המשתמש שעשה את הפעולה
+      // שולף התראות יחד עם פרטי המשתמש שעשה את הפעולה (לייק, תגובה, מעקב)
       const { data, error } = await supabase
         .from('notifications')
         .select(`
@@ -68,7 +68,7 @@ export const NotificationsPage: React.FC = () => {
       if (error) throw error;
       setNotifications(data || []);
       
-      // מסמן כנקרא
+      // מסמן אוטומטית כנקרא ברגע שנכנסים לעמוד
       if (data && data.some(n => !n.is_read)) {
         await supabase.from('notifications').update({ is_read: true }).eq('user_id', authData.user.id).eq('is_read', false);
       }
@@ -82,11 +82,11 @@ export const NotificationsPage: React.FC = () => {
   useEffect(() => {
     fetchNotifs();
 
-    // האזנה בזמן אמת (Realtime) להתראות חדשות
+    // האזנה בזמן אמת להתראות (Realtime)
     const channel = supabase.channel('realtime_notifications')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload) => {
         if (currentUserId && payload.new.user_id === currentUserId) {
-          fetchNotifs(); // רענון כדי למשוך את תמונת הפרופיל של ה-actor
+          fetchNotifs(); // מושך מחדש כדי לקבל את תמונת הפרופיל והכל מעודכן
           triggerFeedback('pop');
         }
       })
@@ -107,10 +107,11 @@ export const NotificationsPage: React.FC = () => {
     setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
     if (currentUserId) {
       await supabase.from('notifications').update({ is_read: true }).eq('user_id', currentUserId);
-      toast.success('סומן כנקרא');
+      toast.success('הכל סומן כנקרא');
     }
   };
 
+  // מנגנון ניתוב אוטומטי - עובד מול ארנק, חנות, פרופיל ופיד
   const handleNotificationClick = (notif: Notification) => {
     if (notif.action_url) {
       triggerFeedback('pop');
@@ -118,14 +119,17 @@ export const NotificationsPage: React.FC = () => {
     }
   };
 
+  // עיצוב לפי סוג ההתראה - כולל תמיכה בארנק וחנות!
   const getIcon = (type: string) => {
     switch (type) {
       case 'like': return { Icon: Heart, color: 'text-[#e91e63]', bg: 'bg-[#e91e63]' };
       case 'comment': return { Icon: MessageSquare, color: 'text-[#2196f3]', bg: 'bg-[#2196f3]' };
       case 'follow': return { Icon: UserPlus, color: 'text-[#8bc34a]', bg: 'bg-[#8bc34a]' };
+      case 'wallet': return { Icon: Wallet, color: 'text-[#10b981]', bg: 'bg-[#10b981]' };
+      case 'store': return { Icon: ShoppingBag, color: 'text-[#9c27b0]', bg: 'bg-[#9c27b0]' };
       case 'gift': return { Icon: Gift, color: 'text-[#ff9800]', bg: 'bg-[#ff9800]' };
       case 'system': return { Icon: ShieldAlert, color: 'text-white', bg: 'bg-white' };
-      default: return { Icon: Bell, color: 'text-white', bg: 'bg-white' };
+      default: return { Icon: Activity, color: 'text-white/50', bg: 'bg-white/20' };
     }
   };
 
@@ -135,26 +139,28 @@ export const NotificationsPage: React.FC = () => {
 
   return (
     <div className="fixed inset-0 flex flex-col h-[100dvh] bg-[#0C0C0C]" dir="rtl">
-      {/* רקע עדין */}
+      {/* רקע עדין ויוקרתי */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[40%] bg-white/[0.02] blur-[120px] rounded-full mix-blend-screen"></div>
       </div>
 
-      {/* הדר מודרני וצף (ללא חץ) */}
+      {/* הדר מודרני, נקי וצף */}
       <motion.div 
         initial={{ y: 0 }}
         animate={{ y: showHeader ? 0 : -100 }}
         transition={{ duration: 0.25, ease: "easeInOut" }}
-        className="fixed top-0 left-0 right-0 z-[50] flex items-center justify-between px-6 pt-10 pb-4 bg-[#111]/95 backdrop-blur-xl border-b border-white/5 rounded-b-[24px] shadow-lg"
+        className="fixed top-0 left-0 right-0 z-[50] flex items-center justify-between px-5 pt-10 pb-4 bg-[#111]/95 backdrop-blur-xl border-b border-white/5 rounded-b-[24px] shadow-lg"
       >
-        <div className="w-10"></div> {/* Spacer for centering */}
+        <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center bg-white/5 rounded-full active:scale-90 transition-transform">
+          <ArrowRight size={20} className="text-white/80" />
+        </button>
         
-        <h1 className="text-xl font-black text-white flex items-center gap-2 drop-shadow-md">
-          <Bell size={22} className="text-white" /> התראות
+        <h1 className="text-[22px] font-black text-white drop-shadow-md tracking-tighter">
+          התראות
         </h1>
 
         <button onClick={markAllAsRead} className="w-10 h-10 flex items-center justify-center bg-white/5 rounded-full active:scale-90 transition-transform hover:bg-white/10 border border-white/5">
-          <CheckCheck size={18} className="text-white/60" />
+          <CheckCheck size={18} className="text-white/80" />
         </button>
       </motion.div>
 
@@ -162,9 +168,9 @@ export const NotificationsPage: React.FC = () => {
       <div className="flex-1 overflow-y-auto px-4 pt-28 pb-32 flex flex-col gap-3 relative z-10 scrollbar-hide" ref={scrollRef}>
         <AnimatePresence mode='popLayout'>
           {notifications.length === 0 ? (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center justify-center py-40 opacity-30">
-              <Bell size={48} className="mb-4" />
-              <p className="font-bold text-[14px]">אין התראות חדשות</p>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center justify-center py-40 opacity-40">
+              <div className="w-16 h-1 bg-white/10 rounded-full mb-6 shadow-inner"></div>
+              <p className="font-black text-[16px] tracking-widest uppercase text-white/50">אין התראות חדשות</p>
             </motion.div>
           ) : (
             notifications.map((notif) => {
@@ -181,11 +187,11 @@ export const NotificationsPage: React.FC = () => {
                   onClick={() => handleNotificationClick(notif)}
                   className={`relative p-4 rounded-[28px] border transition-all flex gap-3.5 items-center group cursor-pointer ${notif.is_read ? 'bg-white/[0.03] border-white/5' : 'bg-white/[0.06] border-white/10 shadow-lg'}`}
                 >
-                  {/* תמונת פרופיל / אייקון */}
+                  {/* תמונת פרופיל / אייקון (לחיצה על התמונה טסה לפרופיל) */}
                   <div 
                     className="relative shrink-0"
                     onClick={(e) => {
-                      if (actor) {
+                      if (actor && notif.actor_id) {
                         e.stopPropagation();
                         triggerFeedback('pop');
                         navigate(`/profile/${notif.actor_id}`);
@@ -196,13 +202,17 @@ export const NotificationsPage: React.FC = () => {
                       {actor?.avatar_url ? (
                         <img src={actor.avatar_url} className="w-full h-full object-cover" />
                       ) : (
-                        <UserCircle size={24} className="text-white/20" />
+                        <div className="w-full h-full flex items-center justify-center bg-white/5">
+                          <Icon size={24} className={color} />
+                        </div>
                       )}
                     </div>
-                    {/* באדג' סוג הפעולה קטן למטה */}
-                    <div className={`absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full border-2 border-[#111] flex items-center justify-center shadow-sm ${bg}`}>
-                      <Icon size={10} className="text-white" />
-                    </div>
+                    {/* באדג' סוג הפעולה על התמונה (אם זו התראה מאדם) */}
+                    {actor && (
+                      <div className={`absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full border-2 border-[#111] flex items-center justify-center shadow-sm ${bg}`}>
+                        <Icon size={10} className="text-white" />
+                      </div>
+                    )}
                   </div>
 
                   {/* תוכן ההתראה */}
@@ -218,7 +228,7 @@ export const NotificationsPage: React.FC = () => {
                     </span>
                   </div>
 
-                  {/* כפתור 3 נקודות */}
+                  {/* כפתור 3 נקודות - פותח בוטום שיט לבן */}
                   <button 
                     onClick={(e) => { e.stopPropagation(); triggerFeedback('pop'); setActiveMenuNotif(notif); }}
                     className="w-8 h-8 rounded-full flex items-center justify-center bg-white/5 active:scale-90 transition-transform shrink-0"
@@ -226,7 +236,7 @@ export const NotificationsPage: React.FC = () => {
                     <MoreVertical size={16} className="text-white/60" />
                   </button>
 
-                  {/* נקודה כחולה אם לא נקרא */}
+                  {/* אינדיקטור נקודה כחולה אם לא נקרא */}
                   {!notif.is_read && (
                     <div className="absolute top-1/2 -translate-y-1/2 right-2 w-2 h-2 bg-[#2196f3] rounded-full shadow-[0_0_8px_#2196f3]"></div>
                   )}
@@ -237,7 +247,7 @@ export const NotificationsPage: React.FC = () => {
         </AnimatePresence>
       </div>
 
-      {/* בוטום שיט (Z-9999999 כדי לעלות מעל ה-Nav Bar) */}
+      {/* בוטום שיט מודרני בלבן (Z-9999999 כדי לעלות מעל ה-Nav Bar התחתון) */}
       {typeof document !== 'undefined' && createPortal(
         <AnimatePresence>
           {activeMenuNotif && (
@@ -246,18 +256,21 @@ export const NotificationsPage: React.FC = () => {
               <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 300 }} className="relative z-10 bg-white rounded-t-[36px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-10px_50px_rgba(0,0,0,0.2)]">
                 <div className="w-full flex justify-center mb-2"><div className="w-16 h-1.5 bg-black/10 rounded-full"/></div>
                 
+                {/* ניתוב לתוכן אם קיים (פיד/ארנק/חנות) */}
                 {activeMenuNotif.action_url && (
                   <button onClick={() => { setActiveMenuNotif(null); handleNotificationClick(activeMenuNotif); }} className="w-full p-4 bg-black/5 rounded-2xl text-black font-black flex justify-between items-center text-lg active:bg-black/10 transition-colors">
-                    צפה בתוכן <ExternalLink size={20} className="text-black/40" />
+                    צפה בתוכן <ExternalLink size={20} className="text-[#2196f3]" />
                   </button>
                 )}
                 
+                {/* ניתוב לפרופיל אם קיים מבצע הפעולה */}
                 {activeMenuNotif.actor_id && (
                   <button onClick={() => { setActiveMenuNotif(null); navigate(`/profile/${activeMenuNotif.actor_id}`); }} className="w-full p-4 bg-black/5 rounded-2xl text-black font-black flex justify-between items-center text-lg active:bg-black/10 transition-colors">
                     פרופיל משתמש <UserCircle size={20} className="text-black/40" />
                   </button>
                 )}
 
+                {/* מחיקת התראה */}
                 <button onClick={() => deleteNotification(activeMenuNotif.id)} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-600 font-black flex justify-between items-center text-lg active:bg-red-500/20 transition-colors mt-2">
                   מחק התראה <Trash2 size={20} />
                 </button>
