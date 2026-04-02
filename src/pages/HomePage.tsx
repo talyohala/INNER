@@ -9,7 +9,8 @@ import { FadeIn, Button } from '../components/ui';
 import { 
   Loader2, Bell, Users, Lock, Flame, Heart, MessageSquare, 
   Send, X, Paperclip, RefreshCw, UserCircle, Plus, 
-  Trash2, Edit2, Reply, Sparkles, Target, MoreVertical, Share2, Download, Link, Bookmark
+  Trash2, Edit2, Reply, Sparkles, Target, MoreVertical, Share2, 
+  Download, Link, Bookmark, ArrowUp, ChevronLeft, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -386,7 +387,7 @@ export const HomePage: React.FC = () => {
             <div className="flex justify-between items-center pt-3 border-t border-white/5">
               <button onClick={() => fileInputRef.current?.click()} className="text-white/40 hover:text-white transition-colors p-2"><Paperclip size={20} /></button>
               <Button size="sm" onClick={handlePost} disabled={posting || (!newPost.trim() && !selectedFile)} className="rounded-full px-6 py-0 h-10 shadow-lg font-black text-[12px] uppercase tracking-widest bg-white text-black hover:bg-gray-200">
-                {posting ? <Loader2 size={14} className="animate-spin" /> : 'שדר עכשיו'}
+                {posting ? <Loader2 size={16} className="animate-spin" /> : 'שדר עכשיו'}
               </Button>
             </div>
           </div>
@@ -448,10 +449,8 @@ export const HomePage: React.FC = () => {
         </div>
       </FadeIn>
 
-      {/* כפתור פלוס מרחף מקורי */}
       <button onClick={() => openOverlay(() => setShowCreatePost(true))} className="fixed bottom-24 right-5 w-14 h-14 bg-gradient-to-tr from-[#2196f3] to-blue-400 text-white rounded-full shadow-[0_10px_25px_rgba(33,150,243,0.5)] flex items-center justify-center z-40 active:scale-90 transition-all border border-white/30"><Plus size={28} /></button>
 
-      {/* פורטלים ליצירת פוסט ותגובות */}
       {mounted && typeof document !== 'undefined' ? createPortal(
         <AnimatePresence>
           {showCreatePost && (
@@ -486,7 +485,7 @@ export const HomePage: React.FC = () => {
                 <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 scrollbar-hide">
                     {loadingComments ? <Loader2 className="animate-spin mx-auto text-white/20 mt-10" /> : comments.filter(c => c && !c.parent_id).map((c, i) => (
                         <div key={i} className="flex gap-3">
-                            <div className="w-12 h-12 rounded-[16px] bg-[#111] overflow-hidden shrink-0 border border-white/10 shadow-inner">
+                            <div className="w-12 h-12 rounded-[16px] bg-[#111] overflow-hidden shrink-0 border border-white/10">
                                 {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={24} className="m-auto mt-3 text-white/20" />}
                             </div>
                             <div className="bg-[#111] p-4 rounded-[24px] rounded-tr-sm border border-white/5 flex-1 shadow-inner cursor-pointer" onClick={() => openOverlay(() => setCommentActionModal(c))}>
@@ -505,8 +504,49 @@ export const HomePage: React.FC = () => {
               </motion.div>
             </div>
           )}
-          
-          {/* מודאלים נלווים: תפריט פוסט, תמונה במסך מלא, וכו' נשארו זהים לוגית אבל מעוגלים יפה */}
+
+          {commentActionModal && (
+             <div className="fixed inset-0 z-[1000000]" onTouchStart={stopPropagation}>
+               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
+               <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="relative z-10 bg-[#0A0A0A] rounded-t-[40px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-10px_50px_rgba(0,0,0,0.8)] border-t border-white/10">
+                 <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/20 rounded-full"/></div>
+                 <button onClick={() => { closeOverlay(); setReplyingTo(commentActionModal.parent_id ? comments.find(c => c?.id === commentActionModal.parent_id) : commentActionModal); setCommentText(`@${commentActionModal.profiles?.full_name} `); }} className="w-full p-4 bg-white/5 rounded-[20px] text-white/90 font-bold flex justify-between items-center text-lg hover:bg-white/10 transition-colors">השב לתגובה <Reply size={20} className="text-[#2196f3]" /></button>
+                 {commentActionModal.user_id === currentUserId && (
+                   <>
+                     <button onClick={() => { closeOverlay(); setEditingCommentId(commentActionModal.id); setCommentText(commentActionModal.content); }} className="w-full p-4 bg-white/5 rounded-[20px] text-white/90 font-bold flex justify-between items-center text-lg hover:bg-white/10 transition-colors mt-2">ערוך תגובה <Edit2 size={20} className="text-white/40" /></button>
+                     <button onClick={() => { if(window.confirm('למחוק תגובה?')){ closeOverlay(); deleteComment(commentActionModal.id); } }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-[20px] text-red-500 font-bold flex justify-between items-center text-lg mt-2 hover:bg-red-500/20 transition-colors">מחק תגובה <Trash2 size={20} /></button>
+                   </>
+                 )}
+               </motion.div>
+             </div>
+          )}
+
+          {optionsMenuPost && (
+            <div className="fixed inset-0 z-[100000]" onTouchStart={stopPropagation}>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
+              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="relative z-10 bg-[#0A0A0A] rounded-t-[40px] p-6 flex flex-col gap-2 pb-12 shadow-[0_-10px_50px_rgba(0,0,0,0.8)] border-t border-white/10">
+                <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/20 rounded-full"/></div>
+                <button onClick={async () => { try { await supabase.from('saved_posts').insert({ user_id: currentUserId, post_id: optionsMenuPost.id }); toast.success('נשמר במועדפים!'); } catch(e){ toast.success('כבר שמור אצלך'); } closeOverlay(); }} className="w-full p-4 bg-white/5 rounded-[20px] text-white/90 font-bold flex justify-between items-center text-lg active:bg-white/10 transition-colors mt-2">שמור במועדפים <Bookmark size={20} className="text-white/40" /></button>
+                {optionsMenuPost.user_id === currentUserId && (
+                  <>
+                    <button onClick={() => { closeOverlay(); setTimeout(() => openOverlay(() => { setEditingPost(optionsMenuPost); setNewPostText(optionsMenuPost.content || ''); setShowCreatePost(true); }), 100); }} className="w-full p-4 bg-white/5 rounded-[20px] text-white/90 font-bold flex justify-between items-center text-lg active:bg-white/10 transition-colors mt-4">ערוך פוסט <Edit2 size={20} className="text-white/40" /></button>
+                    <button onClick={() => { if(window.confirm('למחוק פוסט?')){ deletePost(optionsMenuPost.id); } }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-[20px] text-red-500 font-bold flex justify-between items-center text-lg mt-2 active:bg-red-500/20 transition-colors">מחק פוסט <Trash2 size={20} /></button>
+                  </>
+                )}
+              </motion.div>
+            </div>
+          )}
+
+          {activeDescPost && (
+            <div className="fixed inset-0 z-[100000]" onTouchStart={stopPropagation}>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
+              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="relative z-10 bg-[#0A0A0A] rounded-t-[40px] flex flex-col overflow-hidden pb-10 max-h-[75vh] shadow-[0_-10px_50px_rgba(0,0,0,0.8)] border-t border-white/10">
+                <div className="w-full py-6 flex justify-center cursor-grab active:cursor-grabbing border-b border-white/5"><div className="w-16 h-1.5 bg-white/20 rounded-full"/></div>
+                <div className="px-6 py-4 border-b border-white/5"><h2 className="text-white font-black text-lg">תיאור מלא</h2></div>
+                <div className="p-6 overflow-y-auto"><p className="text-white/90 text-[15px] leading-relaxed text-right whitespace-pre-wrap">{activeDescPost.content}</p></div>
+              </motion.div>
+            </div>
+          )}
         </AnimatePresence>
       , document.body) : null}
     </>
