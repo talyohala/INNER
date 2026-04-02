@@ -3,31 +3,19 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PlusCircle, Wallet, Bell, Zap, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { apiFetch } from '../lib/api';
 import { triggerFeedback } from '../lib/sound';
 import { BottomNav } from './BottomNav';
 
 export const Layout = ({ children }: { children: React.ReactNode }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  // שואב את המונה הגלובלי! בלי בדיקות מקומיות
+  const { user, signOut, unreadCount } = useAuth();
 
   useEffect(() => { 
     setIsSidebarOpen(false); 
-    if (user) checkUnreadNotifications();
-  }, [location.pathname, user]);
-
-  const checkUnreadNotifications = async () => {
-    try {
-      const data = await apiFetch<any[]>('/api/notifications');
-      if (data) {
-        const unread = data.filter(n => !n.is_read).length;
-        setUnreadCount(unread);
-      }
-    } catch (err) { console.error(err); }
-  };
+  }, [location.pathname]);
 
   if (location.pathname === '/auth') return <>{children}</>;
 
@@ -41,10 +29,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <div className="bg-[#0A0A0A] min-h-screen text-white overflow-x-hidden">
-      <main className="relative z-0 pb-24 min-h-screen">
-        {children}
-      </main>
-
+      <main className="relative z-0 pb-24 min-h-screen">{children}</main>
       {user && <BottomNav onMenuClick={() => { triggerFeedback('pop'); setIsSidebarOpen(true); }} hasUnread={unreadCount > 0} />}
 
       <AnimatePresence>
