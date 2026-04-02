@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { supabase } from '../lib/supabase';
+import { apiFetch } from '../lib/api';
 import { FadeIn, Button } from '../components/ui';
 import { 
   Loader2, Bell, Users, Heart, MessageSquare, 
@@ -274,14 +275,17 @@ export const HomePage: React.FC = () => {
     closeOverlay();
   };
 
+  // מחובר לשרת עכשיו!
   const handleLike = async (postId: string, isLiked: boolean) => {
     triggerFeedback('pop');
     const update = (list: any[]) => list.map(p => p.id === postId ? { ...p, is_liked: !isLiked, likes_count: isLiked ? p.likes_count - 1 : p.likes_count + 1 } : p);
-    setPosts(update(posts)); if (fullScreenMedia) setFullScreenMedia(update(fullScreenMedia));
+    setPosts(update(posts)); 
+    if (fullScreenMedia) setFullScreenMedia(update(fullScreenMedia));
     try { 
-      if (isLiked) await apiFetch(`/api/posts/${postId}/like`, { method: 'POST', headers: { 'x-user-id': currentUserId } });
-      else // Handled by API above
-    } catch (err) {}
+      await apiFetch(`/api/posts/${postId}/like`, { method: 'POST', headers: { 'x-user-id': currentUserId } });
+    } catch (err) {
+      fetchData(true); // אם נכשל, מחזיר למצב הקודם מהשרת
+    }
   };
 
   const submitComment = async () => {
@@ -294,8 +298,10 @@ export const HomePage: React.FC = () => {
       } else {
         const payload: any = { post_id: activePost.id, user_id: currentUserId, content: newComment.trim() };
         if (replyingTo) { payload.parent_id = replyingTo.id; }
-        const { data, error } = await supabase.from('comments').insert(payload).select('*, profiles(*)').single();
-        if (error) throw error;
+        
+        // יצירת תגובה והתראה דרך ה-API 
+        const data = await apiFetch(`/api/posts/${activePost.id}/comments`, { method: 'POST', headers: { 'x-user-id': currentUserId }, body: JSON.stringify({ content: newComment.trim() }) });
+        
         if (data) {
           setComments(prev => [...prev, data]);
           const update = (list: any[]) => list.map(p => p.id === activePost.id ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p);
@@ -305,7 +311,7 @@ export const HomePage: React.FC = () => {
         }
       }
       setNewComment(''); setReplyingTo(null);
-    } catch (err: any) { toast.error(`שגיאה בשרת: ${err.message}`); }
+    } catch (err: any) { toast.error(`שגיאה בשרת`); }
   };
 
   const toggleCommentLike = (commentId: string) => {
@@ -471,6 +477,7 @@ export const HomePage: React.FC = () => {
         </div>
       </FadeIn>
 
+      {/* PORTALS */}
       {mounted && typeof document !== 'undefined' && createPortal(
         <AnimatePresence>
           {fullScreenMedia && (
@@ -483,7 +490,7 @@ export const HomePage: React.FC = () => {
                       {isVid ? (
                         <video src={vid.media_url} loop playsInline className="w-full h-full object-cover full-media-item" onClick={(e) => e.currentTarget.paused ? e.currentTarget.play() : e.currentTarget.pause()} />
                       ) : (
-                        <img src={vid.media_url} onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Media+Unavailable'; }} className="w-full h-full object-contain full-media-item" />
+                        <img src={vid.media_url} className="w-full h-full object-contain full-media-item" onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Media+Unavailable'; }} />
                       )}
                       
                       <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }} className="absolute bottom-6 left-4 z-[60] active:scale-90 transition-transform drop-shadow-md">
@@ -524,7 +531,7 @@ export const HomePage: React.FC = () => {
               <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 400 }} className="relative z-10 bg-white rounded-t-[36px] h-[80vh] flex flex-col overflow-hidden pb-10 shadow-[0_-10px_50px_rgba(0,0,0,0.1)]">
                 <div className="w-full py-6 flex justify-center cursor-grab active:cursor-grabbing border-b border-black/5" onPointerDown={e => commentsDragControls.start(e)} style={{ touchAction: "none" }}><div className="w-16 h-1.5 bg-black/15 rounded-full"/></div>
                 <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6" onPointerDown={stopPropagation} onTouchStart={stopPropagation}>
-                  {loadingComments ? <Loader2 className="animate-spin mx-auto text-black/20 mt-4" /> : topLevelComments.map(c => {
+                  {loadingComments ? <Loader2 className="animate-spin mx-auto text-black/20 mt-4" /> : comments.filter(c => c && !c.parent_id).map(c => {
                     const replies = comments.filter(r => r && r.parent_id === c.id);
                     const isThreadExpanded = expandedThreads[c.id];
                     return (
