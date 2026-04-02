@@ -202,10 +202,10 @@ export const ProfilePage: React.FC = () => {
       const { data: authData } = await supabase.auth.getUser();
       const myId = authData.user?.id; const targetId = data.profile?.id;
       if (isFollowing) {
-        await supabase.from('followers').delete().eq('follower_id', myId).eq('following_id', targetId);
+        await apiFetch(`/api/profile/${targetId}/follow`, { method: 'POST', headers: { 'x-user-id': myId } });
         setIsFollowing(false); setFollowersCount(prev => Math.max(0, prev - 1));
       } else {
-        await supabase.from('followers').insert({ follower_id: myId, following_id: targetId });
+        // Handled by API above
         setIsFollowing(true); setFollowersCount(prev => prev + 1); triggerFeedback('success');
       }
     } catch (err: any) { toast.error('שגיאה'); } finally { setFollowLoading(false); }

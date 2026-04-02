@@ -279,8 +279,8 @@ export const HomePage: React.FC = () => {
     const update = (list: any[]) => list.map(p => p.id === postId ? { ...p, is_liked: !isLiked, likes_count: isLiked ? p.likes_count - 1 : p.likes_count + 1 } : p);
     setPosts(update(posts)); if (fullScreenMedia) setFullScreenMedia(update(fullScreenMedia));
     try { 
-      if (isLiked) await supabase.from('likes').delete().match({ post_id: postId, user_id: currentUserId });
-      else await supabase.from('likes').insert({ post_id: postId, user_id: currentUserId });
+      if (isLiked) await apiFetch(`/api/posts/${postId}/like`, { method: 'POST', headers: { 'x-user-id': currentUserId } });
+      else // Handled by API above
     } catch (err) {}
   };
 
