@@ -9,8 +9,7 @@ import { FadeIn, Button } from '../components/ui';
 import { 
   Loader2, Bell, Users, Lock, Flame, Heart, MessageSquare, 
   Send, X, Paperclip, RefreshCw, UserCircle, Plus, 
-  Trash2, Edit2, Reply, Sparkles, Target, MoreVertical, Share2, 
-  Download, Link, Bookmark, ArrowUp, ChevronLeft, ChevronDown, ChevronUp
+  Trash2, Edit2, Reply, Sparkles, Target, MoreVertical, Share2, ChevronLeft, ChevronDown, ChevronUp, ArrowUp, Download, Link, Bookmark
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -26,74 +25,86 @@ const TABS = [
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const createPostDragControls = useDragControls();
+  
   const commentsDragControls = useDragControls();
   const optionsDragControls = useDragControls();
   const descDragControls = useDragControls();
+  const createPostDragControls = useDragControls();
+  const circlesDragControls = useDragControls();
   const commentActionDragControls = useDragControls();
   
-  const { unreadCount } = useAuth(); 
-
+  const { unreadCount } = useAuth(); // משתמש במנגנון ההתראות המרכזי ששומר על הנקודה האדומה חיה
+  
   const [mounted, setMounted] = useState(false);
-  const [circles, setCircles] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
+  const [circles, setCircles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<FeedTab>('hot');
   
   const [newPost, setNewPost] = useState('');
   const [posting, setPosting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [editingPost, setEditingPost] = useState<any | null>(null);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [newPostMedia, setNewPostMedia] = useState('');
   const [newPostText, setNewPostText] = useState('');
-  const [editingPost, setEditingPost] = useState<any | null>(null);
   
-  const [activePost, setActivePost] = useState<any>(null);
+  const [activePost, setActivePost] = useState<any>(null); 
   const [activeCommentsPostId, setActiveCommentsPostId] = useState<string | null>(null);
   const [comments, setComments] = useState<any[]>([]);
-  const [commentText, setCommentText] = useState('');
+  const [newComment, setNewComment] = useState('');
   const [loadingComments, setLoadingComments] = useState(false);
-  const [replyingTo, setReplyingTo] = useState<any | null>(null);
-  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [commentText, setCommentText] = useState('');
   
-  const [onlineUsers, setOnlineUsers] = useState(3420);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<any | null>(null);
+  const [editingComment, setEditingComment] = useState<any | null>(null);
+  const [expandedThreads, setExpandedThreads] = useState<Record<string, boolean>>({});
+  
+  const [commentActionModal, setCommentActionModal] = useState<any | null>(null);
+  const [likedComments, setLikedComments] = useState<Set<string>>(new Set());
+  
+  const [optionsMenuPost, setOptionsMenuPost] = useState<any>(null);
+  const [activeDescPost, setActiveDescPost] = useState<any>(null);
+  
+  const [fullScreenMedia, setFullScreenMedia] = useState<any[] | null>(null);
+  const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
+  const scrollTimeout = useRef<any>(null);
+  
+  const [onlineUsers, setOnlineUsers] = useState(0);
   const [pullY, setPullY] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const pullStartY = useRef(0);
   const [currentUserId, setCurrentUserId] = useState<string>('');
-
-  const [likedComments, setLikedComments] = useState<Set<string>>(new Set());
-  const [commentActionModal, setCommentActionModal] = useState<any | null>(null);
-  const [optionsMenuPost, setOptionsMenuPost] = useState<any>(null);
-  const [activeDescPost, setActiveDescPost] = useState<any>(null);
-  const [fullScreenMedia, setFullScreenMedia] = useState<any[] | null>(null);
-  const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
-  const scrollTimeout = useRef<any>(null);
-  const [expandedThreads, setExpandedThreads] = useState<Record<string, boolean>>({});
+  
+  const [showAllCircles, setShowAllCircles] = useState<Record<string, boolean>>({});
+  const [userCirclesModal, setUserCirclesModal] = useState<any[] | null>(null);
+  
   const [showScrollTop, setShowScrollTop] = useState(false);
   const lastScrollY = useRef(0);
-
+  
   const stateRef = useRef({ 
-    comments: false, options: false, desc: false, 
-    fullscreen: false, commentAction: false, create: false 
+    comments: false, options: false, desc: false, create: false, 
+    fullscreen: false, commentAction: false, userCircles: false 
   });
   
   useEffect(() => {
     stateRef.current = {
       comments: !!activeCommentsPostId, options: !!optionsMenuPost, desc: !!activeDescPost,
-      fullscreen: !!fullScreenMedia, commentAction: !!commentActionModal, create: showCreatePost
+      create: showCreatePost, fullscreen: !!fullScreenMedia, commentAction: !!commentActionModal, userCircles: !!userCirclesModal
     };
-  }, [activeCommentsPostId, optionsMenuPost, activeDescPost, fullScreenMedia, commentActionModal, showCreatePost]);
+  }, [activeCommentsPostId, optionsMenuPost, activeDescPost, showCreatePost, fullScreenMedia, commentActionModal, userCirclesModal]);
 
   useEffect(() => {
     const handlePopState = () => {
       const s = stateRef.current;
       if (s.commentAction) { setCommentActionModal(null); }
+      else if (s.userCircles) { setUserCirclesModal(null); }
       else if (s.comments) { setActiveCommentsPostId(null); setActivePost(null); setReplyingTo(null); }
       else if (s.options) { setOptionsMenuPost(null); }
       else if (s.desc) { setActiveDescPost(null); }
-      else if (s.fullscreen) { setFullScreenMedia(null); }
       else if (s.create) { setShowCreatePost(false); setEditingPost(null); }
+      else if (s.fullscreen) { setFullScreenMedia(null); }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -102,8 +113,11 @@ export const HomePage: React.FC = () => {
   useEffect(() => {
     const handleScroll = () => {
       const currentY = window.scrollY;
-      if (currentY < lastScrollY.current && currentY > 300) setShowScrollTop(true);
-      else setShowScrollTop(false);
+      if (currentY < lastScrollY.current && currentY > 300) {
+        setShowScrollTop(true);
+      } else {
+        setShowScrollTop(false);
+      }
       lastScrollY.current = currentY;
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -113,74 +127,78 @@ export const HomePage: React.FC = () => {
   const openOverlay = (action: () => void) => { window.history.pushState({ overlay: true }, ''); action(); };
   const closeOverlay = () => { window.history.back(); };
   const isAnyModalOpen = () => Object.values(stateRef.current).some(Boolean);
-  const scrollToTop = () => { window.scrollTo({ top: 0, behavior: 'instant' }); };
 
-  const fetchData = async (isSilent = false) => {
-    if (!isSilent) setLoading(true);
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'instant' }); 
+  };
+
+  const fetchData = async (isSilentRefresh = false) => {
+    if (!isSilentRefresh) setLoading(true);
     try {
       const { data: authData } = await supabase.auth.getUser();
       const uid = authData.user?.id;
       if (uid) setCurrentUserId(uid);
 
-      let fetchedCircles: any[] = [];
-      try {
-        const { data } = await supabase.from('circles').select('*, circle_members(user_id)');
-        if (data) {
-          fetchedCircles = data.map((c: any) => ({
-            ...c, is_member: uid ? c.circle_members?.some((m: any) => m.user_id === uid) : false
-          })).sort((a: any, b: any) => (b.members_count || 0) - (a.members_count || 0));
-        }
-      } catch (e) {}
+      const [rawPosts, rawProfiles, rawLikes, rawComments, rawMembers, rawCircles] = await Promise.all([
+        supabase.from('posts').select('*').order('created_at', { ascending: false }).then(r => r.data || []),
+        supabase.from('profiles').select('*').then(r => r.data || []),
+        supabase.from('likes').select('*').then(r => r.data || []),
+        supabase.from('comments').select('*').then(r => r.data || []),
+        supabase.from('circle_members').select('*').then(r => r.data || []),
+        supabase.from('circles').select('*').then(r => r.data || [])
+      ]);
 
-      let fetchedPosts: any[] = [];
-      try {
-        const [rawPosts, rawProfiles, rawLikes, rawComments] = await Promise.all([
-            supabase.from('posts').select('*').is('circle_id', null).order('created_at', { ascending: false }).limit(50).then(r => r.data || []),
-            supabase.from('profiles').select('*').then(r => r.data || []),
-            supabase.from('likes').select('*').then(r => r.data || []),
-            supabase.from('comments').select('*').then(r => r.data || [])
-        ]);
+      const fetchedPosts = rawPosts.filter((p: any) => !p.circle_id).map((p: any) => {
+        const prof = rawProfiles.find((pr: any) => pr.id === p.user_id) || {};
+        const pLikes = rawLikes.filter((l: any) => l.post_id === p.id);
+        const pComments = rawComments.filter((c: any) => c.post_id === p.id);
+        const userCircles = rawCircles.filter((c: any) => rawMembers.some((m: any) => m.circle_id === c.id && m.user_id === p.user_id));
+        return { ...p, profiles: prof, likes_count: pLikes.length, comments_count: pComments.length, is_liked: !!uid && pLikes.some((l: any) => l.user_id === uid), user_circles: userCircles };
+      });
+      
+      const fetchedCircles = rawCircles.map((c: any) => ({
+        ...c, is_member: uid ? rawMembers.some((m: any) => m.circle_id === c.id && m.user_id === uid) : false
+      })).sort((a: any, b: any) => (b.members_count || 0) - (a.members_count || 0));
 
-        fetchedPosts = rawPosts.map((p: any) => {
-            const prof = rawProfiles.find((pr: any) => pr.id === p.user_id) || {};
-            const pLikes = rawLikes.filter((l: any) => l.post_id === p.id);
-            const pComments = rawComments.filter((c: any) => c.post_id === p.id);
-            return { 
-                ...p, 
-                profiles: prof, 
-                likes_count: pLikes.length, 
-                comments_count: pComments.length, 
-                is_liked: !!uid && pLikes.some((l: any) => l.user_id === uid) 
-            };
-        });
-      } catch (e) {}
-
-      setCircles(fetchedCircles);
       setPosts(fetchedPosts);
-    } catch (err) { console.error(err); } finally { setLoading(false); setRefreshing(false); }
+      setCircles(fetchedCircles);
+    } catch (err) {} finally { setLoading(false); setRefreshing(false); }
   };
 
   useEffect(() => {
-    setMounted(true);
-    fetchData(false);
-    
-    const interval = setInterval(() => setOnlineUsers(prev => prev + Math.floor(Math.random() * 5) - 2), 5000);
+    setMounted(true); fetchData(false);
+  }, []);
+
+  useEffect(() => {
     const presenceChannel = supabase.channel('global_online');
-    presenceChannel.on('presence', { event: 'sync' }, () => {
+    presenceChannel
+      .on('presence', { event: 'sync' }, () => {
         const state = presenceChannel.presenceState();
         let activeCount = 0;
         for (const key in state) activeCount += state[key].length;
         setOnlineUsers(activeCount > 0 ? activeCount : 1);
-    }).subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') await presenceChannel.track({ online_at: new Date().toISOString(), user_id: currentUserId || 'guest' });
-    });
-
-    const channel = supabase.channel('global_feed')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts', filter: 'circle_id=is.null' }, () => fetchData(true))
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); supabase.removeChannel(presenceChannel); clearInterval(interval); };
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await presenceChannel.track({ online_at: new Date().toISOString(), user_id: currentUserId || 'guest' });
+        }
+      });
+    return () => { supabase.removeChannel(presenceChannel); };
   }, [currentUserId]);
+
+  useEffect(() => {
+    if (!fullScreenMedia) return;
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        const vid = entry.target as HTMLVideoElement;
+        if (vid.tagName !== 'VIDEO') return;
+        if (entry.isIntersecting) { vid.muted = false; vid.play().catch(() => {}); } 
+        else { vid.pause(); vid.muted = true; vid.currentTime = 0; }
+      });
+    }, { threshold: 0.7 });
+    document.querySelectorAll('.full-media-item').forEach(v => observer.observe(v));
+    return () => observer.disconnect();
+  }, [fullScreenMedia, currentMediaIndex]);
 
   const sortedPosts = useMemo(() => {
     const arr = [...posts];
@@ -189,6 +207,20 @@ export const HomePage: React.FC = () => {
     return arr.sort((a, b) => (b.likes_count || 0) - (a.likes_count || 0));
   }, [posts, activeTab]);
 
+  const handleTouchStart = (e: React.TouchEvent) => { if (isAnyModalOpen()) return; if (window.scrollY <= 0) pullStartY.current = e.touches[0].clientY; };
+  const handleTouchMove = (e: React.TouchEvent) => { if (isAnyModalOpen()) return; if (pullStartY.current > 0 && window.scrollY <= 0) { const y = e.touches[0].clientY - pullStartY.current; if (y > 0) setPullY(Math.min(y, 120)); } };
+  const handleTouchEnd = async () => { if (isAnyModalOpen()) return; if (pullY > 60) { setRefreshing(true); setPullY(0); triggerFeedback('coin'); await fetchData(true); } else { setPullY(0); } pullStartY.current = 0; };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) {
+      setSelectedFile(file);
+    } else if (file) {
+      toast.error('אנא בחר קובץ תמונה או וידאו תקין');
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const handlePost = async () => {
     const contentToPost = newPost.trim() || newPostText.trim();
     if (!contentToPost && !selectedFile && !newPostMedia && !editingPost) return;
@@ -196,46 +228,88 @@ export const HomePage: React.FC = () => {
     try {
       if (editingPost) {
         await supabase.from('posts').update({ content: contentToPost }).eq('id', editingPost.id);
+        setPosts(curr => curr.map(p => p.id === editingPost.id ? { ...p, content: contentToPost } : p));
         toast.success('עודכן בהצלחה'); closeOverlay();
       } else {
-        let media_url = newPostMedia || null;
-        let media_type = 'text';
-        
+        let media_url = newPostMedia || null; let media_type = 'text';
         if (selectedFile) {
-          const ext = selectedFile.name.split('.').pop();
-          const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
-          const { data: uploadData, error } = await supabase.storage.from('feed_images').upload(fileName, selectedFile);
-          if (error) throw new Error('שגיאת אחסון');
-          media_url = supabase.storage.from('feed_images').getPublicUrl(uploadData.path).data.publicUrl;
+          const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}`;
+          const { data } = await supabase.storage.from('feed_images').upload(fileName, selectedFile);
+          media_url = supabase.storage.from('feed_images').getPublicUrl(data!.path).data.publicUrl;
           media_type = selectedFile.type.startsWith('video/') ? 'video' : 'image';
         }
-        
-        await supabase.from('posts').insert({ user_id: currentUserId, content: contentToPost, media_url, media_type });
+        await supabase.from('posts').insert({ user_id: currentUserId, content: contentToPost, media_url, media_type, circle_id: null });
         triggerFeedback('success');
       }
       setNewPost(''); setNewPostText(''); setNewPostMedia(''); setSelectedFile(null); setEditingPost(null); 
       if(showCreatePost) closeOverlay();
       fetchData(true);
-    } catch (err: any) { toast.error(err.message || 'שגיאה בשליחה'); } finally { setPosting(false); }
+    } catch (err) { toast.error('שגיאה בשמירה'); } finally { setPosting(false); }
+  };
+
+  const handleShare = async (post: any) => {
+    triggerFeedback('pop');
+    const publicUrl = `https://inner-app.com/post/${post.id}`; 
+    const textToShare = `${post.content ? post.content + '\n\n' : ''}צפה בפוסט הזה ב-INNER!`;
+    try {
+      const isNative = typeof window !== 'undefined' && !!(window as any).Capacitor && (window as any).Capacitor.isNativePlatform?.();
+      if (isNative) { await Share.share({ title: 'INNER', text: textToShare, url: publicUrl, dialogTitle: 'שתף עם חברים' }); } 
+      else if (navigator.share && window.isSecureContext) { await navigator.share({ title: 'INNER', text: textToShare, url: publicUrl }); } 
+      else { await navigator.clipboard.writeText(`${textToShare}\n${publicUrl}`); toast.success('הקישור הועתק ללוח'); }
+    } catch (e) {}
+  };
+
+  const handleCopyLink = async (post: any) => {
+    const publicUrl = `https://inner-app.com/post/${post.id}`;
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      toast.success('הקישור הועתק ללוח', { icon: '🔗' });
+    } catch (e) { toast.error('שגיאה בהעתקה'); }
+    closeOverlay();
+  };
+
+  const handleDownloadMedia = async (mediaUrl: string) => {
+    try {
+      toast.loading('מוריד קובץ...', { id: 'dl' });
+      const response = await fetch(mediaUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `INNER_Media_${Date.now()}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success('הקובץ נשמר בהצלחה', { id: 'dl' });
+    } catch (e) {
+      toast.error('לא ניתן להוריד את הקובץ', { id: 'dl' });
+    }
+    closeOverlay();
+  };
+
+  const handleSavePost = async (post: any) => {
+    try {
+      await supabase.from('saved_posts').insert({ user_id: currentUserId, post_id: post.id });
+      toast.success('הפוסט נשמר במועדפים!', { icon: '⭐' });
+    } catch(e: any) {
+      if(e.code === '23505') toast.success('הפוסט כבר שמור אצלך', { icon: '⭐' });
+      else toast.error('שגיאה בשמירה');
+    }
+    closeOverlay();
   };
 
   const handleLike = async (postId: string, isLiked: boolean) => {
     if (!currentUserId) return;
     triggerFeedback('pop');
     const update = (list: any[]) => list.map(p => p.id === postId ? { ...p, is_liked: !isLiked, likes_count: isLiked ? p.likes_count - 1 : p.likes_count + 1 } : p);
-    setPosts(update(posts));
+    setPosts(update(posts)); 
     if (fullScreenMedia) setFullScreenMedia(update(fullScreenMedia));
     try { 
       await apiFetch(`/api/posts/${postId}/like`, { method: 'POST', headers: { 'x-user-id': currentUserId } });
-    } catch (err) { fetchData(true); }
-  };
-
-  const openComments = async (post: any) => {
-    triggerFeedback('pop'); setActivePost(post); setActiveCommentsPostId(post.id); setLoadingComments(true);
-    try {
-      const { data } = await supabase.from('comments').select(`*, profiles(*)`).eq('post_id', post.id).order('created_at', { ascending: true });
-      setComments(data || []);
-    } catch (err) { toast.error('שגיאה בתגובות'); } finally { setLoadingComments(false); }
+    } catch (err) {
+      fetchData(true); 
+    }
   };
 
   const submitComment = async () => {
@@ -243,25 +317,25 @@ export const HomePage: React.FC = () => {
     try {
       if (editingCommentId) {
         await supabase.from('comments').update({ content: commentText.trim() }).eq('id', editingCommentId);
-        setComments(comments.map(c => c.id === editingCommentId ? { ...c, content: commentText.trim() } : c)); setEditingCommentId(null);
+        setComments(prev => prev.map(c => c.id === editingCommentId ? { ...c, content: commentText.trim() } : c));
+        setEditingCommentId(null);
       } else {
         const data = await apiFetch(`/api/posts/${activePost.id}/comments`, { method: 'POST', headers: { 'x-user-id': currentUserId }, body: JSON.stringify({ content: commentText.trim(), parent_id: replyingTo ? replyingTo.id : null }) });
         if (data) {
           setComments(prev => [...prev, data]);
           const update = (list: any[]) => list.map(p => p.id === activePost.id ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p);
           setPosts(update(posts)); if (fullScreenMedia) setFullScreenMedia(update(fullScreenMedia));
+          if (replyingTo) { setExpandedThreads(prev => ({ ...prev, [replyingTo.id]: true })); }
+          triggerFeedback('coin');
         }
       }
-      setCommentText(''); setReplyingTo(null); triggerFeedback('coin'); 
-    } catch (err) { toast.error('שגיאה בשליחת תגובה'); }
+      setCommentText(''); setReplyingTo(null);
+    } catch (err: any) { toast.error(`שגיאה בשרת`); }
   };
 
-  const deleteComment = async (commentId: string) => {
-    triggerFeedback('error');
-    setComments(comments.filter(c => c.id !== commentId && c.parent_id !== commentId));
-    const update = (list: any[]) => list.map(p => p.id === activePost?.id ? { ...p, comments_count: Math.max(0, p.comments_count - 1) } : p);
-    setPosts(update(posts)); if (fullScreenMedia) setFullScreenMedia(update(fullScreenMedia));
-    try { await supabase.from('comments').delete().eq('id', commentId); } catch (err) {}
+  const toggleCommentLike = (commentId: string) => {
+    setLikedComments(prev => { const next = new Set(prev); if (next.has(commentId)) next.delete(commentId); else next.add(commentId); return next; });
+    triggerFeedback('pop');
   };
 
   const deletePost = async (postId: string) => {
@@ -270,22 +344,12 @@ export const HomePage: React.FC = () => {
     await supabase.from('posts').delete().eq('id', postId);
   };
 
-  const handleShare = async (post: any) => {
-    triggerFeedback('pop');
-    const url = `https://inner-app.com/post/${post.id}`;
-    try { await Share.share({ title: 'INNER', text: post.content || 'צפה בפוסט ב-INNER', url }); } 
-    catch { navigator.clipboard.writeText(url); toast.success('הקישור הועתק ללוח'); }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) setSelectedFile(file);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  const toggleCommentLike = (commentId: string) => {
-    setLikedComments(prev => { const next = new Set(prev); if (next.has(commentId)) next.delete(commentId); else next.add(commentId); return next; });
-    triggerFeedback('pop');
+  const deleteComment = async (commentId: string) => {
+    triggerFeedback('error');
+    setComments(curr => curr.filter(c => c && c.id !== commentId && c.parent_id !== commentId));
+    const update = (list: any[]) => list.map(p => p.id === activePost?.id ? { ...p, comments_count: Math.max(0, p.comments_count - 1) } : p);
+    setPosts(update(posts)); if (fullScreenMedia) setFullScreenMedia(update(fullScreenMedia));
+    try { await supabase.from('comments').delete().eq('id', commentId); } catch (err) {}
   };
 
   const handleContainerScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -314,12 +378,11 @@ export const HomePage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      <FadeIn className="px-4 pt-8 pb-32 bg-[#0A0A0A] min-h-screen relative overflow-x-hidden touch-pan-y" dir="rtl" onTouchStart={e => { if (isAnyModalOpen()) return; if (window.scrollY <= 0) pullStartY.current = e.touches[0].clientY; }} onTouchMove={e => { if (isAnyModalOpen()) return; if (pullStartY.current > 0 && window.scrollY <= 0) { const y = e.touches[0].clientY - pullStartY.current; if (y > 0) setPullY(Math.min(y, 120)); } }} onTouchEnd={() => { if (isAnyModalOpen()) return; if (pullY > 60) { setRefreshing(true); setPullY(0); triggerFeedback('coin'); fetchData(true); } else { setPullY(0); } pullStartY.current = 0; }}>
-        
-        <div className="fixed top-0 left-0 right-0 flex justify-center z-50 pointer-events-none transition-transform" style={{ transform: `translateY(${Math.max(pullY - 40, -40)}px)`, opacity: pullY / 60 }}>
+      <FadeIn className="px-4 pt-8 pb-32 bg-[#0A0A0A] min-h-screen relative overflow-x-hidden touch-pan-y" dir="rtl" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+        <div className="fixed top-0 left-0 right-0 flex justify-center z-50 pointer-events-none transition-transform duration-200" style={{ transform: `translateY(${Math.max(pullY - 40, -40)}px)`, opacity: pullY / 60 }}>
           <div className="bg-[#111] p-2.5 rounded-full shadow-2xl border border-white/10 mt-6 backdrop-blur-xl"><RefreshCw size={22} className={`text-white ${refreshing ? 'animate-spin' : ''}`} style={{ transform: `rotate(${pullY * 2}deg)` }} /></div>
         </div>
-
+        
         <div className="relative z-10">
           <div className="flex justify-between items-start mb-8 h-12 px-1">
             <div className="w-10"></div>
@@ -396,6 +459,8 @@ export const HomePage: React.FC = () => {
             {sortedPosts.map((post) => {
               const hasMedia = !!post.media_url;
               const isVideo = post.media_url?.match(/\.(mp4|webm|mov)$/i);
+              const isExpanded = showAllCircles[post.id];
+              const visibleCircles = isExpanded ? post.user_circles : post.user_circles?.slice(0, 10);
               return (
                 <div key={post.id} className="flex flex-col rounded-[36px] bg-[#0A0A0A] border border-white/10 overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
                   
@@ -415,7 +480,11 @@ export const HomePage: React.FC = () => {
                   </div>
 
                   {hasMedia && (
-                    <div className="w-full bg-[#050505] relative cursor-pointer group" onClick={() => openOverlay(() => setFullScreenMedia([post]))}>
+                    <div className="w-full bg-[#050505] relative cursor-pointer group" onClick={() => openOverlay(() => { 
+                      const vids = posts.filter(p => p.media_url);
+                      setFullScreenMedia([post, ...vids.filter(v => v.id !== post.id).sort(()=>Math.random()-0.5)]);
+                      setCurrentMediaIndex(0);
+                    })}>
                       {isVideo ? <video src={post.media_url} autoPlay loop muted playsInline className="w-full max-h-[500px] object-cover group-hover:scale-[1.01] transition-transform duration-500" /> : <img src={post.media_url} className="w-full max-h-[500px] object-cover group-hover:scale-[1.01] transition-transform duration-500" />}
                       {post.content && (
                         <div className="absolute bottom-0 left-0 right-0 p-5 pt-16 bg-gradient-to-t from-[#0A0A0A] via-black/60 to-transparent flex items-end">
@@ -451,6 +520,7 @@ export const HomePage: React.FC = () => {
 
       <button onClick={() => openOverlay(() => setShowCreatePost(true))} className="fixed bottom-24 right-5 w-14 h-14 bg-gradient-to-tr from-[#2196f3] to-blue-400 text-white rounded-full shadow-[0_10px_25px_rgba(33,150,243,0.5)] flex items-center justify-center z-40 active:scale-90 transition-all border border-white/30"><Plus size={28} /></button>
 
+      {/* PORTALS */}
       {mounted && typeof document !== 'undefined' ? createPortal(
         <AnimatePresence>
           {showCreatePost && (
@@ -526,6 +596,7 @@ export const HomePage: React.FC = () => {
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
               <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="relative z-10 bg-[#0A0A0A] rounded-t-[40px] p-6 flex flex-col gap-2 pb-12 shadow-[0_-10px_50px_rgba(0,0,0,0.8)] border-t border-white/10">
                 <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/20 rounded-full"/></div>
+                <button onClick={() => { const url = `https://inner-app.com/post/${optionsMenuPost.id}`; navigator.clipboard.writeText(url); toast.success('הועתק'); closeOverlay(); }} className="w-full p-4 bg-white/5 rounded-[20px] text-white/90 font-bold flex justify-between items-center text-lg active:bg-white/10 transition-colors">העתק קישור <Link size={20} className="text-white/40" /></button>
                 <button onClick={async () => { try { await supabase.from('saved_posts').insert({ user_id: currentUserId, post_id: optionsMenuPost.id }); toast.success('נשמר במועדפים!'); } catch(e){ toast.success('כבר שמור אצלך'); } closeOverlay(); }} className="w-full p-4 bg-white/5 rounded-[20px] text-white/90 font-bold flex justify-between items-center text-lg active:bg-white/10 transition-colors mt-2">שמור במועדפים <Bookmark size={20} className="text-white/40" /></button>
                 {optionsMenuPost.user_id === currentUserId && (
                   <>
