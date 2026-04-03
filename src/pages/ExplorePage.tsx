@@ -9,6 +9,7 @@ import { triggerFeedback } from '../lib/sound';
 
 export const ExplorePage: React.FC = () => {
   const navigate = useNavigate();
+
   const [activeMainTab, setActiveMainTab] = useState<'clubs' | 'users'>('clubs');
   const [search, setSearch] = useState('');
   const [activeVibe, setActiveVibe] = useState('הכל');
@@ -16,29 +17,24 @@ export const ExplorePage: React.FC = () => {
   const [activeSearchTab, setActiveSearchTab] = useState<'top' | 'accounts' | 'tags'>('top');
   const [usersListData, setUsersListData] = useState<any[]>([]);
   const [suggestedUsers, setSuggestedUsers] = useState<any[]>([]);
-  const [recentSearches, setRecentSearches] = useState<string[]>(JSON.parse(localStorage.getItem('inner_recent_searches') || '[]'));
+  const [recentSearches, setRecentSearches] = useState<string[]>(
+    JSON.parse(localStorage.getItem('inner_recent_searches') || '[]')
+  );
   const [loading, setLoading] = useState(false);
   const [loadingSuggestions, setLoadingSuggestions] = useState(true);
 
-  const VIBES = [
-    { id: 'הכל', color: 'text-[#2196f3]' },
-    { id: 'דרמה', color: 'text-[#e91e63]' },
-    { id: 'סודות', color: 'text-[#9c27b0]' },
-    { id: 'כסף', color: 'text-[#8bc34a]' },
-    { id: 'ידע', color: 'text-[#ff9800]' },
-    { id: 'זוגיות', color: 'text-[#f44336]' }
-  ];
+  const VIBES = ['הכל', 'דרמה', 'סודות', 'כסף', 'ידע', 'זוגיות'];
 
   const saveRecentSearch = (term: string) => {
     if (!term.trim()) return;
-    const updated = [term, ...recentSearches.filter(t => t !== term)].slice(0, 5);
+    const updated = [term, ...recentSearches.filter((t) => t !== term)].slice(0, 5);
     setRecentSearches(updated);
     localStorage.setItem('inner_recent_searches', JSON.stringify(updated));
   };
 
   const removeRecentSearch = (term: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const updated = recentSearches.filter(t => t !== term);
+    const updated = recentSearches.filter((t) => t !== term);
     setRecentSearches(updated);
     localStorage.setItem('inner_recent_searches', JSON.stringify(updated));
   };
@@ -46,10 +42,19 @@ export const ExplorePage: React.FC = () => {
   useEffect(() => {
     const fetchSuggested = async () => {
       try {
-        const { data } = await supabase.from('profiles').select('id, full_name, username, avatar_url, level').order('level', { ascending: false }).limit(5);
+        const { data } = await supabase
+          .from('profiles')
+          .select('id, full_name, username, avatar_url, level')
+          .order('level', { ascending: false })
+          .limit(5);
+
         if (data) setSuggestedUsers(data);
-      } catch (e) {} finally { setLoadingSuggestions(false); }
+      } catch {
+      } finally {
+        setLoadingSuggestions(false);
+      }
     };
+
     fetchSuggested();
   }, []);
 
@@ -59,94 +64,201 @@ export const ExplorePage: React.FC = () => {
         setLoading(true);
         const data = await apiFetch<any[]>('/api/circles');
         setCircles(Array.isArray(data) ? data : []);
-      } catch (err) {} finally { setLoading(false); }
+      } catch {
+      } finally {
+        setLoading(false);
+      }
     };
+
     if (activeMainTab === 'clubs') fetchCircles();
   }, [activeMainTab]);
 
   useEffect(() => {
     const fetchUsers = async () => {
       if (activeMainTab !== 'users' || !search.trim()) {
-        setUsersListData([]); return;
+        setUsersListData([]);
+        return;
       }
+
       setLoading(true);
+
       try {
         let query = supabase.from('profiles').select('id, full_name, username, avatar_url, level, bio');
-        if (activeSearchTab === 'tags') { query = query.ilike('bio', `%${search}%`); } 
-        else {
+
+        if (activeSearchTab === 'tags') {
+          query = query.ilike('bio', `%${search}%`);
+        } else {
           query = query.or(`full_name.ilike.%${search}%,username.ilike.%${search}%`);
           if (activeSearchTab === 'top') query = query.order('level', { ascending: false });
           if (activeSearchTab === 'accounts') query = query.order('full_name', { ascending: true });
         }
+
         const { data, error } = await query.limit(30);
         if (!error && data) setUsersListData(data);
-      } catch (err) {} finally { setLoading(false); }
+      } catch {
+      } finally {
+        setLoading(false);
+      }
     };
+
     const timeoutId = setTimeout(fetchUsers, 400);
     return () => clearTimeout(timeoutId);
   }, [search, activeMainTab, activeSearchTab]);
 
-  const filteredCircles = circles.filter(c => {
-    const matchesSearch = c.name?.toLowerCase().includes(search.toLowerCase()) || c.description?.toLowerCase().includes(search.toLowerCase());
-    const matchesVibe = activeVibe === 'הכל' || c.name?.includes(activeVibe) || c.description?.includes(activeVibe);
+  const filteredCircles = circles.filter((c) => {
+    const matchesSearch =
+      c.name?.toLowerCase().includes(search.toLowerCase()) ||
+      c.description?.toLowerCase().includes(search.toLowerCase());
+    const matchesVibe =
+      activeVibe === 'הכל' || c.name?.includes(activeVibe) || c.description?.includes(activeVibe);
     return matchesSearch && matchesVibe;
   });
 
+  const sectionTitleClass =
+    'text-white/40 text-[10px] font-black tracking-[0.18em] uppercase text-center px-1';
+
   return (
-    <FadeIn className="px-4 pt-12 pb-32 bg-[#0A0A0A] min-h-screen font-sans flex flex-col gap-5 overflow-x-hidden relative" dir="rtl">
-      <div className="flex flex-col items-center justify-center relative z-10 mb-2">
-        <h1 className="text-3xl font-black text-white tracking-tighter drop-shadow-md">גלה</h1>
-        <span className="text-white/40 text-[10px] font-bold uppercase tracking-widest mt-1">חיפוש מועדונים ואנשים</span>
+    <FadeIn
+      className="px-4 pt-9 pb-28 bg-[#0A0A0A] min-h-screen font-sans flex flex-col gap-4 overflow-x-hidden relative"
+      dir="rtl"
+    >
+      <div className="flex flex-col items-center justify-center relative z-10 mb-1 mt-1">
+        <h1 className="text-[23px] font-black text-white tracking-tight drop-shadow-md">חיפוש</h1>
       </div>
 
-      <div className="relative z-10 flex w-full mb-1 bg-white/5 p-1 rounded-full border border-white/5 shadow-inner">
-        <button onClick={() => { triggerFeedback('pop'); setActiveMainTab('clubs'); setSearch(''); }} className={`flex-1 py-3 text-[14px] font-black transition-all rounded-full flex items-center justify-center ${activeMainTab === 'clubs' ? 'bg-[#1A1C20] text-white shadow-md' : 'text-white/40 hover:text-white/70'}`}>
+      <div className="relative z-10 flex w-full bg-white/5 p-1 rounded-full border border-white/5 shadow-inner">
+        <button
+          onClick={() => {
+            triggerFeedback('pop');
+            setActiveMainTab('clubs');
+            setSearch('');
+          }}
+          className={`flex-1 py-3 text-[13px] font-black transition-all rounded-full flex items-center justify-center ${
+            activeMainTab === 'clubs' ? 'bg-[#1A1C20] text-white shadow-md' : 'text-white/40 hover:text-white/70'
+          }`}
+        >
           מועדונים
         </button>
-        <button onClick={() => { triggerFeedback('pop'); setActiveMainTab('users'); setSearch(''); }} className={`flex-1 py-3 text-[14px] font-black transition-all rounded-full flex items-center justify-center ${activeMainTab === 'users' ? 'bg-[#1A1C20] text-white shadow-md' : 'text-white/40 hover:text-white/70'}`}>
-          אנשים
+
+        <button
+          onClick={() => {
+            triggerFeedback('pop');
+            setActiveMainTab('users');
+            setSearch('');
+          }}
+          className={`flex-1 py-3 text-[13px] font-black transition-all rounded-full flex items-center justify-center ${
+            activeMainTab === 'users' ? 'bg-[#1A1C20] text-white shadow-md' : 'text-white/40 hover:text-white/70'
+          }`}
+        >
+          משתמשים
         </button>
       </div>
 
       <div className="relative z-10">
-        <div className="absolute inset-y-0 right-0 pr-5 flex items-center pointer-events-none"><Search size={18} className="text-white/40" /></div>
-        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={activeMainTab === 'clubs' ? 'חפש מועדונים...' : 'חפש אנשים...'} className="w-full bg-[#111] border border-white/10 rounded-full py-4 pr-12 pl-16 text-white text-[15px] font-medium placeholder:text-white/30 focus:border-white/30 transition-all shadow-inner outline-none h-14" />
-        {search && <button onClick={() => setSearch('')} className="absolute inset-y-0 left-3 flex items-center justify-center"><span className="text-white/60 hover:text-white text-[10px] font-bold uppercase tracking-widest bg-white/10 px-4 py-2 rounded-full transition-colors active:scale-95">נקה</span></button>}
+        <div className="absolute inset-y-0 right-0 pr-5 flex items-center pointer-events-none">
+          <Search size={18} className="text-white/40" />
+        </div>
+
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={activeMainTab === 'clubs' ? 'חפש מועדונים...' : 'חפש משתמשים...'}
+          className="w-full bg-[#111] border border-white/10 rounded-full py-4 pr-12 pl-16 text-white text-[15px] font-medium placeholder:text-white/30 focus:border-white/30 transition-all shadow-inner outline-none h-14"
+        />
+
+        {search && (
+          <button onClick={() => setSearch('')} className="absolute inset-y-0 left-3 flex items-center justify-center">
+            <span className="text-white/60 hover:text-white text-[10px] font-bold uppercase tracking-widest bg-white/10 px-4 py-2 rounded-full transition-colors active:scale-95">
+              נקה
+            </span>
+          </button>
+        )}
       </div>
 
       <AnimatePresence mode="wait">
         {activeMainTab === 'clubs' && (
-          <motion.div key="clubs" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col gap-4 relative z-10">
-            <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4 mt-2">
-              {VIBES.map(vibe => (
-                <motion.button whileTap={{ scale: 0.95 }} key={vibe.id} onClick={() => {triggerFeedback('pop'); setActiveVibe(vibe.id);}} className={`flex items-center justify-center px-6 h-11 rounded-full font-black text-[13px] transition-all shrink-0 border shadow-inner ${activeVibe === vibe.id ? 'bg-[#1A1C20] border-white/20 text-white' : 'bg-transparent border-white/5 text-white/40 hover:bg-white/5 hover:text-white/80'}`}>
-                  <span className={activeVibe === vibe.id ? vibe.color : ''}>{vibe.id}</span>
+          <motion.div
+            key="clubs"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="flex flex-col gap-3 relative z-10"
+          >
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
+              {VIBES.map((vibe) => (
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  key={vibe}
+                  onClick={() => {
+                    triggerFeedback('pop');
+                    setActiveVibe(vibe);
+                  }}
+                  className={`flex items-center justify-center px-5 h-10 rounded-full font-black text-[12px] transition-all shrink-0 border shadow-inner ${
+                    activeVibe === vibe
+                      ? 'bg-[#1A1C20] border-white/20 text-white'
+                      : 'bg-transparent border-white/5 text-white/55 hover:bg-white/5 hover:text-white/85'
+                  }`}
+                >
+                  <span className="text-white">{vibe}</span>
                 </motion.button>
               ))}
             </div>
 
-            {loading ? <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-white/20" /></div> : filteredCircles.length === 0 ? (
-              <div className="text-center py-20 flex flex-col items-center gap-4">
-                <span className="text-white/80 font-black text-[16px]">לא מצאנו מועדון כזה</span>
-                <Button onClick={() => navigate('/create-circle')} className="px-8 mt-2 rounded-full shadow-lg">פתח מועדון משלך</Button>
+            {loading ? (
+              <div className="py-16 flex justify-center">
+                <Loader2 className="animate-spin text-white/20" />
+              </div>
+            ) : filteredCircles.length === 0 ? (
+              <div className="text-center py-16 flex flex-col items-center gap-3">
+                <span className="text-white/80 font-black text-[15px]">לא מצאנו מועדון כזה</span>
+                <Button onClick={() => navigate('/create-circle')} className="px-8 mt-1 rounded-full shadow-lg">
+                  פתח מועדון משלך
+                </Button>
               </div>
             ) : (
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-3">
                 {filteredCircles.map((circle, idx) => (
-                  <motion.div key={circle.id} layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: Math.min(idx * 0.05, 0.3) }}>
-                    <div onClick={() => { if (search.trim()) saveRecentSearch(search.trim()); triggerFeedback('pop'); navigate(`/circle/${circle.slug}`); }} className="bg-[#111] border border-white/5 p-4 rounded-[32px] flex items-center justify-between shadow-lg cursor-pointer group hover:bg-[#151515] active:scale-[0.98] transition-all">
-                      <div className="flex items-center gap-5 text-right">
-                        <div className="w-16 h-16 rounded-full bg-black border border-white/10 overflow-hidden shrink-0 shadow-inner p-0.5">
+                  <motion.div
+                    key={circle.id}
+                    layout
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: Math.min(idx * 0.05, 0.3) }}
+                    className="-mx-4 px-2"
+                  >
+                    <div
+                      onClick={() => {
+                        if (search.trim()) saveRecentSearch(search.trim());
+                        triggerFeedback('pop');
+                        navigate(`/circle/${circle.slug}`);
+                      }}
+                      className="bg-[#111] border border-white/5 p-4 rounded-[30px] flex items-center justify-between shadow-lg cursor-pointer group hover:bg-[#151515] active:scale-[0.985] transition-all"
+                    >
+                      <div className="flex items-center gap-4 text-right">
+                        <div className="w-14 h-14 rounded-full bg-black border border-white/10 overflow-hidden shrink-0 shadow-inner p-0.5">
                           <div className="w-full h-full rounded-full overflow-hidden bg-[#111]">
-                            {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white/20 font-black text-xl">{circle.name?.charAt(0)}</div>}
+                            {circle.cover_url ? (
+                              <img src={circle.cover_url} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-white/20 font-black text-xl">
+                                {circle.name?.charAt(0)}
+                              </div>
+                            )}
                           </div>
                         </div>
+
                         <div className="flex flex-col">
-                          <span className="text-white font-black text-[16px]">{circle.name}</span>
-                          <span className="text-white/40 text-[11px] font-bold mt-1 tracking-widest">{circle.members_count || 0} חברים</span>
+                          <span className="text-white font-black text-[15px]">{circle.name}</span>
+                          <span className="text-white/40 text-[10px] font-bold mt-1 tracking-widest">
+                            {circle.members_count || 0} חברים
+                          </span>
                         </div>
                       </div>
-                      <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center shrink-0 ml-1"><ChevronLeft size={18} className="text-white/40" /></div>
+
+                      <div className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center shrink-0 ml-1">
+                        <ChevronLeft size={17} className="text-white/40" />
+                      </div>
                     </div>
                   </motion.div>
                 ))}
@@ -156,81 +268,230 @@ export const ExplorePage: React.FC = () => {
         )}
 
         {activeMainTab === 'users' && (
-          <motion.div key="users" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col gap-2 relative z-10">
+          <motion.div
+            key="users"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="flex flex-col gap-3 relative z-10"
+          >
             {!search.trim() ? (
-              <div className="mt-4 flex flex-col gap-6">
+              <div className="flex flex-col gap-4">
                 {recentSearches.length > 0 && (
-                  <div className="flex flex-col gap-3">
-                    <span className="text-white/40 text-[10px] font-black tracking-widest uppercase flex items-center justify-between w-full px-2">
+                  <div className="flex flex-col gap-2">
+                    <span className={`${sectionTitleClass} flex items-center justify-between w-full px-1`}>
                       <span>חיפושים אחרונים</span>
-                      <button onClick={() => { triggerFeedback('pop'); setRecentSearches([]); localStorage.removeItem('inner_recent_searches'); }} className="text-white/30 hover:text-white">נקה הכל</button>
+                      <button
+                        onClick={() => {
+                          triggerFeedback('pop');
+                          setRecentSearches([]);
+                          localStorage.removeItem('inner_recent_searches');
+                        }}
+                        className="text-white/30 hover:text-white"
+                      >
+                        נקה הכל
+                      </button>
                     </span>
-                    <div className="bg-[#111] rounded-[32px] p-2 flex flex-col shadow-lg border border-white/5">
-                      {recentSearches.map((term, i) => (
-                        <div key={i} onClick={() => { triggerFeedback('pop'); setSearch(term); }} className={`flex items-center justify-between p-4 cursor-pointer hover:bg-white/5 active:bg-white/10 transition-colors rounded-[24px] ${i !== recentSearches.length - 1 ? 'border-b border-white/5 rounded-b-none' : ''}`}>
-                          <div className="flex items-center gap-3"><Search size={16} className="text-white/30" /><span className="text-white font-medium text-[14px]">{term}</span></div>
-                          <button onClick={(e) => removeRecentSearch(term, e)} className="p-2 -m-2 opacity-50 hover:opacity-100 active:scale-90 transition-all"><X size={16} className="text-white" /></button>
-                        </div>
-                      ))}
+
+                    <div className="-mx-4 px-2">
+                      <div className="bg-[#111] rounded-[30px] p-2 flex flex-col shadow-lg border border-white/5">
+                        {recentSearches.map((term, i) => (
+                          <div
+                            key={i}
+                            onClick={() => {
+                              triggerFeedback('pop');
+                              setSearch(term);
+                            }}
+                            className={`flex items-center justify-between p-4 cursor-pointer hover:bg-white/5 active:bg-white/10 transition-colors rounded-[22px] ${
+                              i !== recentSearches.length - 1 ? 'border-b border-white/5 rounded-b-none' : ''
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Search size={16} className="text-white/30" />
+                              <span className="text-white font-medium text-[14px]">{term}</span>
+                            </div>
+
+                            <button
+                              onClick={(e) => removeRecentSearch(term, e)}
+                              className="p-2 -m-2 opacity-50 hover:opacity-100 active:scale-90 transition-all"
+                            >
+                              <X size={16} className="text-white" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
 
-                <div className="flex flex-col gap-3">
-                  <span className="text-white/40 text-[10px] font-black tracking-widest uppercase px-2">משתמשים מובילים</span>
-                  {loadingSuggestions ? <Loader2 className="animate-spin text-white/20 mx-auto mt-4" /> : 
-                  <div className="bg-[#111] rounded-[32px] p-2 flex flex-col shadow-lg border border-white/5">
-                   {suggestedUsers.map((u, i) => (
-                    <div key={u.id} className={`flex items-center justify-between p-3 cursor-pointer hover:bg-white/5 active:bg-white/10 transition-all rounded-[24px] ${i !== suggestedUsers.length - 1 ? 'border-b border-white/5 rounded-b-none' : ''}`} onClick={() => { if (search.trim()) saveRecentSearch(search.trim()); triggerFeedback('pop'); navigate(`/profile/${u.id}`); }}>
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-black border border-white/10 overflow-hidden relative shadow-inner p-0.5">
-                          <div className="w-full h-full rounded-full overflow-hidden bg-[#111]">{u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={20} className="m-auto mt-3 text-white/20" />}</div>
-                        </div>
-                        <div className="flex flex-col text-right">
-                          <span className="text-white font-black text-[14px]">{u.full_name || 'משתמש'}</span>
-                          <span className="text-white/30 text-[10px] font-medium tracking-widest uppercase mt-0.5" dir="ltr">@{u.username || 'user'} • רמה {u.level || 1}</span>
-                        </div>
+                <div className="flex flex-col gap-2">
+                  <span className={sectionTitleClass}>משתמשים מובילים</span>
+
+                  {loadingSuggestions ? (
+                    <Loader2 className="animate-spin text-white/20 mx-auto mt-4" />
+                  ) : (
+                    <div className="-mx-4 px-2">
+                      <div className="bg-[#111] rounded-[30px] p-2 flex flex-col shadow-lg border border-white/5">
+                        {suggestedUsers.map((u, i) => (
+                          <div
+                            key={u.id}
+                            className={`flex items-center justify-between p-3 cursor-pointer hover:bg-white/5 active:bg-white/10 transition-all rounded-[22px] ${
+                              i !== suggestedUsers.length - 1 ? 'border-b border-white/5 rounded-b-none' : ''
+                            }`}
+                            onClick={() => {
+                              if (search.trim()) saveRecentSearch(search.trim());
+                              triggerFeedback('pop');
+                              navigate(`/profile/${u.id}`);
+                            }}
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className="w-12 h-12 rounded-full bg-black border border-white/10 overflow-hidden relative shadow-inner p-0.5">
+                                <div className="w-full h-full rounded-full overflow-hidden bg-[#111]">
+                                  {u.avatar_url ? (
+                                    <img src={u.avatar_url} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <UserCircle size={20} className="m-auto mt-3 text-white/20" />
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col text-right">
+                                <span className="text-white font-black text-[14px]">{u.full_name || 'משתמש'}</span>
+                                <span
+                                  className="text-white/30 text-[10px] font-medium tracking-widest uppercase mt-0.5"
+                                  dir="ltr"
+                                >
+                                  @{u.username || 'user'} • רמה {u.level || 1}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0">
+                              <ChevronLeft size={16} className="text-white/20" />
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"><ChevronLeft size={16} className="text-white/20" /></div>
                     </div>
-                  ))}
-                  </div>
-                  }
+                  )}
                 </div>
               </div>
             ) : (
               <>
-                <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-2 mt-3">
-                  <button onClick={() => { triggerFeedback('pop'); setActiveSearchTab('top'); }} className={`px-6 py-2.5 rounded-full font-black text-[12px] uppercase tracking-widest whitespace-nowrap transition-all border ${activeSearchTab === 'top' ? 'bg-[#1A1C20] text-white border-white/20 shadow-inner' : 'bg-transparent text-white/40 border-transparent hover:text-white/70'}`}>מובילים</button>
-                  <button onClick={() => { triggerFeedback('pop'); setActiveSearchTab('accounts'); }} className={`px-6 py-2.5 rounded-full font-black text-[12px] uppercase tracking-widest whitespace-nowrap transition-all border ${activeSearchTab === 'accounts' ? 'bg-[#1A1C20] text-white border-white/20 shadow-inner' : 'bg-transparent text-white/40 border-transparent hover:text-white/70'}`}>חשבונות</button>
-                  <button onClick={() => { triggerFeedback('pop'); setActiveSearchTab('tags'); }} className={`px-6 py-2.5 rounded-full font-black text-[12px] uppercase tracking-widest whitespace-nowrap transition-all border ${activeSearchTab === 'tags' ? 'bg-[#1A1C20] text-white border-white/20 shadow-inner' : 'bg-transparent text-white/40 border-transparent hover:text-white/70'}`}>ביו</button>
+                <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1 pb-1">
+                  <button
+                    onClick={() => {
+                      triggerFeedback('pop');
+                      setActiveSearchTab('top');
+                    }}
+                    className={`px-5 py-2.5 rounded-full font-black text-[11px] uppercase tracking-widest whitespace-nowrap transition-all border ${
+                      activeSearchTab === 'top'
+                        ? 'bg-[#1A1C20] text-white border-white/20 shadow-inner'
+                        : 'bg-transparent text-white/40 border-transparent hover:text-white/70'
+                    }`}
+                  >
+                    מובילים
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      triggerFeedback('pop');
+                      setActiveSearchTab('accounts');
+                    }}
+                    className={`px-5 py-2.5 rounded-full font-black text-[11px] uppercase tracking-widest whitespace-nowrap transition-all border ${
+                      activeSearchTab === 'accounts'
+                        ? 'bg-[#1A1C20] text-white border-white/20 shadow-inner'
+                        : 'bg-transparent text-white/40 border-transparent hover:text-white/70'
+                    }`}
+                  >
+                    חשבונות
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      triggerFeedback('pop');
+                      setActiveSearchTab('tags');
+                    }}
+                    className={`px-5 py-2.5 rounded-full font-black text-[11px] uppercase tracking-widest whitespace-nowrap transition-all border ${
+                      activeSearchTab === 'tags'
+                        ? 'bg-[#1A1C20] text-white border-white/20 shadow-inner'
+                        : 'bg-transparent text-white/40 border-transparent hover:text-white/70'
+                    }`}
+                  >
+                    ביו
+                  </button>
                 </div>
-                <div className="mt-3">
-                  {loading ? <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-white/40" size={28} /></div> : (
+
+                <div>
+                  {loading ? (
+                    <div className="py-16 flex justify-center">
+                      <Loader2 className="animate-spin text-white/40" size={28} />
+                    </div>
+                  ) : (
                     <AnimatePresence mode="wait">
-                      <motion.div key="users-list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col gap-2">
+                      <motion.div
+                        key="users-list"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="flex flex-col gap-2"
+                      >
                         {usersListData.length === 0 ? (
                           <div className="text-center py-16 flex flex-col items-center gap-3">
                             <span className="text-white/60 text-[14px] font-black">לא מצאנו תוצאות לחיפוש</span>
                           </div>
                         ) : (
-                          <div className="bg-[#111] rounded-[32px] p-2 flex flex-col shadow-lg border border-white/5">
+                          <div className="-mx-4 px-2">
+                            <div className="bg-[#111] rounded-[30px] p-2 flex flex-col shadow-lg border border-white/5">
                               {usersListData.map((u, idx) => (
-                                <motion.div key={u.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: Math.min(idx * 0.05, 0.2) }}>
-                                  <div onClick={() => { if (search.trim()) saveRecentSearch(search.trim()); triggerFeedback('pop'); navigate(`/profile/${u.id}`); }} className={`p-3 flex items-center justify-between cursor-pointer hover:bg-white/5 active:bg-white/10 transition-colors rounded-[24px] ${idx !== usersListData.length - 1 ? 'border-b border-white/5 rounded-b-none' : ''}`}>
+                                <motion.div
+                                  key={u.id}
+                                  initial={{ opacity: 0, y: 10 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  transition={{ duration: 0.2, delay: Math.min(idx * 0.05, 0.2) }}
+                                >
+                                  <div
+                                    onClick={() => {
+                                      if (search.trim()) saveRecentSearch(search.trim());
+                                      triggerFeedback('pop');
+                                      navigate(`/profile/${u.id}`);
+                                    }}
+                                    className={`p-3 flex items-center justify-between cursor-pointer hover:bg-white/5 active:bg-white/10 transition-colors rounded-[22px] ${
+                                      idx !== usersListData.length - 1 ? 'border-b border-white/5 rounded-b-none' : ''
+                                    }`}
+                                  >
                                     <div className="flex items-center gap-4 text-right">
                                       <div className="w-14 h-14 rounded-full bg-black border border-white/10 overflow-hidden shrink-0 relative shadow-inner p-0.5">
-                                        <div className="w-full h-full rounded-full overflow-hidden bg-[#111]">{u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={20} className="m-auto mt-4 text-white/20" />}</div>
+                                        <div className="w-full h-full rounded-full overflow-hidden bg-[#111]">
+                                          {u.avatar_url ? (
+                                            <img src={u.avatar_url} className="w-full h-full object-cover" />
+                                          ) : (
+                                            <UserCircle size={20} className="m-auto mt-4 text-white/20" />
+                                          )}
+                                        </div>
                                       </div>
+
                                       <div className="flex flex-col">
                                         <span className="text-white text-[15px] font-black">{u.full_name || 'משתמש'}</span>
-                                        <span className="text-white/40 text-[11px] font-bold mt-0.5 tracking-widest" dir="ltr">@{u.username || 'user'}</span>
-                                        {activeSearchTab === 'tags' && u.bio && <span className="text-white/60 text-[10px] mt-1 line-clamp-1">{u.bio}</span>}
+                                        <span
+                                          className="text-white/40 text-[11px] font-bold mt-0.5 tracking-widest"
+                                          dir="ltr"
+                                        >
+                                          @{u.username || 'user'}
+                                        </span>
+                                        {activeSearchTab === 'tags' && u.bio && (
+                                          <span className="text-white/60 text-[10px] mt-1 line-clamp-1">{u.bio}</span>
+                                        )}
                                       </div>
+                                    </div>
+
+                                    <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0">
+                                      <ChevronLeft size={16} className="text-white/20" />
                                     </div>
                                   </div>
                                 </motion.div>
                               ))}
+                            </div>
                           </div>
                         )}
                       </motion.div>
