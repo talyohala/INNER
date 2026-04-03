@@ -8,10 +8,7 @@ import {
   Zap,
   Settings,
   LogOut,
-  X,
-  UserCircle,
   ChevronLeft,
-  Shield,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { triggerFeedback } from '../lib/sound';
@@ -21,7 +18,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, signOut, unreadCount, profile } = useAuth() as any;
+  const { user, signOut, unreadCount } = useAuth() as any;
 
   useEffect(() => {
     setIsSidebarOpen(false);
@@ -36,20 +33,23 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
       label: 'צור מועדון',
       color: 'text-green-400',
       bg: 'bg-green-500/10',
+      border: 'border-green-500/20',
     },
     {
       path: '/wallet',
       icon: Wallet,
       label: 'ארנק',
-      color: 'text-white',
-      bg: 'bg-white/10',
+      color: 'text-[#ffc107]',
+      bg: 'bg-[#ffc107]/10',
+      border: 'border-[#ffc107]/20',
     },
     {
       path: '/notifications',
       icon: Bell,
       label: 'התראות',
-      color: 'text-white',
-      bg: 'bg-white/10',
+      color: 'text-[#ff5252]',
+      bg: 'bg-[#ff5252]/10',
+      border: 'border-[#ff5252]/20',
       badge: unreadCount > 0,
     },
     {
@@ -58,13 +58,15 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
       label: 'חנות בוסטים',
       color: 'text-yellow-400',
       bg: 'bg-yellow-500/10',
+      border: 'border-yellow-500/20',
     },
     {
       path: '/settings',
       icon: Settings,
       label: 'הגדרות',
-      color: 'text-white/70',
-      bg: 'bg-white/5',
+      color: 'text-[#64b5f6]',
+      bg: 'bg-[#64b5f6]/10',
+      border: 'border-[#64b5f6]/20',
     },
   ];
 
@@ -106,51 +108,10 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
             >
               <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
 
-              <div className="px-5 pt-6 pb-4 border-b border-white/5">
-                <div className="flex items-center justify-between gap-3">
-                  <button
-                    onClick={closeSidebar}
-                    className="w-11 h-11 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center text-white/70 active:scale-90 transition-all hover:bg-white/[0.07]"
-                    aria-label="סגור תפריט"
-                  >
-                    <X size={20} />
-                  </button>
-
-                  <div className="flex-1 text-right">
-                    <h2 className="text-[28px] font-black tracking-tight text-white">INNER</h2>
-                    <p className="text-white/25 text-[10px] font-black tracking-[0.25em] uppercase mt-1">
-                      Navigation
-                    </p>
-                  </div>
+              <div className="px-5 pt-7 pb-5 border-b border-white/5">
+                <div className="flex items-center justify-center">
+                  <h2 className="text-[30px] font-black tracking-tight text-white text-center">INNER</h2>
                 </div>
-
-                <button
-                  onClick={() => {
-                    triggerFeedback('pop');
-                    navigate('/profile');
-                    closeSidebar();
-                  }}
-                  className="mt-5 w-full bg-white/[0.03] border border-white/10 rounded-[28px] p-4 flex items-center gap-4 active:scale-[0.99] transition-all hover:bg-white/[0.05]"
-                >
-                  <div className="w-14 h-14 rounded-full overflow-hidden bg-black border border-white/10 shrink-0">
-                    {profile?.avatar_url ? (
-                      <img src={profile.avatar_url} className="w-full h-full object-cover" />
-                    ) : (
-                      <UserCircle className="w-full h-full p-2 text-white/25" />
-                    )}
-                  </div>
-
-                  <div className="flex-1 text-right min-w-0">
-                    <div className="text-white font-black text-[15px] truncate">
-                      {profile?.full_name || user?.email || 'INNER User'}
-                    </div>
-                    <div className="text-white/35 text-[11px] mt-1 truncate" dir="ltr">
-                      @{profile?.username || 'user'}
-                    </div>
-                  </div>
-
-                  <ChevronLeft size={18} className="text-white/25 shrink-0" />
-                </button>
               </div>
 
               <div className="flex flex-col gap-2 p-4 flex-1 overflow-y-auto">
@@ -165,7 +126,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
                     className="flex items-center gap-4 p-4 rounded-[24px] hover:bg-white/[0.05] active:scale-[0.98] transition-all w-full text-right group relative border border-transparent hover:border-white/5"
                   >
                     <div
-                      className={`w-12 h-12 rounded-[18px] ${item.bg} border border-white/5 flex items-center justify-center shrink-0 relative shadow-inner`}
+                      className={`w-12 h-12 rounded-[18px] ${item.bg} ${item.border} border flex items-center justify-center shrink-0 relative shadow-inner`}
                     >
                       <item.icon size={20} className={item.color} />
                       {item.badge && (
@@ -183,22 +144,6 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
               </div>
 
               <div className="p-4 border-t border-white/5 flex flex-col gap-2">
-                <button
-                  onClick={() => {
-                    triggerFeedback('pop');
-                    navigate('/settings');
-                    closeSidebar();
-                  }}
-                  className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/[0.03] border border-white/8 hover:bg-white/[0.05] active:scale-[0.98] transition-all"
-                >
-                  <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-                    <Shield size={18} className="text-white/75" />
-                  </div>
-                  <div className="flex-1 text-right">
-                    <div className="text-white/90 text-[14px] font-black">פרטיות ואבטחה</div>
-                  </div>
-                </button>
-
                 <button
                   onClick={async () => {
                     triggerFeedback('pop');
