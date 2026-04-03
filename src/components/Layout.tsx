@@ -5,7 +5,7 @@ import {
   PlusCircle,
   Wallet,
   Bell,
-  Zap,
+  ShoppingBag,
   Settings,
   LogOut,
   ChevronLeft,
@@ -47,18 +47,18 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
       path: '/notifications',
       icon: Bell,
       label: 'התראות',
-      color: 'text-red-400',
-      bg: 'bg-red-500/10',
-      border: 'border-red-500/20',
+      color: 'text-white',
+      bg: 'bg-white/10',
+      border: 'border-white/20',
       badge: unreadCount > 0,
     },
     {
       path: '/store',
-      icon: Zap,
-      label: 'חנות בוסטים',
-      color: 'text-yellow-400',
-      bg: 'bg-yellow-500/10',
-      border: 'border-yellow-500/20',
+      icon: ShoppingBag,
+      label: 'חנות',
+      color: 'text-cyan-400',
+      bg: 'bg-cyan-500/10',
+      border: 'border-cyan-500/20',
     },
     {
       path: '/settings',
@@ -93,7 +93,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[50]"
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[50]"
               onClick={closeSidebar}
             />
 
@@ -103,10 +103,10 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 26, stiffness: 220 }}
-              className="bg-[#050505]/96 backdrop-blur-3xl border-r border-white/10 flex flex-col shadow-[20px_0_60px_rgba(0,0,0,0.55)]"
+              className="bg-white/[0.04] backdrop-blur-3xl border-r border-white/10 flex flex-col shadow-[20px_0_60px_rgba(0,0,0,0.55)]"
               dir="rtl"
             >
-              <div className="px-5 pt-7 pb-5 border-b border-white/5">
+              <div className="px-5 pt-7 pb-5 border-b border-white/10">
                 <div className="flex items-center justify-center">
                   <h2 className="text-[30px] font-black tracking-tight text-white text-center">INNER</h2>
                 </div>
@@ -121,14 +121,14 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
                       navigate(item.path);
                       closeSidebar();
                     }}
-                    className="flex items-center gap-4 p-4 rounded-[24px] hover:bg-white/[0.05] active:scale-[0.98] transition-all w-full text-right group relative border border-transparent hover:border-white/5"
+                    className="flex items-center gap-4 p-4 rounded-[24px] hover:bg-white/[0.06] active:scale-[0.98] transition-all w-full text-right group relative border border-transparent hover:border-white/10"
                   >
                     <div
                       className={`w-12 h-12 rounded-[18px] ${item.bg} ${item.border} border flex items-center justify-center shrink-0 relative shadow-inner`}
                     >
                       <item.icon size={20} className={item.color} />
                       {item.badge && (
-                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-[#050505] shadow-[0_0_10px_#ef4444]" />
+                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-white rounded-full border-2 border-[#050505]" />
                       )}
                     </div>
 
@@ -141,7 +141,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
                 ))}
               </div>
 
-              <div className="p-4 border-t border-white/5">
+              <div className="p-4 border-t border-white/10">
                 <button
                   onClick={async () => {
                     triggerFeedback('pop');
