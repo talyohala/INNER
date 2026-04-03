@@ -531,7 +531,7 @@ export const HomePage: React.FC = () => {
                                 <div className="bg-[#111] p-3 rounded-[24px] rounded-tr-sm cursor-pointer" onClick={() => openOverlay(() => setCommentActionModal(reply))}>
                                   <span className="text-white/90 font-bold text-[11px] mb-1 inline-block" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${reply.user_id}`), 50); }}>{reply.profiles?.full_name || 'אנונימי'}</span>
                                   <p className="text-white/70 text-[13px] whitespace-pre-wrap leading-relaxed">{renderCommentText(reply.content)}</p>
-                                }
+                              </div>
                                 <div className="flex items-center gap-4 mt-2 px-2">
                                   <span className="text-[10px] text-white/40 cursor-pointer font-medium hover:text-white" onClick={() => { setReplyingTo(c); setNewComment(`@${reply.profiles?.full_name} `); }}>השב</span>
                                   <button onClick={() => toggleCommentLike(reply.id)} className={`ml-auto flex items-center gap-1 ${likedComments.has(reply.id) ? 'text-[#e91e63]' : 'text-white/30'}`}><Heart size={10} fill={likedComments.has(reply.id) ? 'currentColor' : 'none'} /></button>
