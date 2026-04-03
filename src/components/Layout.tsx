@@ -39,17 +39,17 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
       path: '/wallet',
       icon: Wallet,
       label: 'ארנק',
-      color: 'text-[#ffc107]',
-      bg: 'bg-[#ffc107]/10',
-      border: 'border-[#ffc107]/20',
+      color: 'text-blue-400',
+      bg: 'bg-blue-500/10',
+      border: 'border-blue-500/20',
     },
     {
       path: '/notifications',
       icon: Bell,
       label: 'התראות',
-      color: 'text-[#ff5252]',
-      bg: 'bg-[#ff5252]/10',
-      border: 'border-[#ff5252]/20',
+      color: 'text-red-400',
+      bg: 'bg-red-500/10',
+      border: 'border-red-500/20',
       badge: unreadCount > 0,
     },
     {
@@ -64,9 +64,9 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
       path: '/settings',
       icon: Settings,
       label: 'הגדרות',
-      color: 'text-[#64b5f6]',
-      bg: 'bg-[#64b5f6]/10',
-      border: 'border-[#64b5f6]/20',
+      color: 'text-purple-400',
+      bg: 'bg-purple-500/10',
+      border: 'border-purple-500/20',
     },
   ];
 
@@ -106,8 +106,6 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
               className="bg-[#050505]/96 backdrop-blur-3xl border-r border-white/10 flex flex-col shadow-[20px_0_60px_rgba(0,0,0,0.55)]"
               dir="rtl"
             >
-              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-
               <div className="px-5 pt-7 pb-5 border-b border-white/5">
                 <div className="flex items-center justify-center">
                   <h2 className="text-[30px] font-black tracking-tight text-white text-center">INNER</h2>
@@ -143,7 +141,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
                 ))}
               </div>
 
-              <div className="p-4 border-t border-white/5 flex flex-col gap-2">
+              <div className="p-4 border-t border-white/5">
                 <button
                   onClick={async () => {
                     triggerFeedback('pop');
@@ -161,12 +159,6 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
                     <div className="text-red-400 text-[14px] font-black">התנתק</div>
                   </div>
                 </button>
-
-                <div className="pt-2 text-center">
-                  <p className="text-[10px] font-black text-white/20 tracking-[0.22em] uppercase">
-                    Inner Core
-                  </p>
-                </div>
               </div>
             </motion.div>
           </>
