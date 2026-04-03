@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -87,6 +87,18 @@ export const HomePage: React.FC = () => {
     commentAction: false,
     userCircles: false,
   });
+
+  const mediaPosts = useMemo(() => posts.filter((p) => p.media_url), [posts]);
+
+  const getRandomMediaBatch = (size = 6, excludeId?: string) => {
+    const pool = mediaPosts.filter((p) => (excludeId ? p.id !== excludeId : true));
+    if (pool.length === 0) return [];
+    const batch: any[] = [];
+    for (let i = 0; i < size; i += 1) {
+      batch.push(pool[Math.floor(Math.random() * pool.length)]);
+    }
+    return batch;
+  };
 
   useEffect(() => {
     stateRef.current = {
@@ -628,6 +640,13 @@ export const HomePage: React.FC = () => {
     }
   };
 
+  const handleOpenFullscreen = (post: any) => {
+    openOverlay(() => {
+      setFullScreenMedia([post, ...getRandomMediaBatch(10, post.id)]);
+      setCurrentMediaIndex(0);
+    });
+  };
+
   const handleContainerScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;
 
@@ -641,18 +660,13 @@ export const HomePage: React.FC = () => {
         setCurrentMediaIndex(index);
       }
 
-      if (target.scrollHeight - target.scrollTop <= target.clientHeight * 2 && fullScreenMedia) {
-        const existingIds = new Set((fullScreenMedia || []).map((p) => p.id));
-        const more = posts
-          .filter((p) => p.media_url && !existingIds.has(p.id))
-          .sort(() => Math.random() - 0.5)
-          .slice(0, 3);
-
+      if (target.scrollHeight - target.scrollTop <= target.clientHeight * 2) {
+        const more = getRandomMediaBatch(6);
         if (more.length) {
           setFullScreenMedia((prev) => [...(prev || []), ...more]);
         }
       }
-    }, 150);
+    }, 120);
   };
 
   const renderCommentText = (text: string) => {
@@ -725,7 +739,7 @@ export const HomePage: React.FC = () => {
         </div>
 
         <div className="relative z-10">
-          <div className="flex justify-between items-start mb-8 h-12 px-1">
+          <div className="flex justify-between items-start mb-6 h-12 px-1">
             <div className="w-10" />
             <div className="flex flex-col items-center absolute left-1/2 -translate-x-1/2">
               <h1 className="text-3xl font-black text-white tracking-tighter uppercase drop-shadow-md">
@@ -749,236 +763,225 @@ export const HomePage: React.FC = () => {
             </button>
           </div>
 
-          <div className="p-5 rounded-[36px] mb-8 border border-white/10 bg-white/[0.04] backdrop-blur-md shadow-2xl relative z-10 flex flex-col gap-3">
-            {selectedFile && (
-              <div className="relative w-full h-36 rounded-[24px] overflow-hidden bg-[#111] border border-white/10 flex items-center justify-center">
-                {selectedFile.type.startsWith('video/') ? (
-                  <video
-                    src={URL.createObjectURL(selectedFile)}
-                    className="w-full h-full object-cover opacity-80"
-                  />
-                ) : (
-                  <img
-                    src={URL.createObjectURL(selectedFile)}
-                    className="w-full h-full object-cover opacity-80"
-                  />
-                )}
+          <div className="-mx-4 mb-6 px-2">
+            <div className="p-5 rounded-[36px] border border-white/10 bg-white/[0.04] backdrop-blur-md shadow-2xl relative z-10 flex flex-col gap-3">
+              {selectedFile && (
+                <div className="relative w-full h-44 rounded-[28px] overflow-hidden bg-[#111] border border-white/10 flex items-center justify-center">
+                  {selectedFile.type.startsWith('video/') ? (
+                    <video
+                      src={URL.createObjectURL(selectedFile)}
+                      className="w-full h-full object-cover opacity-90"
+                    />
+                  ) : (
+                    <img
+                      src={URL.createObjectURL(selectedFile)}
+                      className="w-full h-full object-cover opacity-90"
+                    />
+                  )}
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedFile(null);
+                    }}
+                    className="absolute top-3 right-3 w-9 h-9 bg-black/60 backdrop-blur-md rounded-full flex items-center justify-center text-white z-10"
+                  >
+                    <X size={17} />
+                  </button>
+                </div>
+              )}
+
+              <textarea
+                value={newPost}
+                onChange={(e) => setNewPost(e.target.value)}
+                placeholder="שדר משהו לכולם..."
+                className="w-full bg-transparent border-none text-white/90 text-[16px] font-medium outline-none resize-none placeholder:text-white/40 pt-1 min-h-[88px]"
+                rows={Math.min(Math.max(newPost.split('\n').length, 3), 7)}
+              />
+
+              <div className="flex justify-end items-center gap-4 border-t border-white/10 pt-4 mt-1">
+                <div
+                  className="w-12 h-12 flex items-center justify-center text-white/40 rounded-full border border-white/10 cursor-pointer hover:bg-white/5 transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Paperclip size={20} />
+                </div>
 
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedFile(null);
-                  }}
-                  className="absolute top-2 right-2 w-8 h-8 bg-black/60 backdrop-blur-md rounded-full flex items-center justify-center text-white z-10"
+                  onClick={handlePost}
+                  disabled={posting || (!newPost.trim() && !selectedFile)}
+                  className="w-12 h-12 rounded-full bg-white flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(255,255,255,0.1)] disabled:opacity-50 active:scale-95 transition-all"
                 >
-                  <X size={16} />
+                  {posting ? (
+                    <Loader2 className="animate-spin w-5 h-5 text-[#2196f3]" />
+                  ) : (
+                    <Send size={24} className="rtl:-scale-x-100 -ml-1 text-[#2196f3]" />
+                  )}
                 </button>
               </div>
-            )}
-
-            <textarea
-              value={newPost}
-              onChange={(e) => setNewPost(e.target.value)}
-              placeholder="שדר משהו לכולם..."
-              className="w-full bg-transparent border-none text-white/90 text-[16px] font-medium outline-none resize-none placeholder:text-white/40 pt-1"
-              rows={Math.min(Math.max(newPost.split('\n').length, 1), 5)}
-            />
-
-            <div className="flex justify-end items-center gap-4 border-t border-white/10 pt-4 mt-1">
-              <div
-                className="w-12 h-12 flex items-center justify-center text-white/40 rounded-full border border-white/10 cursor-pointer hover:bg-white/5 transition-colors"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Paperclip size={20} />
-              </div>
-
-              <button
-                onClick={handlePost}
-                disabled={posting || (!newPost.trim() && !selectedFile)}
-                className="w-12 h-12 rounded-full bg-white flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(255,255,255,0.1)] disabled:opacity-50 active:scale-95 transition-all"
-              >
-                {posting ? (
-                  <Loader2 className="animate-spin w-5 h-5 text-[#2196f3]" />
-                ) : (
-                  <Send size={24} className="rtl:-scale-x-100 -ml-1 text-[#2196f3]" />
-                )}
-              </button>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-col gap-6 relative z-10 px-0">
+        <div className="flex flex-col gap-5 relative z-10 px-0">
           {posts.map((post) => {
             const hasMedia = !!post.media_url;
             const isVideo = post.media_url?.match(/\.(mp4|webm|mov)$/i);
 
             return (
-              <div
-                key={post.id}
-                className="flex flex-col rounded-[36px] bg-[#0A0A0A] border border-white/10 overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.5)]"
-              >
-                {hasMedia && (
-                  <div
-                    className="w-full bg-[#050505] relative cursor-pointer"
-                    onClick={() =>
-                      openOverlay(() => {
-                        const vids = posts.filter((p) => p.media_url);
-                        setFullScreenMedia([
-                          post,
-                          ...vids.filter((v) => v.id !== post.id).sort(() => Math.random() - 0.5),
-                        ]);
-                        setCurrentMediaIndex(0);
-                      })
-                    }
-                  >
-                    {isVideo ? (
-                      <video
-                        src={post.media_url}
-                        autoPlay
-                        loop
-                        muted
-                        playsInline
-                        className="w-full max-h-[500px] object-cover"
-                      />
-                    ) : (
-                      <img
-                        src={post.media_url}
-                        onError={(e) => {
-                          e.currentTarget.src =
-                            'https://placehold.co/500x500/111/333?text=Media+Unavailable';
-                        }}
-                        className="w-full max-h-[500px] object-cover"
-                      />
-                    )}
-
-                    {post.content && (
-                      <div className="absolute bottom-0 left-0 right-0 p-5 pt-16 bg-gradient-to-t from-[#0A0A0A] via-black/60 to-transparent flex items-end pointer-events-none">
-                        <p
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openOverlay(() => setActiveDescPost(post));
-                          }}
-                          className="text-white/90 text-sm leading-relaxed text-right line-clamp-2 w-full pr-2 cursor-pointer active:opacity-50 pointer-events-auto"
-                        >
-                          {post.content}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {!hasMedia && post.content && (
-                  <div className="p-6 pb-4 border-b border-white/5">
-                    <p
-                      onClick={() => openOverlay(() => setActiveDescPost(post))}
-                      className="text-white/90 text-[15px] leading-relaxed text-right line-clamp-3 cursor-pointer active:opacity-50"
-                    >
-                      {post.content}
-                    </p>
-                  </div>
-                )}
-
-                {post.user_circles && post.user_circles.length > 0 && (
-                  <div className="px-5 py-4 border-b border-white/5 bg-[#050505]">
-                    <h4 className="text-white/30 text-[10px] font-black mb-3 uppercase tracking-wider">
-                      שייך למועדונים:
-                    </h4>
-
-                    <div className="flex gap-4 overflow-x-auto scrollbar-hide items-center">
-                      {post.user_circles.slice(0, 10).map((circle: any) => (
-                        <div
-                          key={circle.id}
-                          onClick={() => navigate(`/circle/${circle.slug || circle.id}`)}
-                          className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform"
-                        >
-                          <div className="w-12 h-12 rounded-full border border-white/10 overflow-hidden bg-[#111]">
-                            {circle.cover_url ? (
-                              <img src={circle.cover_url} className="w-full h-full object-cover" />
-                            ) : (
-                              <Users className="w-full h-full p-2.5 text-white/20" />
-                            )}
-                          </div>
-                          <span className="text-[9px] text-white/60 font-bold max-w-[55px] truncate text-center">
-                            {circle.name}
-                          </span>
-                        </div>
-                      ))}
-
-                      {post.user_circles.length > 10 && (
-                        <div
-                          onClick={() => openOverlay(() => setUserCirclesModal(post.user_circles))}
-                          className="w-12 h-12 rounded-full border border-white/10 bg-white/5 flex flex-col items-center justify-center shrink-0 cursor-pointer active:scale-95 mb-4"
-                        >
-                          <ChevronLeft size={16} className="text-white/50" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between px-5 py-4 bg-[#0A0A0A]">
-                  <div
-                    className="flex items-center gap-3 cursor-pointer group"
-                    onClick={() => navigate(`/profile/${post.user_id}`)}
-                  >
-                    <div className="w-10 h-10 rounded-full bg-black border border-white/10 overflow-hidden shrink-0">
-                      {post.profiles?.avatar_url ? (
-                        <img src={post.profiles.avatar_url} className="w-full h-full object-cover" />
+              <div key={post.id} className="-mx-4 px-2">
+                <div className="flex flex-col rounded-[36px] bg-[#0A0A0A] border border-white/10 overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
+                  {hasMedia && (
+                    <div className="w-full bg-[#050505] relative cursor-pointer" onClick={() => handleOpenFullscreen(post)}>
+                      {isVideo ? (
+                        <video
+                          src={post.media_url}
+                          autoPlay
+                          loop
+                          muted
+                          playsInline
+                          className="w-full max-h-[620px] object-cover"
+                        />
                       ) : (
-                        <UserCircle className="w-full h-full p-2 text-white/20" />
+                        <img
+                          src={post.media_url}
+                          onError={(e) => {
+                            e.currentTarget.src =
+                              'https://placehold.co/500x500/111/333?text=Media+Unavailable';
+                          }}
+                          className="w-full max-h-[620px] object-cover"
+                        />
+                      )}
+
+                      {post.content && (
+                        <div className="absolute bottom-0 left-0 right-0 p-5 pt-16 bg-gradient-to-t from-[#0A0A0A] via-black/60 to-transparent flex items-end pointer-events-none">
+                          <p
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openOverlay(() => setActiveDescPost(post));
+                            }}
+                            className="text-white/90 text-sm leading-relaxed text-right line-clamp-2 w-full pr-2 cursor-pointer active:opacity-50 pointer-events-auto"
+                          >
+                            {post.content}
+                          </p>
+                        </div>
                       )}
                     </div>
-                    <div className="flex flex-col text-right">
-                      <span className="text-white font-black text-[14px]">
-                        {post.profiles?.full_name || 'אנונימי'}
-                      </span>
-                      <span className="text-white/30 text-[10px]">
-                        {new Date(post.created_at).toLocaleDateString('he-IL')}
-                      </span>
+                  )}
+
+                  {!hasMedia && post.content && (
+                    <div className="p-6 pb-4 border-b border-white/5">
+                      <p
+                        onClick={() => openOverlay(() => setActiveDescPost(post))}
+                        className="text-white/90 text-[15px] leading-relaxed text-right line-clamp-3 cursor-pointer active:opacity-50"
+                      >
+                        {post.content}
+                      </p>
                     </div>
-                  </div>
+                  )}
 
-                  <div className="flex items-center gap-3 flex-row-reverse">
-                    <button
-                      onClick={() => openOverlay(() => setOptionsMenuPost(post))}
-                      className="text-white/30 active:scale-90 border-r border-white/10 pr-3"
+                  {post.user_circles && post.user_circles.length > 0 && (
+                    <div className="px-5 py-4 border-b border-white/5 bg-[#050505]">
+                      <h4 className="text-white/30 text-[10px] font-black mb-3 uppercase tracking-wider">
+                        שייך למועדונים:
+                      </h4>
+
+                      <div className="flex gap-4 overflow-x-auto scrollbar-hide items-center">
+                        {post.user_circles.slice(0, 10).map((circle: any) => (
+                          <div
+                            key={circle.id}
+                            onClick={() => navigate(`/circle/${circle.slug || circle.id}`)}
+                            className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform"
+                          >
+                            <div className="w-12 h-12 rounded-full border border-white/10 overflow-hidden bg-[#111]">
+                              {circle.cover_url ? (
+                                <img src={circle.cover_url} className="w-full h-full object-cover" />
+                              ) : (
+                                <Users className="w-full h-full p-2.5 text-white/20" />
+                              )}
+                            </div>
+                            <span className="text-[9px] text-white/60 font-bold max-w-[55px] truncate text-center">
+                              {circle.name}
+                            </span>
+                          </div>
+                        ))}
+
+                        {post.user_circles.length > 10 && (
+                          <div
+                            onClick={() => openOverlay(() => setUserCirclesModal(post.user_circles))}
+                            className="w-12 h-12 rounded-full border border-white/10 bg-white/5 flex flex-col items-center justify-center shrink-0 cursor-pointer active:scale-95 mb-4"
+                          >
+                            <ChevronLeft size={16} className="text-white/50" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between px-5 py-4 bg-[#0A0A0A]">
+                    <div
+                      className="flex items-center gap-3 cursor-pointer group"
+                      onClick={() => navigate(`/profile/${post.user_id}`)}
                     >
-                      <MoreVertical size={20} />
-                    </button>
+                      <div className="w-10 h-10 rounded-full bg-black border border-white/10 overflow-hidden shrink-0">
+                        {post.profiles?.avatar_url ? (
+                          <img src={post.profiles.avatar_url} className="w-full h-full object-cover" />
+                        ) : (
+                          <UserCircle className="w-full h-full p-2 text-white/20" />
+                        )}
+                      </div>
+                      <div className="flex flex-col text-right">
+                        <span className="text-white font-black text-[14px]">
+                          {post.profiles?.full_name || 'אנונימי'}
+                        </span>
+                        <span className="text-white/30 text-[10px]">
+                          {new Date(post.created_at).toLocaleDateString('he-IL')}
+                        </span>
+                      </div>
+                    </div>
 
-                    <button
-                      onClick={() =>
-                        openOverlay(() => {
-                          setActivePost(post);
-                          setActiveCommentsPostId(post.id);
-                          setLoadingComments(true);
+                    <div className="flex items-center gap-3 flex-row-reverse">
+                      <button
+                        onClick={() => openOverlay(() => setOptionsMenuPost(post))}
+                        className="text-white/30 active:scale-90 border-r border-white/10 pr-3"
+                      >
+                        <MoreVertical size={20} />
+                      </button>
 
-                          supabase
-                            .from('comments')
-                            .select('*, profiles(*)')
-                            .eq('post_id', post.id)
-                            .order('created_at', { ascending: true })
-                            .then((r) => {
-                              setComments(r.data || []);
-                              setLoadingComments(false);
-                            });
-                        })
-                      }
-                      className="flex items-center gap-1.5 text-white/30 active:scale-90"
-                    >
-                      <MessageSquare size={20} />
-                      <span className="text-[13px] font-black">{post.comments_count}</span>
-                    </button>
+                      <button
+                        onClick={() =>
+                          openOverlay(() => {
+                            setActivePost(post);
+                            setActiveCommentsPostId(post.id);
+                            setLoadingComments(true);
 
-                    <button
-                      onClick={() => handleLike(post.id, post.is_liked)}
-                      className={`flex items-center gap-1.5 active:scale-90 ${
-                        post.is_liked ? 'text-[#e91e63]' : 'text-white/30'
-                      }`}
-                    >
-                      <Heart size={20} fill={post.is_liked ? 'currentColor' : 'none'} />
-                      <span className="text-[13px] font-black">{post.likes_count}</span>
-                    </button>
+                            supabase
+                              .from('comments')
+                              .select('*, profiles(*)')
+                              .eq('post_id', post.id)
+                              .order('created_at', { ascending: true })
+                              .then((r) => {
+                                setComments(r.data || []);
+                                setLoadingComments(false);
+                              });
+                          })
+                        }
+                        className="flex items-center gap-1.5 text-white/30 active:scale-90"
+                      >
+                        <MessageSquare size={20} />
+                        <span className="text-[13px] font-black">{post.comments_count}</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleLike(post.id, post.is_liked)}
+                        className={`flex items-center gap-1.5 active:scale-90 ${
+                          post.is_liked ? 'text-[#e91e63]' : 'text-white/30'
+                        }`}
+                      >
+                        <Heart size={20} fill={post.is_liked ? 'currentColor' : 'none'} />
+                        <span className="text-[13px] font-black">{post.likes_count}</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1007,7 +1010,7 @@ export const HomePage: React.FC = () => {
 
                     return (
                       <div
-                        key={`${vid.id}-${idx}`}
+                        key={`${vid.id}-${idx}-${Math.random().toString(36).slice(2, 7)}`}
                         className="w-full h-screen snap-center relative bg-black flex items-center justify-center"
                       >
                         {isVid ? (
@@ -1017,9 +1020,7 @@ export const HomePage: React.FC = () => {
                             playsInline
                             className="w-full h-full object-cover full-media-item"
                             onClick={(e) =>
-                              e.currentTarget.paused
-                                ? e.currentTarget.play()
-                                : e.currentTarget.pause()
+                              e.currentTarget.paused ? e.currentTarget.play() : e.currentTarget.pause()
                             }
                           />
                         ) : (
@@ -1274,10 +1275,7 @@ export const HomePage: React.FC = () => {
                                         likedComments.has(c.id) ? 'text-[#e91e63]' : 'text-white/30'
                                       }`}
                                     >
-                                      <Heart
-                                        size={12}
-                                        fill={likedComments.has(c.id) ? 'currentColor' : 'none'}
-                                      />
+                                      <Heart size={12} fill={likedComments.has(c.id) ? 'currentColor' : 'none'} />
                                     </button>
                                   </div>
 
@@ -1293,9 +1291,7 @@ export const HomePage: React.FC = () => {
                                     >
                                       <span className="flex-1 border-t border-white/10 mr-2" />
                                       {isThreadExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                                      {isThreadExpanded
-                                        ? 'הסתר תגובות'
-                                        : `צפה ב-${replies.length} תגובות`}
+                                      {isThreadExpanded ? 'הסתר תגובות' : `צפה ב-${replies.length} תגובות`}
                                     </button>
                                   )}
                                 </div>
@@ -1361,10 +1357,7 @@ export const HomePage: React.FC = () => {
                                             likedComments.has(reply.id) ? 'text-[#e91e63]' : 'text-white/30'
                                           }`}
                                         >
-                                          <Heart
-                                            size={10}
-                                            fill={likedComments.has(reply.id) ? 'currentColor' : 'none'}
-                                          />
+                                          <Heart size={10} fill={likedComments.has(reply.id) ? 'currentColor' : 'none'} />
                                         </button>
                                       </div>
                                     </div>
