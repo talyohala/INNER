@@ -13,11 +13,17 @@ import {
   ShoppingBag,
   Activity,
   UserCircle,
-  ChevronLeft,
+  MoreHorizontal,
+  Trash2,
+  Circle,
+  CheckCircle2,
+  ExternalLink,
+  X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { triggerFeedback } from '../lib/sound';
+import toast from 'react-hot-toast';
 
 type ActorProfile = {
   id: string;
@@ -41,6 +47,8 @@ export const NotificationsPage: React.FC = () => {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [actorProfiles, setActorProfiles] = useState<Record<string, ActorProfile>>({});
   const [loading, setLoading] = useState(true);
+  const [activeMenuNotif, setActiveMenuNotif] = useState<any | null>(null);
+  const [busyId, setBusyId] = useState<string | number | null>(null);
 
   const navigate = useNavigate();
   const { user, markNotificationsRead, checkUnread } = useAuth();
@@ -49,11 +57,7 @@ export const NotificationsPage: React.FC = () => {
 
   const enrichActorProfiles = useCallback(async (list: any[]) => {
     const actorIds = Array.from(
-      new Set(
-        list
-          .map((n) => getActorIdFromNotification(n))
-          .filter(Boolean)
-      )
+      new Set(list.map((n) => getActorIdFromNotification(n)).filter(Boolean))
     ) as string[];
 
     if (actorIds.length === 0) {
@@ -80,38 +84,41 @@ export const NotificationsPage: React.FC = () => {
     }
   }, []);
 
-  const fetchNotifs = useCallback(async (markAsRead = true) => {
-    if (!user?.id) {
-      setNotifications([]);
-      setActorProfiles({});
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      const safeData = Array.isArray(data) ? data : [];
-      setNotifications(safeData);
-      await enrichActorProfiles(safeData);
-
-      if (markAsRead && safeData.some((n) => !n.is_read)) {
-        await markNotificationsRead();
-      } else {
-        await checkUnread(user.id);
+  const fetchNotifs = useCallback(
+    async (markAsRead = true) => {
+      if (!user?.id) {
+        setNotifications([]);
+        setActorProfiles({});
+        setLoading(false);
+        return;
       }
-    } catch (err) {
-      console.error('fetchNotifs error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [user?.id, markNotificationsRead, checkUnread, enrichActorProfiles]);
+
+      try {
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        const safeData = Array.isArray(data) ? data : [];
+        setNotifications(safeData);
+        await enrichActorProfiles(safeData);
+
+        if (markAsRead && safeData.some((n) => !n.is_read)) {
+          await markNotificationsRead();
+        } else {
+          await checkUnread(user.id);
+        }
+      } catch (err) {
+        console.error('fetchNotifs error:', err);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [user?.id, markNotificationsRead, checkUnread, enrichActorProfiles]
+  );
 
   useEffect(() => {
     fetchNotifs(true);
@@ -154,31 +161,103 @@ export const NotificationsPage: React.FC = () => {
     };
   }, [user?.id, fetchNotifs]);
 
+  const navigateToActorProfile = useCallback(
+    async (notif: any) => {
+      const actorId = getActorIdFromNotification(notif);
+      if (!actorId) return;
+
+      const actor = actorProfiles[actorId];
+      const profileTarget = actor?.username || actor?.id || actorId;
+
+      triggerFeedback('pop');
+      navigate(`/profile/${profileTarget}`);
+    },
+    [actorProfiles, navigate]
+  );
+
   const handleRefresh = async () => {
     triggerFeedback('pop');
     setLoading(true);
     await fetchNotifs(true);
   };
 
-  const handleProfileNav = async (notif: any, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
+  const setNotificationReadState = async (notif: any, nextReadState: boolean) => {
+    try {
+      setBusyId(notif.id);
 
-    const actorId = getActorIdFromNotification(notif);
-    if (!actorId) return;
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: nextReadState })
+        .eq('id', notif.id);
 
-    triggerFeedback('pop');
+      if (error) throw error;
 
-    if (!notif.is_read) {
-      try {
-        await supabase.from('notifications').update({ is_read: true }).eq('id', notif.id);
-        setNotifications((prev) => prev.map((n) => (n.id === notif.id ? { ...n, is_read: true } : n)));
-        if (user?.id) await checkUnread(user.id);
-      } catch (err) {
-        console.error('handleProfileNav mark read error:', err);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notif.id ? { ...n, is_read: nextReadState } : n))
+      );
+
+      if (user?.id) {
+        await checkUnread(user.id);
       }
-    }
 
-    navigate(`/profile/${actorId}`);
+      toast.success(nextReadState ? 'סומן כנקראה' : 'סומן כלא נקראה');
+    } catch (err) {
+      console.error('setNotificationReadState error:', err);
+      toast.error('שגיאה בעדכון ההתראה');
+    } finally {
+      setBusyId(null);
+      setActiveMenuNotif(null);
+    }
+  };
+
+  const deleteNotification = async (notifId: string | number) => {
+    try {
+      setBusyId(notifId);
+
+      const { error } = await supabase.from('notifications').delete().eq('id', notifId);
+      if (error) throw error;
+
+      setNotifications((prev) => prev.filter((n) => n.id !== notifId));
+
+      if (user?.id) {
+        await checkUnread(user.id);
+      }
+
+      toast.success('ההתראה נמחקה');
+    } catch (err) {
+      console.error('deleteNotification error:', err);
+      toast.error('שגיאה במחיקת ההתראה');
+    } finally {
+      setBusyId(null);
+      setActiveMenuNotif(null);
+    }
+  };
+
+  const deleteAllReadNotifications = async () => {
+    if (!user?.id) return;
+
+    try {
+      triggerFeedback('pop');
+      setBusyId('delete-read-all');
+
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('is_read', true);
+
+      if (error) throw error;
+
+      setNotifications((prev) => prev.filter((n) => !n.is_read));
+      await checkUnread(user.id);
+      toast.success('כל ההתראות שנקראו נמחקו');
+    } catch (err) {
+      console.error('deleteAllReadNotifications error:', err);
+      toast.error('שגיאה במחיקת ההתראות');
+    } finally {
+      setBusyId(null);
+      setActiveMenuNotif(null);
+    }
   };
 
   const handleNotifClick = async (notif: any) => {
@@ -199,10 +278,7 @@ export const NotificationsPage: React.FC = () => {
       return;
     }
 
-    const actorId = getActorIdFromNotification(notif);
-    if (actorId) {
-      navigate(`/profile/${actorId}`);
-    }
+    await navigateToActorProfile(notif);
   };
 
   const getIcon = (type: string) => {
@@ -225,6 +301,7 @@ export const NotificationsPage: React.FC = () => {
   };
 
   const unreadExists = useMemo(() => notifications.some((n) => !n.is_read), [notifications]);
+  const readExists = useMemo(() => notifications.some((n) => n.is_read), [notifications]);
 
   if (loading) {
     return (
@@ -237,19 +314,28 @@ export const NotificationsPage: React.FC = () => {
   return (
     <div className="px-4 pt-12 pb-32 bg-[#0A0A0A] min-h-screen flex flex-col font-sans" dir="rtl">
       <div className="flex items-center justify-between mb-8 px-2">
-        <div className="w-11" />
+        <button
+          onClick={readExists ? deleteAllReadNotifications : handleRefresh}
+          className="w-11 h-11 flex items-center justify-center bg-white/5 border border-white/10 rounded-[16px] active:scale-90 transition-transform shadow-inner disabled:opacity-50"
+          disabled={busyId === 'delete-read-all'}
+        >
+          {busyId === 'delete-read-all' ? (
+            <Loader2 size={18} className="animate-spin text-white/60" />
+          ) : readExists ? (
+            <Trash2 size={18} className="text-white/60" />
+          ) : (
+            <CheckCheck size={20} className="text-white/60" />
+          )}
+        </button>
+
         <div className="flex flex-col items-center">
           <h1 className="text-3xl font-black text-white tracking-tighter drop-shadow-md">התראות</h1>
           {unreadExists && (
             <span className="text-[10px] font-black text-red-400 tracking-[0.2em] uppercase mt-1">חדש</span>
           )}
         </div>
-        <button
-          onClick={handleRefresh}
-          className="w-11 h-11 flex items-center justify-center bg-white/5 border border-white/10 rounded-[16px] active:scale-90 transition-transform shadow-inner"
-        >
-          <CheckCheck size={20} className="text-white/60" />
-        </button>
+
+        <div className="w-11" />
       </div>
 
       <div className="flex-1 flex flex-col gap-3">
@@ -289,7 +375,10 @@ export const NotificationsPage: React.FC = () => {
                   }`}
                 >
                   <button
-                    onClick={(e) => handleProfileNav(notif, e)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigateToActorProfile(notif);
+                    }}
                     className="w-12 h-12 rounded-full overflow-hidden bg-black/30 border border-white/10 shrink-0 active:scale-95 transition-transform"
                   >
                     {actor?.avatar_url ? (
@@ -302,17 +391,32 @@ export const NotificationsPage: React.FC = () => {
                   <div className="flex-1 min-w-0 text-right">
                     <div className="flex items-center justify-between gap-2 mb-0.5">
                       <button
-                        onClick={(e) => handleProfileNav(notif, e)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigateToActorProfile(notif);
+                        }}
                         className="text-white/90 font-black text-[14px] truncate hover:text-white transition-colors"
                       >
                         {actor?.full_name || notif.title}
                       </button>
 
-                      {!notif.is_read && (
-                        <span className="text-[9px] font-black text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full shrink-0">
-                          חדש
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {!notif.is_read && (
+                          <span className="text-[9px] font-black text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full">
+                            חדש
+                          </span>
+                        )}
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveMenuNotif(notif);
+                          }}
+                          className="w-8 h-8 rounded-full flex items-center justify-center bg-white/5 border border-white/10 active:scale-90"
+                        >
+                          <MoreHorizontal size={16} className="text-white/65" />
+                        </button>
+                      </div>
                     </div>
 
                     <p className="text-white/72 text-[13px] leading-relaxed line-clamp-2">
@@ -333,8 +437,7 @@ export const NotificationsPage: React.FC = () => {
                             @{actor.username}
                           </span>
                         )}
-                        <Icon size={18} className={color} />
-                        <ChevronLeft size={14} className="text-white/20" />
+                        <Icon size={17} className={color} />
                       </div>
                     </div>
                   </div>
@@ -344,6 +447,111 @@ export const NotificationsPage: React.FC = () => {
           )}
         </AnimatePresence>
       </div>
+
+      <AnimatePresence>
+        {activeMenuNotif && (
+          <div className="fixed inset-0 z-[100] flex flex-col justify-end" dir="rtl">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+              onClick={() => setActiveMenuNotif(null)}
+            />
+
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 260 }}
+              className="relative z-10 bg-[#0A0A0A] border-t border-white/10 rounded-t-[34px] p-5 pb-10 shadow-[0_-20px_40px_rgba(0,0,0,0.5)]"
+            >
+              <div className="w-full flex justify-center mb-4">
+                <div className="w-14 h-1.5 bg-white/15 rounded-full" />
+              </div>
+
+              <div className="flex items-center justify-between mb-4">
+                <div className="text-right">
+                  <h3 className="text-white font-black text-[16px]">פעולות</h3>
+                </div>
+
+                <button
+                  onClick={() => setActiveMenuNotif(null)}
+                  className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center active:scale-90"
+                >
+                  <X size={16} className="text-white/70" />
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => setNotificationReadState(activeMenuNotif, !activeMenuNotif.is_read)}
+                  className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all"
+                >
+                  <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
+                    {activeMenuNotif.is_read ? (
+                      <Circle size={18} className="text-white/75" />
+                    ) : (
+                      <CheckCircle2 size={18} className="text-green-400" />
+                    )}
+                  </div>
+                  <div className="flex-1 text-right">
+                    <div className="text-white text-[14px] font-black">
+                      {activeMenuNotif.is_read ? 'סמן כלא נקראה' : 'סמן כנקראה'}
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => navigateToActorProfile(activeMenuNotif)}
+                  className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all"
+                >
+                  <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
+                    <UserCircle size={18} className="text-white/75" />
+                  </div>
+                  <div className="flex-1 text-right">
+                    <div className="text-white text-[14px] font-black">מעבר לפרופיל</div>
+                  </div>
+                </button>
+
+                {activeMenuNotif.action_url && (
+                  <button
+                    onClick={() => {
+                      triggerFeedback('pop');
+                      setActiveMenuNotif(null);
+                      navigate(activeMenuNotif.action_url);
+                    }}
+                    className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all"
+                  >
+                    <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
+                      <ExternalLink size={18} className="text-white/75" />
+                    </div>
+                    <div className="flex-1 text-right">
+                      <div className="text-white text-[14px] font-black">פתח יעד ההתראה</div>
+                    </div>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => deleteNotification(activeMenuNotif.id)}
+                  className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-red-500/10 border border-red-500/20 active:scale-[0.98] transition-all"
+                >
+                  <div className="w-11 h-11 rounded-[16px] bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                    {busyId === activeMenuNotif.id ? (
+                      <Loader2 size={18} className="animate-spin text-red-400" />
+                    ) : (
+                      <Trash2 size={18} className="text-red-400" />
+                    )}
+                  </div>
+                  <div className="flex-1 text-right">
+                    <div className="text-red-400 text-[14px] font-black">מחק התראה</div>
+                  </div>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
