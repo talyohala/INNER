@@ -3,9 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Loader2,
-  Heart,
-  Gift,
-  MessageSquare,
   Bell,
   UserPlus,
   CheckCheck,
@@ -38,16 +35,15 @@ const getActorIdFromNotification = (notif: any): string | null => {
     notif?.from_user_id ||
     notif?.initiator_id ||
     notif?.profile_id ||
+    notif?.target_user_id ||
     null
   );
 };
 
 const extractProfileTargetFromActionUrl = (actionUrl?: string | null): string | null => {
   if (!actionUrl) return null;
-
   const match = actionUrl.match(/\/profile\/([^/?#]+)/);
   if (match?.[1]) return decodeURIComponent(match[1]);
-
   return null;
 };
 
@@ -169,37 +165,55 @@ export const NotificationsPage: React.FC = () => {
     };
   }, [user?.id, fetchNotifs]);
 
-  const getProfileTarget = useCallback(
-    (notif: any): string | null => {
+  const resolveProfileTarget = useCallback(
+    async (notif: any): Promise<string | null> => {
       const actorId = getActorIdFromNotification(notif);
       const actor = actorId ? actorProfiles[actorId] : null;
 
-      return (
-        actor?.username ||
-        actor?.id ||
-        notif?.actor_username ||
-        notif?.from_username ||
-        notif?.username ||
-        extractProfileTargetFromActionUrl(notif?.action_url) ||
-        actorId ||
-        null
-      );
+      if (actor?.username) return actor.username;
+      if (notif?.actor_username) return notif.actor_username;
+      if (notif?.from_username) return notif.from_username;
+      if (notif?.username) return notif.username;
+
+      const fromAction = extractProfileTargetFromActionUrl(notif?.action_url);
+      if (fromAction) return fromAction;
+
+      if (actor?.id) return actor.id;
+      if (actorId) {
+        try {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('id, username')
+            .eq('id', actorId)
+            .single();
+
+          if (!error && data) {
+            return data.username || data.id;
+          }
+        } catch (err) {
+          console.error('resolveProfileTarget error:', err);
+        }
+      }
+
+      return null;
     },
     [actorProfiles]
   );
 
   const navigateToActorProfile = useCallback(
     async (notif: any) => {
-      const target = getProfileTarget(notif);
+      const target = await resolveProfileTarget(notif);
+
       if (!target) {
         toast.error('לא נמצא פרופיל למעבר');
         return;
       }
 
       triggerFeedback('pop');
+      setActiveMenuNotif(null);
       navigate(`/profile/${target}`);
     },
-    [getProfileTarget, navigate]
+    [resolveProfileTarget, navigate]
   );
 
   const handleRefresh = async () => {
@@ -292,7 +306,9 @@ export const NotificationsPage: React.FC = () => {
     if (!notif.is_read) {
       try {
         await supabase.from('notifications').update({ is_read: true }).eq('id', notif.id);
-        setNotifications((prev) => prev.map((n) => (n.id === notif.id ? { ...n, is_read: true } : n)));
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notif.id ? { ...n, is_read: true } : n))
+        );
         if (user?.id) await checkUnread(user.id);
       } catch (err) {
         console.error('handleNotifClick mark read error:', err);
@@ -307,22 +323,22 @@ export const NotificationsPage: React.FC = () => {
     await navigateToActorProfile(notif);
   };
 
-  const getIcon = (type: string) => {
+  const getTypeLabel = (type: string) => {
     switch (type) {
       case 'like':
-        return { Icon: Heart, color: 'text-[#e91e63]' };
+        return 'לייק';
       case 'comment':
-        return { Icon: MessageSquare, color: 'text-[#2196f3]' };
+        return 'תגובה';
       case 'follow':
-        return { Icon: UserPlus, color: 'text-[#8bc34a]' };
+        return 'מעקב';
       case 'wallet':
-        return { Icon: Wallet, color: 'text-[#10b981]' };
+        return 'ארנק';
       case 'store':
-        return { Icon: ShoppingBag, color: 'text-[#9c27b0]' };
+        return 'חנות';
       case 'gift':
-        return { Icon: Gift, color: 'text-[#ff9800]' };
+        return 'מתנה';
       default:
-        return { Icon: Activity, color: 'text-white/50' };
+        return 'פעילות';
     }
   };
 
@@ -378,7 +394,6 @@ export const NotificationsPage: React.FC = () => {
             notifications.map((notif) => {
               const actorId = getActorIdFromNotification(notif);
               const actor = actorId ? actorProfiles[actorId] : null;
-              const { Icon, color } = getIcon(notif.type);
 
               return (
                 <motion.div
@@ -408,7 +423,7 @@ export const NotificationsPage: React.FC = () => {
                   </button>
 
                   <div className="flex-1 min-w-0 text-right">
-                    <div className="flex items-center justify-between gap-2 mb-0.5">
+                    <div className="flex items-center justify-between gap-2 mb-1">
                       <div className="flex items-center gap-2 shrink-0">
                         {!notif.is_read && (
                           <span className="text-[9px] font-black text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full">
@@ -432,7 +447,7 @@ export const NotificationsPage: React.FC = () => {
                           e.stopPropagation();
                           navigateToActorProfile(notif);
                         }}
-                        className="text-white/90 font-black text-[14px] truncate hover:text-white transition-colors"
+                        className="text-white/95 font-black text-[14px] truncate hover:text-white transition-colors"
                       >
                         {actor?.full_name || notif.title}
                       </button>
@@ -456,7 +471,9 @@ export const NotificationsPage: React.FC = () => {
                             @{actor.username}
                           </span>
                         )}
-                        <Icon size={17} className={color} />
+                        <span className="text-white/25 text-[9px] font-black uppercase tracking-widest">
+                          {getTypeLabel(notif.type)}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -469,7 +486,7 @@ export const NotificationsPage: React.FC = () => {
 
       <AnimatePresence>
         {activeMenuNotif && (
-          <div className="fixed inset-0 z-[100] flex flex-col justify-end" dir="rtl">
+          <div className="fixed inset-0 z-[120] flex flex-col justify-end" dir="rtl">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -483,7 +500,7 @@ export const NotificationsPage: React.FC = () => {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 260 }}
-              className="relative z-10 bg-[#0A0A0A] border-t border-white/10 rounded-t-[34px] p-5 pb-[calc(env(safe-area-inset-bottom)+92px)] shadow-[0_-20px_40px_rgba(0,0,0,0.5)]"
+              className="relative z-10 bg-[#0A0A0A] border-t border-white/10 rounded-t-[34px] p-5 pb-[calc(env(safe-area-inset-bottom)+104px)] shadow-[0_-20px_40px_rgba(0,0,0,0.5)]"
             >
               <div className="w-full flex justify-center mb-4">
                 <div className="w-14 h-1.5 bg-white/15 rounded-full" />
