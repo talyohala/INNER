@@ -18,7 +18,6 @@ import {
   Circle,
   CheckCircle2,
   ExternalLink,
-  X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -41,6 +40,15 @@ const getActorIdFromNotification = (notif: any): string | null => {
     notif?.profile_id ||
     null
   );
+};
+
+const extractProfileTargetFromActionUrl = (actionUrl?: string | null): string | null => {
+  if (!actionUrl) return null;
+
+  const match = actionUrl.match(/\/profile\/([^/?#]+)/);
+  if (match?.[1]) return decodeURIComponent(match[1]);
+
+  return null;
 };
 
 export const NotificationsPage: React.FC = () => {
@@ -161,18 +169,37 @@ export const NotificationsPage: React.FC = () => {
     };
   }, [user?.id, fetchNotifs]);
 
+  const getProfileTarget = useCallback(
+    (notif: any): string | null => {
+      const actorId = getActorIdFromNotification(notif);
+      const actor = actorId ? actorProfiles[actorId] : null;
+
+      return (
+        actor?.username ||
+        actor?.id ||
+        notif?.actor_username ||
+        notif?.from_username ||
+        notif?.username ||
+        extractProfileTargetFromActionUrl(notif?.action_url) ||
+        actorId ||
+        null
+      );
+    },
+    [actorProfiles]
+  );
+
   const navigateToActorProfile = useCallback(
     async (notif: any) => {
-      const actorId = getActorIdFromNotification(notif);
-      if (!actorId) return;
-
-      const actor = actorProfiles[actorId];
-      const profileTarget = actor?.username || actor?.id || actorId;
+      const target = getProfileTarget(notif);
+      if (!target) {
+        toast.error('לא נמצא פרופיל למעבר');
+        return;
+      }
 
       triggerFeedback('pop');
-      navigate(`/profile/${profileTarget}`);
+      navigate(`/profile/${target}`);
     },
-    [actorProfiles, navigate]
+    [getProfileTarget, navigate]
   );
 
   const handleRefresh = async () => {
@@ -237,7 +264,6 @@ export const NotificationsPage: React.FC = () => {
     if (!user?.id) return;
 
     try {
-      triggerFeedback('pop');
       setBusyId('delete-read-all');
 
       const { error } = await supabase
@@ -315,17 +341,10 @@ export const NotificationsPage: React.FC = () => {
     <div className="px-4 pt-12 pb-32 bg-[#0A0A0A] min-h-screen flex flex-col font-sans" dir="rtl">
       <div className="flex items-center justify-between mb-8 px-2">
         <button
-          onClick={readExists ? deleteAllReadNotifications : handleRefresh}
-          className="w-11 h-11 flex items-center justify-center bg-white/5 border border-white/10 rounded-[16px] active:scale-90 transition-transform shadow-inner disabled:opacity-50"
-          disabled={busyId === 'delete-read-all'}
+          onClick={handleRefresh}
+          className="w-11 h-11 flex items-center justify-center bg-white/5 border border-white/10 rounded-[16px] active:scale-90 transition-transform shadow-inner"
         >
-          {busyId === 'delete-read-all' ? (
-            <Loader2 size={18} className="animate-spin text-white/60" />
-          ) : readExists ? (
-            <Trash2 size={18} className="text-white/60" />
-          ) : (
-            <CheckCheck size={20} className="text-white/60" />
-          )}
+          <CheckCheck size={20} className="text-white/60" />
         </button>
 
         <div className="flex flex-col items-center">
@@ -357,9 +376,9 @@ export const NotificationsPage: React.FC = () => {
             </motion.div>
           ) : (
             notifications.map((notif) => {
-              const { Icon, color } = getIcon(notif.type);
               const actorId = getActorIdFromNotification(notif);
               const actor = actorId ? actorProfiles[actorId] : null;
+              const { Icon, color } = getIcon(notif.type);
 
               return (
                 <motion.div
@@ -390,16 +409,6 @@ export const NotificationsPage: React.FC = () => {
 
                   <div className="flex-1 min-w-0 text-right">
                     <div className="flex items-center justify-between gap-2 mb-0.5">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigateToActorProfile(notif);
-                        }}
-                        className="text-white/90 font-black text-[14px] truncate hover:text-white transition-colors"
-                      >
-                        {actor?.full_name || notif.title}
-                      </button>
-
                       <div className="flex items-center gap-2 shrink-0">
                         {!notif.is_read && (
                           <span className="text-[9px] font-black text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full">
@@ -417,6 +426,16 @@ export const NotificationsPage: React.FC = () => {
                           <MoreHorizontal size={16} className="text-white/65" />
                         </button>
                       </div>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigateToActorProfile(notif);
+                        }}
+                        className="text-white/90 font-black text-[14px] truncate hover:text-white transition-colors"
+                      >
+                        {actor?.full_name || notif.title}
+                      </button>
                     </div>
 
                     <p className="text-white/72 text-[13px] leading-relaxed line-clamp-2">
@@ -464,23 +483,10 @@ export const NotificationsPage: React.FC = () => {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 260 }}
-              className="relative z-10 bg-[#0A0A0A] border-t border-white/10 rounded-t-[34px] p-5 pb-10 shadow-[0_-20px_40px_rgba(0,0,0,0.5)]"
+              className="relative z-10 bg-[#0A0A0A] border-t border-white/10 rounded-t-[34px] p-5 pb-[calc(env(safe-area-inset-bottom)+92px)] shadow-[0_-20px_40px_rgba(0,0,0,0.5)]"
             >
               <div className="w-full flex justify-center mb-4">
                 <div className="w-14 h-1.5 bg-white/15 rounded-full" />
-              </div>
-
-              <div className="flex items-center justify-between mb-4">
-                <div className="text-right">
-                  <h3 className="text-white font-black text-[16px]">פעולות</h3>
-                </div>
-
-                <button
-                  onClick={() => setActiveMenuNotif(null)}
-                  className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center active:scale-90"
-                >
-                  <X size={16} className="text-white/70" />
-                </button>
               </div>
 
               <div className="flex flex-col gap-2">
@@ -528,6 +534,24 @@ export const NotificationsPage: React.FC = () => {
                     </div>
                     <div className="flex-1 text-right">
                       <div className="text-white text-[14px] font-black">פתח יעד ההתראה</div>
+                    </div>
+                  </button>
+                )}
+
+                {readExists && (
+                  <button
+                    onClick={deleteAllReadNotifications}
+                    className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all"
+                  >
+                    <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
+                      {busyId === 'delete-read-all' ? (
+                        <Loader2 size={18} className="animate-spin text-white/75" />
+                      ) : (
+                        <Trash2 size={18} className="text-white/75" />
+                      )}
+                    </div>
+                    <div className="flex-1 text-right">
+                      <div className="text-white text-[14px] font-black">מחק את כל מה שנקרא</div>
                     </div>
                   </button>
                 )}
