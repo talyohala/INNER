@@ -4,11 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Loader2,
   Bell,
-  UserPlus,
   CheckCheck,
-  Wallet,
-  ShoppingBag,
-  Activity,
   UserCircle,
   MoreHorizontal,
   Trash2,
@@ -44,6 +40,30 @@ const extractProfileTargetFromActionUrl = (actionUrl?: string | null): string | 
   if (!actionUrl) return null;
   const match = actionUrl.match(/\/profile\/([^/?#]+)/);
   if (match?.[1]) return decodeURIComponent(match[1]);
+  return null;
+};
+
+const parseActorNameFromNotification = (notif: any): string | null => {
+  const candidates = [notif?.content, notif?.title].filter(Boolean);
+
+  const patterns = [
+    /^(.+?)\s+הגיב\/ה/u,
+    /^(.+?)\s+אהב\/ה/u,
+    /^(.+?)\s+עקב\/ה/u,
+    /^(.+?)\s+שלח\/ה/u,
+    /^(.+?)\s+צפה\/תה/u,
+    /^(.+?)\s+הזמין\/ה/u,
+  ];
+
+  for (const text of candidates) {
+    for (const pattern of patterns) {
+      const match = String(text).match(pattern);
+      if (match?.[1]) {
+        return match[1].trim();
+      }
+    }
+  }
+
   return null;
 };
 
@@ -179,6 +199,24 @@ export const NotificationsPage: React.FC = () => {
       if (fromAction) return fromAction;
 
       if (actor?.id) return actor.id;
+
+      const parsedName = parseActorNameFromNotification(notif);
+      if (parsedName) {
+        try {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('id, username, full_name')
+            .ilike('full_name', parsedName)
+            .limit(1);
+
+          if (!error && data && data.length > 0) {
+            return data[0].username || data[0].id;
+          }
+        } catch (err) {
+          console.error('resolveProfileTarget parsedName error:', err);
+        }
+      }
+
       if (actorId) {
         try {
           const { data, error } = await supabase
@@ -191,7 +229,7 @@ export const NotificationsPage: React.FC = () => {
             return data.username || data.id;
           }
         } catch (err) {
-          console.error('resolveProfileTarget error:', err);
+          console.error('resolveProfileTarget actorId error:', err);
         }
       }
 
@@ -323,25 +361,6 @@ export const NotificationsPage: React.FC = () => {
     await navigateToActorProfile(notif);
   };
 
-  const getTypeLabel = (type: string) => {
-    switch (type) {
-      case 'like':
-        return 'לייק';
-      case 'comment':
-        return 'תגובה';
-      case 'follow':
-        return 'מעקב';
-      case 'wallet':
-        return 'ארנק';
-      case 'store':
-        return 'חנות';
-      case 'gift':
-        return 'מתנה';
-      default:
-        return 'פעילות';
-    }
-  };
-
   const unreadExists = useMemo(() => notifications.some((n) => !n.is_read), [notifications]);
   const readExists = useMemo(() => notifications.some((n) => n.is_read), [notifications]);
 
@@ -411,15 +430,11 @@ export const NotificationsPage: React.FC = () => {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigateToActorProfile(notif);
+                      setActiveMenuNotif(notif);
                     }}
-                    className="w-12 h-12 rounded-full overflow-hidden bg-black/30 border border-white/10 shrink-0 active:scale-95 transition-transform"
+                    className="w-8 h-8 flex items-center justify-center shrink-0 text-white/60 active:scale-90"
                   >
-                    {actor?.avatar_url ? (
-                      <img src={actor.avatar_url} className="w-full h-full object-cover" />
-                    ) : (
-                      <UserCircle className="w-full h-full p-2 text-white/30" />
-                    )}
+                    <MoreHorizontal size={18} />
                   </button>
 
                   <div className="flex-1 min-w-0 text-right">
@@ -430,16 +445,6 @@ export const NotificationsPage: React.FC = () => {
                             חדש
                           </span>
                         )}
-
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveMenuNotif(notif);
-                          }}
-                          className="w-8 h-8 rounded-full flex items-center justify-center bg-white/5 border border-white/10 active:scale-90"
-                        >
-                          <MoreHorizontal size={16} className="text-white/65" />
-                        </button>
                       </div>
 
                       <button
@@ -465,18 +470,27 @@ export const NotificationsPage: React.FC = () => {
                         })}
                       </span>
 
-                      <div className="flex items-center gap-2 shrink-0">
-                        {actor?.username && (
-                          <span className="text-white/30 text-[10px] font-bold" dir="ltr">
-                            @{actor.username}
-                          </span>
-                        )}
-                        <span className="text-white/25 text-[9px] font-black uppercase tracking-widest">
-                          {getTypeLabel(notif.type)}
+                      {actor?.username && (
+                        <span className="text-white/30 text-[10px] font-bold" dir="ltr">
+                          @{actor.username}
                         </span>
-                      </div>
+                      )}
                     </div>
                   </div>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigateToActorProfile(notif);
+                    }}
+                    className="w-12 h-12 rounded-full overflow-hidden bg-black/30 border border-white/10 shrink-0 active:scale-95 transition-transform"
+                  >
+                    {actor?.avatar_url ? (
+                      <img src={actor.avatar_url} className="w-full h-full object-cover" />
+                    ) : (
+                      <UserCircle className="w-full h-full p-2 text-white/30" />
+                    )}
+                  </button>
                 </motion.div>
               );
             })
