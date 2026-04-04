@@ -56,34 +56,52 @@ export const AuthPage: React.FC = () => {
       
       {/* Background Decor */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-        <div className="absolute top-[-15%] right-[-10%] w-[70%] h-[50%] bg-white/[0.03] blur-[120px] rounded-full" />
-        <div className="absolute bottom-[-10%] left-[-10%] w-[60%] h-[40%] bg-white/[0.02] blur-[100px] rounded-full" />
+        <motion.div 
+          animate={{ opacity: [0.3, 0.5, 0.3], scale: [1, 1.05, 1] }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute top-[-15%] right-[-10%] w-[70%] h-[50%] bg-white/[0.03] blur-[120px] rounded-full" 
+        />
+        <motion.div 
+          animate={{ opacity: [0.2, 0.4, 0.2], scale: [1, 1.1, 1] }}
+          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+          className="absolute bottom-[-10%] left-[-10%] w-[60%] h-[40%] bg-white/[0.02] blur-[100px] rounded-full" 
+        />
       </div>
 
       <div className="w-full max-w-sm z-10">
         
-        {/* Header Section */}
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-12 text-center"
-        >
-          <h1 className="text-7xl font-black text-white tracking-tighter italic select-none">
+        {/* Animated Logo */}
+        <div className="mb-14 text-center flex justify-center">
+          <motion.h1 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ 
+              opacity: 1, 
+              scale: 1,
+              y: [0, -8, 0],
+            }}
+            transition={{ 
+              y: { duration: 4, repeat: Infinity, ease: "easeInOut" },
+              default: { duration: 0.8, ease: "easeOut" }
+            }}
+            className="text-7xl font-black text-white tracking-tighter italic select-none drop-shadow-[0_0_25px_rgba(255,255,255,0.2)]"
+          >
             INNER
-          </h1>
-        </motion.div>
+          </motion.h1>
+        </div>
 
         {/* Tab Switcher */}
         <div className="flex bg-white/[0.03] p-1 rounded-2xl mb-10 border border-white/5 relative">
           <button 
+            type="button"
             onClick={() => { triggerFeedback('pop'); setIsLogin(true); }}
-            className={`flex-1 py-3.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all z-10 ${isLogin ? 'text-black' : 'text-white/40'}`}
+            className={`flex-1 py-3.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all z-10 ${isLogin ? 'text-black' : 'text-white/40 hover:text-white/70'}`}
           >
             כניסה
           </button>
           <button 
+            type="button"
             onClick={() => { triggerFeedback('pop'); setIsLogin(false); }}
-            className={`flex-1 py-3.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all z-10 ${!isLogin ? 'text-black' : 'text-white/40'}`}
+            className={`flex-1 py-3.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all z-10 ${!isLogin ? 'text-black' : 'text-white/40 hover:text-white/70'}`}
           >
             הרשמה
           </button>
@@ -144,24 +162,20 @@ export const AuthPage: React.FC = () => {
             />
           </div>
 
-          {/* Submit Button with Circular Arrow Icon */}
-          <button 
-            type="submit" 
-            disabled={loading}
-            className="group relative w-full h-16 mt-6 bg-white/[0.08] hover:bg-white/[0.12] active:scale-[0.98] rounded-[24px] border border-white/10 transition-all flex items-center justify-between px-6 disabled:opacity-50"
-          >
-            <span className="text-white font-black text-base tracking-tight">
-              {loading ? 'מעבד...' : (isLogin ? 'כניסה למערכת' : 'יצירת חשבון')}
-            </span>
-            
-            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+          {/* Centered Circular Submit Button */}
+          <div className="flex justify-center mt-8">
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="group relative w-[72px] h-[72px] bg-white hover:bg-[#e5e4e2] active:scale-90 rounded-full flex items-center justify-center transition-all disabled:opacity-50 disabled:scale-100 shadow-[0_0_30px_rgba(255,255,255,0.15)] hover:shadow-[0_0_40px_rgba(255,255,255,0.25)]"
+            >
               {loading ? (
-                <Loader2 size={20} className="animate-spin text-black" />
+                <Loader2 size={32} className="animate-spin text-black" />
               ) : (
-                <ChevronLeft size={22} className="text-black" />
+                <ChevronLeft size={36} className="text-black transition-transform group-hover:-translate-x-1" strokeWidth={2.5} />
               )}
-            </div>
-          </button>
+            </button>
+          </div>
         </form>
 
       </div>
