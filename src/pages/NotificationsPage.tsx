@@ -11,8 +11,7 @@ import {
   Circle,
   CheckCircle2,
   ExternalLink,
-  RefreshCw,
-  MoreVertical
+  RefreshCw
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -64,7 +63,6 @@ export const NotificationsPage: React.FC = () => {
   const [actorProfiles, setActorProfiles] = useState<Record<string, ActorProfile>>({});
   const [loading, setLoading] = useState(true);
   const [activeMenuNotif, setActiveMenuNotif] = useState<any | null>(null);
-  const [showGeneralMenu, setShowGeneralMenu] = useState(false);
   const [busyId, setBusyId] = useState<string | number | null>(null);
 
   const unreadExists = useMemo(() => notifications.some((n) => !n.is_read), [notifications]);
@@ -176,8 +174,8 @@ export const NotificationsPage: React.FC = () => {
 
   const handleRefresh = async () => {
     triggerFeedback('pop');
+    setActiveMenuNotif(null);
     setLoading(true);
-    setShowGeneralMenu(false);
     await fetchNotifs(true);
   };
 
@@ -234,7 +232,7 @@ export const NotificationsPage: React.FC = () => {
       toast.error('שגיאה בעדכון');
     } finally {
       setBusyId(null);
-      setShowGeneralMenu(false);
+      setActiveMenuNotif(null);
     }
   };
 
@@ -250,7 +248,6 @@ export const NotificationsPage: React.FC = () => {
       toast.error('שגיאה במחיקת ההתראות');
     } finally {
       setBusyId(null);
-      setShowGeneralMenu(false);
       setActiveMenuNotif(null);
     }
   };
@@ -263,20 +260,11 @@ export const NotificationsPage: React.FC = () => {
     <div className="px-4 pt-12 pb-32 bg-[#0A0A0A] min-h-screen flex flex-col font-sans" dir="rtl">
       
       {/* Header */}
-      <div className="flex items-center justify-between mb-8 px-2 relative">
-        <button
-          onClick={() => setShowGeneralMenu(true)}
-          className="w-11 h-11 flex items-center justify-center bg-white/5 border border-white/10 rounded-[16px] active:scale-90 transition-all shadow-inner hover:bg-white/10"
-        >
-          <MoreVertical size={20} className="text-white/80" />
-        </button>
-
-        <div className="flex flex-col items-center absolute left-1/2 -translate-x-1/2">
+      <div className="flex items-center justify-center mb-8 px-2 relative">
+        <div className="flex flex-col items-center">
           <h1 className="text-3xl font-black text-white tracking-tighter drop-shadow-md">התראות</h1>
           {unreadExists && <span className="text-[10px] font-black text-red-400 tracking-[0.2em] uppercase mt-1">חדש</span>}
         </div>
-
-        <div className="w-11" />
       </div>
 
       {/* Notifications List */}
@@ -300,10 +288,18 @@ export const NotificationsPage: React.FC = () => {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   onClick={() => handleNotifClick(notif)}
-                  className={`p-4 rounded-[24px] border transition-all cursor-pointer flex items-center gap-4 ${
+                  className={`relative p-4 rounded-[24px] border transition-all cursor-pointer flex items-center gap-4 pl-10 ${
                     notif.is_read ? 'bg-transparent border-white/5 opacity-60' : 'bg-white/[0.04] border-white/10 shadow-[0_8px_20px_rgba(0,0,0,0.4)] active:scale-[0.985]'
                   }`}
                 >
+                  {/* 3 Dots Menu - Top Left Corner */}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setActiveMenuNotif(notif); }}
+                    className="absolute top-3 left-3 w-8 h-8 flex items-center justify-center shrink-0 text-white/40 hover:text-white hover:bg-white/10 active:scale-90 transition-all rounded-full"
+                  >
+                    <MoreHorizontal size={18} />
+                  </button>
+
                   {/* Profile (Right) */}
                   <button onClick={(e) => { e.stopPropagation(); navigateToActorProfile(notif); }} className="w-12 h-12 rounded-full overflow-hidden bg-black/30 border border-white/10 shrink-0 active:scale-95 transition-transform">
                     {actor?.avatar_url ? <img src={actor.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-2 text-white/30" />}
@@ -315,17 +311,12 @@ export const NotificationsPage: React.FC = () => {
                       <span className="text-white/95 font-black text-[14px] truncate">{actor?.full_name || notif.title}</span>
                       {!notif.is_read && <span className="text-[9px] font-black text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full shrink-0">חדש</span>}
                     </div>
-                    <p className="text-white/72 text-[13px] leading-relaxed line-clamp-2">{notif.content}</p>
+                    <p className="text-white/72 text-[13px] leading-relaxed line-clamp-2 pr-1">{notif.content}</p>
                     <div className="flex items-center justify-between mt-2 text-white/30 text-[10px] font-bold">
                       <span className="tracking-widest uppercase">{new Date(notif.created_at).toLocaleDateString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>
                       {actor?.username && <span dir="ltr">@{actor.username}</span>}
                     </div>
                   </div>
-
-                  {/* Menu (Left) */}
-                  <button onClick={(e) => { e.stopPropagation(); setActiveMenuNotif(notif); }} className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-white/60 hover:text-white hover:bg-white/10 active:scale-90 transition-all">
-                    <MoreHorizontal size={18} />
-                  </button>
                 </motion.div>
               );
             })
@@ -333,51 +324,22 @@ export const NotificationsPage: React.FC = () => {
         </AnimatePresence>
       </div>
 
-      {/* --- General Top Menu Modal --- */}
-      <AnimatePresence>
-        {showGeneralMenu && (
-          <div className="fixed inset-0 z-[120] flex flex-col justify-end" dir="rtl">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowGeneralMenu(false)} />
-            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 260 }} className="relative z-10 bg-[#0A0A0A] border-t border-white/10 rounded-t-[34px] p-5 pb-[calc(env(safe-area-inset-bottom)+40px)] shadow-[0_-20px_40px_rgba(0,0,0,0.5)]">
-              <div className="w-full flex justify-center mb-6"><div className="w-14 h-1.5 bg-white/15 rounded-full" /></div>
-              <div className="flex flex-col gap-2">
-                <button onClick={handleRefresh} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all">
-                  <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0"><RefreshCw size={18} className="text-white/75" /></div>
-                  <span className="flex-1 text-right text-white text-[14px] font-black">רענן התראות</span>
-                </button>
-
-                {unreadExists && (
-                  <button onClick={markAllAsRead} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all">
-                    <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-                      {busyId === 'mark-all-read' ? <Loader2 size={18} className="animate-spin text-white/75" /> : <CheckCheck size={18} className="text-white/75" />}
-                    </div>
-                    <span className="flex-1 text-right text-white text-[14px] font-black">סמן הכל כנקרא</span>
-                  </button>
-                )}
-
-                {readExists && (
-                  <button onClick={deleteAllReadNotifications} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-red-500/10 border border-red-500/20 active:scale-[0.98] transition-all">
-                    <div className="w-11 h-11 rounded-[16px] bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
-                      {busyId === 'delete-read-all' ? <Loader2 size={18} className="animate-spin text-red-400" /> : <Trash2 size={18} className="text-red-400" />}
-                    </div>
-                    <span className="flex-1 text-right text-red-400 text-[14px] font-black">מחק את כל ההתראות שנקראו</span>
-                  </button>
-                )}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* --- Specific Notification Modal --- */}
+      {/* --- Merged Actions Modal --- */}
       <AnimatePresence>
         {activeMenuNotif && (
-          <div className="fixed inset-0 z-[120] flex flex-col justify-end" dir="rtl">
+          <div className="fixed inset-0 z-[999999] flex flex-col justify-end" dir="rtl">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setActiveMenuNotif(null)} />
-            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 260 }} className="relative z-10 bg-[#0A0A0A] border-t border-white/10 rounded-t-[34px] p-5 pb-[calc(env(safe-area-inset-bottom)+40px)] shadow-[0_-20px_40px_rgba(0,0,0,0.5)]">
+            <motion.div 
+              initial={{ y: '100%' }} 
+              animate={{ y: 0 }} 
+              exit={{ y: '100%' }} 
+              transition={{ type: 'spring', damping: 25, stiffness: 260 }} 
+              className="relative z-10 bg-[#0A0A0A] border-t border-white/10 rounded-t-[34px] p-5 pb-[calc(env(safe-area-inset-bottom)+32px)] shadow-[0_-20px_40px_rgba(0,0,0,0.5)] max-h-[85vh] overflow-y-auto scrollbar-hide"
+            >
               <div className="w-full flex justify-center mb-6"><div className="w-14 h-1.5 bg-white/15 rounded-full" /></div>
               
               <div className="flex flex-col gap-2">
+                {/* --- Specific Actions --- */}
                 <button onClick={() => setNotificationReadState(activeMenuNotif, !activeMenuNotif.is_read)} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all">
                   <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
                     {activeMenuNotif.is_read ? <Circle size={18} className="text-white/75" /> : <CheckCircle2 size={18} className="text-green-400" />}
@@ -403,6 +365,33 @@ export const NotificationsPage: React.FC = () => {
                   </div>
                   <span className="flex-1 text-right text-red-400 text-[14px] font-black">מחק התראה</span>
                 </button>
+
+                {/* Divider */}
+                <div className="w-full h-px bg-white/10 my-3 rounded-full" />
+
+                {/* --- General Actions --- */}
+                <button onClick={handleRefresh} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all">
+                  <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0"><RefreshCw size={18} className="text-white/75" /></div>
+                  <span className="flex-1 text-right text-white text-[14px] font-black">רענן התראות</span>
+                </button>
+
+                {unreadExists && (
+                  <button onClick={markAllAsRead} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all">
+                    <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
+                      {busyId === 'mark-all-read' ? <Loader2 size={18} className="animate-spin text-white/75" /> : <CheckCheck size={18} className="text-white/75" />}
+                    </div>
+                    <span className="flex-1 text-right text-white text-[14px] font-black">סמן הכל כנקרא</span>
+                  </button>
+                )}
+
+                {readExists && (
+                  <button onClick={deleteAllReadNotifications} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-red-500/10 border border-red-500/20 active:scale-[0.98] transition-all">
+                    <div className="w-11 h-11 rounded-[16px] bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                      {busyId === 'delete-read-all' ? <Loader2 size={18} className="animate-spin text-red-400" /> : <Trash2 size={18} className="text-red-400" />}
+                    </div>
+                    <span className="flex-1 text-right text-red-400 text-[14px] font-black">מחק את כל ההתראות שנקראו</span>
+                  </button>
+                )}
               </div>
             </motion.div>
           </div>
