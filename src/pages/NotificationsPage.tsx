@@ -421,76 +421,83 @@ export const NotificationsPage: React.FC = () => {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   onClick={() => handleNotifClick(notif)}
-                  className={`p-4 flex items-center gap-3 rounded-[24px] border transition-all cursor-pointer ${
+                  className={`p-4 rounded-[24px] border transition-all cursor-pointer ${
                     notif.is_read
                       ? 'bg-transparent border-white/5 opacity-60'
                       : 'bg-white/[0.04] border-white/10 shadow-[0_8px_20px_rgba(0,0,0,0.4)] active:scale-[0.985]'
                   }`}
                 >
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setActiveMenuNotif(notif);
-                    }}
-                    className="w-8 h-8 flex items-center justify-center shrink-0 text-white/60 active:scale-90"
-                  >
-                    <MoreHorizontal size={18} />
-                  </button>
+                  <div className="grid grid-cols-[28px_1fr_48px] items-center gap-3" dir="ltr">
+                    {/* שמאל - שלוש נקודות */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveMenuNotif(notif);
+                      }}
+                      className="w-7 h-7 flex items-center justify-center text-white/60 active:scale-90 justify-self-start"
+                    >
+                      <MoreHorizontal size={18} />
+                    </button>
 
-                  <div className="flex-1 min-w-0 text-right">
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <div className="flex items-center gap-2 shrink-0">
-                        {!notif.is_read && (
-                          <span className="text-[9px] font-black text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full">
+                    {/* אמצע - טקסט */}
+                    <div className="min-w-0 text-right" dir="rtl">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        {!notif.is_read ? (
+                          <span className="text-[9px] font-black text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full shrink-0">
                             חדש
                           </span>
+                        ) : (
+                          <span />
                         )}
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigateToActorProfile(notif);
+                          }}
+                          className="text-white/95 font-black text-[14px] truncate hover:text-white transition-colors"
+                        >
+                          {actor?.full_name || notif.title}
+                        </button>
                       </div>
 
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigateToActorProfile(notif);
-                        }}
-                        className="text-white/95 font-black text-[14px] truncate hover:text-white transition-colors"
-                      >
-                        {actor?.full_name || notif.title}
-                      </button>
-                    </div>
+                      <p className="text-white/72 text-[13px] leading-relaxed line-clamp-2">
+                        {notif.content}
+                      </p>
 
-                    <p className="text-white/72 text-[13px] leading-relaxed line-clamp-2">
-                      {notif.content}
-                    </p>
+                      <div className="flex items-center justify-between mt-2">
+                        {actor?.username ? (
+                          <span className="text-white/30 text-[10px] font-bold truncate" dir="ltr">
+                            @{actor.username}
+                          </span>
+                        ) : (
+                          <span />
+                        )}
 
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-white/25 text-[9px] font-bold tracking-widest uppercase">
-                        {new Date(notif.created_at).toLocaleDateString('he-IL', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
-
-                      {actor?.username && (
-                        <span className="text-white/30 text-[10px] font-bold" dir="ltr">
-                          @{actor.username}
+                        <span className="text-white/25 text-[9px] font-bold tracking-widest uppercase">
+                          {new Date(notif.created_at).toLocaleDateString('he-IL', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
                         </span>
-                      )}
+                      </div>
                     </div>
-                  </div>
 
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigateToActorProfile(notif);
-                    }}
-                    className="w-12 h-12 rounded-full overflow-hidden bg-black/30 border border-white/10 shrink-0 active:scale-95 transition-transform"
-                  >
-                    {actor?.avatar_url ? (
-                      <img src={actor.avatar_url} className="w-full h-full object-cover" />
-                    ) : (
-                      <UserCircle className="w-full h-full p-2 text-white/30" />
-                    )}
-                  </button>
+                    {/* ימין - פרופיל */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigateToActorProfile(notif);
+                      }}
+                      className="w-12 h-12 rounded-full overflow-hidden bg-black/30 border border-white/10 active:scale-95 transition-transform justify-self-end"
+                    >
+                      {actor?.avatar_url ? (
+                        <img src={actor.avatar_url} className="w-full h-full object-cover" />
+                      ) : (
+                        <UserCircle className="w-full h-full p-2 text-white/30" />
+                      )}
+                    </button>
+                  </div>
                 </motion.div>
               );
             })
