@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -14,9 +14,11 @@ import {
   ShieldCheck,
   Flame,
   Radio,
+  RefreshCw,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiFetch } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import { FadeIn, Button } from '../components/ui';
 import { triggerFeedback } from '../lib/sound';
 
@@ -35,24 +37,9 @@ export const BoostStorePage: React.FC = () => {
 
   const [balance, setBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshingBalance, setRefreshingBalance] = useState(false);
   const [buyingId, setBuyingId] = useState<number | null>(null);
-
-  useEffect(() => {
-    const fetchWallet = async () => {
-      try {
-        const data = await apiFetch<any>('/api/wallet');
-        setBalance(Number(data?.credits || 0));
-      } catch (err) {
-        console.error('שגיאה בטעינת ארנק');
-        setBalance(0);
-        toast.error('לא הצלחנו לטעון את היתרה מהארנק');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchWallet();
-  }, []);
+  const [currentUserId, setCurrentUserId] = useState<string>('');
 
   const items: StoreItem[] = useMemo(
     () => [
@@ -96,7 +83,7 @@ export const BoostStorePage: React.FC = () => {
         desc: 'דחיפה של הקהילה שלך בחיפוש',
         price: 1500,
         icon: Radio,
-        tone: 'text-red-300',
+        tone: 'text-rose-300',
       },
       {
         id: 6,
@@ -126,6 +113,43 @@ export const BoostStorePage: React.FC = () => {
     []
   );
 
+  const fetchWalletBalance = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    else setRefreshingBalance(true);
+
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      const uid = authData.user?.id;
+
+      if (!uid) {
+        setBalance(0);
+        setCurrentUserId('');
+        return;
+      }
+
+      setCurrentUserId(uid);
+
+      const data = await apiFetch<any>('/api/wallet', {
+        headers: {
+          'x-user-id': uid,
+        },
+      });
+
+      setBalance(Number(data?.credits || 0));
+    } catch (err) {
+      console.error('שגיאה בטעינת הארנק:', err);
+      if (!silent) toast.error('לא הצלחנו לטעון את היתרה מהארנק');
+      setBalance(0);
+    } finally {
+      setLoading(false);
+      setRefreshingBalance(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchWalletBalance(false);
+  }, [fetchWalletBalance]);
+
   const handleBuy = async (item: StoreItem) => {
     triggerFeedback('pop');
 
@@ -138,8 +162,7 @@ export const BoostStorePage: React.FC = () => {
     setBuyingId(item.id);
 
     try {
-      // כרגע סימולציה מקומית לרכישה.
-      // כשנחבר רכישה אמיתית לשרת, נחליף כאן לקריאת API.
+      // כרגע זו עדיין רכישת UI בלבד עד שנחבר endpoint קנייה אמיתי לחנות
       await new Promise((resolve) => setTimeout(resolve, 1100));
 
       setBalance((prev) => (prev !== null ? prev - item.price : prev));
@@ -167,51 +190,79 @@ export const BoostStorePage: React.FC = () => {
       dir="rtl"
     >
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-8%] right-[-15%] w-[55%] h-[20%] bg-white/5 blur-[100px] rounded-full" />
-        <div className="absolute bottom-[8%] left-[-15%] w-[45%] h-[18%] bg-white/5 blur-[90px] rounded-full" />
+        <div className="absolute top-[-12%] right-[-18%] w-[58%] h-[24%] bg-white/5 blur-[110px] rounded-full" />
+        <div className="absolute bottom-[4%] left-[-14%] w-[42%] h-[18%] bg-white/5 blur-[90px] rounded-full" />
       </div>
 
       <div className="relative z-10">
         <div className="flex flex-col items-center text-center mb-6">
           <div className="flex items-center gap-2">
-            <Zap size={18} className="text-white/75" />
+            <Zap size={18} className="text-white/72" />
             <h1 className="text-[24px] font-black text-white tracking-tight">החנות</h1>
           </div>
+          <span className="text-white/28 text-[10px] font-black tracking-[0.18em] uppercase mt-2">
+            Boosts & Status
+          </span>
         </div>
 
-        <div
-          onClick={() => {
-            triggerFeedback('pop');
-            navigate('/wallet');
-          }}
-          className="mb-5 w-full rounded-[28px] bg-white/[0.04] backdrop-blur-2xl px-5 py-5 shadow-[0_10px_30px_rgba(0,0,0,0.28)] active:scale-[0.99] transition-transform cursor-pointer"
-        >
-          <div className="flex items-center justify-between gap-3">
+        <div className="mb-5 rounded-[30px] bg-white/[0.04] backdrop-blur-2xl px-5 py-5 shadow-[0_12px_35px_rgba(0,0,0,0.24)]">
+          <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
-              <Wallet size={18} className="text-white/70 shrink-0" />
+              <Wallet size={18} className="text-white/70 shrink-0 mt-1" />
               <div className="text-right">
-                <span className="text-white font-black text-[14px] block">יתרה זמינה</span>
-                <span className="text-white/35 text-[10px] font-bold tracking-widest uppercase">
-                  מחובר לארנק שלך
+                <span className="text-white font-black text-[14px] block">היתרה שלך</span>
+                <span className="text-white/34 text-[10px] font-bold tracking-widest uppercase">
+                  מחובר לארנק האמיתי
                 </span>
+                {currentUserId && (
+                  <span className="text-white/20 text-[9px] font-bold block mt-1" dir="ltr">
+                    {currentUserId.slice(0, 8)}...
+                  </span>
+                )}
               </div>
             </div>
 
-            <div className="text-left">
-              <span className="text-white font-black text-[28px] tracking-tight block" dir="ltr">
+            <div className="text-left shrink-0">
+              <span className="text-white font-black text-[32px] leading-none tracking-tight block" dir="ltr">
                 {balance?.toLocaleString()}
               </span>
-              <span className="text-white/35 text-[10px] font-bold tracking-[0.18em] uppercase" dir="ltr">
+              <span className="text-white/34 text-[10px] font-black tracking-[0.2em] uppercase block mt-1" dir="ltr">
                 CRD
               </span>
             </div>
           </div>
+
+          <div className="mt-4 flex gap-2">
+            <Button
+              onClick={() => {
+                triggerFeedback('pop');
+                navigate('/wallet');
+              }}
+              className="flex-1 h-11 rounded-2xl bg-white text-black font-black text-[11px] tracking-widest uppercase"
+            >
+              טען ארנק
+            </Button>
+
+            <button
+              onClick={() => {
+                triggerFeedback('pop');
+                fetchWalletBalance(true);
+              }}
+              className="w-11 h-11 rounded-2xl bg-white/7 flex items-center justify-center active:scale-95 transition-all"
+              aria-label="רענן יתרה"
+            >
+              <RefreshCw
+                size={16}
+                className={`text-white/70 ${refreshingBalance ? 'animate-spin' : ''}`}
+              />
+            </button>
+          </div>
         </div>
 
         <div className="mb-4 flex items-center justify-between px-1">
-          <span className="text-white/80 font-black text-[15px]">בוסטים וסטטוסים</span>
+          <span className="text-white/82 font-black text-[15px]">בחר בוסט</span>
           <span className="text-white/22 text-[10px] font-black tracking-[0.18em] uppercase">
-            Premium store
+            Premium
           </span>
         </div>
 
@@ -219,19 +270,17 @@ export const BoostStorePage: React.FC = () => {
           {items.map((item, idx) => (
             <motion.div
               key={item.id}
-              initial={{ opacity: 0, y: 12, scale: 0.98 }}
+              initial={{ opacity: 0, y: 12, scale: 0.985 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ delay: Math.min(idx * 0.05, 0.25) }}
+              transition={{ delay: Math.min(idx * 0.04, 0.22) }}
               className="h-full"
             >
-              <div className="h-full rounded-[28px] bg-white/[0.035] backdrop-blur-2xl px-4 py-4 shadow-[0_10px_30px_rgba(0,0,0,0.22)] flex flex-col">
+              <div className="h-full rounded-[28px] bg-white/[0.03] backdrop-blur-2xl px-4 py-4 shadow-[0_10px_28px_rgba(0,0,0,0.2)] flex flex-col">
                 <div className="flex items-start justify-between mb-4">
-                  <div className="flex justify-start">
-                    <item.icon size={22} className={item.tone} />
-                  </div>
+                  <item.icon size={22} className={item.tone} />
 
                   {item.badge ? (
-                    <span className="px-2.5 py-1 rounded-full text-[9px] font-black tracking-widest uppercase text-white/70 bg-white/6">
+                    <span className="px-2.5 py-1 rounded-full text-[9px] font-black tracking-widest uppercase text-white/68 bg-white/[0.06]">
                       {item.badge}
                     </span>
                   ) : (
@@ -281,13 +330,13 @@ export const BoostStorePage: React.FC = () => {
           ))}
         </div>
 
-        <div className="mt-5 rounded-[24px] bg-white/[0.03] backdrop-blur-2xl px-4 py-4 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
+        <div className="mt-5 rounded-[24px] bg-white/[0.03] backdrop-blur-2xl px-4 py-4 shadow-[0_10px_24px_rgba(0,0,0,0.16)]">
           <div className="flex items-center gap-3">
-            <Star size={16} className="text-white/65 shrink-0" />
+            <Star size={16} className="text-white/60 shrink-0" />
             <div className="text-right">
               <p className="text-white/85 text-[13px] font-black">צריך עוד CRD?</p>
               <p className="text-white/35 text-[10px] font-bold leading-relaxed mt-1">
-                פתח את הארנק, טען יתרה, וחזור לכאן לרכישת בוסטים וסטטוסים.
+                פתח את הארנק שלך, טען יתרה, וחזור לחנות כדי לרכוש בוסטים וסטטוסים.
               </p>
             </div>
           </div>
