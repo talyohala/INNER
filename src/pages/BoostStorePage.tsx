@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Zap,
-  ArrowRight,
   Loader2,
   Crown,
   MessageSquare,
@@ -15,11 +14,10 @@ import {
   ShieldCheck,
   Flame,
   Radio,
-  ChevronLeft,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiFetch } from '../lib/api';
-import { FadeIn, GlassCard, Button } from '../components/ui';
+import { FadeIn, Button } from '../components/ui';
 import { triggerFeedback } from '../lib/sound';
 
 type StoreItem = {
@@ -28,11 +26,8 @@ type StoreItem = {
   desc: string;
   price: number;
   icon: any;
-  color: string;
-  glow: string;
-  bg: string;
+  tone: string;
   badge?: string;
-  popular?: boolean;
 };
 
 export const BoostStorePage: React.FC = () => {
@@ -50,6 +45,7 @@ export const BoostStorePage: React.FC = () => {
       } catch (err) {
         console.error('שגיאה בטעינת ארנק');
         setBalance(0);
+        toast.error('לא הצלחנו לטעון את היתרה מהארנק');
       } finally {
         setLoading(false);
       }
@@ -63,85 +59,68 @@ export const BoostStorePage: React.FC = () => {
       {
         id: 1,
         title: 'הודעת זהב',
-        desc: 'הודעה בולטת במיוחד בלובי הראשי ל-24 שעות',
+        desc: 'הודעה בולטת בלובי ל-24 שעות',
         price: 150,
         icon: MessageSquare,
-        color: 'text-amber-300',
-        glow: 'shadow-[0_0_18px_rgba(252,211,77,0.14)]',
-        bg: 'bg-amber-500/10',
+        tone: 'text-amber-300',
         badge: 'פופולרי',
       },
       {
         id: 2,
         title: 'תג CORE',
-        desc: 'תג יוקרתי ליד השם שלך בכל האפליקציה',
+        desc: 'תג סטטוס יוקרתי ליד השם שלך',
         price: 500,
         icon: Crown,
-        color: 'text-violet-300',
-        glow: 'shadow-[0_0_18px_rgba(167,139,250,0.14)]',
-        bg: 'bg-violet-500/10',
+        tone: 'text-violet-300',
       },
       {
         id: 3,
         title: 'מצב רפאים',
-        desc: 'כניסה שקטה בלי למשוך תשומת לב בקהילות',
+        desc: 'כניסה שקטה לקהילות בלי למשוך תשומת לב',
         price: 300,
         icon: Ghost,
-        color: 'text-slate-200',
-        glow: 'shadow-[0_0_18px_rgba(255,255,255,0.08)]',
-        bg: 'bg-white/10',
+        tone: 'text-slate-200',
       },
       {
         id: 4,
         title: 'שם ניאון',
-        desc: 'השם שלך מקבל אפקט זוהר למשך 7 ימים',
+        desc: 'השם שלך זוהר למשך 7 ימים',
         price: 800,
         icon: Sparkles,
-        color: 'text-cyan-300',
-        glow: 'shadow-[0_0_18px_rgba(34,211,238,0.14)]',
-        bg: 'bg-cyan-500/10',
+        tone: 'text-cyan-300',
         badge: 'חדש',
       },
       {
         id: 5,
         title: 'בוסט רדאר',
-        desc: 'הקהילה שלך מקבלת דחיפה חזקה בחיפוש',
+        desc: 'דחיפה של הקהילה שלך בחיפוש',
         price: 1500,
         icon: Radio,
-        color: 'text-red-300',
-        glow: 'shadow-[0_0_18px_rgba(248,113,113,0.14)]',
-        bg: 'bg-red-500/10',
+        tone: 'text-red-300',
       },
       {
         id: 6,
         title: 'נעץ שיחה',
-        desc: 'הודעה מוצמדת לראש הקהילה לזמן מוגבל',
+        desc: 'הודעה מוצמדת בראש הקהילה',
         price: 400,
         icon: Pin,
-        color: 'text-emerald-300',
-        glow: 'shadow-[0_0_18px_rgba(110,231,183,0.14)]',
-        bg: 'bg-emerald-500/10',
+        tone: 'text-emerald-300',
       },
       {
         id: 7,
         title: 'מגן פרופיל',
-        desc: 'הבלטת פרופיל עם סימון יוקרתי והגנה חזותית',
+        desc: 'סטטוס בולט לפרופיל שלך',
         price: 950,
         icon: ShieldCheck,
-        color: 'text-sky-300',
-        glow: 'shadow-[0_0_18px_rgba(125,211,252,0.14)]',
-        bg: 'bg-sky-500/10',
+        tone: 'text-sky-300',
       },
       {
         id: 8,
         title: 'חם עכשיו',
-        desc: 'דחיפת תוכן לפרק זמן קצר עם חשיפה גבוהה',
+        desc: 'דחיפת חשיפה מהירה לתוכן שלך',
         price: 1200,
         icon: Flame,
-        color: 'text-orange-300',
-        glow: 'shadow-[0_0_18px_rgba(253,186,116,0.14)]',
-        bg: 'bg-orange-500/10',
-        popular: true,
+        tone: 'text-orange-300',
       },
     ],
     []
@@ -158,12 +137,20 @@ export const BoostStorePage: React.FC = () => {
 
     setBuyingId(item.id);
 
-    setTimeout(() => {
-      triggerFeedback('coin');
+    try {
+      // כרגע סימולציה מקומית לרכישה.
+      // כשנחבר רכישה אמיתית לשרת, נחליף כאן לקריאת API.
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+
       setBalance((prev) => (prev !== null ? prev - item.price : prev));
-      toast.success(`רכשת את: ${item.title}`);
+      triggerFeedback('coin');
+      toast.success(`רכשת את ${item.title}`);
+    } catch (err) {
+      triggerFeedback('error');
+      toast.error('הרכישה נכשלה');
+    } finally {
       setBuyingId(null);
-    }, 1200);
+    }
   };
 
   if (loading) {
@@ -175,85 +162,56 @@ export const BoostStorePage: React.FC = () => {
   }
 
   return (
-    <FadeIn className="px-4 pt-8 pb-32 bg-[#030303] min-h-screen font-sans relative overflow-x-hidden" dir="rtl">
-      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden flex justify-center">
-        <div className="absolute top-[-8%] right-[-15%] w-[60%] h-[30%] bg-white/5 blur-[110px] rounded-full" />
-        <div className="absolute bottom-[5%] left-[-15%] w-[50%] h-[25%] bg-white/5 blur-[100px] rounded-full" />
+    <FadeIn
+      className="px-4 pt-8 pb-32 bg-[#030303] min-h-screen font-sans relative overflow-x-hidden"
+      dir="rtl"
+    >
+      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-[-8%] right-[-15%] w-[55%] h-[20%] bg-white/5 blur-[100px] rounded-full" />
+        <div className="absolute bottom-[8%] left-[-15%] w-[45%] h-[18%] bg-white/5 blur-[90px] rounded-full" />
       </div>
 
       <div className="relative z-10">
-        <div className="flex items-center justify-between mb-6 h-11">
-          <button
-            onClick={() => {
-              triggerFeedback('pop');
-              navigate(-1);
-            }}
-            className="w-10 h-10 rounded-full flex items-center justify-center bg-white/5 border border-white/10 active:scale-90 transition-all shadow-inner"
-          >
-            <ArrowRight size={18} className="text-white/80" />
-          </button>
-
-          <div className="flex flex-col items-center">
-            <div className="flex items-center gap-2">
-              <Zap size={18} className="text-amber-300" />
-              <h1 className="text-[24px] font-black text-white tracking-tight">החנות</h1>
-            </div>
+        <div className="flex flex-col items-center text-center mb-6">
+          <div className="flex items-center gap-2">
+            <Zap size={18} className="text-white/75" />
+            <h1 className="text-[24px] font-black text-white tracking-tight">החנות</h1>
           </div>
-
-          <div className="w-10" />
         </div>
 
-        <GlassCard
-          className="mb-4 p-4 rounded-[28px] border-white/10 bg-white/[0.04] cursor-pointer active:scale-[0.99] transition-transform"
+        <div
           onClick={() => {
             triggerFeedback('pop');
             navigate('/wallet');
           }}
+          className="mb-5 w-full rounded-[28px] bg-white/[0.04] backdrop-blur-2xl px-5 py-5 shadow-[0_10px_30px_rgba(0,0,0,0.28)] active:scale-[0.99] transition-transform cursor-pointer"
         >
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-[18px] bg-emerald-500/10 border border-emerald-400/15 flex items-center justify-center shadow-inner">
-                <Wallet size={18} className="text-emerald-300" />
-              </div>
-
+              <Wallet size={18} className="text-white/70 shrink-0" />
               <div className="text-right">
-                <span className="text-white font-black text-[14px] block">היתרה שלך</span>
+                <span className="text-white font-black text-[14px] block">יתרה זמינה</span>
                 <span className="text-white/35 text-[10px] font-bold tracking-widest uppercase">
-                  לחץ לטעינת ארנק
+                  מחובר לארנק שלך
                 </span>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="text-emerald-300 font-black text-[24px] tracking-tight">
+            <div className="text-left">
+              <span className="text-white font-black text-[28px] tracking-tight block" dir="ltr">
                 {balance?.toLocaleString()}
               </span>
-              <ChevronLeft size={16} className="text-white/20" />
+              <span className="text-white/35 text-[10px] font-bold tracking-[0.18em] uppercase" dir="ltr">
+                CRD
+              </span>
             </div>
-          </div>
-        </GlassCard>
-
-        <div className="mb-5 grid grid-cols-3 gap-2">
-          <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-3 text-center">
-            <span className="text-white/30 text-[9px] font-black tracking-[0.18em] uppercase block">מוצרים</span>
-            <span className="text-white font-black text-[16px] block mt-1">{items.length}</span>
-          </div>
-          <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-3 text-center">
-            <span className="text-white/30 text-[9px] font-black tracking-[0.18em] uppercase block">החל מ</span>
-            <span className="text-white font-black text-[16px] block mt-1">
-              {Math.min(...items.map((i) => i.price))} CRD
-            </span>
-          </div>
-          <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-3 text-center">
-            <span className="text-white/30 text-[9px] font-black tracking-[0.18em] uppercase block">יוקרתי</span>
-            <span className="text-white font-black text-[16px] block mt-1">CORE+</span>
           </div>
         </div>
 
-        <div className="flex items-center justify-between mb-4 px-1">
-          <span className="text-white/75 font-black text-[15px]">בחר בוסט</span>
-          <span className="text-white/25 text-[10px] font-black tracking-[0.18em] uppercase">
-            Premium boosts
+        <div className="mb-4 flex items-center justify-between px-1">
+          <span className="text-white/80 font-black text-[15px]">בוסטים וסטטוסים</span>
+          <span className="text-white/22 text-[10px] font-black tracking-[0.18em] uppercase">
+            Premium store
           </span>
         </div>
 
@@ -261,89 +219,75 @@ export const BoostStorePage: React.FC = () => {
           {items.map((item, idx) => (
             <motion.div
               key={item.id}
-              initial={{ opacity: 0, y: 14, scale: 0.97 }}
+              initial={{ opacity: 0, y: 12, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ delay: Math.min(idx * 0.05, 0.25) }}
               className="h-full"
             >
-              <GlassCard
-                className={`h-full rounded-[28px] p-4 bg-white/[0.03] border-white/8 relative overflow-hidden flex flex-col ${item.glow}`}
-              >
-                <div className={`absolute -top-8 -left-8 w-24 h-24 rounded-full blur-[38px] ${item.bg}`} />
+              <div className="h-full rounded-[28px] bg-white/[0.035] backdrop-blur-2xl px-4 py-4 shadow-[0_10px_30px_rgba(0,0,0,0.22)] flex flex-col">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex justify-start">
+                    <item.icon size={22} className={item.tone} />
+                  </div>
 
-                {(item.badge || item.popular) && (
-                  <div className="absolute top-3 right-3 z-10">
-                    <span
-                      className={`px-2.5 py-1 rounded-full text-[9px] font-black tracking-widest uppercase border ${
-                        item.popular
-                          ? 'bg-white/10 text-white border-white/10'
-                          : 'bg-white/5 text-white/70 border-white/10'
-                      }`}
-                    >
-                      {item.popular ? 'hot' : item.badge}
+                  {item.badge ? (
+                    <span className="px-2.5 py-1 rounded-full text-[9px] font-black tracking-widest uppercase text-white/70 bg-white/6">
+                      {item.badge}
+                    </span>
+                  ) : (
+                    <span />
+                  )}
+                </div>
+
+                <div className="text-right">
+                  <h3 className="text-white font-black text-[14px] leading-tight min-h-[34px]">
+                    {item.title}
+                  </h3>
+                  <p className="text-white/38 text-[10px] font-bold leading-relaxed mt-1 min-h-[32px] line-clamp-2">
+                    {item.desc}
+                  </p>
+                </div>
+
+                <div className="mt-auto pt-4">
+                  <div className="mb-3 text-right">
+                    <span className="text-white font-black text-[20px] tracking-tight" dir="ltr">
+                      {item.price.toLocaleString()}
+                    </span>
+                    <span className="text-white/35 text-[10px] font-black mr-1" dir="ltr">
+                      CRD
                     </span>
                   </div>
-                )}
 
-                <div className="relative z-10 flex flex-col h-full">
-                  <div className="flex items-center justify-center mb-3 mt-2">
-                    <div
-                      className={`w-14 h-14 rounded-[20px] border border-white/8 flex items-center justify-center shadow-inner ${item.bg}`}
-                    >
-                      <item.icon size={24} className={item.color} />
-                    </div>
-                  </div>
-
-                  <div className="text-center px-1">
-                    <h3 className="text-white font-black text-[14px] leading-tight min-h-[36px]">
-                      {item.title}
-                    </h3>
-                    <p className="text-white/40 text-[10px] font-bold leading-relaxed mt-1 min-h-[32px] line-clamp-2">
-                      {item.desc}
-                    </p>
-                  </div>
-
-                  <div className="mt-auto pt-4">
-                    <div className="text-center mb-2">
-                      <span className="text-white font-black text-[18px] tracking-tight">
-                        {item.price.toLocaleString()}
-                      </span>
-                      <span className="text-white/35 text-[10px] font-black mr-1">CRD</span>
-                    </div>
-
-                    <Button
-                      onClick={() => handleBuy(item)}
-                      disabled={buyingId === item.id}
-                      className={`w-full h-11 rounded-2xl font-black text-[11px] tracking-widest uppercase transition-all shadow-lg ${
-                        balance !== null && balance >= item.price
-                          ? 'bg-white text-black hover:bg-gray-200'
-                          : 'bg-white/10 text-white/35'
-                      }`}
-                    >
-                      {buyingId === item.id ? (
-                        <Loader2 size={16} className="animate-spin text-black/70" />
-                      ) : balance !== null && balance >= item.price ? (
-                        'קנה עכשיו'
-                      ) : (
-                        'אין יתרה'
-                      )}
-                    </Button>
-                  </div>
+                  <Button
+                    onClick={() => handleBuy(item)}
+                    disabled={buyingId === item.id}
+                    className={`w-full h-11 rounded-2xl font-black text-[11px] tracking-widest uppercase transition-all ${
+                      balance !== null && balance >= item.price
+                        ? 'bg-white text-black hover:bg-neutral-200'
+                        : 'bg-white/10 text-white/35'
+                    }`}
+                  >
+                    {buyingId === item.id ? (
+                      <Loader2 size={16} className="animate-spin text-black/70" />
+                    ) : balance !== null && balance >= item.price ? (
+                      'קנה עכשיו'
+                    ) : (
+                      'אין יתרה'
+                    )}
+                  </Button>
                 </div>
-              </GlassCard>
+              </div>
             </motion.div>
           ))}
         </div>
 
-        <div className="mt-6 rounded-[24px] border border-white/8 bg-white/[0.03] px-4 py-4">
+        <div className="mt-5 rounded-[24px] bg-white/[0.03] backdrop-blur-2xl px-4 py-4 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-[16px] bg-white/6 border border-white/10 flex items-center justify-center shrink-0">
-              <Star size={16} className="text-white/70" />
-            </div>
+            <Star size={16} className="text-white/65 shrink-0" />
             <div className="text-right">
-              <p className="text-white/80 text-[13px] font-black">רוצה עוד CRD?</p>
+              <p className="text-white/85 text-[13px] font-black">צריך עוד CRD?</p>
               <p className="text-white/35 text-[10px] font-bold leading-relaxed mt-1">
-                טען את הארנק שלך וקבל גישה לבוסטים, סטטוסים והבלטות בכל המערכת.
+                פתח את הארנק, טען יתרה, וחזור לכאן לרכישת בוסטים וסטטוסים.
               </p>
             </div>
           </div>
