@@ -58,25 +58,29 @@ export const AuthPage: React.FC = () => {
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
         <motion.div 
           animate={{ opacity: [0.3, 0.5, 0.3], scale: [1, 1.05, 1] }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
           className="absolute top-[-15%] right-[-10%] w-[70%] h-[50%] bg-white/[0.03] blur-[120px] rounded-full" 
         />
         <motion.div 
           animate={{ opacity: [0.2, 0.4, 0.2], scale: [1, 1.1, 1] }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 1 }}
           className="absolute bottom-[-10%] left-[-10%] w-[60%] h-[40%] bg-white/[0.02] blur-[100px] rounded-full" 
         />
       </div>
 
-      <div className="w-full max-w-sm z-10 perspective-[1000px]">
+      <div className="w-full max-w-sm z-10 perspective-[1200px]">
         
-        {/* Cinematic Animated Logo */}
-        <div className="mb-14 text-center flex justify-center perspective-[1000px]">
+        {/* Slower & Beautiful Cinematic Logo */}
+        <div className="mb-14 text-center flex justify-center perspective-[1200px]">
           <motion.h1 
-            initial={{ opacity: 0, rotateX: 90, y: 30, letterSpacing: "0.2em" }}
-            animate={{ opacity: 1, rotateX: 0, y: 0, letterSpacing: "-0.05em" }}
-            transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
-            className="text-7xl font-black text-white italic select-none drop-shadow-[0_0_25px_rgba(255,255,255,0.15)] origin-bottom"
+            initial={{ opacity: 0, rotateX: 90, y: 40, letterSpacing: "0.4em", filter: "blur(10px)" }}
+            animate={{ opacity: 1, rotateX: 0, y: 0, letterSpacing: "-0.05em", filter: "blur(0px)" }}
+            transition={{ 
+              duration: 2.8, 
+              ease: [0.22, 1, 0.36, 1],
+              opacity: { duration: 2 }
+            }}
+            className="text-7xl font-black text-white italic select-none drop-shadow-[0_0_30px_rgba(255,255,255,0.2)] origin-bottom"
           >
             INNER
           </motion.h1>
@@ -84,29 +88,29 @@ export const AuthPage: React.FC = () => {
 
         {/* Content Container */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.5, ease: "easeOut" }}
+          transition={{ duration: 1, delay: 0.8, ease: "easeOut" }}
         >
-          {/* Tab Switcher */}
+          {/* Super Fast Tab Switcher */}
           <div className="flex bg-white/[0.03] p-1 rounded-2xl mb-10 border border-white/5 relative">
             <button 
               type="button"
               onClick={() => { triggerFeedback('pop'); setIsLogin(true); }}
-              className={`flex-1 py-3.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all z-10 ${isLogin ? 'text-black' : 'text-white/40 hover:text-white/70'}`}
+              className={`flex-1 py-3.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all z-10 ${isLogin ? 'text-black' : 'text-white/40'}`}
             >
               כניסה
             </button>
             <button 
               type="button"
               onClick={() => { triggerFeedback('pop'); setIsLogin(false); }}
-              className={`flex-1 py-3.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all z-10 ${!isLogin ? 'text-black' : 'text-white/40 hover:text-white/70'}`}
+              className={`flex-1 py-3.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all z-10 ${!isLogin ? 'text-black' : 'text-white/40'}`}
             >
               הרשמה
             </button>
             <motion.div
               layout
-              transition={{ type: "spring", stiffness: 350, damping: 35 }}
+              transition={{ type: "spring", stiffness: 800, damping: 45 }} // Super fast & snappy
               className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white/90 backdrop-blur-md rounded-xl shadow-xl pointer-events-none"
               animate={{ right: isLogin ? "4px" : "calc(50%)" }}
             />
@@ -121,6 +125,7 @@ export const AuthPage: React.FC = () => {
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
                   className="flex flex-col gap-5 overflow-hidden"
                 >
                   <div className="relative group">
@@ -166,12 +171,12 @@ export const AuthPage: React.FC = () => {
               <button 
                 type="submit" 
                 disabled={loading}
-                className="group relative w-[64px] h-[64px] bg-white/[0.08] backdrop-blur-2xl hover:bg-white/[0.15] active:scale-90 rounded-full flex items-center justify-center transition-all disabled:opacity-50 disabled:scale-100 border border-white/20 shadow-[0_8px_30px_rgba(0,0,0,0.12)] hover:shadow-[0_0_20px_rgba(255,255,255,0.1)]"
+                className="group relative w-[62px] h-[62px] bg-white/[0.08] backdrop-blur-2xl hover:bg-white/[0.15] active:scale-90 rounded-full flex items-center justify-center transition-all disabled:opacity-50 disabled:scale-100 border border-white/20 shadow-[0_8px_30px_rgba(0,0,0,0.12)] hover:shadow-[0_0_20px_rgba(255,255,255,0.1)]"
               >
                 {loading ? (
-                  <Loader2 size={28} className="animate-spin text-white" />
+                  <Loader2 size={26} className="animate-spin text-white" />
                 ) : (
-                  <ChevronLeft size={30} className="text-white transition-transform group-hover:-translate-x-1" strokeWidth={2.5} />
+                  <ChevronLeft size={28} className="text-white transition-transform group-hover:-translate-x-1" strokeWidth={2.5} />
                 )}
               </button>
             </div>
