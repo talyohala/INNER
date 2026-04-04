@@ -25,7 +25,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onMenuClick, hasUnread }) 
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
 
         <div className="flex items-center px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+10px)] min-h-[74px]">
-          <div className="flex items-center justify-center gap-2 flex-1">
+          <div className="flex items-center justify-center gap-8 flex-1">
             {items.map((item) => {
               const isActive =
                 location.pathname === item.path ||
@@ -39,33 +39,17 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onMenuClick, hasUnread }) 
                     triggerFeedback('pop');
                     navigate(item.path);
                   }}
-                  className={`relative flex flex-col items-center justify-center min-w-[74px] h-12 rounded-2xl transition-all active:scale-90 ${
+                  className={`relative flex items-center justify-center w-14 h-14 rounded-full transition-all active:scale-90 ${
                     isActive ? 'text-white' : 'text-white/35 hover:text-white/65'
                   }`}
                   aria-label={item.label}
                 >
-                  {isActive && (
-                    <motion.div
-                      layoutId="bottom-nav-pill"
-                      transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                      className="absolute inset-0 rounded-2xl bg-white/[0.07] border border-white/10 shadow-inner"
-                    />
-                  )}
-
                   <Icon
-                    size={21}
-                    className={`relative z-10 transition-all ${
-                      isActive ? 'drop-shadow-[0_0_8px_rgba(255,255,255,0.35)]' : ''
+                    size={28}
+                    className={`transition-all ${
+                      isActive ? 'drop-shadow-[0_0_12px_rgba(255,255,255,0.5)]' : ''
                     }`}
                   />
-
-                  <span
-                    className={`relative z-10 mt-1 text-[10px] font-black tracking-wide ${
-                      isActive ? 'text-white/95' : 'text-white/35'
-                    }`}
-                  >
-                    {item.label}
-                  </span>
                 </button>
               );
             })}
@@ -76,16 +60,15 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onMenuClick, hasUnread }) 
               triggerFeedback('pop');
               onMenuClick();
             }}
-            className="relative flex items-center justify-center w-12 h-12 rounded-2xl text-white/75 active:scale-90 transition-all hover:bg-white/[0.05] ml-1"
+            className="relative flex items-center justify-center w-14 h-14 rounded-full text-white/75 active:scale-90 transition-all hover:text-white ml-2"
             aria-label="פתח תפריט"
           >
-            <div className="absolute inset-0 rounded-2xl bg-white/[0.03] border border-white/8 shadow-inner" />
-            <Menu size={22} className="relative z-10" />
+            <Menu size={28} />
             {hasUnread && (
               <motion.span
                 animate={{ scale: [1, 1.35, 1], opacity: [0.65, 1, 0.65] }}
                 transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
-                className="absolute top-2 right-2 z-20 w-2.5 h-2.5 bg-red-500 rounded-full border border-[#080808] shadow-[0_0_8px_rgba(239,68,68,0.8)]"
+                className="absolute top-2.5 right-2.5 z-20 w-3 h-3 bg-red-500 rounded-full border-2 border-[#080808] shadow-[0_0_8px_rgba(239,68,68,0.8)]"
               />
             )}
           </button>
