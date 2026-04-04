@@ -68,25 +68,25 @@ export const AuthPage: React.FC = () => {
         />
       </div>
 
-      <div className="w-full max-w-sm z-10">
+      <div className="w-full max-w-sm z-10 perspective-[1000px]">
         
-        {/* Animated Logo (Intro Effect) */}
-        <motion.div 
-          initial={{ opacity: 0, scale: 1.15, filter: "blur(12px)" }}
-          animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-          transition={{ duration: 1.2, ease: "easeOut" }}
-          className="mb-14 text-center flex justify-center"
-        >
-          <h1 className="text-7xl font-black text-white tracking-tighter italic select-none drop-shadow-[0_0_20px_rgba(255,255,255,0.15)]">
+        {/* Cinematic Animated Logo */}
+        <div className="mb-14 text-center flex justify-center perspective-[1000px]">
+          <motion.h1 
+            initial={{ opacity: 0, rotateX: 90, y: 30, letterSpacing: "0.2em" }}
+            animate={{ opacity: 1, rotateX: 0, y: 0, letterSpacing: "-0.05em" }}
+            transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
+            className="text-7xl font-black text-white italic select-none drop-shadow-[0_0_25px_rgba(255,255,255,0.15)] origin-bottom"
+          >
             INNER
-          </h1>
-        </motion.div>
+          </motion.h1>
+        </div>
 
-        {/* Content Container (Fades in slightly after the logo) */}
+        {/* Content Container */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.4, ease: "easeOut" }}
+          transition={{ duration: 0.8, delay: 0.5, ease: "easeOut" }}
         >
           {/* Tab Switcher */}
           <div className="flex bg-white/[0.03] p-1 rounded-2xl mb-10 border border-white/5 relative">
@@ -161,17 +161,17 @@ export const AuthPage: React.FC = () => {
               />
             </div>
 
-            {/* Centered Circular Submit Button (Translucent White) */}
+            {/* True Glassmorphism Circular Button */}
             <div className="flex justify-center mt-8">
               <button 
                 type="submit" 
                 disabled={loading}
-                className="group relative w-[64px] h-[64px] bg-white/85 backdrop-blur-xl hover:bg-white active:scale-90 rounded-full flex items-center justify-center transition-all disabled:opacity-50 disabled:scale-100 shadow-[0_0_25px_rgba(255,255,255,0.1)] hover:shadow-[0_0_35px_rgba(255,255,255,0.2)] border border-white/40"
+                className="group relative w-[64px] h-[64px] bg-white/[0.08] backdrop-blur-2xl hover:bg-white/[0.15] active:scale-90 rounded-full flex items-center justify-center transition-all disabled:opacity-50 disabled:scale-100 border border-white/20 shadow-[0_8px_30px_rgba(0,0,0,0.12)] hover:shadow-[0_0_20px_rgba(255,255,255,0.1)]"
               >
                 {loading ? (
-                  <Loader2 size={28} className="animate-spin text-black/80" />
+                  <Loader2 size={28} className="animate-spin text-white" />
                 ) : (
-                  <ChevronLeft size={30} className="text-black/90 transition-transform group-hover:-translate-x-1" strokeWidth={2.5} />
+                  <ChevronLeft size={30} className="text-white transition-transform group-hover:-translate-x-1" strokeWidth={2.5} />
                 )}
               </button>
             </div>
