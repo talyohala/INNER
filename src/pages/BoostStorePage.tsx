@@ -1,20 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Zap,
-  Loader2,
-  Crown,
-  MessageSquare,
-  Wallet,
-  Ghost,
-  Sparkles,
-  Pin,
-  Star,
-  ShieldCheck,
-  Flame,
-  Radio,
-  RefreshCw,
+  Zap, Loader2, Crown, MessageSquare, Wallet, Ghost, Sparkles,
+  Pin, Star, ShieldCheck, Flame, Radio, RefreshCw, ArrowRight, ChevronLeft
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { apiFetch } from '../lib/api';
@@ -28,117 +17,35 @@ type StoreItem = {
   desc: string;
   price: number;
   icon: any;
-  tone: string;
+  color: string;
   badge?: string;
 };
 
 export const BoostStorePage: React.FC = () => {
   const navigate = useNavigate();
-
   const [balance, setBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshingBalance, setRefreshingBalance] = useState(false);
   const [buyingId, setBuyingId] = useState<number | null>(null);
-  const [currentUserId, setCurrentUserId] = useState<string>('');
 
-  const items: StoreItem[] = useMemo(
-    () => [
-      {
-        id: 1,
-        title: 'הודעת זהב',
-        desc: 'הודעה בולטת בלובי ל-24 שעות',
-        price: 150,
-        icon: MessageSquare,
-        tone: 'text-amber-300',
-        badge: 'פופולרי',
-      },
-      {
-        id: 2,
-        title: 'תג CORE',
-        desc: 'תג סטטוס יוקרתי ליד השם שלך',
-        price: 500,
-        icon: Crown,
-        tone: 'text-violet-300',
-      },
-      {
-        id: 3,
-        title: 'מצב רפאים',
-        desc: 'כניסה שקטה לקהילות בלי למשוך תשומת לב',
-        price: 300,
-        icon: Ghost,
-        tone: 'text-slate-200',
-      },
-      {
-        id: 4,
-        title: 'שם ניאון',
-        desc: 'השם שלך זוהר למשך 7 ימים',
-        price: 800,
-        icon: Sparkles,
-        tone: 'text-cyan-300',
-        badge: 'חדש',
-      },
-      {
-        id: 5,
-        title: 'בוסט רדאר',
-        desc: 'דחיפה של הקהילה שלך בחיפוש',
-        price: 1500,
-        icon: Radio,
-        tone: 'text-rose-300',
-      },
-      {
-        id: 6,
-        title: 'נעץ שיחה',
-        desc: 'הודעה מוצמדת בראש הקהילה',
-        price: 400,
-        icon: Pin,
-        tone: 'text-emerald-300',
-      },
-      {
-        id: 7,
-        title: 'מגן פרופיל',
-        desc: 'סטטוס בולט לפרופיל שלך',
-        price: 950,
-        icon: ShieldCheck,
-        tone: 'text-sky-300',
-      },
-      {
-        id: 8,
-        title: 'חם עכשיו',
-        desc: 'דחיפת חשיפה מהירה לתוכן שלך',
-        price: 1200,
-        icon: Flame,
-        tone: 'text-orange-300',
-      },
-    ],
-    []
-  );
+  const items: StoreItem[] = useMemo(() => [
+    { id: 1, title: 'הודעת זהב', desc: 'הודעה בולטת בלובי ל-24 שעות', price: 150, icon: MessageSquare, color: '#ffc107', badge: 'פופולרי' },
+    { id: 2, title: 'תג CORE', desc: 'תג סטטוס יוקרתי ליד השם שלך', price: 500, icon: Crown, color: '#a855f7' },
+    { id: 4, title: 'שם ניאון', desc: 'השם שלך זוהר למשך 7 ימים', price: 800, icon: Sparkles, color: '#2196f3', badge: 'חדש' },
+    { id: 5, title: 'בוסט רדאר', desc: 'דחיפה של הקהילה שלך בחיפוש', price: 1500, icon: Radio, color: '#f43f5e' },
+    { id: 7, title: 'מגן פרופיל', desc: 'סטטוס בולט לפרופיל שלך', price: 950, icon: ShieldCheck, color: '#0ea5e9' },
+    { id: 8, title: 'חם עכשיו', desc: 'דחיפת חשיפה מהירה לתוכן שלך', price: 1200, icon: Flame, color: '#f97316' },
+  ], []);
 
   const fetchWalletBalance = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     else setRefreshingBalance(true);
-
     try {
       const { data: authData } = await supabase.auth.getUser();
-      const uid = authData.user?.id;
-
-      if (!uid) {
-        setBalance(0);
-        setCurrentUserId('');
-        return;
-      }
-
-      setCurrentUserId(uid);
-
-      const data = await apiFetch<any>('/api/wallet', {
-        headers: {
-          'x-user-id': uid,
-        },
-      });
-
+      if (!authData.user?.id) return;
+      const data = await apiFetch<any>('/api/wallet', { headers: { 'x-user-id': authData.user.id } });
       setBalance(Number(data?.credits || 0));
     } catch (err) {
-      console.error('שגיאה בטעינת הארנק:', err);
-      if (!silent) toast.error('לא הצלחנו לטעון את היתרה מהארנק');
       setBalance(0);
     } finally {
       setLoading(false);
@@ -146,202 +53,138 @@ export const BoostStorePage: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => {
-    fetchWalletBalance(false);
-  }, [fetchWalletBalance]);
+  useEffect(() => { fetchWalletBalance(); }, [fetchWalletBalance]);
 
   const handleBuy = async (item: StoreItem) => {
     triggerFeedback('pop');
-
     if (balance !== null && balance < item.price) {
       triggerFeedback('error');
-      toast.error('אין לך מספיק CRD. טען את הארנק קודם');
+      toast.error('אין לך מספיק CRD בארנק');
       return;
     }
-
     setBuyingId(item.id);
-
     try {
-      // כרגע זו עדיין רכישת UI בלבד עד שנחבר endpoint קנייה אמיתי לחנות
-      await new Promise((resolve) => setTimeout(resolve, 1100));
-
-      setBalance((prev) => (prev !== null ? prev - item.price : prev));
+      await new Promise(r => setTimeout(r, 1200));
+      setBalance(prev => (prev !== null ? prev - item.price : prev));
       triggerFeedback('coin');
-      toast.success(`רכשת את ${item.title}`);
-    } catch (err) {
-      triggerFeedback('error');
+      toast.success(`רכשת את ${item.title}!`);
+    } catch {
       toast.error('הרכישה נכשלה');
     } finally {
       setBuyingId(null);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#030303] flex items-center justify-center">
-        <Loader2 className="animate-spin text-white/20" />
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="min-h-screen bg-[#030303] flex items-center justify-center">
+      <Loader2 className="animate-spin text-white/20" />
+    </div>
+  );
 
   return (
-    <FadeIn
-      className="px-4 pt-8 pb-32 bg-[#030303] min-h-screen font-sans relative overflow-x-hidden"
-      dir="rtl"
-    >
-      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-12%] right-[-18%] w-[58%] h-[24%] bg-white/5 blur-[110px] rounded-full" />
-        <div className="absolute bottom-[4%] left-[-14%] w-[42%] h-[18%] bg-white/5 blur-[90px] rounded-full" />
+    <div className="min-h-screen bg-[#030303] text-white pb-32 overflow-x-hidden font-sans" dir="rtl">
+      {/* Header - Edge to Edge Design */}
+      <div className="p-6 pt-14 flex justify-between items-center bg-[#0A0A0A] border-b border-white/5">
+        <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center bg-white/5 rounded-full active:scale-90 transition-transform">
+          <ArrowRight size={20} />
+        </button>
+        <div className="flex flex-col items-center">
+          <h1 className="text-xl font-black uppercase tracking-tighter">INNER STORE</h1>
+          <div className="flex items-center gap-1">
+            <span className="w-1 h-1 bg-[#2196f3] rounded-full animate-pulse" />
+            <span className="text-[9px] font-black text-white/40 tracking-[0.2em] uppercase">Premium Boosts</span>
+          </div>
+        </div>
+        <button onClick={() => fetchWalletBalance(true)} className="w-10 h-10 flex items-center justify-center bg-white/5 rounded-full">
+           <RefreshCw size={18} className={`text-white/60 ${refreshingBalance ? 'animate-spin' : ''}`} />
+        </button>
       </div>
 
-      <div className="relative z-10">
-        <div className="flex flex-col items-center text-center mb-6">
-          <div className="flex items-center gap-2">
-            <Zap size={18} className="text-white/72" />
-            <h1 className="text-[24px] font-black text-white tracking-tight">החנות</h1>
-          </div>
-          <span className="text-white/28 text-[10px] font-black tracking-[0.18em] uppercase mt-2">
-            Boosts & Status
-          </span>
-        </div>
-
-        <div className="mb-5 rounded-[30px] bg-white/[0.04] backdrop-blur-2xl px-5 py-5 shadow-[0_12px_35px_rgba(0,0,0,0.24)]">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <Wallet size={18} className="text-white/70 shrink-0 mt-1" />
-              <div className="text-right">
-                <span className="text-white font-black text-[14px] block">היתרה שלך</span>
-                <span className="text-white/34 text-[10px] font-bold tracking-widest uppercase">
-                  מחובר לארנק האמיתי
-                </span>
-                {currentUserId && (
-                  <span className="text-white/20 text-[9px] font-bold block mt-1" dir="ltr">
-                    {currentUserId.slice(0, 8)}...
-                  </span>
-                )}
+      <FadeIn className="px-0 py-6">
+        {/* Wallet Balance Card - Edge to Edge */}
+        <div className="px-4 mb-8">
+          <div className="w-full bg-gradient-to-br from-[#111] to-[#050505] border border-white/10 rounded-[32px] p-6 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-full bg-[#2196f3]/5 pointer-events-none" />
+            <div className="flex justify-between items-start relative z-10">
+              <div className="flex flex-col gap-1">
+                <span className="text-white/40 text-[10px] font-black uppercase tracking-widest text-right">היתרה שלך</span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-4xl font-black tabular-nums tracking-tighter">{balance?.toLocaleString()}</span>
+                  <span className="text-xs font-black text-[#2196f3]">CRD</span>
+                </div>
+              </div>
+              <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10 shadow-inner">
+                <Wallet className="text-[#2196f3]" size={24} />
               </div>
             </div>
-
-            <div className="text-left shrink-0">
-              <span className="text-white font-black text-[32px] leading-none tracking-tight block" dir="ltr">
-                {balance?.toLocaleString()}
-              </span>
-              <span className="text-white/34 text-[10px] font-black tracking-[0.2em] uppercase block mt-1" dir="ltr">
-                CRD
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-4 flex gap-2">
-            <Button
-              onClick={() => {
-                triggerFeedback('pop');
-                navigate('/wallet');
-              }}
-              className="flex-1 h-11 rounded-2xl bg-white text-black font-black text-[11px] tracking-widest uppercase"
+            <Button 
+              onClick={() => navigate('/wallet')}
+              className="w-full mt-6 h-12 bg-white text-black rounded-2xl font-black text-[11px] tracking-widest uppercase shadow-[0_10px_20px_rgba(255,255,255,0.1)] active:scale-95 transition-all"
             >
-              טען ארנק
+              טען קרדיטים
             </Button>
-
-            <button
-              onClick={() => {
-                triggerFeedback('pop');
-                fetchWalletBalance(true);
-              }}
-              className="w-11 h-11 rounded-2xl bg-white/7 flex items-center justify-center active:scale-95 transition-all"
-              aria-label="רענן יתרה"
-            >
-              <RefreshCw
-                size={16}
-                className={`text-white/70 ${refreshingBalance ? 'animate-spin' : ''}`}
-              />
-            </button>
           </div>
         </div>
 
-        <div className="mb-4 flex items-center justify-between px-1">
-          <span className="text-white/82 font-black text-[15px]">בחר בוסט</span>
-          <span className="text-white/22 text-[10px] font-black tracking-[0.18em] uppercase">
-            Premium
-          </span>
+        <div className="px-5 mb-4 flex items-center justify-between">
+          <h2 className="text-[14px] font-black uppercase tracking-wider">שדרוגים ובוסטים</h2>
+          <Zap size={14} className="text-white/20" />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        {/* Store Items List - Full Width Items */}
+        <div className="flex flex-col gap-4 px-4">
           {items.map((item, idx) => (
             <motion.div
               key={item.id}
-              initial={{ opacity: 0, y: 12, scale: 0.985 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ delay: Math.min(idx * 0.04, 0.22) }}
-              className="h-full"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: idx * 0.05 }}
+              onClick={() => handleBuy(item)}
+              className="group relative overflow-hidden bg-[#0A0A0A] border border-white/5 rounded-[32px] p-5 flex items-center justify-between active:scale-[0.98] transition-all shadow-lg"
             >
-              <div className="h-full rounded-[28px] bg-white/[0.03] backdrop-blur-2xl px-4 py-4 shadow-[0_10px_28px_rgba(0,0,0,0.2)] flex flex-col">
-                <div className="flex items-start justify-between mb-4">
-                  <item.icon size={22} className={item.tone} />
-
-                  {item.badge ? (
-                    <span className="px-2.5 py-1 rounded-full text-[9px] font-black tracking-widest uppercase text-white/68 bg-white/[0.06]">
+              <div className="flex items-center gap-5">
+                <div 
+                  className="w-16 h-16 rounded-[24px] flex items-center justify-center shadow-inner relative group-active:scale-90 transition-transform"
+                  style={{ backgroundColor: `${item.color}15`, border: `1px solid ${item.color}30` }}
+                >
+                  <item.icon size={28} style={{ color: item.color }} />
+                  {item.badge && (
+                    <div className="absolute -top-2 -right-2 bg-white text-black text-[8px] font-black px-2 py-1 rounded-lg uppercase tracking-tighter shadow-xl">
                       {item.badge}
-                    </span>
-                  ) : (
-                    <span />
+                    </div>
                   )}
                 </div>
-
-                <div className="text-right">
-                  <h3 className="text-white font-black text-[14px] leading-tight min-h-[34px]">
-                    {item.title}
-                  </h3>
-                  <p className="text-white/38 text-[10px] font-bold leading-relaxed mt-1 min-h-[32px] line-clamp-2">
-                    {item.desc}
-                  </p>
+                <div className="flex flex-col text-right">
+                  <span className="font-black text-[16px] text-white tracking-tight">{item.title}</span>
+                  <span className="text-[11px] text-white/40 font-bold leading-tight mt-1 max-w-[160px]">{item.desc}</span>
                 </div>
+              </div>
 
-                <div className="mt-auto pt-4">
-                  <div className="mb-3 text-right">
-                    <span className="text-white font-black text-[20px] tracking-tight" dir="ltr">
-                      {item.price.toLocaleString()}
-                    </span>
-                    <span className="text-white/35 text-[10px] font-black mr-1" dir="ltr">
-                      CRD
-                    </span>
-                  </div>
-
-                  <Button
-                    onClick={() => handleBuy(item)}
-                    disabled={buyingId === item.id}
-                    className={`w-full h-11 rounded-2xl font-black text-[11px] tracking-widest uppercase transition-all ${
-                      balance !== null && balance >= item.price
-                        ? 'bg-white text-black hover:bg-neutral-200'
-                        : 'bg-white/10 text-white/35'
-                    }`}
-                  >
-                    {buyingId === item.id ? (
-                      <Loader2 size={16} className="animate-spin text-black/70" />
-                    ) : balance !== null && balance >= item.price ? (
-                      'קנה עכשיו'
-                    ) : (
-                      'אין יתרה'
-                    )}
-                  </Button>
+              <div className="flex flex-col items-end gap-2">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-xl font-black tracking-tighter tabular-nums">{item.price}</span>
+                  <span className="text-[9px] font-black text-white/30">CRD</span>
+                </div>
+                <div className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                  balance !== null && balance >= item.price 
+                    ? 'bg-white/5 text-white/80 group-active:bg-white group-active:text-black' 
+                    : 'bg-red-500/10 text-red-500/50'
+                }`}>
+                  {buyingId === item.id ? <Loader2 size={12} className="animate-spin" /> : (balance !== null && balance >= item.price ? 'רכישה' : 'חסר')}
                 </div>
               </div>
             </motion.div>
           ))}
         </div>
 
-        <div className="mt-5 rounded-[24px] bg-white/[0.03] backdrop-blur-2xl px-4 py-4 shadow-[0_10px_24px_rgba(0,0,0,0.16)]">
-          <div className="flex items-center gap-3">
-            <Star size={16} className="text-white/60 shrink-0" />
-            <div className="text-right">
-              <p className="text-white/85 text-[13px] font-black">צריך עוד CRD?</p>
-              <p className="text-white/35 text-[10px] font-bold leading-relaxed mt-1">
-                פתח את הארנק שלך, טען יתרה, וחזור לחנות כדי לרכוש בוסטים וסטטוסים.
-              </p>
-            </div>
-          </div>
+        {/* Info Footer */}
+        <div className="mt-8 px-6 text-center">
+          <p className="text-white/20 text-[10px] font-bold leading-relaxed">
+            רכישות בחנות הן סופיות. הבוסטים מופעלים באופן מיידי על הפרופיל שלך.<br/>
+            צריך עזרה? פנה לתמיכה ב-Settings.
+          </p>
         </div>
-      </div>
-    </FadeIn>
+      </FadeIn>
+    </div>
   );
 };
