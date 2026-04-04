@@ -144,32 +144,41 @@ export const NotificationsPage: React.FC = () => {
   // --- Actions ---
   const resolveProfileTarget = useCallback(async (notif: any): Promise<string | null> => {
     const actorId = getActorIdFromNotification(notif);
-    const actor = actorId ? actorProfiles[actorId] : null;
+    
+    // במידה ויש לנו את ה-ID של מי שעשה את הפעולה, קודם כל נשתמש בו!
+    if (actorId) {
+      const actor = actorProfiles[actorId];
+      if (actor?.username) return actor.username;
+      if (actor?.id) return actor.id;
+      return actorId; // Fallback ישיר
+    }
 
-    if (actor?.username) return actor.username;
+    // ניסיונות לחלץ מהמידע של ההתראה
     if (notif?.actor_username) return notif.actor_username;
     if (notif?.from_username) return notif.from_username;
     if (notif?.username) return notif.username;
 
     const fromAction = extractProfileTargetFromActionUrl(notif?.action_url);
     if (fromAction) return fromAction;
-    if (actor?.id) return actor.id;
 
+    // ניסיון אחרון - חיפוש לפי שם (במקרה שההתראה נוצרה בלי מזהה)
     const parsedName = parseActorNameFromNotification(notif);
     if (parsedName) {
-      const { data } = await supabase.from('profiles').select('id, username, full_name').ilike('full_name', parsedName).limit(1);
+      const { data } = await supabase.from('profiles').select('id, username').ilike('full_name', parsedName).limit(1);
       if (data?.[0]) return data[0].username || data[0].id;
-    }
-
-    if (actorId) {
-      const { data } = await supabase.from('profiles').select('id, username').eq('id', actorId).single();
-      if (data) return data.username || data.id;
     }
 
     return null;
   }, [actorProfiles]);
 
-  const navigateToActorProfile = useCallback(async (notif: any) => {
+  const navigateToActorProfile = useCallback(async (notif: any, explicitTargetId?: string) => {
+    // אם הועבר ID ספציפי (למשל בלחיצה על התמונה), נלך אליו ישירות בלי ניחושים
+    if (explicitTargetId) {
+      triggerFeedback('pop');
+      setActiveMenuNotif(null);
+      return navigate(`/profile/${explicitTargetId}`);
+    }
+
     const target = await resolveProfileTarget(notif);
     if (!target) return toast.error('לא נמצא פרופיל למעבר');
     
@@ -309,7 +318,12 @@ export const NotificationsPage: React.FC = () => {
 
                   {/* Profile (Right) */}
                   <button 
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigateToActorProfile(notif); }} 
+                    onClick={(e) => { 
+                      e.preventDefault(); 
+                      e.stopPropagation(); 
+                      const explicitId = actor?.username || actor?.id || getActorIdFromNotification(notif);
+                      navigateToActorProfile(notif, explicitId || undefined); 
+                    }} 
                     className="w-12 h-12 rounded-full overflow-hidden bg-black/30 border border-white/10 shrink-0 active:scale-95 transition-transform z-10 relative"
                   >
                     {actor?.avatar_url ? <img src={actor.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-2 text-white/30" />}
@@ -358,7 +372,11 @@ export const NotificationsPage: React.FC = () => {
                     <span className="flex-1 text-right text-white text-[14px] font-black">{activeMenuNotif.is_read ? 'סמן כלא נקראה' : 'סמן כנקראה'}</span>
                   </button>
 
-                  <button onClick={() => navigateToActorProfile(activeMenuNotif)} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all">
+                  <button onClick={() => {
+                      const actor = actorProfiles[getActorIdFromNotification(activeMenuNotif) || ''];
+                      const explicitId = actor?.username || actor?.id || getActorIdFromNotification(activeMenuNotif);
+                      navigateToActorProfile(activeMenuNotif, explicitId || undefined);
+                  }} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all">
                     <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0"><UserCircle size={18} className="text-white/75" /></div>
                     <span className="flex-1 text-right text-white text-[14px] font-black">מעבר לפרופיל</span>
                   </button>
@@ -369,13 +387,6 @@ export const NotificationsPage: React.FC = () => {
                       <span className="flex-1 text-right text-white text-[14px] font-black">פתח יעד ההתראה</span>
                     </button>
                   )}
-
-                  <button onClick={() => deleteNotification(activeMenuNotif.id)} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-red-500/10 border border-red-500/20 active:scale-[0.98] transition-all">
-                    <div className="w-11 h-11 rounded-[16px] bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
-                      {busyId === activeMenuNotif.id ? <Loader2 size={18} className="animate-spin text-red-400" /> : <Trash2 size={18} className="text-red-400" />}
-                    </div>
-                    <span className="flex-1 text-right text-red-400 text-[14px] font-black">מחק התראה</span>
-                  </button>
 
                   {/* Divider */}
                   <div className="w-full h-px bg-white/10 my-3 rounded-full" />
@@ -396,13 +407,22 @@ export const NotificationsPage: React.FC = () => {
                   )}
 
                   {readExists && (
-                    <button onClick={deleteAllReadNotifications} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-red-500/10 border border-red-500/20 active:scale-[0.98] transition-all">
-                      <div className="w-11 h-11 rounded-[16px] bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
-                        {busyId === 'delete-read-all' ? <Loader2 size={18} className="animate-spin text-red-400" /> : <Trash2 size={18} className="text-red-400" />}
+                    <button onClick={deleteAllReadNotifications} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all">
+                      <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
+                        {busyId === 'delete-read-all' ? <Loader2 size={18} className="animate-spin text-white/75" /> : <Trash2 size={18} className="text-white/75" />}
                       </div>
-                      <span className="flex-1 text-right text-red-400 text-[14px] font-black">מחק את כל ההתראות שנקראו</span>
+                      <span className="flex-1 text-right text-white text-[14px] font-black">מחק את כל ההתראות שנקראו</span>
                     </button>
                   )}
+
+                  {/* --- Danger Zone (Current Notif) --- */}
+                  <button onClick={() => deleteNotification(activeMenuNotif.id)} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-red-500/10 border border-red-500/20 active:scale-[0.98] transition-all mt-4">
+                    <div className="w-11 h-11 rounded-[16px] bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                      {busyId === activeMenuNotif.id ? <Loader2 size={18} className="animate-spin text-red-400" /> : <Trash2 size={18} className="text-red-400" />}
+                    </div>
+                    <span className="flex-1 text-right text-red-400 text-[14px] font-black">מחק התראה זו</span>
+                  </button>
+
                 </div>
               </motion.div>
             </div>
