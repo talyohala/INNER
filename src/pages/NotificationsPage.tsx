@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -59,6 +60,7 @@ export const NotificationsPage: React.FC = () => {
   const channelRef = useRef<any>(null);
 
   // State
+  const [mounted, setMounted] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [actorProfiles, setActorProfiles] = useState<Record<string, ActorProfile>>({});
   const [loading, setLoading] = useState(true);
@@ -67,6 +69,10 @@ export const NotificationsPage: React.FC = () => {
 
   const unreadExists = useMemo(() => notifications.some((n) => !n.is_read), [notifications]);
   const readExists = useMemo(() => notifications.some((n) => n.is_read), [notifications]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // --- Data Fetching ---
   const enrichActorProfiles = useCallback(async (list: any[]) => {
@@ -232,7 +238,6 @@ export const NotificationsPage: React.FC = () => {
       toast.error('שגיאה בעדכון');
     } finally {
       setBusyId(null);
-      setActiveMenuNotif(null);
     }
   };
 
@@ -251,6 +256,8 @@ export const NotificationsPage: React.FC = () => {
       setActiveMenuNotif(null);
     }
   };
+
+  const stopPropagation = (e: React.MouseEvent | React.TouchEvent) => e.stopPropagation();
 
   if (loading) {
     return <div className="fixed inset-0 bg-[#0A0A0A] flex items-center justify-center"><Loader2 className="animate-spin text-white/20" /></div>;
@@ -288,20 +295,23 @@ export const NotificationsPage: React.FC = () => {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   onClick={() => handleNotifClick(notif)}
-                  className={`relative p-4 rounded-[24px] border transition-all cursor-pointer flex items-center gap-4 pl-10 ${
+                  className={`relative p-4 rounded-[24px] border transition-all cursor-pointer flex items-center gap-4 pl-12 ${
                     notif.is_read ? 'bg-transparent border-white/5 opacity-60' : 'bg-white/[0.04] border-white/10 shadow-[0_8px_20px_rgba(0,0,0,0.4)] active:scale-[0.985]'
                   }`}
                 >
                   {/* 3 Dots Menu - Top Left Corner */}
                   <button
-                    onClick={(e) => { e.stopPropagation(); setActiveMenuNotif(notif); }}
-                    className="absolute top-3 left-3 w-8 h-8 flex items-center justify-center shrink-0 text-white/40 hover:text-white hover:bg-white/10 active:scale-90 transition-all rounded-full"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveMenuNotif(notif); }}
+                    className="absolute top-3 left-3 w-8 h-8 flex items-center justify-center shrink-0 text-white/40 hover:text-white hover:bg-white/10 active:scale-90 transition-all rounded-full z-10"
                   >
                     <MoreHorizontal size={18} />
                   </button>
 
                   {/* Profile (Right) */}
-                  <button onClick={(e) => { e.stopPropagation(); navigateToActorProfile(notif); }} className="w-12 h-12 rounded-full overflow-hidden bg-black/30 border border-white/10 shrink-0 active:scale-95 transition-transform">
+                  <button 
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigateToActorProfile(notif); }} 
+                    className="w-12 h-12 rounded-full overflow-hidden bg-black/30 border border-white/10 shrink-0 active:scale-95 transition-transform z-10 relative"
+                  >
                     {actor?.avatar_url ? <img src={actor.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-2 text-white/30" />}
                   </button>
 
@@ -324,79 +334,82 @@ export const NotificationsPage: React.FC = () => {
         </AnimatePresence>
       </div>
 
-      {/* --- Merged Actions Modal --- */}
-      <AnimatePresence>
-        {activeMenuNotif && (
-          <div className="fixed inset-0 z-[999999] flex flex-col justify-end" dir="rtl">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setActiveMenuNotif(null)} />
-            <motion.div 
-              initial={{ y: '100%' }} 
-              animate={{ y: 0 }} 
-              exit={{ y: '100%' }} 
-              transition={{ type: 'spring', damping: 25, stiffness: 260 }} 
-              className="relative z-10 bg-[#0A0A0A] border-t border-white/10 rounded-t-[34px] p-5 pb-[calc(env(safe-area-inset-bottom)+32px)] shadow-[0_-20px_40px_rgba(0,0,0,0.5)] max-h-[85vh] overflow-y-auto scrollbar-hide"
-            >
-              <div className="w-full flex justify-center mb-6"><div className="w-14 h-1.5 bg-white/15 rounded-full" /></div>
-              
-              <div className="flex flex-col gap-2">
-                {/* --- Specific Actions --- */}
-                <button onClick={() => setNotificationReadState(activeMenuNotif, !activeMenuNotif.is_read)} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all">
-                  <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-                    {activeMenuNotif.is_read ? <Circle size={18} className="text-white/75" /> : <CheckCircle2 size={18} className="text-green-400" />}
-                  </div>
-                  <span className="flex-1 text-right text-white text-[14px] font-black">{activeMenuNotif.is_read ? 'סמן כלא נקראה' : 'סמן כנקראה'}</span>
-                </button>
-
-                <button onClick={() => navigateToActorProfile(activeMenuNotif)} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all">
-                  <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0"><UserCircle size={18} className="text-white/75" /></div>
-                  <span className="flex-1 text-right text-white text-[14px] font-black">מעבר לפרופיל</span>
-                </button>
-
-                {activeMenuNotif.action_url && (
-                  <button onClick={() => { triggerFeedback('pop'); setActiveMenuNotif(null); navigate(activeMenuNotif.action_url); }} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all">
-                    <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0"><ExternalLink size={18} className="text-white/75" /></div>
-                    <span className="flex-1 text-right text-white text-[14px] font-black">פתח יעד ההתראה</span>
-                  </button>
-                )}
-
-                <button onClick={() => deleteNotification(activeMenuNotif.id)} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-red-500/10 border border-red-500/20 active:scale-[0.98] transition-all">
-                  <div className="w-11 h-11 rounded-[16px] bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
-                    {busyId === activeMenuNotif.id ? <Loader2 size={18} className="animate-spin text-red-400" /> : <Trash2 size={18} className="text-red-400" />}
-                  </div>
-                  <span className="flex-1 text-right text-red-400 text-[14px] font-black">מחק התראה</span>
-                </button>
-
-                {/* Divider */}
-                <div className="w-full h-px bg-white/10 my-3 rounded-full" />
-
-                {/* --- General Actions --- */}
-                <button onClick={handleRefresh} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all">
-                  <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0"><RefreshCw size={18} className="text-white/75" /></div>
-                  <span className="flex-1 text-right text-white text-[14px] font-black">רענן התראות</span>
-                </button>
-
-                {unreadExists && (
-                  <button onClick={markAllAsRead} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all">
+      {/* --- Merged Actions Modal using Portal --- */}
+      {mounted && typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {activeMenuNotif && (
+            <div className="fixed inset-0 z-[999999] flex flex-col justify-end" dir="rtl" onTouchStart={stopPropagation}>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setActiveMenuNotif(null)} />
+              <motion.div 
+                initial={{ y: '100%' }} 
+                animate={{ y: 0 }} 
+                exit={{ y: '100%' }} 
+                transition={{ type: 'spring', damping: 25, stiffness: 260 }} 
+                className="relative z-10 bg-[#0A0A0A] border-t border-white/10 rounded-t-[34px] p-5 pb-[calc(env(safe-area-inset-bottom)+32px)] shadow-[0_-20px_40px_rgba(0,0,0,0.5)] max-h-[85vh] overflow-y-auto scrollbar-hide"
+              >
+                <div className="w-full flex justify-center mb-6"><div className="w-14 h-1.5 bg-white/15 rounded-full" /></div>
+                
+                <div className="flex flex-col gap-2">
+                  {/* --- Specific Actions --- */}
+                  <button onClick={() => setNotificationReadState(activeMenuNotif, !activeMenuNotif.is_read)} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all">
                     <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-                      {busyId === 'mark-all-read' ? <Loader2 size={18} className="animate-spin text-white/75" /> : <CheckCheck size={18} className="text-white/75" />}
+                      {activeMenuNotif.is_read ? <Circle size={18} className="text-white/75" /> : <CheckCircle2 size={18} className="text-green-400" />}
                     </div>
-                    <span className="flex-1 text-right text-white text-[14px] font-black">סמן הכל כנקרא</span>
+                    <span className="flex-1 text-right text-white text-[14px] font-black">{activeMenuNotif.is_read ? 'סמן כלא נקראה' : 'סמן כנקראה'}</span>
                   </button>
-                )}
 
-                {readExists && (
-                  <button onClick={deleteAllReadNotifications} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-red-500/10 border border-red-500/20 active:scale-[0.98] transition-all">
-                    <div className="w-11 h-11 rounded-[16px] bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
-                      {busyId === 'delete-read-all' ? <Loader2 size={18} className="animate-spin text-red-400" /> : <Trash2 size={18} className="text-red-400" />}
-                    </div>
-                    <span className="flex-1 text-right text-red-400 text-[14px] font-black">מחק את כל ההתראות שנקראו</span>
+                  <button onClick={() => navigateToActorProfile(activeMenuNotif)} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all">
+                    <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0"><UserCircle size={18} className="text-white/75" /></div>
+                    <span className="flex-1 text-right text-white text-[14px] font-black">מעבר לפרופיל</span>
                   </button>
-                )}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+
+                  {activeMenuNotif.action_url && (
+                    <button onClick={() => { triggerFeedback('pop'); setActiveMenuNotif(null); navigate(activeMenuNotif.action_url); }} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all">
+                      <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0"><ExternalLink size={18} className="text-white/75" /></div>
+                      <span className="flex-1 text-right text-white text-[14px] font-black">פתח יעד ההתראה</span>
+                    </button>
+                  )}
+
+                  <button onClick={() => deleteNotification(activeMenuNotif.id)} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-red-500/10 border border-red-500/20 active:scale-[0.98] transition-all">
+                    <div className="w-11 h-11 rounded-[16px] bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                      {busyId === activeMenuNotif.id ? <Loader2 size={18} className="animate-spin text-red-400" /> : <Trash2 size={18} className="text-red-400" />}
+                    </div>
+                    <span className="flex-1 text-right text-red-400 text-[14px] font-black">מחק התראה</span>
+                  </button>
+
+                  {/* Divider */}
+                  <div className="w-full h-px bg-white/10 my-3 rounded-full" />
+
+                  {/* --- General Actions --- */}
+                  <button onClick={handleRefresh} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all">
+                    <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0"><RefreshCw size={18} className="text-white/75" /></div>
+                    <span className="flex-1 text-right text-white text-[14px] font-black">רענן התראות</span>
+                  </button>
+
+                  {unreadExists && (
+                    <button onClick={markAllAsRead} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all">
+                      <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
+                        {busyId === 'mark-all-read' ? <Loader2 size={18} className="animate-spin text-white/75" /> : <CheckCheck size={18} className="text-white/75" />}
+                      </div>
+                      <span className="flex-1 text-right text-white text-[14px] font-black">סמן הכל כנקרא</span>
+                    </button>
+                  )}
+
+                  {readExists && (
+                    <button onClick={deleteAllReadNotifications} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-red-500/10 border border-red-500/20 active:scale-[0.98] transition-all">
+                      <div className="w-11 h-11 rounded-[16px] bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                        {busyId === 'delete-read-all' ? <Loader2 size={18} className="animate-spin text-red-400" /> : <Trash2 size={18} className="text-red-400" />}
+                      </div>
+                      <span className="flex-1 text-right text-red-400 text-[14px] font-black">מחק את כל ההתראות שנקראו</span>
+                    </button>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 };
