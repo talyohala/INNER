@@ -37,42 +37,32 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
       path: '/create-circle',
       icon: PlusCircle,
       label: 'צור מועדון',
-      color: 'text-emerald-400',
-      bg: 'bg-white/5',
-      border: 'border-white/10',
+      color: '#10b981', // Emerald
     },
     {
       path: '/wallet',
       icon: Wallet,
       label: 'ארנק CRD',
-      color: 'text-amber-400',
-      bg: 'bg-white/5',
-      border: 'border-white/10',
+      color: '#f59e0b', // Amber
     },
     {
       path: '/notifications',
       icon: Bell,
       label: 'התראות',
       badge: unreadCount > 0,
-      color: 'text-blue-400',
-      bg: 'bg-white/5',
-      border: 'border-white/10',
+      color: '#3b82f6', // Blue
     },
     {
       path: '/store',
       icon: ShoppingBag,
       label: 'חנות סטטוס',
-      color: 'text-fuchsia-400',
-      bg: 'bg-white/5',
-      border: 'border-white/10',
+      color: '#d946ef', // Fuchsia
     },
     {
       path: '/settings',
       icon: Settings,
       label: 'הגדרות',
-      color: 'text-slate-300',
-      bg: 'bg-white/5',
-      border: 'border-white/10',
+      color: '#64748b', // Slate
     },
   ];
 
@@ -96,28 +86,33 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
         <AnimatePresence>
           {isSidebarOpen && (
             <div className="fixed inset-0 z-[999999] flex flex-col justify-end" dir="rtl">
+              {/* Background Backdrop */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+                className="absolute inset-0 bg-black/40 backdrop-blur-sm"
                 onClick={closeSidebar}
               />
 
+              {/* Bottom Sheet - White Glass */}
               <motion.div
                 initial={{ y: '100%' }}
                 animate={{ y: 0 }}
                 exit={{ y: '100%' }}
                 drag="y"
-                dragConstraints={{ top: 0 }}
-                dragElastic={0.4}
-                onDragEnd={(_, info) => { if (info.offset.y > 100) closeSidebar(); }}
-                transition={{ type: "spring", damping: 25, stiffness: 400 }}
-                className="relative z-10 bg-[#0A0A0A] rounded-t-[40px] p-6 pb-12 border-t border-white/10 shadow-2xl touch-none"
+                dragConstraints={{ top: 0, bottom: 0 }}
+                dragElastic={0.3}
+                onDragEnd={(_, info) => { 
+                  if (info.offset.y > 100 || info.velocity.y > 500) closeSidebar(); 
+                }}
+                transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                className="relative z-10 bg-white/90 backdrop-blur-[50px] rounded-t-[40px] p-6 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.15)] border-t border-white/40 touch-none"
               >
-                <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-8 cursor-grab active:cursor-grabbing" />
+                {/* Handle Bar */}
+                <div className="w-12 h-1.5 bg-black/10 rounded-full mx-auto mb-8" />
 
-                <div className="flex flex-col gap-2 overflow-y-auto scrollbar-hide">
+                <div className="flex flex-col gap-3">
                   {sidebarItems.map((item, idx) => (
                     <button
                       key={idx}
@@ -126,26 +121,27 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
                         navigate(item.path);
                         closeSidebar();
                       }}
-                      className="flex items-center gap-4 p-3 rounded-[20px] hover:bg-white/5 active:bg-white/10 transition-all w-full text-right group relative"
+                      className="flex items-center gap-4 p-4 rounded-[24px] hover:bg-black/5 active:bg-black/10 transition-all w-full text-right group"
                     >
+                      {/* Icon with colored content and white glass border */}
                       <div
-                        className={`w-10 h-10 rounded-[14px] ${item.bg} border ${item.border} flex items-center justify-center shrink-0 relative shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)] group-hover:brightness-125 transition-all`}
+                        className="w-12 h-12 rounded-[18px] bg-white border border-black/5 flex items-center justify-center shrink-0 relative shadow-sm group-hover:scale-105 transition-transform"
                       >
-                        <item.icon size={18} className={item.color} />
+                        <item.icon size={22} style={{ color: item.color }} strokeWidth={2.5} />
                         {item.badge && (
-                          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-surface shadow-[0_0_8px_rgba(239,68,68,0.95)]" />
+                          <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white shadow-sm" />
                         )}
                       </div>
 
                       <div className="flex-1 text-right">
-                        <span className="font-black text-[14px] text-white/80 group-hover:text-white transition-colors">{item.label}</span>
+                        <span className="font-black text-[16px] text-black/80">{item.label}</span>
                       </div>
 
-                      <ChevronLeft size={16} className="text-white/20 group-hover:text-white/50 transition-colors" />
+                      <ChevronLeft size={18} className="text-black/20" />
                     </button>
                   ))}
 
-                  <div className="mt-2 pt-2 border-t border-white/10">
+                  <div className="mt-2 pt-2 border-t border-black/5">
                     <button
                       onClick={async () => {
                         triggerFeedback('pop');
@@ -154,13 +150,13 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
                           await signOut?.();
                         } catch {}
                       }}
-                      className="w-full flex items-center gap-4 p-3 rounded-[20px] hover:bg-white/5 active:bg-white/10 transition-all group"
+                      className="w-full flex items-center gap-4 p-4 rounded-[24px] hover:bg-red-50 active:bg-red-100 transition-all group"
                     >
-                      <div className="w-10 h-10 rounded-[14px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)] group-hover:brightness-125 transition-all">
-                        <LogOut size={18} className="text-red-500" />
+                      <div className="w-12 h-12 rounded-[18px] bg-white border border-black/5 flex items-center justify-center shrink-0 shadow-sm">
+                        <LogOut size={22} className="text-red-500" strokeWidth={2.5} />
                       </div>
                       <div className="flex-1 text-right">
-                        <div className="text-red-500 text-[14px] font-black">התנתק</div>
+                        <div className="text-red-500 text-[16px] font-black">התנתק</div>
                       </div>
                     </button>
                   </div>
