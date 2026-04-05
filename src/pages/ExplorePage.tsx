@@ -116,32 +116,38 @@ export const ExplorePage: React.FC = () => {
 
   return (
     <FadeIn
-      className="px-5 pt-4 pb-28 min-h-screen font-sans flex flex-col gap-6 overflow-x-hidden relative"
+      className="px-5 pt-4 pb-28 bg-transparent min-h-screen font-sans flex flex-col gap-6 overflow-x-hidden relative"
       dir="rtl"
     >
-      {/* שורת חיפוש - הזכוכית הלבנה והיפה! (נשארת יפה גם בבהיר וגם בכהה) */}
-      <div className="relative flex items-center w-full mt-2 bg-white/90 backdrop-blur-[40px] border border-black/5 dark:border-white/40 rounded-[24px] shadow-[0_10px_40px_rgba(0,0,0,0.08)] dark:shadow-[0_10px_40px_rgba(0,0,0,0.3)] z-10 transition-all">
-        <Search size={22} className="absolute right-5 text-black/40 pointer-events-none" />
+      {/* ענני רקע רכים מותאמים לבהיר/כהה */}
+      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-[-5%] left-[-15%] w-[70%] h-[35%] bg-blue-500/5 dark:bg-white/[0.03] blur-[100px] rounded-full" />
+        <div className="absolute bottom-[20%] right-[-15%] w-[60%] h-[40%] bg-purple-500/5 dark:bg-white/[0.02] blur-[100px] rounded-full" />
+      </div>
+
+      {/* שורת חיפוש מזכוכית שקופה (שקופה באמת!) */}
+      <div className="relative flex items-center w-full mt-2 bg-black/5 dark:bg-white/5 backdrop-blur-2xl border border-black/10 dark:border-white/10 rounded-[20px] z-10 transition-all">
+        <Search size={20} className="absolute right-4 text-black/40 dark:text-white/40 pointer-events-none" />
         
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="חיפוש..."
-          className="w-full bg-transparent py-4 pr-14 pl-12 text-black text-[18px] font-black placeholder:text-black/30 outline-none"
+          placeholder={activeMainTab === 'clubs' ? 'חיפוש מועדונים...' : 'חיפוש משתמשים...'}
+          className="w-full bg-transparent py-4 pr-12 pl-12 text-black dark:text-white text-[16px] font-medium placeholder:text-black/30 dark:placeholder:text-white/30 outline-none"
         />
 
         {search && (
           <button 
             onClick={() => { triggerFeedback('pop'); setSearch(''); }} 
-            className="absolute left-4 p-2 opacity-40 hover:opacity-100 transition-opacity"
+            className="absolute left-4 text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white transition-colors"
           >
-            <X size={20} className="text-black" />
+            <X size={20} />
           </button>
         )}
       </div>
 
-      {/* טאבים ראשיים - טקסט נטו עם שינוי צבע */}
+      {/* טאבים ראשיים נקיים - נטו טקסט */}
       <div className="flex gap-8 border-b border-black/10 dark:border-white/10 pb-2 z-10 relative transition-colors">
         <button
           onClick={() => {
@@ -189,7 +195,7 @@ export const ExplorePage: React.FC = () => {
                     setActiveVibe(vibe);
                   }}
                   className={`text-[14px] font-bold whitespace-nowrap transition-colors ${
-                    activeVibe === vibe ? 'text-black dark:text-white drop-shadow-[0_0_8px_rgba(0,0,0,0.2)] dark:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]' : 'text-black/30 dark:text-white/30 hover:text-black/60 dark:hover:text-white/60'
+                    activeVibe === vibe ? 'text-black dark:text-white' : 'text-black/40 dark:text-white/30 hover:text-black/70 dark:hover:text-white/60'
                   }`}
                 >
                   {vibe}
@@ -218,7 +224,7 @@ export const ExplorePage: React.FC = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3, delay: Math.min(idx * 0.05, 0.3) }}
                   >
-                    {/* שורת מועדון - נטו תוכן, בלי קופסאות, קו תחתון מפריד */}
+                    {/* שורת מועדון - נטו תוכן */}
                     <div
                       onClick={() => {
                         if (search.trim()) saveRecentSearch(search.trim());
