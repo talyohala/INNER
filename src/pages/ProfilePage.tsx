@@ -544,8 +544,8 @@ export const ProfilePage: React.FC = () => {
           <div className="absolute inset-0 bg-surface-card" />
         )}
         <div className="absolute top-6 right-5 flex flex-col items-center">
-          <span className="text-accent-primary text-[10px] font-black uppercase tracking-widest mb-0.5">רמה</span>
-          <span className="text-brand font-black text-[24px] leading-none drop-shadow-md">{currentLevel}</span>
+          <span className="text-white text-[10px] font-black uppercase tracking-widest mb-0.5">רמה</span>
+          <span className="text-white font-black text-[24px] leading-none drop-shadow-md">{currentLevel}</span>
         </div>
       </motion.div>
 
@@ -567,11 +567,11 @@ export const ProfilePage: React.FC = () => {
             <p className="text-brand-muted font-bold text-[13px] tracking-widest mb-5" dir="ltr">@{userProfile?.username || 'user'}</p>
 
             <div className="flex items-center justify-center gap-3 text-[14px] text-brand-muted font-medium mb-6 w-full max-w-[300px] mx-auto flex-wrap">
-              <span className="cursor-pointer hover:text-brand transition-colors" onClick={() => openUsersListSheet('followers')}>עוקבים <span className="font-black text-accent-primary">{followersCount}</span></span>
+              <span className="cursor-pointer hover:text-brand transition-colors" onClick={() => openUsersListSheet('followers')}>עוקבים <span className="font-black text-white">{followersCount}</span></span>
               <span className="text-white/[0.1]">•</span>
-              <span className="cursor-pointer hover:text-brand transition-colors" onClick={() => openUsersListSheet('following')}>נעקבים <span className="font-black text-accent-primary">{followingCount}</span></span>
+              <span className="cursor-pointer hover:text-brand transition-colors" onClick={() => openUsersListSheet('following')}>נעקבים <span className="font-black text-white">{followingCount}</span></span>
               <span className="text-white/[0.1]">•</span>
-              <span>מוניטין <span className="font-black text-accent-primary">{trueReputation}</span></span>
+              <span>מוניטין <span className="font-black text-white">{trueReputation}</span></span>
             </div>
 
             {!isMyProfile && (
@@ -591,9 +591,9 @@ export const ProfilePage: React.FC = () => {
             {(userProfile?.zodiac || userProfile?.social_link || aboutItems.length > 0) && (
               <div className="flex flex-col items-center gap-2 mb-6 w-full">
                 {userProfile?.social_link && (
-                  <a href={userProfile.social_link.startsWith('http') ? userProfile.social_link : `https://${userProfile.social_link}`} target="_blank" rel="noopener noreferrer" className="text-accent-primary text-[13px] font-bold flex items-center gap-1.5 hover:text-accent-primary/80 transition-colors">
+                  <a href={userProfile.social_link.startsWith('http') ? userProfile.social_link : `https://${userProfile.social_link}`} target="_blank" rel="noopener noreferrer" className="text-white text-[13px] font-bold flex items-center gap-1.5 hover:text-white/80 transition-colors">
                     <span dir="ltr" className="tracking-wide">{displayLink}</span>
-                    <LinkIcon size={14} className="text-accent-primary/60" />
+                    <LinkIcon size={14} className="text-white/60" />
                   </a>
                 )}
                 {userProfile?.zodiac && <span className="text-brand-muted text-[13px] font-medium">{userProfile.zodiac}</span>}
@@ -644,8 +644,8 @@ export const ProfilePage: React.FC = () => {
 
           <div className="w-full flex flex-col gap-3 px-2 mb-6">
             <div className="flex justify-between items-center w-full">
-              <span className="text-brand-muted text-[13px] font-bold">רצף: <span className="text-brand">{streak} ימים</span></span>
-              {isMyProfile && <span className="text-brand-muted text-[13px] font-bold"><span className="text-brand">{currentXP}</span> / {xpToNextLevel}</span>}
+              <span className="text-brand-muted text-[13px] font-bold">רצף: <span className="text-white">{streak} ימים</span></span>
+              {isMyProfile && <span className="text-brand-muted text-[13px] font-bold"><span className="text-white">{currentXP}</span> / {xpToNextLevel}</span>}
             </div>
             {isMyProfile && (
               <div className="w-full h-1.5 bg-surface-card rounded-full overflow-hidden relative shadow-inner border border-white/[0.02]">
