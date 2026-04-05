@@ -134,13 +134,11 @@ export const CirclePage: React.FC = () => {
   const fetchCircleData = async () => {
     try {
       setLoading(true);
-
       const { data: authData } = await supabase.auth.getUser();
       const uid = authData.user?.id;
       if (uid) setCurrentUserId(uid);
 
       let circle: any = null;
-
       const { data: circleBySlug } = await supabase.from('circles').select('*').eq('slug', slug).maybeSingle();
       circle = circleBySlug;
 
@@ -158,7 +156,6 @@ export const CirclePage: React.FC = () => {
           .select('user_id')
           .eq('circle_id', circle.id)
           .eq('user_id', uid);
-
         isMember = !!(memberData && memberData.length > 0);
       }
 
@@ -621,19 +618,18 @@ export const CirclePage: React.FC = () => {
                 <div className="flex justify-end items-center gap-3 mt-2 border-t border-white/[0.05] pt-3">
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="text-brand-muted hover:text-brand transition-colors p-2"
+                    className="w-10 h-10 rounded-full bg-surface flex items-center justify-center text-brand-muted hover:text-brand border border-white/[0.05] transition-all active:scale-95 shadow-md"
                   >
                     <Paperclip size={18} />
                   </button>
 
-                  <Button
+                  <button
                     onClick={handlePost}
                     disabled={posting || (!newPost.trim() && !selectedFile)}
-                    size="sm"
-                    className="rounded-full px-6 py-0 h-10 shadow-lg font-black text-[12px] uppercase tracking-widest bg-accent-primary text-surface hover:bg-accent-primary/90"
+                    className="w-10 h-10 rounded-full bg-accent-primary text-surface flex items-center justify-center transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-accent-primary/20"
                   >
-                    {posting ? <Loader2 size={14} className="animate-spin" /> : 'שדר'}
-                  </Button>
+                    {posting ? <Loader2 size={16} className="animate-spin text-surface" /> : <Send size={16} className="rtl:-scale-x-100 -ml-0.5" />}
+                  </button>
                 </div>
               </div>
             </div>
