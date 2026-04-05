@@ -6,8 +6,8 @@ import { supabase } from '../lib/supabase';
 import { apiFetch } from '../lib/api';
 import { FadeIn, Button } from '../components/ui';
 import {
-  Users, Loader2, ArrowRight, MessageSquare, Heart, Activity,
-  Send, Lock, X, UserCircle, Trash2, Edit2, Reply, MoreHorizontal, Paperclip, Share2, Download, Link, Bookmark, ShieldAlert, Image as ImageIcon
+  Users, Loader2, MessageSquare, Heart, Activity, Crown,
+  Send, Lock, X, UserCircle, Trash2, Edit2, Reply, MoreHorizontal, Paperclip, Share2, Download, Link as LinkIcon, Bookmark, ShieldAlert, Image as ImageIcon
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -25,6 +25,7 @@ export const CirclePage: React.FC = () => {
   const descDragControls = useDragControls();
   const createPostDragControls = useDragControls();
   const commentActionDragControls = useDragControls();
+  const membersDragControls = useDragControls();
 
   const [mounted, setMounted] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
@@ -59,6 +60,13 @@ export const CirclePage: React.FC = () => {
 
   const [currentUserId, setCurrentUserId] = useState<string>('');
 
+  // חדש: מצבים עבור חברים ואונליין ריל-טיים
+  const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
+  const [membersList, setMembersList] = useState<any[]>([]);
+  const [showMembers, setShowMembers] = useState(false);
+  const [showOnline, setShowOnline] = useState(false);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+
   const stateRef = useRef({
     comments: false,
     options: false,
@@ -66,6 +74,8 @@ export const CirclePage: React.FC = () => {
     fullscreen: false,
     commentAction: false,
     create: false,
+    members: false,
+    online: false,
   });
 
   useEffect(() => {
@@ -81,25 +91,25 @@ export const CirclePage: React.FC = () => {
       fullscreen: !!fullScreenMedia,
       commentAction: !!commentActionModal,
       create: showCreatePost,
+      members: showMembers,
+      online: showOnline,
     };
-  }, [activeCommentsPostId, optionsMenuPost, activeDescPost, fullScreenMedia, commentActionModal, showCreatePost]);
+  }, [activeCommentsPostId, optionsMenuPost, activeDescPost, fullScreenMedia, commentActionModal, showCreatePost, showMembers, showOnline]);
 
   useEffect(() => {
     const handlePopState = () => {
       const s = stateRef.current;
-      if (s.commentAction) {
-        setCommentActionModal(null);
-      } else if (s.comments) {
+      if (s.commentAction) setCommentActionModal(null);
+      else if (s.members) setShowMembers(false);
+      else if (s.online) setShowOnline(false);
+      else if (s.comments) {
         setActiveCommentsPostId(null);
         setActivePost(null);
         setReplyingTo(null);
-      } else if (s.options) {
-        setOptionsMenuPost(null);
-      } else if (s.desc) {
-        setActiveDescPost(null);
-      } else if (s.fullscreen) {
-        setFullScreenMedia(null);
-      } else if (s.create) {
+      } else if (s.options) setOptionsMenuPost(null);
+      else if (s.desc) setActiveDescPost(null);
+      else if (s.fullscreen) setFullScreenMedia(null);
+      else if (s.create) {
         setShowCreatePost(false);
         setEditingPost(null);
       }
@@ -130,6 +140,38 @@ export const CirclePage: React.FC = () => {
       supabase.removeChannel(channel);
     };
   }, [slug]);
+
+  // האזנה לאונליין משתמשים בזמן אמת דרך Supabase Presence
+  useEffect(() => {
+    if (!currentUserId || !myProfile || !slug) return;
+    
+    const presenceChannel = supabase.channel(`presence_${slug}`, {
+      config: { presence: { key: currentUserId } },
+    });
+
+    presenceChannel
+      .on('presence', { event: 'sync' }, () => {
+        const state = presenceChannel.presenceState();
+        const activeUsers = Object.values(state).map((s: any) => s[0]);
+        // מונע כפילויות של אותו יוזר במספר מכשירים
+        const uniqueUsers = Array.from(new Map(activeUsers.map(item => [item.id, item])).values());
+        setOnlineUsers(uniqueUsers);
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await presenceChannel.track({
+            id: currentUserId,
+            full_name: myProfile.full_name,
+            username: myProfile.username,
+            avatar_url: myProfile.avatar_url,
+          });
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(presenceChannel);
+    };
+  }, [currentUserId, myProfile, slug]);
 
   const fetchCircleData = async () => {
     try {
@@ -180,6 +222,27 @@ export const CirclePage: React.FC = () => {
       navigate('/');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchMembersList = async () => {
+    if (loadingMembers || !data?.circle?.id) return;
+    setLoadingMembers(true);
+    try {
+      const { data: membersData } = await supabase
+        .from('circle_members')
+        .select('role, profiles(*)')
+        .eq('circle_id', data.circle.id);
+      
+      if (membersData) {
+        // שמים מנהלים למעלה
+        const sorted = membersData.sort((a, b) => (a.role === 'admin' ? -1 : b.role === 'admin' ? 1 : 0));
+        setMembersList(sorted);
+      }
+    } catch (err) {
+      toast.error('שגיאה בטעינת חברים');
+    } finally {
+      setLoadingMembers(false);
     }
   };
 
@@ -508,7 +571,6 @@ export const CirclePage: React.FC = () => {
   }
 
   const { circle, isMember, posts } = data;
-  const activeNow = Math.floor((circle.members_count || 1) * 0.4) + 1;
   const requiredLevel = circle.min_level || 1;
   const currentLevel = myProfile?.level || 1;
   const levelTooLow = requiredLevel > currentLevel;
@@ -529,21 +591,14 @@ export const CirclePage: React.FC = () => {
       />
 
       <FadeIn className="bg-surface min-h-screen font-sans flex flex-col gap-6 relative overflow-x-hidden pb-32" dir="rtl">
-        <div className="flex items-center justify-between relative z-10 px-5 pt-8">
-          <button
-            onClick={() => navigate(-1)}
-            className="w-10 h-10 flex items-center justify-center text-brand-muted bg-surface-card border border-white/[0.05] rounded-full z-10 shadow-lg active:scale-90 transition-transform"
-          >
-            <ArrowRight size={18} />
-          </button>
-
-          <div className="flex flex-col items-center w-full absolute left-0 right-0 pointer-events-none">
+        <div className="flex items-center justify-center relative z-10 px-5 pt-8">
+          <div className="flex flex-col items-center w-full pointer-events-none">
             <h1 className="text-[16px] font-black text-brand tracking-tight drop-shadow-md truncate max-w-[200px]">
               {circle.name}
             </h1>
             <span className="text-[10px] text-green-400 font-bold flex items-center gap-1.5 mt-0.5">
               <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_#22c55e]"></span>
-              LIVE
+              לייב
             </span>
           </div>
         </div>
@@ -564,10 +619,30 @@ export const CirclePage: React.FC = () => {
               {circle.description}
             </p>
 
-            <div className="flex items-center gap-4 bg-surface-card backdrop-blur-xl rounded-full py-3.5 px-8 w-fit text-brand font-black text-[11px] justify-center uppercase tracking-widest border border-white/[0.05] shadow-2xl">
-              <span className="flex flex-col items-center gap-1.5 text-white">{circle.members_count || 0} חברים</span>
-              <div className="w-px h-8 bg-white/[0.05] mx-2"></div>
-              <span className="flex flex-col items-center gap-1.5 text-green-400">{activeNow} אונליין</span>
+            <div className="flex items-center gap-5 bg-surface-card backdrop-blur-xl rounded-full py-3.5 px-6 w-fit text-brand font-black text-[11px] justify-center border border-white/[0.05] shadow-2xl">
+              <button 
+                onClick={() => { openOverlay(() => setShowMembers(true)); fetchMembersList(); triggerFeedback('pop'); }} 
+                className="flex items-center gap-2 text-white hover:text-white/70 transition-colors active:scale-95"
+              >
+                <Users size={16} className="text-brand-muted" />
+                <span className="flex flex-col items-start leading-none gap-0.5 text-right">
+                  <span className="text-[13px]">{circle.members_count || 0}</span>
+                  <span className="text-[9px] text-brand-muted font-bold tracking-widest uppercase">חברים</span>
+                </span>
+              </button>
+              
+              <div className="w-px h-6 bg-white/[0.05]"></div>
+              
+              <button 
+                onClick={() => { openOverlay(() => setShowOnline(true)); triggerFeedback('pop'); }} 
+                className="flex items-center gap-2 text-green-400 hover:text-green-300 transition-colors active:scale-95"
+              >
+                <Activity size={16} className="text-green-500" />
+                <span className="flex flex-col items-start leading-none gap-0.5 text-right">
+                  <span className="text-[13px]">{onlineUsers.length}</span>
+                  <span className="text-[9px] text-green-500/70 font-bold tracking-widest uppercase">אונליין</span>
+                </span>
+              </button>
             </div>
           </div>
         </div>
@@ -1012,6 +1087,137 @@ export const CirclePage: React.FC = () => {
                   })}
                 </div>
               </motion.div>
+            )}
+
+            {/* מודאל חברים במועדון */}
+            {showMembers && (
+              <div className="fixed inset-0 z-[100000] flex flex-col justify-end" dir="rtl" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 bg-surface/80 backdrop-blur-sm"
+                  onClick={closeOverlay}
+                />
+                <motion.div
+                  drag="y"
+                  dragConstraints={{ top: 0, bottom: 0 }}
+                  onDragEnd={(e, info) => {
+                    if (info.offset.y > 100) closeOverlay();
+                  }}
+                  initial={{ y: '100%' }}
+                  animate={{ y: 0 }}
+                  exit={{ y: '100%' }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                  className="relative z-10 bg-surface-card rounded-t-[40px] h-[75vh] flex flex-col overflow-hidden pb-10 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-white/[0.05]"
+                >
+                  <div
+                    className="w-full py-5 flex justify-center cursor-grab active:cursor-grabbing border-b border-white/[0.05]"
+                    onPointerDown={(e) => membersDragControls.start(e)}
+                    style={{ touchAction: 'none' }}
+                  >
+                    <div className="w-16 h-1.5 bg-white/[0.1] rounded-full" />
+                  </div>
+                  <div className="text-center py-2 border-b border-white/[0.05]">
+                    <h3 className="text-brand font-black text-lg">חברי המועדון</h3>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 scrollbar-hide">
+                    {loadingMembers ? (
+                      <Loader2 className="animate-spin mx-auto text-accent-primary mt-10" />
+                    ) : membersList.length === 0 ? (
+                      <div className="text-center text-brand-muted mt-10 text-sm">אין חברים במועדון</div>
+                    ) : (
+                      membersList.map((member) => (
+                        <div 
+                          key={member.profiles?.id} 
+                          onClick={() => { closeOverlay(); setTimeout(() => navigate(`/profile/${member.profiles?.id}`), 50); }}
+                          className="flex items-center gap-3 bg-surface p-3 rounded-[20px] border border-white/[0.05] cursor-pointer active:scale-95 transition-transform"
+                        >
+                          <div className="w-12 h-12 rounded-full overflow-hidden bg-surface-card border border-white/[0.05] shrink-0">
+                            {member.profiles?.avatar_url ? (
+                              <img src={member.profiles.avatar_url} className="w-full h-full object-cover" />
+                            ) : (
+                              <UserCircle className="w-full h-full p-2 text-brand-muted" />
+                            )}
+                          </div>
+                          <div className="flex flex-col flex-1">
+                            <span className="text-brand font-bold text-[14px] flex items-center gap-1.5">
+                              {member.profiles?.full_name || 'אנונימי'}
+                              {member.role === 'admin' && <Crown size={14} className="text-amber-400" />}
+                            </span>
+                            <span className="text-brand-muted text-[11px]" dir="ltr">@{member.profiles?.username || 'user'}</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </motion.div>
+              </div>
+            )}
+
+            {/* מודאל מי מחובר עכשיו */}
+            {showOnline && (
+              <div className="fixed inset-0 z-[100000] flex flex-col justify-end" dir="rtl" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 bg-surface/80 backdrop-blur-sm"
+                  onClick={closeOverlay}
+                />
+                <motion.div
+                  drag="y"
+                  dragConstraints={{ top: 0, bottom: 0 }}
+                  onDragEnd={(e, info) => {
+                    if (info.offset.y > 100) closeOverlay();
+                  }}
+                  initial={{ y: '100%' }}
+                  animate={{ y: 0 }}
+                  exit={{ y: '100%' }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                  className="relative z-10 bg-surface-card rounded-t-[40px] h-[75vh] flex flex-col overflow-hidden pb-10 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-white/[0.05]"
+                >
+                  <div
+                    className="w-full py-5 flex justify-center cursor-grab active:cursor-grabbing border-b border-white/[0.05]"
+                    style={{ touchAction: 'none' }}
+                  >
+                    <div className="w-16 h-1.5 bg-white/[0.1] rounded-full" />
+                  </div>
+                  <div className="text-center py-2 border-b border-white/[0.05]">
+                    <h3 className="text-brand font-black text-lg flex items-center justify-center gap-2">
+                      מחוברים כעת <Activity size={18} className="text-green-500" />
+                    </h3>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 scrollbar-hide">
+                    {onlineUsers.length === 0 ? (
+                      <div className="text-center text-brand-muted mt-10 text-sm">אף אחד לא מחובר כרגע</div>
+                    ) : (
+                      onlineUsers.map((ou) => (
+                        <div 
+                          key={ou.id} 
+                          onClick={() => { closeOverlay(); setTimeout(() => navigate(`/profile/${ou.id}`), 50); }}
+                          className="flex items-center gap-3 bg-surface p-3 rounded-[20px] border border-white/[0.05] cursor-pointer active:scale-95 transition-transform relative"
+                        >
+                          <div className="relative">
+                            <div className="w-12 h-12 rounded-full overflow-hidden bg-surface-card border border-white/[0.05] shrink-0">
+                              {ou.avatar_url ? (
+                                <img src={ou.avatar_url} className="w-full h-full object-cover" />
+                              ) : (
+                                <UserCircle className="w-full h-full p-2 text-brand-muted" />
+                              )}
+                            </div>
+                            <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-surface rounded-full shadow-[0_0_8px_#22c55e]"></div>
+                          </div>
+                          <div className="flex flex-col flex-1">
+                            <span className="text-brand font-bold text-[14px]">{ou.full_name || 'אנונימי'}</span>
+                            <span className="text-green-400 text-[10px] font-bold tracking-widest uppercase">אונליין עכשיו</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </motion.div>
+              </div>
             )}
 
             {activeCommentsPostId && (
