@@ -7,16 +7,19 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: '#0d0f12',
-        surface: 'rgba(255, 255, 255, 0.05)',
-        border: 'rgba(255, 255, 255, 0.08)',
-        primary: '#d6b38a',
-        primaryHover: '#cfa57b',
-        muted: '#a5adb7',
-      },
-      backgroundImage: {
-        'glass-gradient': 'linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04))',
-        'primary-gradient': 'linear-gradient(180deg, #f0d4b4, #cfa57b)',
+        surface: {
+          DEFAULT: '#000000', // שחור מוחלט (נקי לחלוטין)
+          card: 'rgba(255, 255, 255, 0.02)', // רקע כמעט בלתי מורגש לקלפים
+          border: 'rgba(255, 255, 255, 0.05)', // קווי מתאר סופר-עדינים
+        },
+        brand: {
+          DEFAULT: '#FFFFFF', // לבן ראשי לכפתורים וטקסט בולט
+          muted: '#888888', // אפור לטקסט משני
+        },
+        accent: {
+          crd: '#C2A382', // צבע שמפניה/נחושת עדין למטבעות (CRD)
+          vip: '#E5E5E5', // כסף/פלטינום לסטטוס
+        }
       }
     },
   },

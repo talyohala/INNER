@@ -115,18 +115,18 @@ export const ExplorePage: React.FC = () => {
   });
 
   const sectionTitleClass =
-    'text-white/40 text-[10px] font-black tracking-[0.18em] uppercase text-center px-1';
+    'text-brand-muted text-[10px] font-black tracking-[0.18em] uppercase text-center px-1';
 
   return (
     <FadeIn
-      className="px-4 pt-9 pb-28 bg-[#0A0A0A] min-h-screen font-sans flex flex-col gap-4 overflow-x-hidden relative"
+      className="px-4 pt-9 pb-28 bg-surface min-h-screen font-sans flex flex-col gap-4 overflow-x-hidden relative"
       dir="rtl"
     >
       <div className="flex flex-col items-center justify-center relative z-10 mb-1 mt-1">
-        <h1 className="text-[23px] font-black text-white tracking-tight drop-shadow-md">חיפוש</h1>
+        <h1 className="text-[23px] font-black text-brand tracking-tight">חיפוש</h1>
       </div>
 
-      <div className="relative z-10 flex w-full bg-white/5 p-1 rounded-full border border-white/5 shadow-inner">
+      <div className="relative z-10 flex w-full bg-surface-card p-1 rounded-full border border-surface-border shadow-inner">
         <button
           onClick={() => {
             triggerFeedback('pop');
@@ -134,7 +134,7 @@ export const ExplorePage: React.FC = () => {
             setSearch('');
           }}
           className={`flex-1 py-3 text-[13px] font-black transition-all rounded-full flex items-center justify-center ${
-            activeMainTab === 'clubs' ? 'bg-[#1A1C20] text-white shadow-md' : 'text-white/40 hover:text-white/70'
+            activeMainTab === 'clubs' ? 'bg-brand text-surface shadow-md' : 'text-brand-muted hover:text-brand'
           }`}
         >
           מועדונים
@@ -147,7 +147,7 @@ export const ExplorePage: React.FC = () => {
             setSearch('');
           }}
           className={`flex-1 py-3 text-[13px] font-black transition-all rounded-full flex items-center justify-center ${
-            activeMainTab === 'users' ? 'bg-[#1A1C20] text-white shadow-md' : 'text-white/40 hover:text-white/70'
+            activeMainTab === 'users' ? 'bg-brand text-surface shadow-md' : 'text-brand-muted hover:text-brand'
           }`}
         >
           משתמשים
@@ -156,7 +156,7 @@ export const ExplorePage: React.FC = () => {
 
       <div className="relative z-10">
         <div className="absolute inset-y-0 right-0 pr-5 flex items-center pointer-events-none">
-          <Search size={18} className="text-white/40" />
+          <Search size={18} className="text-brand-muted" />
         </div>
 
         <input
@@ -164,12 +164,12 @@ export const ExplorePage: React.FC = () => {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={activeMainTab === 'clubs' ? 'חפש מועדונים...' : 'חפש משתמשים...'}
-          className="w-full bg-[#111] border border-white/10 rounded-full py-4 pr-12 pl-16 text-white text-[15px] font-medium placeholder:text-white/30 focus:border-white/30 transition-all shadow-inner outline-none h-14"
+          className="w-full bg-surface-card border border-surface-border rounded-full py-4 pr-12 pl-16 text-brand text-[15px] font-medium placeholder:text-brand-muted focus:border-brand/30 transition-all shadow-inner outline-none h-14"
         />
 
         {search && (
           <button onClick={() => setSearch('')} className="absolute inset-y-0 left-3 flex items-center justify-center">
-            <span className="text-white/60 hover:text-white text-[10px] font-bold uppercase tracking-widest bg-white/10 px-4 py-2 rounded-full transition-colors active:scale-95">
+            <span className="text-brand-muted hover:text-brand text-[10px] font-bold uppercase tracking-widest bg-surface-card px-4 py-2 rounded-full border border-surface-border transition-colors active:scale-95">
               נקה
             </span>
           </button>
@@ -196,23 +196,23 @@ export const ExplorePage: React.FC = () => {
                   }}
                   className={`flex items-center justify-center px-5 h-10 rounded-full font-black text-[12px] transition-all shrink-0 border shadow-inner ${
                     activeVibe === vibe
-                      ? 'bg-[#1A1C20] border-white/20 text-white'
-                      : 'bg-transparent border-white/5 text-white/55 hover:bg-white/5 hover:text-white/85'
+                      ? 'bg-brand border-brand text-surface'
+                      : 'bg-transparent border-surface-border text-brand-muted hover:bg-surface-card hover:text-brand'
                   }`}
                 >
-                  <span className="text-white">{vibe}</span>
+                  <span>{vibe}</span>
                 </motion.button>
               ))}
             </div>
 
             {loading ? (
               <div className="py-16 flex justify-center">
-                <Loader2 className="animate-spin text-white/20" />
+                <Loader2 className="animate-spin text-brand-muted" />
               </div>
             ) : filteredCircles.length === 0 ? (
               <div className="text-center py-16 flex flex-col items-center gap-3">
-                <span className="text-white/80 font-black text-[15px]">לא מצאנו מועדון כזה</span>
-                <Button onClick={() => navigate('/create-circle')} className="px-8 mt-1 rounded-full shadow-lg">
+                <span className="text-brand-muted font-black text-[15px]">לא מצאנו מועדון כזה</span>
+                <Button onClick={() => navigate('/create-circle')} className="px-8 mt-1 rounded-full shadow-lg border border-surface-border">
                   פתח מועדון משלך
                 </Button>
               </div>
@@ -233,15 +233,15 @@ export const ExplorePage: React.FC = () => {
                         triggerFeedback('pop');
                         navigate(`/circle/${circle.slug}`);
                       }}
-                      className="bg-[#111] border border-white/5 p-4 rounded-[30px] flex items-center justify-between shadow-lg cursor-pointer group hover:bg-[#151515] active:scale-[0.985] transition-all"
+                      className="bg-surface-card border border-surface-border p-4 rounded-[30px] flex items-center justify-between shadow-lg cursor-pointer group hover:border-white/20 active:scale-[0.985] transition-all"
                     >
                       <div className="flex items-center gap-4 text-right">
-                        <div className="w-14 h-14 rounded-full bg-black border border-white/10 overflow-hidden shrink-0 shadow-inner p-0.5">
-                          <div className="w-full h-full rounded-full overflow-hidden bg-[#111]">
+                        <div className="w-14 h-14 rounded-full bg-surface border border-surface-border overflow-hidden shrink-0 shadow-inner p-0.5">
+                          <div className="w-full h-full rounded-full overflow-hidden bg-surface-card">
                             {circle.cover_url ? (
                               <img src={circle.cover_url} className="w-full h-full object-cover" />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center text-white/20 font-black text-xl">
+                              <div className="w-full h-full flex items-center justify-center text-brand-muted font-black text-xl">
                                 {circle.name?.charAt(0)}
                               </div>
                             )}
@@ -249,15 +249,15 @@ export const ExplorePage: React.FC = () => {
                         </div>
 
                         <div className="flex flex-col">
-                          <span className="text-white font-black text-[15px]">{circle.name}</span>
-                          <span className="text-white/40 text-[10px] font-bold mt-1 tracking-widest">
+                          <span className="text-brand font-black text-[15px]">{circle.name}</span>
+                          <span className="text-brand-muted text-[10px] font-bold mt-1 tracking-widest">
                             {circle.members_count || 0} חברים
                           </span>
                         </div>
                       </div>
 
-                      <div className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center shrink-0 ml-1">
-                        <ChevronLeft size={17} className="text-white/40" />
+                      <div className="w-9 h-9 rounded-full bg-surface-card border border-surface-border flex items-center justify-center shrink-0 ml-1">
+                        <ChevronLeft size={17} className="text-brand-muted" />
                       </div>
                     </div>
                   </motion.div>
@@ -287,14 +287,14 @@ export const ExplorePage: React.FC = () => {
                           setRecentSearches([]);
                           localStorage.removeItem('inner_recent_searches');
                         }}
-                        className="text-white/30 hover:text-white"
+                        className="text-brand-muted hover:text-brand"
                       >
                         נקה הכל
                       </button>
                     </span>
 
                     <div className="-mx-4 px-2">
-                      <div className="bg-[#111] rounded-[30px] p-2 flex flex-col shadow-lg border border-white/5">
+                      <div className="bg-surface-card rounded-[30px] p-2 flex flex-col shadow-lg border border-surface-border">
                         {recentSearches.map((term, i) => (
                           <div
                             key={i}
@@ -302,20 +302,20 @@ export const ExplorePage: React.FC = () => {
                               triggerFeedback('pop');
                               setSearch(term);
                             }}
-                            className={`flex items-center justify-between p-4 cursor-pointer hover:bg-white/5 active:bg-white/10 transition-colors rounded-[22px] ${
-                              i !== recentSearches.length - 1 ? 'border-b border-white/5 rounded-b-none' : ''
+                            className={`flex items-center justify-between p-4 cursor-pointer hover:bg-surface-card active:bg-surface border-surface-border transition-colors rounded-[22px] ${
+                              i !== recentSearches.length - 1 ? 'border-b rounded-b-none' : ''
                             }`}
                           >
                             <div className="flex items-center gap-3">
-                              <Search size={16} className="text-white/30" />
-                              <span className="text-white font-medium text-[14px]">{term}</span>
+                              <Search size={16} className="text-brand-muted" />
+                              <span className="text-brand font-medium text-[14px]">{term}</span>
                             </div>
 
                             <button
                               onClick={(e) => removeRecentSearch(term, e)}
                               className="p-2 -m-2 opacity-50 hover:opacity-100 active:scale-90 transition-all"
                             >
-                              <X size={16} className="text-white" />
+                              <X size={16} className="text-brand" />
                             </button>
                           </div>
                         ))}
@@ -328,15 +328,15 @@ export const ExplorePage: React.FC = () => {
                   <span className={sectionTitleClass}>משתמשים מובילים</span>
 
                   {loadingSuggestions ? (
-                    <Loader2 className="animate-spin text-white/20 mx-auto mt-4" />
+                    <Loader2 className="animate-spin text-brand-muted mx-auto mt-4" />
                   ) : (
                     <div className="-mx-4 px-2">
-                      <div className="bg-[#111] rounded-[30px] p-2 flex flex-col shadow-lg border border-white/5">
+                      <div className="bg-surface-card rounded-[30px] p-2 flex flex-col shadow-lg border border-surface-border">
                         {suggestedUsers.map((u, i) => (
                           <div
                             key={u.id}
-                            className={`flex items-center justify-between p-3 cursor-pointer hover:bg-white/5 active:bg-white/10 transition-all rounded-[22px] ${
-                              i !== suggestedUsers.length - 1 ? 'border-b border-white/5 rounded-b-none' : ''
+                            className={`flex items-center justify-between p-3 cursor-pointer hover:bg-surface-card active:bg-surface border-surface-border transition-all rounded-[22px] ${
+                              i !== suggestedUsers.length - 1 ? 'border-b rounded-b-none' : ''
                             }`}
                             onClick={() => {
                               if (search.trim()) saveRecentSearch(search.trim());
@@ -345,20 +345,20 @@ export const ExplorePage: React.FC = () => {
                             }}
                           >
                             <div className="flex items-center gap-4">
-                              <div className="w-12 h-12 rounded-full bg-black border border-white/10 overflow-hidden relative shadow-inner p-0.5">
-                                <div className="w-full h-full rounded-full overflow-hidden bg-[#111]">
+                              <div className="w-12 h-12 rounded-full bg-surface border border-surface-border overflow-hidden relative shadow-inner p-0.5">
+                                <div className="w-full h-full rounded-full overflow-hidden bg-surface-card">
                                   {u.avatar_url ? (
                                     <img src={u.avatar_url} className="w-full h-full object-cover" />
                                   ) : (
-                                    <UserCircle size={20} className="m-auto mt-3 text-white/20" />
+                                    <UserCircle size={20} className="m-auto mt-3 text-brand-muted" />
                                   )}
                                 </div>
                               </div>
 
                               <div className="flex flex-col text-right">
-                                <span className="text-white font-black text-[14px]">{u.full_name || 'משתמש'}</span>
+                                <span className="text-brand font-black text-[14px]">{u.full_name || 'משתמש'}</span>
                                 <span
-                                  className="text-white/30 text-[10px] font-medium tracking-widest uppercase mt-0.5"
+                                  className="text-brand-muted text-[10px] font-medium tracking-widest uppercase mt-0.5"
                                   dir="ltr"
                                 >
                                   @{u.username || 'user'} • רמה {u.level || 1}
@@ -366,8 +366,8 @@ export const ExplorePage: React.FC = () => {
                               </div>
                             </div>
 
-                            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0">
-                              <ChevronLeft size={16} className="text-white/20" />
+                            <div className="w-8 h-8 rounded-full border border-surface-border flex items-center justify-center shrink-0">
+                              <ChevronLeft size={16} className="text-brand-muted" />
                             </div>
                           </div>
                         ))}
@@ -386,8 +386,8 @@ export const ExplorePage: React.FC = () => {
                     }}
                     className={`px-5 py-2.5 rounded-full font-black text-[11px] uppercase tracking-widest whitespace-nowrap transition-all border ${
                       activeSearchTab === 'top'
-                        ? 'bg-[#1A1C20] text-white border-white/20 shadow-inner'
-                        : 'bg-transparent text-white/40 border-transparent hover:text-white/70'
+                        ? 'bg-brand text-surface border-brand shadow-inner'
+                        : 'bg-transparent text-brand-muted border-transparent hover:text-brand'
                     }`}
                   >
                     מובילים
@@ -400,8 +400,8 @@ export const ExplorePage: React.FC = () => {
                     }}
                     className={`px-5 py-2.5 rounded-full font-black text-[11px] uppercase tracking-widest whitespace-nowrap transition-all border ${
                       activeSearchTab === 'accounts'
-                        ? 'bg-[#1A1C20] text-white border-white/20 shadow-inner'
-                        : 'bg-transparent text-white/40 border-transparent hover:text-white/70'
+                        ? 'bg-brand text-surface border-brand shadow-inner'
+                        : 'bg-transparent text-brand-muted border-transparent hover:text-brand'
                     }`}
                   >
                     חשבונות
@@ -414,8 +414,8 @@ export const ExplorePage: React.FC = () => {
                     }}
                     className={`px-5 py-2.5 rounded-full font-black text-[11px] uppercase tracking-widest whitespace-nowrap transition-all border ${
                       activeSearchTab === 'tags'
-                        ? 'bg-[#1A1C20] text-white border-white/20 shadow-inner'
-                        : 'bg-transparent text-white/40 border-transparent hover:text-white/70'
+                        ? 'bg-brand text-surface border-brand shadow-inner'
+                        : 'bg-transparent text-brand-muted border-transparent hover:text-brand'
                     }`}
                   >
                     ביו
@@ -425,7 +425,7 @@ export const ExplorePage: React.FC = () => {
                 <div>
                   {loading ? (
                     <div className="py-16 flex justify-center">
-                      <Loader2 className="animate-spin text-white/40" size={28} />
+                      <Loader2 className="animate-spin text-brand-muted" size={28} />
                     </div>
                   ) : (
                     <AnimatePresence mode="wait">
@@ -438,11 +438,11 @@ export const ExplorePage: React.FC = () => {
                       >
                         {usersListData.length === 0 ? (
                           <div className="text-center py-16 flex flex-col items-center gap-3">
-                            <span className="text-white/60 text-[14px] font-black">לא מצאנו תוצאות לחיפוש</span>
+                            <span className="text-brand-muted text-[14px] font-black">לא מצאנו תוצאות לחיפוש</span>
                           </div>
                         ) : (
                           <div className="-mx-4 px-2">
-                            <div className="bg-[#111] rounded-[30px] p-2 flex flex-col shadow-lg border border-white/5">
+                            <div className="bg-surface-card rounded-[30px] p-2 flex flex-col shadow-lg border border-surface-border">
                               {usersListData.map((u, idx) => (
                                 <motion.div
                                   key={u.id}
@@ -456,37 +456,37 @@ export const ExplorePage: React.FC = () => {
                                       triggerFeedback('pop');
                                       navigate(`/profile/${u.id}`);
                                     }}
-                                    className={`p-3 flex items-center justify-between cursor-pointer hover:bg-white/5 active:bg-white/10 transition-colors rounded-[22px] ${
-                                      idx !== usersListData.length - 1 ? 'border-b border-white/5 rounded-b-none' : ''
+                                    className={`p-3 flex items-center justify-between cursor-pointer hover:bg-surface-card active:bg-surface border-surface-border transition-colors rounded-[22px] ${
+                                      idx !== usersListData.length - 1 ? 'border-b rounded-b-none' : ''
                                     }`}
                                   >
                                     <div className="flex items-center gap-4 text-right">
-                                      <div className="w-14 h-14 rounded-full bg-black border border-white/10 overflow-hidden shrink-0 relative shadow-inner p-0.5">
-                                        <div className="w-full h-full rounded-full overflow-hidden bg-[#111]">
+                                      <div className="w-14 h-14 rounded-full bg-surface border border-surface-border overflow-hidden shrink-0 relative shadow-inner p-0.5">
+                                        <div className="w-full h-full rounded-full overflow-hidden bg-surface-card">
                                           {u.avatar_url ? (
                                             <img src={u.avatar_url} className="w-full h-full object-cover" />
                                           ) : (
-                                            <UserCircle size={20} className="m-auto mt-4 text-white/20" />
+                                            <UserCircle size={20} className="m-auto mt-4 text-brand-muted" />
                                           )}
                                         </div>
                                       </div>
 
                                       <div className="flex flex-col">
-                                        <span className="text-white text-[15px] font-black">{u.full_name || 'משתמש'}</span>
+                                        <span className="text-brand text-[15px] font-black">{u.full_name || 'משתמש'}</span>
                                         <span
-                                          className="text-white/40 text-[11px] font-bold mt-0.5 tracking-widest"
+                                          className="text-brand-muted text-[11px] font-bold mt-0.5 tracking-widest"
                                           dir="ltr"
                                         >
                                           @{u.username || 'user'}
                                         </span>
                                         {activeSearchTab === 'tags' && u.bio && (
-                                          <span className="text-white/60 text-[10px] mt-1 line-clamp-1">{u.bio}</span>
+                                          <span className="text-brand-muted text-[10px] mt-1 line-clamp-1">{u.bio}</span>
                                         )}
                                       </div>
                                     </div>
 
-                                    <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0">
-                                      <ChevronLeft size={16} className="text-white/20" />
+                                    <div className="w-8 h-8 rounded-full border border-surface-border flex items-center justify-center shrink-0">
+                                      <ChevronLeft size={16} className="text-brand-muted" />
                                     </div>
                                   </div>
                                 </motion.div>
