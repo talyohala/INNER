@@ -119,41 +119,14 @@ export const ExplorePage: React.FC = () => {
 
   return (
     <FadeIn
-      className="px-4 pt-9 pb-28 bg-surface min-h-screen font-sans flex flex-col gap-4 overflow-x-hidden relative"
+      className="px-4 pt-9 pb-28 bg-surface min-h-screen font-sans flex flex-col gap-5 overflow-x-hidden relative"
       dir="rtl"
     >
       <div className="flex flex-col items-center justify-center relative z-10 mb-1 mt-1">
         <h1 className="text-[23px] font-black text-brand tracking-tight">חיפוש</h1>
       </div>
 
-      <div className="relative z-10 flex w-full bg-surface-card p-1 rounded-full border border-surface-border shadow-inner">
-        <button
-          onClick={() => {
-            triggerFeedback('pop');
-            setActiveMainTab('clubs');
-            setSearch('');
-          }}
-          className={`flex-1 py-3 text-[13px] font-black transition-all rounded-full flex items-center justify-center ${
-            activeMainTab === 'clubs' ? 'bg-brand text-surface shadow-md' : 'text-brand-muted hover:text-brand'
-          }`}
-        >
-          מועדונים
-        </button>
-
-        <button
-          onClick={() => {
-            triggerFeedback('pop');
-            setActiveMainTab('users');
-            setSearch('');
-          }}
-          className={`flex-1 py-3 text-[13px] font-black transition-all rounded-full flex items-center justify-center ${
-            activeMainTab === 'users' ? 'bg-brand text-surface shadow-md' : 'text-brand-muted hover:text-brand'
-          }`}
-        >
-          משתמשים
-        </button>
-      </div>
-
+      {/* שורת חיפוש למעלה */}
       <div className="relative z-10">
         <div className="absolute inset-y-0 right-0 pr-5 flex items-center pointer-events-none">
           <Search size={18} className="text-brand-muted" />
@@ -174,6 +147,35 @@ export const ExplorePage: React.FC = () => {
             </span>
           </button>
         )}
+      </div>
+
+      {/* טאבים מתחת לשורת החיפוש */}
+      <div className="relative z-10 flex w-full bg-surface-card p-1 rounded-full border border-surface-border shadow-inner">
+        <button
+          onClick={() => {
+            triggerFeedback('pop');
+            setActiveMainTab('clubs');
+            setSearch('');
+          }}
+          className={`flex-1 py-3 text-[13px] font-black transition-all rounded-full flex items-center justify-center ${
+            activeMainTab === 'clubs' ? 'bg-white text-black shadow-md' : 'text-brand-muted hover:text-brand'
+          }`}
+        >
+          מועדונים
+        </button>
+
+        <button
+          onClick={() => {
+            triggerFeedback('pop');
+            setActiveMainTab('users');
+            setSearch('');
+          }}
+          className={`flex-1 py-3 text-[13px] font-black transition-all rounded-full flex items-center justify-center ${
+            activeMainTab === 'users' ? 'bg-white text-black shadow-md' : 'text-brand-muted hover:text-brand'
+          }`}
+        >
+          משתמשים
+        </button>
       </div>
 
       <AnimatePresence mode="wait">
@@ -386,7 +388,7 @@ export const ExplorePage: React.FC = () => {
                     }}
                     className={`px-5 py-2.5 rounded-full font-black text-[11px] uppercase tracking-widest whitespace-nowrap transition-all border ${
                       activeSearchTab === 'top'
-                        ? 'bg-brand text-surface border-brand shadow-inner'
+                        ? 'bg-white text-black border-white shadow-inner'
                         : 'bg-transparent text-brand-muted border-transparent hover:text-brand'
                     }`}
                   >
@@ -400,7 +402,7 @@ export const ExplorePage: React.FC = () => {
                     }}
                     className={`px-5 py-2.5 rounded-full font-black text-[11px] uppercase tracking-widest whitespace-nowrap transition-all border ${
                       activeSearchTab === 'accounts'
-                        ? 'bg-brand text-surface border-brand shadow-inner'
+                        ? 'bg-white text-black border-white shadow-inner'
                         : 'bg-transparent text-brand-muted border-transparent hover:text-brand'
                     }`}
                   >
@@ -414,7 +416,7 @@ export const ExplorePage: React.FC = () => {
                     }}
                     className={`px-5 py-2.5 rounded-full font-black text-[11px] uppercase tracking-widest whitespace-nowrap transition-all border ${
                       activeSearchTab === 'tags'
-                        ? 'bg-brand text-surface border-brand shadow-inner'
+                        ? 'bg-white text-black border-white shadow-inner'
                         : 'bg-transparent text-brand-muted border-transparent hover:text-brand'
                     }`}
                   >
