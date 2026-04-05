@@ -24,6 +24,7 @@ import {
   Briefcase,
   Calendar,
   Sparkles,
+  LogOut
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
@@ -42,6 +43,7 @@ export const ProfilePage: React.FC = () => {
   const followersDragControls = useDragControls();
   const followingDragControls = useDragControls();
   const commentsDragControls = useDragControls();
+  const gridActionDragControls = useDragControls();
 
   const { scrollY } = useScroll();
   const coverY = useTransform(scrollY, [0, 250], [0, -100]);
@@ -87,6 +89,7 @@ export const ProfilePage: React.FC = () => {
 
   const [optionsMenuPost, setOptionsMenuPost] = useState<any>(null);
   const [activeDescPost, setActiveDescPost] = useState<any>(null);
+  const [gridActionModal, setGridActionModal] = useState<{ item: any, type: 'post' | 'saved' | 'circle' } | null>(null);
 
   const [currentUserId, setCurrentUserId] = useState('');
   const [showCreatePost, setShowCreatePost] = useState(false);
@@ -105,6 +108,7 @@ export const ProfilePage: React.FC = () => {
     followers: false,
     following: false,
     create: false,
+    gridAction: false,
   });
 
   const openOverlay = (action: () => void) => {
@@ -126,6 +130,7 @@ export const ProfilePage: React.FC = () => {
       followers: showFollowersList,
       following: showFollowingList,
       create: showCreatePost,
+      gridAction: !!gridActionModal,
     };
   }, [
     activeCommentsPostId,
@@ -136,12 +141,14 @@ export const ProfilePage: React.FC = () => {
     showFollowersList,
     showFollowingList,
     showCreatePost,
+    gridActionModal,
   ]);
 
   useEffect(() => {
     const handlePopState = () => {
       const s = stateRef.current;
-      if (s.commentAction) setCommentActionModal(null);
+      if (s.gridAction) setGridActionModal(null);
+      else if (s.commentAction) setCommentActionModal(null);
       else if (s.followers) setShowFollowersList(false);
       else if (s.following) setShowFollowingList(false);
       else if (s.comments) {
@@ -449,21 +456,41 @@ export const ProfilePage: React.FC = () => {
       document.body.removeChild(a);
       toast.success('הקובץ נשמר בהצלחה', { id: 'dl' });
     } catch { toast.error('לא ניתן להוריד את הקובץ', { id: 'dl' }); }
-    closeOverlay();
+    if (optionsMenuPost) closeOverlay();
   };
 
   const handleCopyLink = async (post: any) => {
     const publicUrl = `https://inner-app.com/post/${post.id}`;
     try { await navigator.clipboard.writeText(publicUrl); toast.success('הקישור הועתק ללוח', { icon: '🔗' }); } catch { toast.error('שגיאה בהעתקה'); }
-    closeOverlay();
+    if (optionsMenuPost || gridActionModal) closeOverlay();
   };
 
   const deletePost = async (postId: string) => {
     triggerFeedback('error');
-    closeOverlay();
+    if (optionsMenuPost || gridActionModal) closeOverlay();
     if (fullScreenMedia) setFullScreenMedia((curr) => curr?.filter((p) => p.id !== postId) || null);
     setData((prev: any) => ({ ...prev, posts: (prev.posts || []).filter((p: any) => p.id !== postId), savedPosts: (prev.savedPosts || []).filter((p: any) => p.id !== postId) }));
     await supabase.from('posts').delete().eq('id', postId);
+  };
+
+  const removeFromSaved = async (postId: string) => {
+    triggerFeedback('pop');
+    if (gridActionModal) closeOverlay();
+    setData((prev: any) => ({ ...prev, savedPosts: (prev.savedPosts || []).filter((p: any) => p.id !== postId) }));
+    try {
+      await supabase.from('saved_posts').delete().match({ user_id: currentUserId, post_id: postId });
+      toast.success('הוסר מהשמורים');
+    } catch { toast.error('שגיאה בהסרה'); }
+  };
+
+  const leaveCircle = async (circleId: string) => {
+    triggerFeedback('error');
+    if (gridActionModal) closeOverlay();
+    setData((prev: any) => ({ ...prev, memberships: (prev.memberships || []).filter((m: any) => m.circle?.id !== circleId) }));
+    try {
+      await supabase.from('circle_members').delete().match({ user_id: currentUserId, circle_id: circleId });
+      toast.success('עזבת את המועדון');
+    } catch { toast.error('שגיאה בעזיבת המועדון'); }
   };
 
   const saveEditedPost = async () => {
@@ -544,8 +571,8 @@ export const ProfilePage: React.FC = () => {
           <div className="absolute inset-0 bg-surface-card" />
         )}
         <div className="absolute top-6 right-5 flex flex-col items-center">
-          <span className="text-white text-[10px] font-black uppercase tracking-widest mb-0.5">רמה</span>
-          <span className="text-white font-black text-[24px] leading-none drop-shadow-md">{currentLevel}</span>
+          <span className="text-accent-primary text-[10px] font-black uppercase tracking-widest mb-0.5">רמה</span>
+          <span className="text-brand font-black text-[24px] leading-none drop-shadow-md">{currentLevel}</span>
         </div>
       </motion.div>
 
@@ -567,11 +594,11 @@ export const ProfilePage: React.FC = () => {
             <p className="text-brand-muted font-bold text-[13px] tracking-widest mb-5" dir="ltr">@{userProfile?.username || 'user'}</p>
 
             <div className="flex items-center justify-center gap-3 text-[14px] text-brand-muted font-medium mb-6 w-full max-w-[300px] mx-auto flex-wrap">
-              <span className="cursor-pointer hover:text-brand transition-colors" onClick={() => openUsersListSheet('followers')}>עוקבים <span className="font-black text-white">{followersCount}</span></span>
+              <span className="cursor-pointer hover:text-brand transition-colors" onClick={() => openUsersListSheet('followers')}>עוקבים <span className="font-black text-accent-primary">{followersCount}</span></span>
               <span className="text-white/[0.1]">•</span>
-              <span className="cursor-pointer hover:text-brand transition-colors" onClick={() => openUsersListSheet('following')}>נעקבים <span className="font-black text-white">{followingCount}</span></span>
+              <span className="cursor-pointer hover:text-brand transition-colors" onClick={() => openUsersListSheet('following')}>נעקבים <span className="font-black text-accent-primary">{followingCount}</span></span>
               <span className="text-white/[0.1]">•</span>
-              <span>מוניטין <span className="font-black text-white">{trueReputation}</span></span>
+              <span>מוניטין <span className="font-black text-accent-primary">{trueReputation}</span></span>
             </div>
 
             {!isMyProfile && (
@@ -642,14 +669,15 @@ export const ProfilePage: React.FC = () => {
             )}
           </div>
 
+          {/* מדד התקדמות עבה וצבעוני */}
           <div className="w-full flex flex-col gap-3 px-2 mb-6">
             <div className="flex justify-between items-center w-full">
               <span className="text-brand-muted text-[13px] font-bold">רצף: <span className="text-white">{streak} ימים</span></span>
               {isMyProfile && <span className="text-brand-muted text-[13px] font-bold"><span className="text-white">{currentXP}</span> / {xpToNextLevel}</span>}
             </div>
             {isMyProfile && (
-              <div className="w-full h-1.5 bg-surface-card rounded-full overflow-hidden relative shadow-inner border border-white/[0.02]">
-                <motion.div initial={{ width: 0 }} animate={{ width: `${xpProgress}%` }} transition={{ duration: 1.5, ease: 'easeOut' }} className="absolute top-0 right-0 h-full bg-accent-primary rounded-full" />
+              <div className="w-full h-2.5 bg-surface-card rounded-full overflow-hidden relative shadow-inner border border-white/[0.05]">
+                <motion.div initial={{ width: 0 }} animate={{ width: `${xpProgress}%` }} transition={{ duration: 1.5, ease: 'easeOut' }} className="absolute top-0 right-0 h-full bg-gradient-to-l from-accent-primary via-indigo-400 to-purple-400 rounded-full" />
               </div>
             )}
           </div>
@@ -668,7 +696,12 @@ export const ProfilePage: React.FC = () => {
                     <div className="col-span-3 text-center py-10 text-brand-muted text-[14px] font-bold">אין פוסטים עדיין</div>
                   ) : (
                     userPosts.map((post: any) => (
-                      <div key={post.id} onClick={() => { openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = mediaPosts.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-square bg-surface-card relative overflow-hidden cursor-pointer active:opacity-70 border border-white/[0.05] rounded-[20px]">
+                      <div key={post.id} onClick={() => { openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = mediaPosts.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[4/5] bg-surface-card relative overflow-hidden cursor-pointer active:opacity-70 border border-white/[0.05] rounded-[20px]">
+                        {isMyProfile && (
+                          <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'post' })); }} className="absolute top-2 left-2 z-20 p-2 bg-black/50 backdrop-blur-md rounded-full text-brand hover:bg-black/70 transition-colors">
+                            <MoreVertical size={16} />
+                          </button>
+                        )}
                         {post.media_url ? (post.media_type === 'video' ? <video src={post.media_url} className="w-full h-full object-cover" /> : <img src={post.media_url} className="w-full h-full object-cover" />) : <div className="w-full h-full flex items-center justify-center p-2 text-center text-brand-muted text-[11px] line-clamp-3 font-medium">{post.content}</div>}
                       </div>
                     ))
@@ -679,7 +712,10 @@ export const ProfilePage: React.FC = () => {
               {activeTab === 'joined' && (
                 <motion.div key="joined" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-1">
                   {joinedCircles.map((circle: any) => (
-                    <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className="aspect-square bg-surface-card relative overflow-hidden cursor-pointer border border-white/[0.05] rounded-[20px]">
+                    <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className="aspect-[4/5] bg-surface-card relative overflow-hidden cursor-pointer border border-white/[0.05] rounded-[20px] group">
+                      <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: circle, type: 'circle' })); }} className="absolute top-2 left-2 z-20 p-2 bg-black/50 backdrop-blur-md rounded-full text-brand hover:bg-black/70 transition-colors opacity-0 group-hover:opacity-100 touch-manipulation">
+                        <MoreVertical size={16} />
+                      </button>
                       {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover opacity-80" /> : <div className="w-full h-full flex items-center justify-center text-brand-muted font-black text-2xl">{circle.name?.charAt(0)}</div>}
                       <div className="absolute bottom-0 w-full p-2 bg-surface/80 backdrop-blur-sm text-center border-t border-white/[0.05]"><span className="text-brand text-[10px] font-bold line-clamp-1">{circle.name}</span></div>
                     </div>
@@ -693,7 +729,10 @@ export const ProfilePage: React.FC = () => {
                     <div className="col-span-3 text-center py-10 text-brand-muted text-[14px] font-bold">אין פוסטים שמורים</div>
                   ) : (
                     userSavedPosts.map((post: any) => (
-                      <div key={post.id} onClick={() => { const savedMedia = userSavedPosts.filter((p: any) => p.media_url); openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = savedMedia.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-square bg-surface-card relative overflow-hidden cursor-pointer active:opacity-70 border border-white/[0.05] rounded-[20px]">
+                      <div key={post.id} onClick={() => { const savedMedia = userSavedPosts.filter((p: any) => p.media_url); openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = savedMedia.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[4/5] bg-surface-card relative overflow-hidden cursor-pointer active:opacity-70 border border-white/[0.05] rounded-[20px]">
+                        <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'saved' })); }} className="absolute top-2 left-2 z-20 p-2 bg-black/50 backdrop-blur-md rounded-full text-brand hover:bg-black/70 transition-colors">
+                          <MoreVertical size={16} />
+                        </button>
                         {post.media_url ? (post.media_type === 'video' ? <video src={post.media_url} className="w-full h-full object-cover" /> : <img src={post.media_url} className="w-full h-full object-cover" />) : <div className="w-full h-full flex items-center justify-center p-2 text-center text-brand-muted text-[11px] line-clamp-3 font-medium">{post.content}</div>}
                       </div>
                     ))
@@ -744,6 +783,33 @@ export const ProfilePage: React.FC = () => {
                   })}
                 </div>
               </motion.div>
+            )}
+
+            {gridActionModal && (
+              <div className="fixed inset-0 z-[100000] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-surface/80 backdrop-blur-sm" onClick={closeOverlay} />
+                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[40px] p-6 flex flex-col gap-2 pb-12 shadow-[0_-10px_50px_rgba(0,0,0,0.8)] border-t border-white/[0.05]" onPointerDown={(e) => gridActionDragControls.start(e)} style={{ touchAction: 'none' }}>
+                  <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/[0.1] rounded-full" /></div>
+                  
+                  {gridActionModal.type === 'post' && (
+                    <>
+                      <button onClick={() => { closeOverlay(); setTimeout(() => { openOverlay(() => { setEditingPost(gridActionModal.item); setEditPostText(gridActionModal.item.content || ''); setShowCreatePost(true); }); }, 100); }} className="w-full p-4 bg-surface-card border border-white/[0.05] rounded-[20px] text-brand font-bold flex justify-between items-center text-lg hover:bg-white/[0.05] transition-colors"><span>ערוך פוסט</span><Edit2 size={20} className="text-brand-muted" /></button>
+                      <button onClick={() => { if (window.confirm('למחוק פוסט?')) deletePost(gridActionModal.item.id); }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-[20px] text-red-500 font-bold flex justify-between items-center text-lg mt-2 hover:bg-red-500/20 transition-colors"><span>מחק פוסט</span><Trash2 size={20} className="text-red-500" /></button>
+                    </>
+                  )}
+
+                  {gridActionModal.type === 'saved' && (
+                    <button onClick={() => removeFromSaved(gridActionModal.item.id)} className="w-full p-4 bg-surface-card border border-white/[0.05] rounded-[20px] text-brand font-bold flex justify-between items-center text-lg hover:bg-white/[0.05] transition-colors"><span>הסר משמורים</span><Bookmark size={20} className="text-brand-muted" /></button>
+                  )}
+
+                  {gridActionModal.type === 'circle' && (
+                    <>
+                      <button onClick={() => { closeOverlay(); setTimeout(() => { navigate(`/circle/${gridActionModal.item.slug}`); }, 100); }} className="w-full p-4 bg-surface-card border border-white/[0.05] rounded-[20px] text-brand font-bold flex justify-between items-center text-lg hover:bg-white/[0.05] transition-colors"><span>כנס למועדון</span><LinkIcon size={20} className="text-brand-muted" /></button>
+                      <button onClick={() => { if (window.confirm('לעזוב את המועדון?')) leaveCircle(gridActionModal.item.id); }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-[20px] text-red-500 font-bold flex justify-between items-center text-lg mt-2 hover:bg-red-500/20 transition-colors"><span>עזוב מועדון</span><LogOut size={20} className="text-red-500" /></button>
+                    </>
+                  )}
+                </motion.div>
+              </div>
             )}
 
             {activeCommentsPostId && (
