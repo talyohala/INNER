@@ -22,7 +22,7 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-[#F9FAFB] dark:bg-[#0A0A0A] p-6 text-red-500 font-mono" dir="ltr">
+        <div className="min-h-screen bg-surface p-6 text-red-500 font-mono" dir="ltr">
           <h1 className="text-2xl font-bold mb-4 border-b border-red-500 pb-2">CRASH DETECTED</h1>
           <pre className="whitespace-pre-wrap text-sm bg-red-900/10 p-4 rounded-xl border border-red-500/30">{this.state.error?.toString()}</pre>
           <pre className="whitespace-pre-wrap text-xs mt-4 text-red-400/50">{this.state.error?.stack}</pre>
@@ -36,28 +36,25 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
-  if (loading) return <div className="min-h-screen bg-[#F9FAFB] dark:bg-[#0A0A0A] flex items-center justify-center text-black/20 dark:text-white/20 font-black tracking-widest">LOADING...</div>;
+  if (loading) return <div className="min-h-screen bg-surface flex items-center justify-center text-accent-primary font-black tracking-widest">LOADING...</div>;
   if (!user) return <Navigate to="/auth" />;
   return <>{children}</>;
 };
 
 export const App = () => {
-  // מערכת ניהול מצב כהה/בהיר חכמה (ברירת מחדל: בהיר!)
   useEffect(() => {
-    const theme = localStorage.getItem('inner_theme') || 'light'; 
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    // נועלים את הרקע של הדפדפן והמכשיר לפחם כדי שלא יצוצו פסים לבנים בגלילה
+    document.body.style.backgroundColor = '#1E1F22';
+    document.documentElement.style.backgroundColor = '#1E1F22';
   }, []);
 
   return (
     <ErrorBoundary>
       <AuthProvider>
         <Router>
-          <div className="bg-[#F9FAFB] dark:bg-[#0A0A0A] min-h-screen text-black dark:text-white font-sans selection:bg-black/10 dark:selection:bg-white/20 relative transition-colors duration-300" dir="rtl">
-            <Toaster position="top-center" toastOptions={{ style: { background: 'rgba(20, 20, 22, 0.9)', backdropFilter: 'blur(20px)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '100px', fontSize: '12px', fontWeight: 'bold', padding: '12px 24px' } }} />
+          {/* עוטפים את הכל בצבעי הפחם והטקסט החדשים */}
+          <div className="bg-surface min-h-screen text-brand font-sans selection:bg-accent-primary/20 relative" dir="rtl">
+            <Toaster position="top-center" toastOptions={{ style: { background: '#2B2D31', color: '#F2F3F5', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '100px', fontSize: '13px', fontWeight: 'bold' } }} />
             <Layout>
               <Routes>
                 <Route path="/auth" element={<AuthPage />} />
