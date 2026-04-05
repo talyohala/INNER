@@ -8,17 +8,17 @@ export default {
     extend: {
       colors: {
         surface: {
-          DEFAULT: '#141416', // אפור פחם עמוק (לא שחור)
-          card: 'rgba(255, 255, 255, 0.06)', // לבן שקוף בולט יותר
-          border: 'rgba(255, 255, 255, 0.12)', // גבולות בהירים יותר
+          DEFAULT: '#141416', 
+          card: 'rgba(255, 255, 255, 0.08)', // קצת יותר לבן כדי שהזכוכית תבלוט
+          border: 'rgba(255, 255, 255, 0.15)', // גבולות בוהקים יותר
         },
         brand: {
-          DEFAULT: '#F3F4F6', // לבן רך
-          muted: '#9CA3AF', // אפור קריר
+          DEFAULT: '#F3F4F6',
+          muted: '#9CA3AF',
         },
         accent: {
-          crd: '#EAB308', // ענבר/זהב
-          vip: '#A855F7', // סגול VIP
+          crd: '#EAB308',
+          vip: '#A855F7',
         }
       }
     },

@@ -119,14 +119,14 @@ export const ExplorePage: React.FC = () => {
 
   return (
     <FadeIn
-      className="px-4 pt-9 pb-28 bg-surface min-h-screen font-sans flex flex-col gap-5 overflow-x-hidden relative"
+      className="px-4 pt-5 pb-28 bg-surface min-h-screen font-sans flex flex-col gap-5 overflow-x-hidden relative"
       dir="rtl"
     >
       <div className="flex flex-col items-center justify-center relative z-10 mb-1 mt-1">
         <h1 className="text-[23px] font-black text-brand tracking-tight">חיפוש</h1>
       </div>
 
-      {/* שורת חיפוש למעלה */}
+      {/* שורת חיפוש למעלה - אפקט זכוכית עמוק */}
       <div className="relative z-10">
         <div className="absolute inset-y-0 right-0 pr-5 flex items-center pointer-events-none">
           <Search size={18} className="text-brand-muted" />
@@ -137,20 +137,20 @@ export const ExplorePage: React.FC = () => {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={activeMainTab === 'clubs' ? 'חפש מועדונים...' : 'חפש משתמשים...'}
-          className="w-full bg-surface-card border border-surface-border rounded-full py-4 pr-12 pl-16 text-brand text-[15px] font-medium placeholder:text-brand-muted focus:border-brand/30 transition-all shadow-inner outline-none h-14"
+          className="w-full bg-white/5 backdrop-blur-2xl border border-surface-border rounded-full py-4 pr-12 pl-16 text-brand text-[15px] font-medium placeholder:text-brand-muted focus:border-white/30 transition-all shadow-inner outline-none h-14"
         />
 
         {search && (
           <button onClick={() => setSearch('')} className="absolute inset-y-0 left-3 flex items-center justify-center">
-            <span className="text-brand-muted hover:text-brand text-[10px] font-bold uppercase tracking-widest bg-surface-card px-4 py-2 rounded-full border border-surface-border transition-colors active:scale-95">
+            <span className="text-brand-muted hover:text-brand text-[10px] font-bold uppercase tracking-widest bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-surface-border transition-colors active:scale-95">
               נקה
             </span>
           </button>
         )}
       </div>
 
-      {/* טאבים מתחת לשורת החיפוש */}
-      <div className="relative z-10 flex w-full bg-surface-card p-1 rounded-full border border-surface-border shadow-inner">
+      {/* טאבים מתחת לשורת החיפוש - זכוכית חלבית */}
+      <div className="relative z-10 flex w-full bg-white/5 backdrop-blur-3xl p-1 rounded-full border border-surface-border shadow-inner">
         <button
           onClick={() => {
             triggerFeedback('pop');
@@ -158,7 +158,7 @@ export const ExplorePage: React.FC = () => {
             setSearch('');
           }}
           className={`flex-1 py-3 text-[13px] font-black transition-all rounded-full flex items-center justify-center ${
-            activeMainTab === 'clubs' ? 'bg-white text-black shadow-md' : 'text-brand-muted hover:text-brand'
+            activeMainTab === 'clubs' ? 'bg-white/20 border border-white/20 text-white shadow-lg' : 'text-brand-muted hover:text-brand'
           }`}
         >
           מועדונים
@@ -171,7 +171,7 @@ export const ExplorePage: React.FC = () => {
             setSearch('');
           }}
           className={`flex-1 py-3 text-[13px] font-black transition-all rounded-full flex items-center justify-center ${
-            activeMainTab === 'users' ? 'bg-white text-black shadow-md' : 'text-brand-muted hover:text-brand'
+            activeMainTab === 'users' ? 'bg-white/20 border border-white/20 text-white shadow-lg' : 'text-brand-muted hover:text-brand'
           }`}
         >
           משתמשים
@@ -198,8 +198,8 @@ export const ExplorePage: React.FC = () => {
                   }}
                   className={`flex items-center justify-center px-5 h-10 rounded-full font-black text-[12px] transition-all shrink-0 border shadow-inner ${
                     activeVibe === vibe
-                      ? 'bg-brand border-brand text-surface'
-                      : 'bg-transparent border-surface-border text-brand-muted hover:bg-surface-card hover:text-brand'
+                      ? 'bg-white/20 border-white/30 text-white backdrop-blur-xl'
+                      : 'bg-white/5 border-surface-border text-brand-muted backdrop-blur-sm hover:bg-white/10 hover:text-brand'
                   }`}
                 >
                   <span>{vibe}</span>
@@ -214,7 +214,7 @@ export const ExplorePage: React.FC = () => {
             ) : filteredCircles.length === 0 ? (
               <div className="text-center py-16 flex flex-col items-center gap-3">
                 <span className="text-brand-muted font-black text-[15px]">לא מצאנו מועדון כזה</span>
-                <Button onClick={() => navigate('/create-circle')} className="px-8 mt-1 rounded-full shadow-lg border border-surface-border">
+                <Button onClick={() => navigate('/create-circle')} className="px-8 mt-1 rounded-full shadow-lg">
                   פתח מועדון משלך
                 </Button>
               </div>
@@ -235,11 +235,11 @@ export const ExplorePage: React.FC = () => {
                         triggerFeedback('pop');
                         navigate(`/circle/${circle.slug}`);
                       }}
-                      className="bg-surface-card border border-surface-border p-4 rounded-[30px] flex items-center justify-between shadow-lg cursor-pointer group hover:border-white/20 active:scale-[0.985] transition-all"
+                      className="bg-surface-card backdrop-blur-2xl border border-surface-border p-4 rounded-[30px] flex items-center justify-between shadow-lg cursor-pointer group hover:border-white/20 active:scale-[0.985] transition-all"
                     >
                       <div className="flex items-center gap-4 text-right">
-                        <div className="w-14 h-14 rounded-full bg-surface border border-surface-border overflow-hidden shrink-0 shadow-inner p-0.5">
-                          <div className="w-full h-full rounded-full overflow-hidden bg-surface-card">
+                        <div className="w-14 h-14 rounded-full bg-white/5 border border-white/10 overflow-hidden shrink-0 shadow-inner p-0.5">
+                          <div className="w-full h-full rounded-full overflow-hidden bg-black/40">
                             {circle.cover_url ? (
                               <img src={circle.cover_url} className="w-full h-full object-cover" />
                             ) : (
@@ -258,7 +258,7 @@ export const ExplorePage: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="w-9 h-9 rounded-full bg-surface-card border border-surface-border flex items-center justify-center shrink-0 ml-1">
+                      <div className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0 ml-1 shadow-inner">
                         <ChevronLeft size={17} className="text-brand-muted" />
                       </div>
                     </div>
@@ -296,7 +296,7 @@ export const ExplorePage: React.FC = () => {
                     </span>
 
                     <div className="-mx-4 px-2">
-                      <div className="bg-surface-card rounded-[30px] p-2 flex flex-col shadow-lg border border-surface-border">
+                      <div className="bg-surface-card backdrop-blur-2xl rounded-[30px] p-2 flex flex-col shadow-lg border border-surface-border">
                         {recentSearches.map((term, i) => (
                           <div
                             key={i}
@@ -304,7 +304,7 @@ export const ExplorePage: React.FC = () => {
                               triggerFeedback('pop');
                               setSearch(term);
                             }}
-                            className={`flex items-center justify-between p-4 cursor-pointer hover:bg-surface-card active:bg-surface border-surface-border transition-colors rounded-[22px] ${
+                            className={`flex items-center justify-between p-4 cursor-pointer hover:bg-white/5 active:bg-white/10 border-surface-border transition-colors rounded-[22px] ${
                               i !== recentSearches.length - 1 ? 'border-b rounded-b-none' : ''
                             }`}
                           >
@@ -333,11 +333,11 @@ export const ExplorePage: React.FC = () => {
                     <Loader2 className="animate-spin text-brand-muted mx-auto mt-4" />
                   ) : (
                     <div className="-mx-4 px-2">
-                      <div className="bg-surface-card rounded-[30px] p-2 flex flex-col shadow-lg border border-surface-border">
+                      <div className="bg-surface-card backdrop-blur-2xl rounded-[30px] p-2 flex flex-col shadow-lg border border-surface-border">
                         {suggestedUsers.map((u, i) => (
                           <div
                             key={u.id}
-                            className={`flex items-center justify-between p-3 cursor-pointer hover:bg-surface-card active:bg-surface border-surface-border transition-all rounded-[22px] ${
+                            className={`flex items-center justify-between p-3 cursor-pointer hover:bg-white/5 active:bg-white/10 border-surface-border transition-all rounded-[22px] ${
                               i !== suggestedUsers.length - 1 ? 'border-b rounded-b-none' : ''
                             }`}
                             onClick={() => {
@@ -347,8 +347,8 @@ export const ExplorePage: React.FC = () => {
                             }}
                           >
                             <div className="flex items-center gap-4">
-                              <div className="w-12 h-12 rounded-full bg-surface border border-surface-border overflow-hidden relative shadow-inner p-0.5">
-                                <div className="w-full h-full rounded-full overflow-hidden bg-surface-card">
+                              <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 overflow-hidden relative shadow-inner p-0.5">
+                                <div className="w-full h-full rounded-full overflow-hidden bg-black/40">
                                   {u.avatar_url ? (
                                     <img src={u.avatar_url} className="w-full h-full object-cover" />
                                   ) : (
@@ -368,7 +368,7 @@ export const ExplorePage: React.FC = () => {
                               </div>
                             </div>
 
-                            <div className="w-8 h-8 rounded-full border border-surface-border flex items-center justify-center shrink-0">
+                            <div className="w-8 h-8 rounded-full border border-white/10 bg-white/5 flex items-center justify-center shrink-0 shadow-inner">
                               <ChevronLeft size={16} className="text-brand-muted" />
                             </div>
                           </div>
@@ -388,8 +388,8 @@ export const ExplorePage: React.FC = () => {
                     }}
                     className={`px-5 py-2.5 rounded-full font-black text-[11px] uppercase tracking-widest whitespace-nowrap transition-all border ${
                       activeSearchTab === 'top'
-                        ? 'bg-white text-black border-white shadow-inner'
-                        : 'bg-transparent text-brand-muted border-transparent hover:text-brand'
+                        ? 'bg-white/20 text-white border-white/30 backdrop-blur-xl shadow-inner'
+                        : 'bg-white/5 text-brand-muted border-surface-border backdrop-blur-md hover:text-brand'
                     }`}
                   >
                     מובילים
@@ -402,8 +402,8 @@ export const ExplorePage: React.FC = () => {
                     }}
                     className={`px-5 py-2.5 rounded-full font-black text-[11px] uppercase tracking-widest whitespace-nowrap transition-all border ${
                       activeSearchTab === 'accounts'
-                        ? 'bg-white text-black border-white shadow-inner'
-                        : 'bg-transparent text-brand-muted border-transparent hover:text-brand'
+                        ? 'bg-white/20 text-white border-white/30 backdrop-blur-xl shadow-inner'
+                        : 'bg-white/5 text-brand-muted border-surface-border backdrop-blur-md hover:text-brand'
                     }`}
                   >
                     חשבונות
@@ -416,8 +416,8 @@ export const ExplorePage: React.FC = () => {
                     }}
                     className={`px-5 py-2.5 rounded-full font-black text-[11px] uppercase tracking-widest whitespace-nowrap transition-all border ${
                       activeSearchTab === 'tags'
-                        ? 'bg-white text-black border-white shadow-inner'
-                        : 'bg-transparent text-brand-muted border-transparent hover:text-brand'
+                        ? 'bg-white/20 text-white border-white/30 backdrop-blur-xl shadow-inner'
+                        : 'bg-white/5 text-brand-muted border-surface-border backdrop-blur-md hover:text-brand'
                     }`}
                   >
                     ביו
@@ -444,7 +444,7 @@ export const ExplorePage: React.FC = () => {
                           </div>
                         ) : (
                           <div className="-mx-4 px-2">
-                            <div className="bg-surface-card rounded-[30px] p-2 flex flex-col shadow-lg border border-surface-border">
+                            <div className="bg-surface-card backdrop-blur-2xl rounded-[30px] p-2 flex flex-col shadow-lg border border-surface-border">
                               {usersListData.map((u, idx) => (
                                 <motion.div
                                   key={u.id}
@@ -458,13 +458,13 @@ export const ExplorePage: React.FC = () => {
                                       triggerFeedback('pop');
                                       navigate(`/profile/${u.id}`);
                                     }}
-                                    className={`p-3 flex items-center justify-between cursor-pointer hover:bg-surface-card active:bg-surface border-surface-border transition-colors rounded-[22px] ${
+                                    className={`p-3 flex items-center justify-between cursor-pointer hover:bg-white/5 active:bg-white/10 border-surface-border transition-colors rounded-[22px] ${
                                       idx !== usersListData.length - 1 ? 'border-b rounded-b-none' : ''
                                     }`}
                                   >
                                     <div className="flex items-center gap-4 text-right">
-                                      <div className="w-14 h-14 rounded-full bg-surface border border-surface-border overflow-hidden shrink-0 relative shadow-inner p-0.5">
-                                        <div className="w-full h-full rounded-full overflow-hidden bg-surface-card">
+                                      <div className="w-14 h-14 rounded-full bg-white/5 border border-white/10 overflow-hidden shrink-0 relative shadow-inner p-0.5">
+                                        <div className="w-full h-full rounded-full overflow-hidden bg-black/40">
                                           {u.avatar_url ? (
                                             <img src={u.avatar_url} className="w-full h-full object-cover" />
                                           ) : (
@@ -487,7 +487,7 @@ export const ExplorePage: React.FC = () => {
                                       </div>
                                     </div>
 
-                                    <div className="w-8 h-8 rounded-full border border-surface-border flex items-center justify-center shrink-0">
+                                    <div className="w-8 h-8 rounded-full border border-white/10 bg-white/5 flex items-center justify-center shrink-0 shadow-inner">
                                       <ChevronLeft size={16} className="text-brand-muted" />
                                     </div>
                                   </div>

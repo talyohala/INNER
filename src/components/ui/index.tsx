@@ -9,7 +9,7 @@ export function cn(...inputs: ClassValue[]) {
 
 export const GlassCard: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => {
   return (
-    <div className={cn("bg-surface-card border border-surface-border rounded-3xl shadow-2xl backdrop-blur-2xl p-5", className)}>
+    <div className={cn("bg-surface-card border border-surface-border rounded-[32px] shadow-2xl backdrop-blur-[40px] p-5", className)}>
       {children}
     </div>
   );
@@ -34,7 +34,7 @@ export const PageTitle: React.FC<{ children: React.ReactNode }> = ({ children })
 export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(({ className, ...props }, ref) => (
   <input
     ref={ref}
-    className={cn("w-full border border-surface-border bg-black/40 text-white rounded-2xl px-4 py-3.5 outline-none placeholder:text-white/40 focus:border-white/30 transition-colors shadow-inner", className)}
+    className={cn("w-full border border-surface-border bg-white/5 backdrop-blur-2xl text-white rounded-2xl px-4 py-3.5 outline-none placeholder:text-white/40 focus:border-white/40 transition-colors shadow-inner", className)}
     {...props}
   />
 ));
@@ -48,8 +48,8 @@ export const Button = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttrib
         className={cn(
           "flex items-center justify-center gap-2 rounded-2xl font-bold transition-all active:scale-95 disabled:opacity-60 disabled:pointer-events-none shadow-xl",
           size === 'default' ? "py-3.5 px-4 text-[15px]" : "py-2.5 px-3.5 text-sm rounded-xl",
-          variant === 'primary' && "bg-white/15 text-white border border-surface-border backdrop-blur-xl hover:bg-white/25",
-          variant === 'secondary' && "bg-white/5 text-white border border-white/5 hover:bg-white/10",
+          variant === 'primary' && "bg-white/20 text-white border border-white/30 backdrop-blur-3xl hover:bg-white/30",
+          variant === 'secondary' && "bg-white/5 text-white border border-white/10 backdrop-blur-xl hover:bg-white/10",
           variant === 'ghost' && "bg-transparent text-white/70 hover:text-white hover:bg-white/5 shadow-none",
           className
         )}
