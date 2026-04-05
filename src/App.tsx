@@ -22,11 +22,11 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-black p-6 text-red-500 font-mono" dir="ltr">
+        <div className="min-h-screen bg-surface p-6 text-red-500 font-mono" dir="ltr">
           <h1 className="text-2xl font-bold mb-4 border-b border-red-500 pb-2">CRASH DETECTED</h1>
           <pre className="whitespace-pre-wrap text-sm bg-red-900/20 p-4 rounded-xl border border-red-500/30">{this.state.error?.toString()}</pre>
           <pre className="whitespace-pre-wrap text-xs mt-4 text-red-400/50">{this.state.error?.stack}</pre>
-          <button onClick={() => window.location.reload()} className="mt-6 px-6 py-3 bg-red-500 text-black font-bold rounded-full">RELOAD APP</button>
+          <button onClick={() => window.location.reload()} className="mt-6 px-6 py-3 bg-red-500 text-white font-bold rounded-full">RELOAD APP</button>
         </div>
       );
     }
@@ -36,7 +36,7 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
-  if (loading) return <div className="min-h-screen bg-[#030303] flex items-center justify-center text-white/20 font-black tracking-widest">LOADING...</div>;
+  if (loading) return <div className="min-h-screen bg-surface flex items-center justify-center text-white/20 font-black tracking-widest">LOADING...</div>;
   if (!user) return <Navigate to="/auth" />;
   return <>{children}</>;
 };
@@ -46,8 +46,8 @@ export const App = () => {
     <ErrorBoundary>
       <AuthProvider>
         <Router>
-          <div className="bg-[#030303] min-h-screen text-white font-sans selection:bg-white/20 relative" dir="rtl">
-            <Toaster position="top-center" toastOptions={{ style: { background: '#0A0A0A', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', fontSize: '12px', fontWeight: 'bold' } }} />
+          <div className="bg-surface min-h-screen text-white font-sans selection:bg-white/20 relative" dir="rtl">
+            <Toaster position="top-center" toastOptions={{ style: { background: 'rgba(20, 20, 22, 0.9)', backdropFilter: 'blur(20px)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '100px', fontSize: '12px', fontWeight: 'bold', padding: '12px 24px' } }} />
             <Layout>
               <Routes>
                 <Route path="/auth" element={<AuthPage />} />
