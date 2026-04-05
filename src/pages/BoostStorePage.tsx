@@ -102,110 +102,112 @@ export const BoostStorePage: React.FC = () => {
   );
 
   return (
-    <FadeIn className="px-0 pt-10 pb-32 bg-[#030303] min-h-screen font-sans relative overflow-x-hidden" dir="rtl">
-      
-      {/* Background Effects */}
-      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-5%] right-[-10%] w-[50%] h-[20%] bg-white/5 blur-[100px] rounded-full" />
-      </div>
-
-      <div className="relative z-10 px-4 w-full">
+    <>
+      <FadeIn className="px-0 pt-10 pb-32 bg-[#030303] min-h-screen font-sans relative overflow-x-hidden" dir="rtl">
         
-        {/* Header */}
-        <div className="flex justify-center items-center mb-8 h-12">
-          <h1 className="text-[28px] font-black text-white tracking-tighter">החנות</h1>
+        {/* Background Effects */}
+        <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-[-5%] right-[-10%] w-[50%] h-[20%] bg-white/5 blur-[100px] rounded-full" />
         </div>
 
-        {/* Balance Card - Dark Transparent Gray */}
-        <div className="mb-8 rounded-[32px] bg-white/[0.04] backdrop-blur-xl border border-white/5 p-8 shadow-2xl overflow-hidden relative flex flex-col items-center text-center">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-[#ffc107]/5 blur-3xl rounded-full pointer-events-none" />
+        <div className="relative z-10 px-4 w-full">
           
-          <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center border border-white/10 shadow-inner mb-4 relative z-10">
-            <Wallet size={20} className="text-[#ffc107]" />
-          </div>
-          
-          <span className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-1 relative z-10">היתרה שלך</span>
-          
-          <div className="flex items-baseline gap-2 mb-6 relative z-10">
-            <span className="text-5xl font-black tabular-nums tracking-tighter text-white leading-none" dir="ltr">
-              {balance?.toLocaleString()}
-            </span>
-            <span className="text-[#ffc107] text-[12px] font-black tracking-widest uppercase leading-none" dir="ltr">
-              CRD
-            </span>
+          {/* Header */}
+          <div className="flex justify-center items-center mb-8 h-12">
+            <h1 className="text-[28px] font-black text-white tracking-tighter">החנות</h1>
           </div>
 
-          <Button
-            onClick={() => { triggerFeedback('pop'); navigate('/wallet'); }}
-            className="w-full h-14 rounded-2xl bg-white text-black font-black text-[12px] tracking-widest uppercase shadow-[0_10px_20px_rgba(255,255,255,0.1)] active:scale-95 transition-all relative z-10"
-          >
-            טען ארנק
-          </Button>
-        </div>
+          {/* Balance Card - Dark Transparent Gray */}
+          <div className="mb-8 rounded-[32px] bg-white/[0.04] backdrop-blur-xl border border-white/5 p-8 shadow-2xl overflow-hidden relative flex flex-col items-center text-center">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-[#ffc107]/5 blur-3xl rounded-full pointer-events-none" />
+            
+            <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center border border-white/10 shadow-inner mb-4 relative z-10">
+              <Wallet size={20} className="text-[#ffc107]" />
+            </div>
+            
+            <span className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-1 relative z-10">היתרה שלך</span>
+            
+            <div className="flex items-baseline gap-2 mb-6 relative z-10">
+              <span className="text-5xl font-black tabular-nums tracking-tighter text-white leading-none" dir="ltr">
+                {balance?.toLocaleString()}
+              </span>
+              <span className="text-[#ffc107] text-[12px] font-black tracking-widest uppercase leading-none" dir="ltr">
+                CRD
+              </span>
+            </div>
 
-        {/* Store Grid - Dark Transparent Gray Cards */}
-        <div className="grid grid-cols-2 gap-4">
-          {items.map((item, idx) => (
-            <motion.div
-              key={item.id}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.04 }}
-              onClick={() => setSelectedItem(item)}
-              className="h-full"
+            <Button
+              onClick={() => { triggerFeedback('pop'); navigate('/wallet'); }}
+              className="w-full h-14 rounded-2xl bg-white text-black font-black text-[12px] tracking-widest uppercase shadow-[0_10px_20px_rgba(255,255,255,0.1)] active:scale-95 transition-all relative z-10"
             >
-              <div className="h-full rounded-[32px] bg-white/[0.04] backdrop-blur-xl border border-white/5 p-5 flex flex-col items-center text-center active:scale-95 transition-transform shadow-lg relative overflow-hidden group">
-                
-                {/* Background Tint on Hover */}
-                <div 
-                  className="absolute inset-0 opacity-0 group-hover:opacity-[0.05] transition-opacity duration-500 pointer-events-none" 
-                  style={{ backgroundColor: item.color }}
-                />
+              טען ארנק
+            </Button>
+          </div>
 
-                {item.badge && (
-                  <span className="absolute top-4 right-4 px-2.5 py-1 rounded-lg text-[8px] font-black tracking-tighter uppercase text-white/80 bg-white/10 border border-white/5 shadow-sm z-10">
-                    {item.badge}
-                  </span>
-                )}
+          {/* Store Grid - Dark Transparent Gray Cards */}
+          <div className="grid grid-cols-2 gap-4">
+            {items.map((item, idx) => (
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.04 }}
+                onClick={() => setSelectedItem(item)}
+                className="h-full"
+              >
+                <div className="h-full rounded-[32px] bg-white/[0.04] backdrop-blur-xl border border-white/5 p-5 flex flex-col items-center text-center active:scale-95 transition-transform shadow-lg relative overflow-hidden group">
+                  
+                  {/* Background Tint on Hover */}
+                  <div 
+                    className="absolute inset-0 opacity-0 group-hover:opacity-[0.05] transition-opacity duration-500 pointer-events-none" 
+                    style={{ backgroundColor: item.color }}
+                  />
 
-                <div 
-                  className="w-14 h-14 rounded-full flex items-center justify-center shadow-inner mt-2 mb-4 relative z-10"
-                  style={{ backgroundColor: `${item.color}15`, border: `1px solid ${item.color}30` }}
-                >
-                  <item.icon size={26} style={{ color: item.color }} />
-                </div>
+                  {item.badge && (
+                    <span className="absolute top-4 right-4 px-2.5 py-1 rounded-lg text-[8px] font-black tracking-tighter uppercase text-white/80 bg-white/10 border border-white/5 shadow-sm z-10">
+                      {item.badge}
+                    </span>
+                  )}
 
-                <div className="flex-1 relative z-10 flex flex-col items-center">
-                  <h3 className="text-white font-black text-[15px] leading-tight tracking-tight mb-1.5">{item.title}</h3>
-                  <p className="text-white/40 text-[10px] font-bold leading-snug line-clamp-2 px-1">{item.desc}</p>
-                </div>
-
-                <div className="mt-5 w-full relative z-10">
-                  <div className="mb-4 flex items-baseline justify-center gap-1">
-                    <span className="text-white font-black text-[24px] tracking-tighter tabular-nums leading-none" dir="ltr">{item.price.toLocaleString()}</span>
-                    <span className="text-white/30 text-[10px] font-black leading-none">CRD</span>
+                  <div 
+                    className="w-14 h-14 rounded-full flex items-center justify-center shadow-inner mt-2 mb-4 relative z-10"
+                    style={{ backgroundColor: `${item.color}15`, border: `1px solid ${item.color}30` }}
+                  >
+                    <item.icon size={26} style={{ color: item.color }} />
                   </div>
 
-                  <Button
-                    className={`w-full h-11 rounded-2xl font-black text-[11px] tracking-widest uppercase transition-all ${
-                      balance !== null && balance >= item.price
-                        ? 'bg-white text-black shadow-md'
-                        : 'bg-white/5 text-white/30 border border-white/5'
-                    }`}
-                  >
-                    {balance !== null && balance >= item.price ? 'רכישה' : 'חסר'}
-                  </Button>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </div>
+                  <div className="flex-1 relative z-10 flex flex-col items-center">
+                    <h3 className="text-white font-black text-[15px] leading-tight tracking-tight mb-1.5">{item.title}</h3>
+                    <p className="text-white/40 text-[10px] font-bold leading-snug line-clamp-2 px-1">{item.desc}</p>
+                  </div>
 
-      {/* Purchase Modal - Bottom Sheet z-[99999] */}
+                  <div className="mt-5 w-full relative z-10">
+                    <div className="mb-4 flex items-baseline justify-center gap-1">
+                      <span className="text-white font-black text-[24px] tracking-tighter tabular-nums leading-none" dir="ltr">{item.price.toLocaleString()}</span>
+                      <span className="text-white/30 text-[10px] font-black leading-none">CRD</span>
+                    </div>
+
+                    <Button
+                      className={`w-full h-11 rounded-2xl font-black text-[11px] tracking-widest uppercase transition-all ${
+                        balance !== null && balance >= item.price
+                          ? 'bg-white text-black shadow-md'
+                          : 'bg-white/5 text-white/30 border border-white/5'
+                      }`}
+                    >
+                      {balance !== null && balance >= item.price ? 'רכישה' : 'חסר'}
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </FadeIn>
+
+      {/* Purchase Modal - Extracted from FadeIn to ignore CSS transforms */}
       <AnimatePresence>
         {selectedItem && (
-          <div className="fixed inset-0 z-[99999] flex flex-col justify-end" onTouchStart={stopPropagation}>
+          <div className="fixed inset-0 z-[999999] flex flex-col justify-end" dir="rtl" onTouchStart={stopPropagation}>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedItem(null)}/>
             <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: "spring", damping: 25, stiffness: 350 }} className="relative z-10 bg-[#0A0A0A] rounded-t-[40px] p-6 pb-10 border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.8)]">
               <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-8" />
@@ -233,12 +235,12 @@ export const BoostStorePage: React.FC = () => {
                 <Button onClick={() => handleBuy(selectedItem)} disabled={buyingId === selectedItem.id} className="flex-1 h-14 bg-white text-black rounded-2xl font-black text-lg active:scale-95 shadow-xl">
                   {buyingId === selectedItem.id ? <Loader2 size={20} className="animate-spin" /> : 'אשר ושלם'}
                 </Button>
-                <button onClick={() => setSelectedItem(null)} className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10 active:scale-90"><X size={24} className="text-white/70" /></button>
+                <button onClick={() => setSelectedItem(null)} className="w-14 h-14 bg-[#111] rounded-2xl flex items-center justify-center border border-white/10 active:scale-90"><X size={24} className="text-white/70" /></button>
               </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
-    </FadeIn>
+    </>
   );
 };
