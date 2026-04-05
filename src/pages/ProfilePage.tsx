@@ -8,6 +8,7 @@ import {
   Heart,
   MessageSquare,
   MoreVertical,
+  MoreHorizontal,
   Share2,
   Reply,
   Trash2,
@@ -572,7 +573,7 @@ export const ProfilePage: React.FC = () => {
         )}
         <div className="absolute top-6 right-5 flex flex-col items-center">
           <span className="text-accent-primary text-[10px] font-black uppercase tracking-widest mb-0.5">רמה</span>
-          <span className="text-brand font-black text-[24px] leading-none drop-shadow-md">{currentLevel}</span>
+          <span className="text-white font-black text-[24px] leading-none drop-shadow-md">{currentLevel}</span>
         </div>
       </motion.div>
 
@@ -594,11 +595,11 @@ export const ProfilePage: React.FC = () => {
             <p className="text-brand-muted font-bold text-[13px] tracking-widest mb-5" dir="ltr">@{userProfile?.username || 'user'}</p>
 
             <div className="flex items-center justify-center gap-3 text-[14px] text-brand-muted font-medium mb-6 w-full max-w-[300px] mx-auto flex-wrap">
-              <span className="cursor-pointer hover:text-brand transition-colors" onClick={() => openUsersListSheet('followers')}>עוקבים <span className="font-black text-accent-primary">{followersCount}</span></span>
+              <span className="cursor-pointer hover:text-brand transition-colors" onClick={() => openUsersListSheet('followers')}>עוקבים <span className="font-black text-white">{followersCount}</span></span>
               <span className="text-white/[0.1]">•</span>
-              <span className="cursor-pointer hover:text-brand transition-colors" onClick={() => openUsersListSheet('following')}>נעקבים <span className="font-black text-accent-primary">{followingCount}</span></span>
+              <span className="cursor-pointer hover:text-brand transition-colors" onClick={() => openUsersListSheet('following')}>נעקבים <span className="font-black text-white">{followingCount}</span></span>
               <span className="text-white/[0.1]">•</span>
-              <span>מוניטין <span className="font-black text-accent-primary">{trueReputation}</span></span>
+              <span>מוניטין <span className="font-black text-white">{trueReputation}</span></span>
             </div>
 
             {!isMyProfile && (
@@ -669,7 +670,6 @@ export const ProfilePage: React.FC = () => {
             )}
           </div>
 
-          {/* מדד התקדמות עבה וצבעוני */}
           <div className="w-full flex flex-col gap-3 px-2 mb-6">
             <div className="flex justify-between items-center w-full">
               <span className="text-brand-muted text-[13px] font-bold">רצף: <span className="text-white">{streak} ימים</span></span>
@@ -696,10 +696,10 @@ export const ProfilePage: React.FC = () => {
                     <div className="col-span-3 text-center py-10 text-brand-muted text-[14px] font-bold">אין פוסטים עדיין</div>
                   ) : (
                     userPosts.map((post: any) => (
-                      <div key={post.id} onClick={() => { openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = mediaPosts.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[4/5] bg-surface-card relative overflow-hidden cursor-pointer active:opacity-70 border border-white/[0.05] rounded-[20px]">
+                      <div key={post.id} onClick={() => { openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = mediaPosts.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[3/4] bg-surface-card relative overflow-hidden cursor-pointer active:opacity-70 border border-white/[0.05] rounded-[20px]">
                         {isMyProfile && (
-                          <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'post' })); }} className="absolute top-2 left-2 z-20 p-2 bg-black/50 backdrop-blur-md rounded-full text-brand hover:bg-black/70 transition-colors">
-                            <MoreVertical size={16} />
+                          <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'post' })); }} className="absolute top-2 left-2 z-20 p-2 text-white drop-shadow-md hover:text-white/70 transition-colors">
+                            <MoreHorizontal size={20} />
                           </button>
                         )}
                         {post.media_url ? (post.media_type === 'video' ? <video src={post.media_url} className="w-full h-full object-cover" /> : <img src={post.media_url} className="w-full h-full object-cover" />) : <div className="w-full h-full flex items-center justify-center p-2 text-center text-brand-muted text-[11px] line-clamp-3 font-medium">{post.content}</div>}
@@ -712,9 +712,9 @@ export const ProfilePage: React.FC = () => {
               {activeTab === 'joined' && (
                 <motion.div key="joined" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-1">
                   {joinedCircles.map((circle: any) => (
-                    <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className="aspect-[4/5] bg-surface-card relative overflow-hidden cursor-pointer border border-white/[0.05] rounded-[20px] group">
-                      <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: circle, type: 'circle' })); }} className="absolute top-2 left-2 z-20 p-2 bg-black/50 backdrop-blur-md rounded-full text-brand hover:bg-black/70 transition-colors opacity-0 group-hover:opacity-100 touch-manipulation">
-                        <MoreVertical size={16} />
+                    <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className="aspect-[3/4] bg-surface-card relative overflow-hidden cursor-pointer border border-white/[0.05] rounded-[20px] group">
+                      <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: circle, type: 'circle' })); }} className="absolute top-2 left-2 z-20 p-2 text-white drop-shadow-md hover:text-white/70 transition-colors opacity-0 group-hover:opacity-100 touch-manipulation">
+                        <MoreHorizontal size={20} />
                       </button>
                       {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover opacity-80" /> : <div className="w-full h-full flex items-center justify-center text-brand-muted font-black text-2xl">{circle.name?.charAt(0)}</div>}
                       <div className="absolute bottom-0 w-full p-2 bg-surface/80 backdrop-blur-sm text-center border-t border-white/[0.05]"><span className="text-brand text-[10px] font-bold line-clamp-1">{circle.name}</span></div>
@@ -729,9 +729,9 @@ export const ProfilePage: React.FC = () => {
                     <div className="col-span-3 text-center py-10 text-brand-muted text-[14px] font-bold">אין פוסטים שמורים</div>
                   ) : (
                     userSavedPosts.map((post: any) => (
-                      <div key={post.id} onClick={() => { const savedMedia = userSavedPosts.filter((p: any) => p.media_url); openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = savedMedia.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[4/5] bg-surface-card relative overflow-hidden cursor-pointer active:opacity-70 border border-white/[0.05] rounded-[20px]">
-                        <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'saved' })); }} className="absolute top-2 left-2 z-20 p-2 bg-black/50 backdrop-blur-md rounded-full text-brand hover:bg-black/70 transition-colors">
-                          <MoreVertical size={16} />
+                      <div key={post.id} onClick={() => { const savedMedia = userSavedPosts.filter((p: any) => p.media_url); openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = savedMedia.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[3/4] bg-surface-card relative overflow-hidden cursor-pointer active:opacity-70 border border-white/[0.05] rounded-[20px]">
+                        <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'saved' })); }} className="absolute top-2 left-2 z-20 p-2 text-white drop-shadow-md hover:text-white/70 transition-colors">
+                          <MoreHorizontal size={20} />
                         </button>
                         {post.media_url ? (post.media_type === 'video' ? <video src={post.media_url} className="w-full h-full object-cover" /> : <img src={post.media_url} className="w-full h-full object-cover" />) : <div className="w-full h-full flex items-center justify-center p-2 text-center text-brand-muted text-[11px] line-clamp-3 font-medium">{post.content}</div>}
                       </div>
