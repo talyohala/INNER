@@ -116,39 +116,33 @@ export const ExplorePage: React.FC = () => {
 
   return (
     <FadeIn
-      className="px-5 pt-4 pb-28 bg-[#050505] min-h-screen font-sans flex flex-col gap-6 overflow-x-hidden relative"
+      className="px-5 pt-4 pb-28 min-h-screen font-sans flex flex-col gap-6 overflow-x-hidden relative"
       dir="rtl"
     >
-      {/* ענני אור לבן ברקע ליצירת עומק והשתקפות לזכוכית */}
-      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-5%] left-[-15%] w-[70%] h-[35%] bg-white/[0.04] blur-[120px] rounded-full mix-blend-screen" />
-        <div className="absolute bottom-[20%] right-[-15%] w-[60%] h-[40%] bg-white/[0.02] blur-[120px] rounded-full mix-blend-screen" />
-      </div>
-
-      {/* שורת חיפוש מזכוכית שקופה (מראה) עם פס השתקפות עליון עדין */}
-      <div className="relative flex items-center w-full mt-2 bg-white/[0.03] backdrop-blur-2xl border border-white/10 rounded-[20px] shadow-[inset_0_1px_2px_rgba(255,255,255,0.05)] z-10">
-        <Search size={20} className="absolute right-4 text-white/40 pointer-events-none" />
+      {/* שורת חיפוש - הזכוכית הלבנה והיפה! (נשארת יפה גם בבהיר וגם בכהה) */}
+      <div className="relative flex items-center w-full mt-2 bg-white/90 backdrop-blur-[40px] border border-black/5 dark:border-white/40 rounded-[24px] shadow-[0_10px_40px_rgba(0,0,0,0.08)] dark:shadow-[0_10px_40px_rgba(0,0,0,0.3)] z-10 transition-all">
+        <Search size={22} className="absolute right-5 text-black/40 pointer-events-none" />
         
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder={activeMainTab === 'clubs' ? 'חיפוש מועדונים...' : 'חיפוש משתמשים...'}
-          className="w-full bg-transparent py-4 pr-12 pl-12 text-white text-[16px] font-medium placeholder:text-white/30 outline-none"
+          placeholder="חיפוש..."
+          className="w-full bg-transparent py-4 pr-14 pl-12 text-black text-[18px] font-black placeholder:text-black/30 outline-none"
         />
 
         {search && (
           <button 
             onClick={() => { triggerFeedback('pop'); setSearch(''); }} 
-            className="absolute left-4 text-white/40 hover:text-white transition-colors"
+            className="absolute left-4 p-2 opacity-40 hover:opacity-100 transition-opacity"
           >
-            <X size={20} />
+            <X size={20} className="text-black" />
           </button>
         )}
       </div>
 
-      {/* טאבים ראשיים נקיים - נטו טקסט */}
-      <div className="flex gap-8 border-b border-white/10 pb-2 z-10 relative">
+      {/* טאבים ראשיים - טקסט נטו עם שינוי צבע */}
+      <div className="flex gap-8 border-b border-black/10 dark:border-white/10 pb-2 z-10 relative transition-colors">
         <button
           onClick={() => {
             triggerFeedback('pop');
@@ -156,7 +150,7 @@ export const ExplorePage: React.FC = () => {
             setSearch('');
           }}
           className={`text-[16px] font-black transition-colors pb-2 ${
-            activeMainTab === 'clubs' ? 'text-white border-b-2 border-white' : 'text-white/40 hover:text-white/70 border-b-2 border-transparent'
+            activeMainTab === 'clubs' ? 'text-black dark:text-white border-b-2 border-black dark:border-white' : 'text-black/30 dark:text-white/30 hover:text-black/60 dark:hover:text-white/60 border-b-2 border-transparent'
           }`}
         >
           מועדונים
@@ -169,7 +163,7 @@ export const ExplorePage: React.FC = () => {
             setSearch('');
           }}
           className={`text-[16px] font-black transition-colors pb-2 ${
-            activeMainTab === 'users' ? 'text-white border-b-2 border-white' : 'text-white/40 hover:text-white/70 border-b-2 border-transparent'
+            activeMainTab === 'users' ? 'text-black dark:text-white border-b-2 border-black dark:border-white' : 'text-black/30 dark:text-white/30 hover:text-black/60 dark:hover:text-white/60 border-b-2 border-transparent'
           }`}
         >
           משתמשים
@@ -195,7 +189,7 @@ export const ExplorePage: React.FC = () => {
                     setActiveVibe(vibe);
                   }}
                   className={`text-[14px] font-bold whitespace-nowrap transition-colors ${
-                    activeVibe === vibe ? 'text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]' : 'text-white/30 hover:text-white/60'
+                    activeVibe === vibe ? 'text-black dark:text-white drop-shadow-[0_0_8px_rgba(0,0,0,0.2)] dark:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]' : 'text-black/30 dark:text-white/30 hover:text-black/60 dark:hover:text-white/60'
                   }`}
                 >
                   {vibe}
@@ -205,12 +199,12 @@ export const ExplorePage: React.FC = () => {
 
             {loading ? (
               <div className="py-16 flex justify-center">
-                <Loader2 className="animate-spin text-white/20" />
+                <Loader2 className="animate-spin text-black/20 dark:text-white/20" />
               </div>
             ) : filteredCircles.length === 0 ? (
               <div className="text-center py-16 flex flex-col items-center gap-4">
-                <span className="text-white/40 font-medium text-[16px]">לא נמצאו מועדונים</span>
-                <button onClick={() => navigate('/create-circle')} className="text-white font-bold underline underline-offset-4 opacity-70 hover:opacity-100 transition-opacity">
+                <span className="text-black/40 dark:text-white/40 font-medium text-[16px]">לא נמצאו מועדונים</span>
+                <button onClick={() => navigate('/create-circle')} className="text-black dark:text-white font-bold underline underline-offset-4 opacity-70 hover:opacity-100 transition-opacity">
                   פתח מועדון משלך
                 </button>
               </div>
@@ -224,31 +218,31 @@ export const ExplorePage: React.FC = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3, delay: Math.min(idx * 0.05, 0.3) }}
                   >
-                    {/* שורת מועדון - נטו תוכן, בלי קופסאות */}
+                    {/* שורת מועדון - נטו תוכן, בלי קופסאות, קו תחתון מפריד */}
                     <div
                       onClick={() => {
                         if (search.trim()) saveRecentSearch(search.trim());
                         triggerFeedback('pop');
                         navigate(`/circle/${circle.slug}`);
                       }}
-                      className="py-4 border-b border-white/10 flex items-center justify-between cursor-pointer group hover:bg-white/[0.02] transition-colors"
+                      className="py-4 border-b border-black/5 dark:border-white/10 flex items-center justify-between cursor-pointer group hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors -mx-5 px-5"
                     >
-                      <div className="flex items-center gap-4 text-right">
+                      <div className="flex items-center gap-5 text-right">
                         {circle.cover_url ? (
-                          <img src={circle.cover_url} className="w-14 h-14 rounded-full object-cover" />
+                          <img src={circle.cover_url} className="w-14 h-14 rounded-full object-cover shadow-sm" />
                         ) : (
-                          <UserCircle size={56} className="text-white/10" strokeWidth={1} />
+                          <UserCircle size={56} className="text-black/10 dark:text-white/10" strokeWidth={1} />
                         )}
 
                         <div className="flex flex-col">
-                          <span className="text-white font-black text-[17px]">{circle.name}</span>
-                          <span className="text-white/40 text-[12px] font-medium mt-0.5">
+                          <span className="text-black dark:text-white font-black text-[18px]">{circle.name}</span>
+                          <span className="text-black/40 dark:text-white/40 text-[12px] font-medium mt-0.5">
                             {circle.members_count || 0} חברים
                           </span>
                         </div>
                       </div>
 
-                      <ChevronLeft size={20} className="text-white/20 group-hover:text-white/60 transition-colors" />
+                      <ChevronLeft size={20} className="text-black/20 dark:text-white/20 group-hover:text-black/50 dark:group-hover:text-white/50 transition-colors" />
                     </div>
                   </motion.div>
                 ))}
@@ -271,19 +265,19 @@ export const ExplorePage: React.FC = () => {
                 {recentSearches.length > 0 && (
                   <div className="flex flex-col">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-white/40 text-[11px] font-bold uppercase tracking-widest">חיפושים אחרונים</span>
-                      <button onClick={() => { triggerFeedback('pop'); setRecentSearches([]); localStorage.removeItem('inner_recent_searches'); }} className="text-white/40 hover:text-white text-[11px] font-bold">נקה</button>
+                      <span className="text-black/30 dark:text-white/30 text-[11px] font-bold uppercase tracking-widest">חיפושים אחרונים</span>
+                      <button onClick={() => { triggerFeedback('pop'); setRecentSearches([]); localStorage.removeItem('inner_recent_searches'); }} className="text-black/30 dark:text-white/30 hover:text-black dark:hover:text-white text-[11px] font-bold">נקה</button>
                     </div>
 
                     <div className="flex flex-col">
                       {recentSearches.map((term, i) => (
-                        <div key={i} className="flex items-center justify-between py-4 border-b border-white/10 hover:bg-white/[0.02] cursor-pointer transition-colors" onClick={() => { triggerFeedback('pop'); setSearch(term); }}>
+                        <div key={i} className="flex items-center justify-between py-4 border-b border-black/5 dark:border-white/10 -mx-5 px-5 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] cursor-pointer transition-colors" onClick={() => { triggerFeedback('pop'); setSearch(term); }}>
                           <div className="flex items-center gap-4">
-                            <Search size={18} className="text-white/30" />
-                            <span className="text-white font-medium text-[16px]">{term}</span>
+                            <Search size={18} className="text-black/30 dark:text-white/30" />
+                            <span className="text-black dark:text-white font-medium text-[16px]">{term}</span>
                           </div>
-                          <button onClick={(e) => removeRecentSearch(term, e)} className="text-white/30 hover:text-white transition-colors">
-                            <X size={18} />
+                          <button onClick={(e) => removeRecentSearch(term, e)} className="opacity-30 hover:opacity-100 p-2 -m-2 transition-opacity">
+                            <X size={18} className="text-black dark:text-white" />
                           </button>
                         </div>
                       ))}
@@ -292,26 +286,26 @@ export const ExplorePage: React.FC = () => {
                 )}
 
                 <div className="flex flex-col">
-                  <span className="text-white/40 text-[11px] font-bold uppercase tracking-widest mb-2">הצעות עבורך</span>
+                  <span className="text-black/30 dark:text-white/30 text-[11px] font-bold uppercase tracking-widest mb-2">הצעות עבורך</span>
 
                   {loadingSuggestions ? (
-                    <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-white/20" /></div>
+                    <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-black/20 dark:text-white/20" /></div>
                   ) : (
                     <div className="flex flex-col">
                       {suggestedUsers.map((u) => (
-                        <div key={u.id} className="py-4 border-b border-white/10 flex items-center justify-between cursor-pointer group hover:bg-white/[0.02] transition-colors" onClick={() => { if (search.trim()) saveRecentSearch(search.trim()); triggerFeedback('pop'); navigate(`/profile/${u.id}`); }}>
-                          <div className="flex items-center gap-4">
+                        <div key={u.id} className="py-4 border-b border-black/5 dark:border-white/10 flex items-center justify-between cursor-pointer group hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors -mx-5 px-5" onClick={() => { if (search.trim()) saveRecentSearch(search.trim()); triggerFeedback('pop'); navigate(`/profile/${u.id}`); }}>
+                          <div className="flex items-center gap-5">
                             {u.avatar_url ? (
-                              <img src={u.avatar_url} className="w-14 h-14 rounded-full object-cover" />
+                              <img src={u.avatar_url} className="w-14 h-14 rounded-full object-cover shadow-sm" />
                             ) : (
-                              <UserCircle size={56} className="text-white/10" strokeWidth={1} />
+                              <UserCircle size={56} className="text-black/10 dark:text-white/10" strokeWidth={1} />
                             )}
                             <div className="flex flex-col text-right">
-                              <span className="text-white font-black text-[17px]">{u.full_name || 'משתמש'}</span>
-                              <span className="text-white/40 text-[12px] font-medium mt-0.5" dir="ltr">@{u.username || 'user'} • רמה {u.level || 1}</span>
+                              <span className="text-black dark:text-white font-black text-[18px]">{u.full_name || 'משתמש'}</span>
+                              <span className="text-black/40 dark:text-white/40 text-[12px] font-medium mt-0.5" dir="ltr">@{u.username || 'user'} • רמה {u.level || 1}</span>
                             </div>
                           </div>
-                          <ChevronLeft size={20} className="text-white/20 group-hover:text-white/60 transition-colors" />
+                          <ChevronLeft size={20} className="text-black/20 dark:text-white/20 group-hover:text-black/50 dark:group-hover:text-white/50 transition-colors" />
                         </div>
                       ))}
                     </div>
@@ -319,45 +313,43 @@ export const ExplorePage: React.FC = () => {
                 </div>
               </div>
             ) : (
-              /* מצב שבו המשתמש מקליד חיפוש - רשימת תוצאות */
+              /* רשימת תוצאות חיפוש משתמשים */
               <>
-                {/* טאבים משניים לחיפוש */}
-                <div className="flex gap-6 border-b border-white/10 pb-2">
-                  <button onClick={() => { triggerFeedback('pop'); setActiveSearchTab('top'); }} className={`text-[14px] font-bold whitespace-nowrap transition-colors ${activeSearchTab === 'top' ? 'text-white' : 'text-white/30 hover:text-white/60'}`}>מובילים</button>
-                  <button onClick={() => { triggerFeedback('pop'); setActiveSearchTab('accounts'); }} className={`text-[14px] font-bold whitespace-nowrap transition-colors ${activeSearchTab === 'accounts' ? 'text-white' : 'text-white/30 hover:text-white/60'}`}>חשבונות</button>
-                  <button onClick={() => { triggerFeedback('pop'); setActiveSearchTab('tags'); }} className={`text-[14px] font-bold whitespace-nowrap transition-colors ${activeSearchTab === 'tags' ? 'text-white' : 'text-white/30 hover:text-white/60'}`}>ביו</button>
+                <div className="flex gap-8 overflow-x-auto scrollbar-hide pb-2">
+                  <button onClick={() => { triggerFeedback('pop'); setActiveSearchTab('top'); }} className={`text-[14px] font-bold whitespace-nowrap transition-colors ${activeSearchTab === 'top' ? 'text-black dark:text-white' : 'text-black/30 dark:text-white/30 hover:text-black/60 dark:hover:text-white/60'}`}>מובילים</button>
+                  <button onClick={() => { triggerFeedback('pop'); setActiveSearchTab('accounts'); }} className={`text-[14px] font-bold whitespace-nowrap transition-colors ${activeSearchTab === 'accounts' ? 'text-black dark:text-white' : 'text-black/30 dark:text-white/30 hover:text-black/60 dark:hover:text-white/60'}`}>חשבונות</button>
+                  <button onClick={() => { triggerFeedback('pop'); setActiveSearchTab('tags'); }} className={`text-[14px] font-bold whitespace-nowrap transition-colors ${activeSearchTab === 'tags' ? 'text-black dark:text-white' : 'text-black/30 dark:text-white/30 hover:text-black/60 dark:hover:text-white/60'}`}>ביו</button>
                 </div>
 
                 <div>
                   {loading ? (
                     <div className="py-16 flex justify-center">
-                      <Loader2 className="animate-spin text-white/20" size={28} />
+                      <Loader2 className="animate-spin text-black/20 dark:text-white/20" size={28} />
                     </div>
                   ) : (
                     <AnimatePresence mode="wait">
                       <motion.div key="users-list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col">
                         {usersListData.length === 0 ? (
                           <div className="text-center py-16 flex flex-col items-center gap-3">
-                            <span className="text-white/40 text-[16px] font-medium">לא מצאנו תוצאות</span>
+                            <span className="text-black/40 dark:text-white/40 text-[16px] font-medium">לא מצאנו תוצאות</span>
                           </div>
                         ) : (
                           usersListData.map((u, idx) => (
                             <motion.div key={u.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: Math.min(idx * 0.05, 0.2) }}>
-                              {/* שורת משתמש - נטו טקסט ותמונה */}
-                              <div onClick={() => { if (search.trim()) saveRecentSearch(search.trim()); triggerFeedback('pop'); navigate(`/profile/${u.id}`); }} className="py-4 border-b border-white/10 flex items-center justify-between cursor-pointer group hover:bg-white/[0.02] transition-colors">
-                                <div className="flex items-center gap-4 text-right">
+                              <div onClick={() => { if (search.trim()) saveRecentSearch(search.trim()); triggerFeedback('pop'); navigate(`/profile/${u.id}`); }} className="py-4 border-b border-black/5 dark:border-white/10 flex items-center justify-between cursor-pointer group hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors -mx-5 px-5">
+                                <div className="flex items-center gap-5 text-right">
                                   {u.avatar_url ? (
-                                    <img src={u.avatar_url} className="w-14 h-14 rounded-full object-cover" />
+                                    <img src={u.avatar_url} className="w-14 h-14 rounded-full object-cover shadow-sm" />
                                   ) : (
-                                    <UserCircle size={56} className="text-white/10" strokeWidth={1} />
+                                    <UserCircle size={56} className="text-black/10 dark:text-white/10" strokeWidth={1} />
                                   )}
                                   <div className="flex flex-col">
-                                    <span className="text-white text-[17px] font-black">{u.full_name || 'משתמש'}</span>
-                                    <span className="text-white/40 text-[12px] font-medium mt-0.5" dir="ltr">@{u.username || 'user'}</span>
-                                    {activeSearchTab === 'tags' && u.bio && <span className="text-white/60 text-[11px] mt-1 line-clamp-1">{u.bio}</span>}
+                                    <span className="text-black dark:text-white text-[18px] font-black">{u.full_name || 'משתמש'}</span>
+                                    <span className="text-black/40 dark:text-white/40 text-[12px] font-medium mt-0.5" dir="ltr">@{u.username || 'user'}</span>
+                                    {activeSearchTab === 'tags' && u.bio && <span className="text-black/60 dark:text-white/60 text-[11px] mt-1 line-clamp-1">{u.bio}</span>}
                                   </div>
                                 </div>
-                                <ChevronLeft size={20} className="text-white/20 group-hover:text-white/60 transition-colors" />
+                                <ChevronLeft size={20} className="text-black/20 dark:text-white/20 group-hover:text-black/50 dark:group-hover:text-white/50 transition-colors" />
                               </div>
                             </motion.div>
                           ))

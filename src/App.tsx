@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -36,17 +36,27 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
-  if (loading) return <div className="min-h-screen bg-surface flex items-center justify-center text-white/20 font-black tracking-widest">LOADING...</div>;
+  if (loading) return <div className="min-h-screen bg-white dark:bg-[#050505] flex items-center justify-center text-black/20 dark:text-white/20 font-black tracking-widest">LOADING...</div>;
   if (!user) return <Navigate to="/auth" />;
   return <>{children}</>;
 };
 
 export const App = () => {
+  // מערכת ניהול מצב כהה/בהיר חכמה
+  useEffect(() => {
+    const theme = localStorage.getItem('inner_theme') || 'dark'; // כרגע כברירת מחדל על כהה
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, []);
+
   return (
     <ErrorBoundary>
       <AuthProvider>
         <Router>
-          <div className="bg-surface min-h-screen text-white font-sans selection:bg-white/20 relative" dir="rtl">
+          <div className="bg-[#F9FAFB] dark:bg-[#050505] min-h-screen text-black dark:text-white font-sans selection:bg-black/10 dark:selection:bg-white/20 relative transition-colors duration-300" dir="rtl">
             <Toaster position="top-center" toastOptions={{ style: { background: 'rgba(20, 20, 22, 0.9)', backdropFilter: 'blur(20px)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '100px', fontSize: '12px', fontWeight: 'bold', padding: '12px 24px' } }} />
             <Layout>
               <Routes>

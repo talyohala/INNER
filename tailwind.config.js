@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: 'class', // הכנה רשמית למצב בהיר/כהה
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
@@ -8,13 +9,13 @@ export default {
     extend: {
       colors: {
         surface: {
-          DEFAULT: '#141416', // אפור פחם עמוק (החזרתי)
-          card: 'rgba(255, 255, 255, 0.1)', // לבן שקוף לחלוטין (לא אפור)
-          border: 'rgba(255, 255, 255, 0.25)', // גבול לבן וחזק יותר להשתקפות של המראה
+          DEFAULT: '#141416', 
+          card: 'rgba(255, 255, 255, 0.1)', 
+          border: 'rgba(255, 255, 255, 0.25)', 
         },
         brand: {
-          DEFAULT: '#FFFFFF', // לבן בוהק
-          muted: '#A1A1AA', // אפור בהיר לטקסט
+          DEFAULT: '#FFFFFF',
+          muted: '#A1A1AA',
         },
         accent: {
           crd: '#C2A382',
