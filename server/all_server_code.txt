@@ -1,0 +1,1026 @@
+==> src/lib/supabase.ts <==
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+dotenv.config();
+
+const supabaseUrl = process.env.SUPABASE_URL as string;
+const supabaseServiceRole = process.env.SUPABASE_SERVICE_ROLE as string;
+
+if (!supabaseUrl || !supabaseServiceRole) {
+  console.error('🚨 חסרים משתני סביבה בשרת: SUPABASE_URL או SUPABASE_SERVICE_ROLE');
+}
+
+export const supabase = createClient(supabaseUrl || '', supabaseServiceRole || '');
+
+==> src/lib/stripe.ts <==
+import Stripe from 'stripe';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const secret = process.env.STRIPE_SECRET_KEY || '';
+
+// אנו משתמשים בגרסת ה-API העדכנית (מוגדר כ-any כדי למנוע שגיאות טייפ בגרסאות שונות)
+export const stripe = secret
+  ? new Stripe(secret, {
+      apiVersion: '2023-10-16' as any
+    })
+  : null;
+
+==> src/lib/rateLimit.ts <==
+import type { Request, Response, NextFunction } from 'express';
+
+type Entry = {
+  count: number;
+  resetAt: number;
+};
+
+const buckets = new Map<string, Entry>();
+
+export function simpleRateLimit(limit: number, windowMs: number) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const key = `${req.ip}:${req.path}`;
+    const now = Date.now();
+    const current = buckets.get(key);
+
+    if (!current || current.resetAt < now) {
+      buckets.set(key, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+
+    if (current.count >= limit) {
+      return res.status(429).send('Too many requests');
+    }
+
+    current.count += 1;
+    buckets.set(key, current);
+    next();
+  };
+}
+
+==> src/lib/moderation.ts <==
+export async function moderateText(input: string): Promise<{ flagged: boolean; reason?: string }> {
+  const text = input.trim().toLowerCase();
+
+  // רשימת מילים חסומות לדוגמה (אפשר להרחיב או לחבר ל-API של AI)
+  const blocked = [
+    'terror',
+    'explosive',
+    'child abuse',
+    'nazi'
+  ];
+
+  for (const term of blocked) {
+    if (text.includes(term)) {
+      return { flagged: true, reason: `Matched blocked term: ${term}` };
+    }
+  }
+
+  return { flagged: false };
+}
+
+==> src/lib/scoring.ts <==
+export function calcRankingScore(params: {
+  membersCount: number;
+  joinPrice: number;
+  latestDropAt?: string | null;
+  giftsCredits7d?: number;
+  messages7d?: number;
+}) {
+  const freshnessBoost = params.latestDropAt
+    ? Math.max(0, 100 - Math.floor((Date.now() - new Date(params.latestDropAt).getTime()) / (1000 * 60 * 60 * 12)))
+    : 0;
+
+  return (
+    params.membersCount * 2 +
+    params.joinPrice * 1.5 +
+    (params.giftsCredits7d || 0) * 0.08 +
+    (params.messages7d || 0) * 0.5 +
+    freshnessBoost
+  );
+}
+
+==> src/lib/gamification.ts <==
+import { supabase } from './supabase';
+
+export const rewardXP = async (userId: string, xpToAdd: number) => {
+  try {
+    const { data: profile } = await supabase.from('profiles').select('xp, level').eq('id', userId).single();
+    if (!profile) return null;
+
+    let currentXP = profile.xp || 0;
+    let currentLevel = profile.level || 1;
+    let leveledUp = false;
+
+    currentXP += xpToAdd;
+    let xpRequired = currentLevel * 1000;
+
+    // בדיקה אם המשתמש חצה את הרף ועלה רמה
+    if (currentXP >= xpRequired) {
+      currentLevel += 1;
+      currentXP -= xpRequired; // מאפסים את המד לרמה החדשה
+      leveledUp = true;
+    }
+
+    await supabase.from('profiles').update({ xp: currentXP, level: currentLevel }).eq('id', userId);
+    
+    return { xp: currentXP, level: currentLevel, leveledUp };
+  } catch (err) {
+    console.error('Error adding XP:', err);
+    return null;
+  }
+};
+
+==> src/middleware/auth.ts <==
+import { Request, Response, NextFunction } from 'express';
+import { supabase } from '../lib/supabase';
+
+export interface AuthedRequest extends Request {
+  user?: { id: string; email?: string; [key: string]: any; };
+}
+
+export const requireAuth = async (req: AuthedRequest, res: Response, next: NextFunction) => {
+  try {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    
+    if (!token) return res.status(401).json({ error: 'חסר טוקן התחברות' });
+
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data?.user) return res.status(401).json({ error: 'טוקן פג תוקף או לא חוקי' });
+
+    req.user = data.user;
+    next();
+  } catch (err) {
+    res.status(500).json({ error: 'שגיאת אבטחה פנימית' });
+  }
+};
+
+==> src/routes/feed.ts <==
+import { Router } from 'express';
+import { supabase } from '../lib/supabase';
+import { rewardXP } from '../lib/gamification';
+
+const router = Router();
+
+router.get('/', async (req, res) => {
+  const userId = req.headers['x-user-id'] as string;
+  try {
+    const { data, error } = await supabase
+      .from('posts')
+      .select('id, content, created_at, profiles!inner (id, full_name, username, avatar_url), likes (user_id), comments (id)')
+      .is('circle_id', null)
+      .order('created_at', { ascending: false })
+      .limit(30);
+
+    if (error) throw error;
+
+    const formattedData = data.map((post: any) => ({
+      ...post,
+      likes_count: post.likes?.length || 0,
+      comments_count: post.comments?.length || 0,
+      is_liked: post.likes?.some((like: any) => like.user_id === userId) || false
+    }));
+
+    res.json(formattedData);
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+router.post('/', async (req, res) => {
+  const userId = req.headers['x-user-id'] as string;
+  const { content } = req.body;
+  if (!userId || !content) return res.status(400).json({ error: 'שגיאה בנתונים' });
+
+  try {
+    const { data, error } = await supabase.from('posts').insert({ user_id: userId, content }).select().single();
+    if (error) throw error;
+    
+    // מנוע ההתמכרות: מחלקים 50 XP על פרסום פוסט בלובי!
+    const xpReward = await rewardXP(userId, 50);
+
+    // מחזירים ללקוח גם את הפוסט וגם את הבונוס שקיבל
+    res.json({ ...data, xpReward });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+export default router;
+
+==> src/routes/auth.ts <==
+import { Router } from 'express';
+import { supabase } from '../lib/supabase';
+
+const router = Router();
+
+router.post('/signup', async (req, res) => {
+  try {
+    const { email, password, fullName } = req.body || {};
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName || null
+        }
+      }
+    });
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    return res.json(data);
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Signup failed' });
+  }
+});
+
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    return res.json(data);
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Login failed' });
+  }
+});
+
+export default router;
+
+==> src/routes/me.ts <==
+import { Router } from 'express';
+import { requireAuth, AuthedRequest } from '../middleware/auth';
+import { supabase } from '../lib/supabase';
+
+const router = Router();
+
+router.get('/profile', requireAuth, async (req: AuthedRequest, res) => {
+  const { data, error } = await supabase.from('profiles').select('*').eq('id', req.user!.id).single();
+  if (error) return res.status(400).json({ error: error.message });
+  res.json(data);
+});
+
+router.get('/collection', requireAuth, async (req: AuthedRequest, res) => {
+  const { data: memberships } = await supabase
+    .from('memberships')
+    .select('id, tier, circle:circle_id(id, slug, name, cover_url, members_count)')
+    .eq('user_id', req.user!.id);
+    
+  const { data: ownedCircles } = await supabase
+    .from('circles')
+    .select('id, slug, name, cover_url, members_count')
+    .eq('creator_id', req.user!.id)
+    .order('created_at', { ascending: false });
+
+  res.json({ memberships: memberships || [], ownedCircles: ownedCircles || [] });
+});
+
+export default router;
+
+==> src/routes/circles.ts <==
+import { Router } from 'express';
+import { supabase } from '../lib/supabase';
+
+const router = Router();
+
+router.get('/', async (req, res) => {
+  const userId = req.headers['x-user-id'] as string;
+  try {
+    const { data, error } = await supabase.from('circles').select('*, circle_members(user_id)').order('created_at', { ascending: false });
+    if (error) throw error;
+    
+    const formattedData = data.map((c: any) => ({
+      ...c,
+      members_count: c.circle_members?.length || 0,
+      is_member: userId ? c.circle_members?.some((m: any) => m.user_id === userId) : false
+    }));
+    res.json(formattedData);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/', async (req, res) => {
+  const userId = req.headers['x-user-id'] as string;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  const { name, description, cover_url } = req.body;
+  if (!name) return res.status(400).json({ error: 'שם הקהילה חובה' });
+  const slug = name.trim().toLowerCase().replace(/[^a-z0-9א-ת]+/g, '-') + '-' + Math.floor(Math.random() * 1000);
+
+  try {
+    const { data: circle, error } = await supabase.from('circles').insert({ name, description, slug, cover_url, owner_id: userId }).select().maybeSingle();
+    if (error) throw error;
+    await supabase.from('circle_members').insert({ circle_id: circle.id, user_id: userId, role: 'admin' });
+    res.json(circle);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/:slug', async (req, res) => {
+  const { slug } = req.params;
+  const userId = req.headers['x-user-id'] as string;
+
+  try {
+    const { data: circle, error } = await supabase.from('circles').select('*').eq('slug', slug).maybeSingle();
+    if (error || !circle) return res.status(404).json({ error: 'Circle not found' });
+
+    let isMember = false;
+    if (userId) {
+      // תיקון קריטי 1: מחפשים user_id ולא id
+      const { data: member } = await supabase.from('circle_members').select('user_id').eq('circle_id', circle.id).eq('user_id', userId).maybeSingle();
+      if (member) isMember = true;
+    }
+
+    const { data: posts } = await supabase.from('posts').select(`id, content, created_at, profiles!inner(id, full_name, username, avatar_url), likes (user_id), comments (id)`).eq('circle_id', circle.id).order('created_at', { ascending: false });
+    
+    const formattedPosts = (posts || []).map((post: any) => ({
+      ...post,
+      likes_count: post.likes?.length || 0,
+      comments_count: post.comments?.length || 0,
+      is_liked: post.likes?.some((like: any) => like.user_id === userId) || false
+    }));
+
+    res.json({ circle, isMember, posts: formattedPosts });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/:slug/join', async (req, res) => {
+  const { slug } = req.params;
+  const userId = req.headers['x-user-id'] as string;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    const { data: circle } = await supabase.from('circles').select('id').eq('slug', slug).maybeSingle();
+    if (!circle) return res.status(404).json({ error: 'Circle not found' });
+
+    // תיקון קריטי 2: מחפשים user_id כדי למנוע קריסה!
+    const { data: existing } = await supabase.from('circle_members').select('user_id').eq('circle_id', circle.id).eq('user_id', userId).maybeSingle();
+
+    if (existing) {
+      await supabase.from('circle_members').delete().eq('circle_id', circle.id).eq('user_id', userId);
+      return res.json({ joined: false });
+    } else {
+      const { error: insertError } = await supabase.from('circle_members').insert({ circle_id: circle.id, user_id: userId, role: 'member' });
+      if (insertError) {
+        console.error('[CIRCLES] שגיאת אבטחה בצירוף (כנראה חסר פרופיל):', insertError.message);
+        throw insertError;
+      }
+      return res.json({ joined: true });
+    }
+  } catch (err: any) { 
+    res.status(500).json({ error: err.message }); 
+  }
+});
+
+router.post('/:slug/posts', async (req, res) => {
+  const { slug } = req.params;
+  const userId = req.headers['x-user-id'] as string;
+  const { content } = req.body;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    const { data: circle } = await supabase.from('circles').select('id').eq('slug', slug).maybeSingle();
+    if (!circle) return res.status(404).json({ error: 'Circle not found' });
+
+    const { data: post, error } = await supabase.from('posts').insert({ content, user_id: userId, circle_id: circle.id }).select().single();
+    if (error) throw error;
+    res.json(post);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+export default router;
+
+==> src/routes/messages.ts <==
+import { Router } from 'express';
+import { requireAuth, AuthedRequest } from '../middleware/auth';
+import { supabase } from '../lib/supabase';
+
+const router = Router();
+
+router.get('/:circleId', async (req, res) => {
+  try {
+    const { circleId } = req.params;
+
+    const { data, error } = await supabase
+      .from('messages')
+      .select(`
+        id,
+        body,
+        is_highlighted,
+        created_at,
+        user_id,
+        profile:user_id (
+          id,
+          full_name,
+          username,
+          avatar_url,
+          role_label
+        )
+      `)
+      .eq('circle_id', circleId)
+      .order('created_at', { ascending: true })
+      .limit(200);
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    return res.json(data || []);
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Failed to load messages' });
+  }
+});
+
+router.post('/:circleId', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const { circleId } = req.params;
+    const userId = req.user!.id;
+    const { body, isHighlighted = false } = req.body || {};
+
+    if (!body || !String(body).trim()) {
+      return res.status(400).json({ error: 'Message body is required' });
+    }
+
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({
+        circle_id: circleId,
+        user_id: userId,
+        body: String(body).trim(),
+        is_highlighted: Boolean(isHighlighted)
+      })
+      .select(`
+        id,
+        body,
+        is_highlighted,
+        created_at,
+        user_id,
+        profile:user_id (
+          id,
+          full_name,
+          username,
+          avatar_url,
+          role_label
+        )
+      `)
+      .single();
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    return res.json(data);
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Failed to send message' });
+  }
+});
+
+export default router;
+
+==> src/routes/profile.ts <==
+import { Router } from 'express';
+import { supabase } from '../lib/supabase';
+
+const router = Router();
+
+// שליפת נתוני הפרופיל (מה שעשינו קודם)
+router.get('/collection', async (req, res) => {
+  const userId = req.headers['x-user-id'] as string;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single();
+    const { data: memberships } = await supabase.from('circle_members').select('circle:circles(*)').eq('user_id', userId).neq('role', 'admin');
+    const { data: ownedCircles } = await supabase.from('circles').select('*').eq('owner_id', userId);
+
+    res.json({ profile, memberships: memberships || [], ownedCircles: ownedCircles || [] });
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// עדכון פרופיל (שם, יוזרניים, ביו, תמונה)
+router.put('/', async (req, res) => {
+  const userId = req.headers['x-user-id'] as string;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+  const { full_name, username, bio, avatar_url } = req.body;
+
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ full_name, username, bio, avatar_url })
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+export default router;
+
+==> src/routes/wallet.ts <==
+import { Router } from 'express';
+import { supabase } from '../lib/supabase';
+
+const router = Router();
+
+// קבלת יתרה והיסטוריה
+router.get('/', async (req, res) => {
+  const userId = req.headers['x-user-id'] as string;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    // משיכת יתרה נוכחית
+    const { data: profile } = await supabase.from('profiles').select('credits').eq('id', userId).single();
+    
+    // משיכת 10 עסקאות אחרונות
+    const { data: transactions } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    res.json({ 
+      credits: profile?.credits || 0, 
+      transactions: transactions || [] 
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// סימולציית הוספת קרדיטים (טעינת ארנק)
+router.post('/add', async (req, res) => {
+  const userId = req.headers['x-user-id'] as string;
+  const { amount } = req.body;
+
+  try {
+    // 1. בדיקת יתרה קיימת
+    const { data: profile } = await supabase.from('profiles').select('credits').eq('id', userId).single();
+    const newBalance = (profile?.credits || 0) + Number(amount);
+
+    // 2. עדכון הפרופיל ביתרה החדשה
+    await supabase.from('profiles').update({ credits: newBalance }).eq('id', userId);
+
+    // 3. תיעוד הפעולה בהיסטוריה
+    await supabase.from('transactions').insert({
+      user_id: userId,
+      amount: Number(amount),
+      type: 'deposit',
+      description: `טעינת ${amount} CRD לארנק`
+    });
+
+    res.json({ success: true, newBalance });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+export default router;
+
+==> src/routes/circlePosts.ts <==
+import { Router } from 'express';
+import { supabase } from '../lib/supabase';
+
+const router = Router();
+
+// פרסום פוסט בתוך קהילה
+router.post('/:slug/posts', async (req, res) => {
+  const { slug } = req.params;
+  const userId = req.headers['x-user-id'] as string;
+  const { content } = req.body;
+
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  if (!content) return res.status(400).json({ error: 'תוכן הפוסט ריק' });
+
+  try {
+    // 1. מציאת הקהילה לפי ה-slug
+    const { data: circle, error: circleErr } = await supabase.from('circles').select('id').eq('slug', slug).single();
+    if (circleErr || !circle) return res.status(404).json({ error: 'Circle not found' });
+
+    // 2. בדיקה האם המשתמש באמת חבר בקהילה (אי אפשר לפרסם מבחוץ)
+    const { data: member } = await supabase.from('circle_members').select('*').eq('circle_id', circle.id).eq('user_id', userId).single();
+    if (!member) return res.status(403).json({ error: 'רק חברי קהילה יכולים לפרסם' });
+
+    // 3. יצירת הפוסט
+    const { data: post, error: postErr } = await supabase
+      .from('posts')
+      .insert({ user_id: userId, circle_id: circle.id, content })
+      .select()
+      .single();
+
+    if (postErr) throw postErr;
+    res.json(post);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+export default router;
+
+==> src/routes/posts.ts <==
+import { Router } from 'express';
+import { supabase } from '../lib/supabase';
+
+const router = Router();
+
+// פונקציית עזר ליצירת התראה במסד הנתונים
+const createNotification = async (receiverId: string, senderId: string, type: string, title: string, content: string, actionUrl: string) => {
+  if (receiverId === senderId) return; // לא שולחים התראה לעצמך
+  try {
+    console.log(`[NOTIF] מנסה לייצר התראה עבור משתמש ${receiverId}`);
+    const { error } = await supabase.from('notifications').insert({
+      user_id: receiverId,
+      type,
+      title,
+      content,
+      action_url: actionUrl
+    });
+    if (error) console.error('[NOTIF] שגיאת Supabase בהתראה:', error.message);
+    else console.log('[NOTIF] התראה נוצרה בהצלחה!');
+  } catch (err) {
+    console.error('[NOTIF] שגיאת קוד בהתראה:', err);
+  }
+};
+
+// 1. מערכת הלייקים
+router.post('/:postId/like', async (req, res) => {
+  const { postId } = req.params;
+  const userId = req.headers['x-user-id'] as string;
+  
+  if (!userId) {
+    console.log('[LIKE] שגיאה: לא התקבל x-user-id מהאפליקציה');
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    console.log(`[LIKE] משתמש ${userId} מבצע פעולת לייק לפוסט ${postId}`);
+    
+    // בדיקה אם הלייק קיים
+    const { data: existing, error: searchError } = await supabase
+      .from('likes')
+      .select('*')
+      .eq('post_id', postId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (searchError) throw searchError;
+
+    if (existing) {
+      console.log('[LIKE] מסיר לייק קיים...');
+      const { error: delErr } = await supabase.from('likes').delete().eq('post_id', postId).eq('user_id', userId);
+      if (delErr) throw delErr;
+      return res.json({ liked: false });
+    } else {
+      console.log('[LIKE] מוסיף לייק חדש...');
+      const { error: insErr } = await supabase.from('likes').insert({ post_id: postId, user_id: userId });
+      if (insErr) throw insErr;
+
+      // משיכת פרטי הפוסט כדי לשלוח התראה
+      const { data: post } = await supabase.from('posts').select('user_id').eq('id', postId).maybeSingle();
+      if (post && post.user_id !== userId) {
+        const { data: sender } = await supabase.from('profiles').select('full_name, username').eq('id', userId).maybeSingle();
+        const senderName = sender?.full_name || sender?.username || 'משתמש';
+        await createNotification(post.user_id, userId, 'like', 'לייק חדש! ❤️', `${senderName} אהב/ה את הפוסט שלך`, `/`);
+      }
+
+      return res.json({ liked: true });
+    }
+  } catch (err: any) {
+    console.error("[LIKE] שגיאת שרת:", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. שליפת תגובות
+router.get('/:postId/comments', async (req, res) => {
+  const { postId } = req.params;
+  try {
+    const { data, error } = await supabase
+      .from('comments')
+      .select('id, content, created_at, profiles!inner(id, full_name, username, avatar_url)')
+      .eq('post_id', postId)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// 3. פרסום תגובה
+router.post('/:postId/comments', async (req, res) => {
+  const { postId } = req.params;
+  const userId = req.headers['x-user-id'] as string;
+  const { content } = req.body;
+
+  if (!userId || !content) return res.status(400).json({ error: 'Invalid data' });
+
+  try {
+    const { data, error } = await supabase
+      .from('comments')
+      .insert({ post_id: postId, user_id: userId, content })
+      .select('id, content, created_at, profiles!inner(id, full_name, username, avatar_url)')
+      .maybeSingle();
+    
+    if (error) throw error;
+
+    const { data: post } = await supabase.from('posts').select('user_id').eq('id', postId).maybeSingle();
+    if (post && post.user_id !== userId && data?.profiles) {
+      const senderName = data.profiles.full_name || data.profiles.username || 'משתמש';
+      await createNotification(post.user_id, userId, 'comment', 'תגובה חדשה 💬', `${senderName} הגיב/ה: "${content.substring(0, 20)}${content.length > 20 ? '...' : ''}"`, `/`);
+    }
+
+    res.json(data);
+  } catch (err) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// 4. מתנות (Gifts)
+router.post('/:postId/gift', async (req, res) => {
+  const { postId } = req.params;
+  const senderId = req.headers['x-user-id'] as string;
+  const { amount } = req.body;
+
+  if (!senderId || !amount) return res.status(400).json({ error: 'חסרים נתונים' });
+
+  try {
+    const { data: sender } = await supabase.from('profiles').select('credits, full_name, username').eq('id', senderId).maybeSingle();
+    if (!sender || sender.credits < amount) return res.status(400).json({ error: 'אין מספיק קרדיטים' });
+
+    const { data: post } = await supabase.from('posts').select('user_id').eq('id', postId).maybeSingle();
+    if (!post) return res.status(404).json({ error: 'פוסט לא נמצא' });
+    const receiverId = post.user_id;
+
+    await supabase.from('profiles').update({ credits: sender.credits - amount }).eq('id', senderId);
+    const { data: receiver } = await supabase.from('profiles').select('credits').eq('id', receiverId).maybeSingle();
+    await supabase.from('profiles').update({ credits: (receiver?.credits || 0) + amount }).eq('id', receiverId);
+
+    await supabase.from('transactions').insert([
+      { user_id: senderId, amount: amount, type: 'purchase', description: 'שלחת מתנה' },
+      { user_id: receiverId, amount: amount, type: 'deposit', description: 'קיבלת מתנה!' }
+    ]);
+
+    const senderName = sender?.full_name || sender?.username || 'משתמש';
+    await createNotification(receiverId, senderId, 'gift', 'קיבלת מתנה! 🎁', `${senderName} שלח/ה לך ${amount} קרדיטים!`, `/`);
+
+    res.json({ success: true, newBalance: sender.credits - amount });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+export default router;
+
+==> src/routes/notifications.ts <==
+import { Router } from 'express';
+import { supabase } from '../lib/supabase';
+
+const router = Router();
+
+// Middleware שמזהה מי המשתמש שפונה לשרת לפי הטוקן שלו
+const authMiddleware = async (req: any, res: any, next: any) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'חסר טוקן אימות' });
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  if (error || !user) return res.status(401).json({ error: 'משתמש לא מורשה' });
+  req.user = user;
+  next();
+};
+
+// קבלת כל ההתראות של המשתמש
+router.get('/', authMiddleware, async (req: any, res: any) => {
+  try {
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .order('created_at', { ascending: false })
+      .limit(30);
+
+    if (error) throw error;
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// סימון התראות שנקראו (מעלים את הנקודה האדומה)
+router.post('/read', authMiddleware, async (req: any, res: any) => {
+  try {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', req.user.id)
+      .eq('is_read', false);
+
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+export default router;
+
+==> src/index.ts <==
+import express from 'express';
+import cors from 'cors';
+import authRoutes from './routes/auth';
+import circleRoutes from './routes/circles';
+import circlePostsRoutes from './routes/circlePosts';
+import feedRoutes from './routes/feed';
+import postRoutes from './routes/posts';
+import notifRoutes from './routes/notifications';
+import profileRoutes from './routes/profile';
+import walletRoutes from './routes/wallet';
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+app.use('/api/auth', authRoutes);
+app.use('/api/circles', circleRoutes);
+app.use('/api/circles', circlePostsRoutes);
+app.use('/api/feed', feedRoutes);
+app.use('/api/posts', postRoutes);
+app.use('/api/notifications', notifRoutes);
+app.use('/api/profile', profileRoutes);
+app.use('/api/wallet', walletRoutes);
+
+app.get('/api/health', (req, res) => res.json({ status: 'ok', port: 8080 }));
+
+const PORT = 8080;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
+
+==> index.ts <==
+import express, { Request, Response } from 'express';
+import cors from 'cors';
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+
+dotenv.config();
+console.log('🔥 INNER Server: UPGRADE ENGINE ACTIVATED');
+
+const app = express();
+app.use(cors({ origin: true, credentials: true }));
+app.use(express.json());
+
+const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
+const sendError = (res: Response, status: number, message: string) => res.status(status).json({ ok: false, error: message });
+
+// --- ראדר, פיד וקהילות ---
+app.get('/api/feed', async (_req, res) => {
+  const { data } = await supabase.from('circles').select('*').order('created_at', { ascending: false });
+  res.json({ ok: true, items: data || [] });
+});
+
+app.get('/api/discover', async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  let query = supabase.from('circles').select('*');
+  if (q) query = query.or(`name.ilike.%${q}%,description.ilike.%${q}%,slug.ilike.%${q}%`);
+  const { data } = await query;
+  res.json({ ok: true, items: data || [] });
+});
+
+app.get('/api/circles/:slug', async (req, res) => {
+  const slug = decodeURIComponent(String(req.params.slug)).trim();
+  const userId = req.headers['x-user-id'] as string; // מקבלים את מזהה המשתמש מהבקשה
+
+  const { data: circle } = await supabase.from('circles').select('*').ilike('slug', slug).maybeSingle();
+  if (!circle) return sendError(res, 404, 'הקהילה לא נמצאה');
+
+  // שליפת סטטוס המשתמש בקהילה (האם הוא CORE?)
+  let membership = null;
+  if (userId) {
+    const { data: mem } = await supabase.from('memberships').select('*').eq('circle_id', circle.id).eq('user_id', userId).maybeSingle();
+    membership = mem;
+  }
+
+  const { data: messages } = await supabase.from('circle_messages').select('*').eq('circle_id', circle.id).order('created_at', { ascending: false }).limit(50);
+  res.json({ ok: true, circle, messages: (messages || []).reverse(), membership });
+});
+
+// --- מנוע ה-DROPS והשדרוגים (CORE) ---
+app.get('/api/circles/:slug/drops', async (req, res) => {
+  const slug = decodeURIComponent(String(req.params.slug)).trim();
+  const { data: circle } = await supabase.from('circles').select('id').ilike('slug', slug).maybeSingle();
+  if (!circle) return sendError(res, 404, 'קהילה לא נמצאה');
+
+  const { data: drops } = await supabase.from('circle_drops').select('*').eq('circle_id', circle.id).order('created_at', { ascending: false });
+  res.json({ ok: true, drops: drops || [] });
+});
+
+app.post('/api/circles/:slug/drops', async (req, res) => {
+  const slug = decodeURIComponent(String(req.params.slug)).trim();
+  const { image_url, caption } = req.body;
+  const { data: circle } = await supabase.from('circles').select('id').ilike('slug', slug).maybeSingle();
+  if (!circle) return sendError(res, 404, 'קהילה לא נמצאה');
+  const { data: drop, error } = await supabase.from('circle_drops').insert({ circle_id: circle.id, image_url, caption, tier_required: 'CORE' }).select('*').single();
+  if (error) return sendError(res, 500, 'שגיאה בהעלאת הדרוף');
+  res.json({ ok: true, drop });
+});
+
+// שדרוג הסטטוס ל-CORE 🚀
+app.post('/api/circles/:slug/upgrade', async (req, res) => {
+  const slug = decodeURIComponent(String(req.params.slug)).trim();
+  const { user_id } = req.body;
+  if (!user_id) return sendError(res, 401, 'חסר זיהוי משתמש');
+
+  // 1. מציאת הקהילה ומחיר ה-VIP
+  const { data: circle } = await supabase.from('circles').select('*').ilike('slug', slug).maybeSingle();
+  if (!circle) return sendError(res, 404, 'הקהילה לא נמצאה');
+  const vipPrice = circle.vip_price || 50;
+
+  // 2. בדיקת יתרת המשתמש
+  const { data: profile } = await supabase.from('profiles').select('credits').eq('id', user_id).single();
+  if (!profile || profile.credits < vipPrice) {
+    return sendError(res, 400, 'אין לך מספיק CRD. טען את הארנק!');
+  }
+
+  // 3. ניכוי התשלום
+  await supabase.from('profiles').update({ credits: profile.credits - vipPrice }).eq('id', user_id);
+  await supabase.from('wallet_transactions').insert({ user_id, amount: -vipPrice, description: `שדרוג ל-CORE בקהילה: ${circle.name}` });
+
+  // 4. עדכון/יצירת חברות מסוג CORE
+  const { error } = await supabase.from('memberships').upsert({ user_id, circle_id: circle.id, tier: 'CORE' }, { onConflict: 'user_id, circle_id' });
+  if (error) return sendError(res, 500, 'שגיאה בשדרוג הסטטוס');
+
+  res.json({ ok: true, message: 'שודרגת בהצלחה ל-CORE!' });
+});
+
+// --- הודעות, ארנק וכו' (הקוד הרגיל נשאר) ---
+app.post('/api/circles/:slug/messages', async (req, res) => {
+  const slug = decodeURIComponent(String(req.params.slug)).trim();
+  const { content, sender_name, is_highlighted } = req.body;
+  const { data: circle } = await supabase.from('circles').select('id').ilike('slug', slug).maybeSingle();
+  if (!circle) return sendError(res, 404, 'קהילה לא נמצאה');
+  const { data: message, error } = await supabase.from('circle_messages').insert({ circle_id: circle.id, content, sender_name: sender_name || 'אורח', is_highlighted: is_highlighted || false }).select('*').single();
+  if (error) return sendError(res, 500, 'שגיאה בשליחת הודעה');
+  res.json({ ok: true, message });
+});
+
+app.post('/api/wallet/topup', async (req, res) => {
+  const { amount, price, user_id } = req.body;
+  if (user_id) {
+    const { data: p } = await supabase.from('profiles').select('credits').eq('id', user_id).single();
+    if (p) await supabase.from('profiles').update({ credits: p.credits + amount }).eq('id', user_id);
+    await supabase.from('wallet_transactions').insert({ user_id, amount, description: `טעינת ${amount} CRD (₪${price})` });
+  }
+  res.json({ ok: true });
+});
+app.get('/api/wallet/history', async (req, res) => {
+  const { data } = await supabase.from('wallet_transactions').select('*').order('created_at', { ascending: false }).limit(20);
+  res.json({ ok: true, items: data || [] });
+});
+app.get('/api/me/collection', async (req, res) => res.json({ ok: true, memberships: [], ownedCircles: [] }));
+app.put('/api/me', async (req, res) => res.json({ ok: true }));
+
+const PORT = 8080;
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 INNER Server: UPGRADE ENGINE Active on port ${PORT}`));
+
+==> server.js <==
+const express = require('express');
+const cors = require('cors');
+const authRoutes = require('./routes/auth');
+const circleRoutes = require('./routes/circles');
+const feedRoutes = require('./routes/feed');
+const profileRoutes = require('./routes/profile');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// לוגר - ידפיס כל בקשה שמגיעה לשרת
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url}`);
+  next();
+});
+
+app.use('/api/auth', authRoutes);
+app.use('/api/circles', circleRoutes);
+app.use('/api/feed', feedRoutes);
+app.use('/api/profile', profileRoutes);
+
+const PORT = 8080;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 INNER Server is LIVE on port ${PORT}`);
+});
