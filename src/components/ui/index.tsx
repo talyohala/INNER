@@ -9,7 +9,7 @@ export function cn(...inputs: ClassValue[]) {
 
 export const GlassCard: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => {
   return (
-    <div className={cn("bg-surface-card border border-surface-border rounded-[32px] shadow-2xl backdrop-blur-3xl p-5", className)}>
+    <div className={cn("bg-white/10 backdrop-blur-[40px] border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_10px_40px_rgba(0,0,0,0.3)] rounded-[32px] p-5", className)}>
       {children}
     </div>
   );
@@ -34,7 +34,7 @@ export const PageTitle: React.FC<{ children: React.ReactNode }> = ({ children })
 export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(({ className, ...props }, ref) => (
   <input
     ref={ref}
-    className={cn("w-full border border-surface-border bg-white/[0.03] backdrop-blur-2xl text-white rounded-2xl px-4 py-3.5 outline-none placeholder:text-white/30 focus:border-white/20 transition-colors shadow-inner", className)}
+    className={cn("w-full bg-white/10 backdrop-blur-2xl border border-white/20 shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)] text-white rounded-2xl px-4 py-3.5 outline-none placeholder:text-white/60 focus:border-white/50 focus:bg-white/15 transition-all", className)}
     {...props}
   />
 ));
@@ -46,11 +46,11 @@ export const Button = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttrib
       <button
         ref={ref}
         className={cn(
-          "flex items-center justify-center gap-2 rounded-2xl font-bold transition-all active:scale-95 disabled:opacity-60 disabled:pointer-events-none shadow-xl",
+          "flex items-center justify-center gap-2 rounded-2xl font-bold transition-all active:scale-95 disabled:opacity-60 disabled:pointer-events-none",
           size === 'default' ? "py-3.5 px-4 text-[15px]" : "py-2.5 px-3.5 text-sm rounded-xl",
-          variant === 'primary' && "bg-white/[0.08] text-white border border-white/10 backdrop-blur-3xl hover:bg-white/[0.12]",
-          variant === 'secondary' && "bg-white/[0.03] text-white border border-white/5 backdrop-blur-xl hover:bg-white/[0.06]",
-          variant === 'ghost' && "bg-transparent text-white/60 hover:text-white hover:bg-white/[0.05] shadow-none backdrop-blur-sm",
+          variant === 'primary' && "bg-white/20 backdrop-blur-3xl border border-white/30 shadow-[inset_0_1px_2px_rgba(255,255,255,0.5),0_8px_20px_rgba(0,0,0,0.2)] text-white hover:bg-white/30",
+          variant === 'secondary' && "bg-white/5 backdrop-blur-xl border border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)] text-white hover:bg-white/10",
+          variant === 'ghost' && "bg-transparent text-white/70 hover:text-white hover:bg-white/10 shadow-none backdrop-blur-sm",
           className
         )}
         {...props}
