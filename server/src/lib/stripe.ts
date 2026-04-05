@@ -9,4 +9,4 @@ if (secret) {
   console.log('⚠️ Stripe disabled (no STRIPE_SECRET_KEY)');
 }
 
-export { stripe };
+export default stripe;
