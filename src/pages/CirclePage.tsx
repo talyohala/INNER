@@ -15,6 +15,7 @@ import { Share } from '@capacitor/share';
 import { useAuth } from '../context/AuthContext';
 
 export const CirclePage: React.FC = () => {                
+  const [userCirclesModal, setUserCirclesModal] = React.useState<any>(null);
   const { slug } = useParams();
   const navigate = useNavigate();
   const { profile: myProfile } = useAuth();
