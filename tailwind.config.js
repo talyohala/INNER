@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  darkMode: 'class', // הכנה רשמית למצב בהיר/כהה
+  darkMode: 'class', 
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
@@ -9,17 +9,17 @@ export default {
     extend: {
       colors: {
         surface: {
-          DEFAULT: '#141416', 
-          card: 'rgba(255, 255, 255, 0.1)', 
-          border: 'rgba(255, 255, 255, 0.25)', 
+          DEFAULT: '#0F0F11', // פחם עמוק ויוקרתי
+          card: 'rgba(255, 255, 255, 0.05)', 
+          border: 'rgba(255, 255, 255, 0.1)', 
         },
         brand: {
           DEFAULT: '#FFFFFF',
-          muted: '#A1A1AA',
+          muted: '#8E8E93',
         },
         accent: {
-          crd: '#C2A382',
-          vip: '#E5E5E5',
+          crd: '#D4AF37', // שמפניה אמיתית ונקייה
+          vip: '#E5E4E2', // פלטינום
         }
       }
     },
