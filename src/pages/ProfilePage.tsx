@@ -560,7 +560,7 @@ export const ProfilePage: React.FC = () => {
             onClick={() => { triggerFeedback('pop'); navigate('/edit-profile'); }}
             className="pointer-events-auto w-10 h-10 flex justify-center items-center bg-surface-card border border-white/[0.05] rounded-full shadow-lg active:scale-90 transition-all hover:bg-white/[0.05]"
           >
-            <Edit2 size={16} className="text-brand-muted" />
+            <Edit2 size={16} className="text-white" />
           </button>
         )}
       </div>
@@ -620,8 +620,8 @@ export const ProfilePage: React.FC = () => {
               <div className="flex flex-col items-center gap-2 mb-6 w-full">
                 {userProfile?.social_link && (
                   <a href={userProfile.social_link.startsWith('http') ? userProfile.social_link : `https://${userProfile.social_link}`} target="_blank" rel="noopener noreferrer" className="text-white text-[13px] font-bold flex items-center gap-1.5 hover:text-white/80 transition-colors">
-                    <span dir="ltr" className="tracking-wide">{displayLink}</span>
-                    <LinkIcon size={14} className="text-white/60" />
+                    <span dir="ltr" className="tracking-wide text-white">{displayLink}</span>
+                    <LinkIcon size={14} className="text-white" />
                   </a>
                 )}
                 {userProfile?.zodiac && <span className="text-brand-muted text-[13px] font-medium">{userProfile.zodiac}</span>}
@@ -676,14 +676,14 @@ export const ProfilePage: React.FC = () => {
               {isMyProfile && <span className="text-brand-muted text-[13px] font-bold"><span className="text-white">{currentXP}</span> / {xpToNextLevel}</span>}
             </div>
             {isMyProfile && (
-              <div className="w-full h-2.5 bg-surface-card rounded-full overflow-hidden relative shadow-inner border border-white/[0.05]">
+              <div className="w-full h-2.5 bg-surface-card rounded-full overflow-hidden relative shadow-inner border border-white/[0.02]">
                 <motion.div initial={{ width: 0 }} animate={{ width: `${xpProgress}%` }} transition={{ duration: 1.5, ease: 'easeOut' }} className="absolute top-0 right-0 h-full bg-gradient-to-l from-accent-primary via-indigo-400 to-purple-400 rounded-full" />
               </div>
             )}
           </div>
 
           <div className="w-full mb-10">
-            <div className="flex gap-2 bg-white/[0.03] border border-white/[0.05] p-1.5 rounded-full z-10 relative mb-6 shadow-lg mx-1.5">
+            <div className="flex gap-2 bg-white/[0.03] border border-white/[0.05] p-1.5 rounded-full z-10 relative mb-6 shadow-lg mx-0">
               <button onClick={() => setActiveTab('posts')} className={`flex-1 py-3 text-[13px] font-black transition-all rounded-full flex items-center justify-center ${activeTab === 'posts' ? 'bg-surface-card text-brand shadow-md' : 'text-brand-muted hover:text-brand'}`}>פוסטים</button>
               <button onClick={() => setActiveTab('joined')} className={`flex-1 py-3 text-[13px] font-black transition-all rounded-full flex items-center justify-center ${activeTab === 'joined' ? 'bg-surface-card text-brand shadow-md' : 'text-brand-muted hover:text-brand'}`}>מועדונים</button>
               {isMyProfile && <button onClick={() => setActiveTab('saved')} className={`flex-1 py-3 text-[13px] font-black transition-all rounded-full flex items-center justify-center ${activeTab === 'saved' ? 'bg-surface-card text-brand shadow-md' : 'text-brand-muted hover:text-brand'}`}>שמורים</button>}
@@ -691,15 +691,15 @@ export const ProfilePage: React.FC = () => {
 
             <AnimatePresence mode="wait">
               {activeTab === 'posts' && (
-                <motion.div key="posts" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-1">
+                <motion.div key="posts" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-1 -mx-3.5">
                   {userPosts.length === 0 ? (
                     <div className="col-span-3 text-center py-10 text-brand-muted text-[14px] font-bold">אין פוסטים עדיין</div>
                   ) : (
                     userPosts.map((post: any) => (
-                      <div key={post.id} onClick={() => { openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = mediaPosts.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[3/4] bg-surface-card relative overflow-hidden cursor-pointer active:opacity-70 border border-white/[0.05] rounded-[20px]">
+                      <div key={post.id} onClick={() => { openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = mediaPosts.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[2/3] bg-surface-card relative overflow-hidden cursor-pointer active:opacity-70 border border-white/[0.05] rounded-[16px]">
                         {isMyProfile && (
-                          <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'post' })); }} className="absolute top-2 left-2 z-20 p-2 text-white drop-shadow-md hover:text-white/70 transition-colors">
-                            <MoreHorizontal size={20} />
+                          <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'post' })); }} className="absolute top-2 left-2 z-20 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] hover:text-white/70 transition-colors">
+                            <MoreHorizontal size={24} strokeWidth={2.5} />
                           </button>
                         )}
                         {post.media_url ? (post.media_type === 'video' ? <video src={post.media_url} className="w-full h-full object-cover" /> : <img src={post.media_url} className="w-full h-full object-cover" />) : <div className="w-full h-full flex items-center justify-center p-2 text-center text-brand-muted text-[11px] line-clamp-3 font-medium">{post.content}</div>}
@@ -710,11 +710,11 @@ export const ProfilePage: React.FC = () => {
               )}
 
               {activeTab === 'joined' && (
-                <motion.div key="joined" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-1">
+                <motion.div key="joined" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-1 -mx-3.5">
                   {joinedCircles.map((circle: any) => (
-                    <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className="aspect-[3/4] bg-surface-card relative overflow-hidden cursor-pointer border border-white/[0.05] rounded-[20px] group">
-                      <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: circle, type: 'circle' })); }} className="absolute top-2 left-2 z-20 p-2 text-white drop-shadow-md hover:text-white/70 transition-colors opacity-0 group-hover:opacity-100 touch-manipulation">
-                        <MoreHorizontal size={20} />
+                    <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className="aspect-[2/3] bg-surface-card relative overflow-hidden cursor-pointer border border-white/[0.05] rounded-[16px] group">
+                      <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: circle, type: 'circle' })); }} className="absolute top-2 left-2 z-20 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] hover:text-white/70 transition-colors opacity-0 group-hover:opacity-100 touch-manipulation">
+                        <MoreHorizontal size={24} strokeWidth={2.5} />
                       </button>
                       {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover opacity-80" /> : <div className="w-full h-full flex items-center justify-center text-brand-muted font-black text-2xl">{circle.name?.charAt(0)}</div>}
                       <div className="absolute bottom-0 w-full p-2 bg-surface/80 backdrop-blur-sm text-center border-t border-white/[0.05]"><span className="text-brand text-[10px] font-bold line-clamp-1">{circle.name}</span></div>
@@ -724,14 +724,14 @@ export const ProfilePage: React.FC = () => {
               )}
 
               {activeTab === 'saved' && isMyProfile && (
-                <motion.div key="saved" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-1">
+                <motion.div key="saved" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-1 -mx-3.5">
                   {userSavedPosts.length === 0 ? (
                     <div className="col-span-3 text-center py-10 text-brand-muted text-[14px] font-bold">אין פוסטים שמורים</div>
                   ) : (
                     userSavedPosts.map((post: any) => (
-                      <div key={post.id} onClick={() => { const savedMedia = userSavedPosts.filter((p: any) => p.media_url); openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = savedMedia.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[3/4] bg-surface-card relative overflow-hidden cursor-pointer active:opacity-70 border border-white/[0.05] rounded-[20px]">
-                        <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'saved' })); }} className="absolute top-2 left-2 z-20 p-2 text-white drop-shadow-md hover:text-white/70 transition-colors">
-                          <MoreHorizontal size={20} />
+                      <div key={post.id} onClick={() => { const savedMedia = userSavedPosts.filter((p: any) => p.media_url); openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = savedMedia.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[2/3] bg-surface-card relative overflow-hidden cursor-pointer active:opacity-70 border border-white/[0.05] rounded-[16px]">
+                        <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'saved' })); }} className="absolute top-2 left-2 z-20 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] hover:text-white/70 transition-colors">
+                          <MoreHorizontal size={24} strokeWidth={2.5} />
                         </button>
                         {post.media_url ? (post.media_type === 'video' ? <video src={post.media_url} className="w-full h-full object-cover" /> : <img src={post.media_url} className="w-full h-full object-cover" />) : <div className="w-full h-full flex items-center justify-center p-2 text-center text-brand-muted text-[11px] line-clamp-3 font-medium">{post.content}</div>}
                       </div>
