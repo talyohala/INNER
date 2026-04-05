@@ -116,46 +116,40 @@ export const ExplorePage: React.FC = () => {
 
   return (
     <FadeIn
-      className="px-5 pt-4 pb-28 min-h-screen font-sans flex flex-col gap-6 overflow-x-hidden relative"
+      className="px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-28 bg-[#020617] min-h-screen font-sans flex flex-col gap-6 overflow-x-hidden relative"
       dir="rtl"
     >
-      {/* תאורת שמפניה מרחפת ברקע */}
-      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-10%] left-[-20%] w-[80%] h-[40%] bg-[#D4AF37]/5 dark:bg-[#D4AF37]/[0.02] blur-[140px] rounded-full mix-blend-screen" />
-      </div>
-
-      {/* שורת חיפוש סופר-שקופה */}
-      <div className="relative flex items-center w-full mt-2 bg-black/[0.03] dark:bg-white/[0.02] border border-black/5 dark:border-white/10 rounded-full z-10 transition-all shadow-inner">
-        <Search size={20} className="absolute right-5 text-black/30 dark:text-white/30 pointer-events-none" />
-        
+      {/* שורת חיפוש מורמת הכי למעלה - עיצוב שקוף ועמוק */}
+      <div className="relative z-10">
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder={activeMainTab === 'clubs' ? 'חיפוש מועדונים...' : 'חיפוש משתמשים...'}
-          className="w-full bg-transparent py-3.5 pr-14 pl-14 text-black dark:text-white text-[15px] font-bold placeholder:text-black/30 dark:placeholder:text-white/30 outline-none"
+          placeholder={activeMainTab === 'clubs' ? 'חפש מועדון...' : 'חפש חבר...'}
+          className="w-full bg-slate-900/60 backdrop-blur-2xl border border-slate-800/80 rounded-full py-4 pr-12 pl-12 text-slate-100 text-[16px] font-bold placeholder:text-slate-500 outline-none transition-all shadow-inner focus:border-sky-800"
         />
-
+        <Search size={20} className="absolute right-4.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+        
         {search && (
           <button 
             onClick={() => { triggerFeedback('pop'); setSearch(''); }} 
-            className="absolute left-4 text-black/30 dark:text-white/30 hover:text-black dark:hover:text-white transition-colors"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-200 transition-colors p-1"
           >
             <X size={18} />
           </button>
         )}
       </div>
 
-      {/* טאבים ראשיים - בועות שמפניה */}
-      <div className="flex gap-2 bg-black/[0.03] dark:bg-white/[0.03] p-1.5 rounded-full border border-black/5 dark:border-white/10 z-10 relative">
+      {/* טאבים ראשיים - בועות (Pills) מעוצבות */}
+      <div className="flex gap-2.5 bg-slate-900 border border-slate-800/80 p-1.5 rounded-full z-10 relative shadow-lg">
         <button
           onClick={() => {
             triggerFeedback('pop');
             setActiveMainTab('clubs');
             setSearch('');
           }}
-          className={`flex-1 py-2.5 text-[13px] font-black transition-all rounded-full flex items-center justify-center ${
-            activeMainTab === 'clubs' ? 'bg-black dark:bg-white text-white dark:text-black shadow-md' : 'text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white'
+          className={`flex-1 py-3 text-[13px] font-black transition-all rounded-full flex items-center justify-center ${
+            activeMainTab === 'clubs' ? 'bg-slate-800 text-slate-100 shadow-md' : 'text-slate-400 hover:text-slate-100'
           }`}
         >
           מועדונים
@@ -167,11 +161,11 @@ export const ExplorePage: React.FC = () => {
             setActiveMainTab('users');
             setSearch('');
           }}
-          className={`flex-1 py-2.5 text-[13px] font-black transition-all rounded-full flex items-center justify-center ${
-            activeMainTab === 'users' ? 'bg-black dark:bg-white text-white dark:text-black shadow-md' : 'text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white'
+          className={`flex-1 py-3 text-[13px] font-black transition-all rounded-full flex items-center justify-center ${
+            activeMainTab === 'users' ? 'bg-slate-800 text-slate-100 shadow-md' : 'text-slate-400 hover:text-slate-100'
           }`}
         >
-          משתמשים
+          חברים
         </button>
       </div>
 
@@ -184,8 +178,8 @@ export const ExplorePage: React.FC = () => {
             exit={{ opacity: 0 }}
             className="flex flex-col gap-6 z-10 relative"
           >
-            {/* תגיות אווירה - נטו טקסט והדגשת שמפניה קלה */}
-            <div className="flex items-center gap-6 overflow-x-auto pb-2 scrollbar-hide">
+            {/* תגיות אווירה - בועות קטנות ועדינות */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
               {VIBES.map((vibe) => (
                 <button
                   key={vibe}
@@ -193,8 +187,8 @@ export const ExplorePage: React.FC = () => {
                     triggerFeedback('pop');
                     setActiveVibe(vibe);
                   }}
-                  className={`text-[14px] font-bold whitespace-nowrap transition-colors pb-1 border-b-2 ${
-                    activeVibe === vibe ? 'text-[#D4AF37] border-[#D4AF37]' : 'text-black/40 dark:text-white/30 border-transparent hover:text-black/70 dark:hover:text-white/60'
+                  className={`text-[12px] font-black whitespace-nowrap transition-all px-4 py-2 rounded-full border ${
+                    activeVibe === vibe ? 'bg-sky-500/10 border-sky-400/30 text-sky-300' : 'bg-slate-900 border-slate-800/80 text-slate-400 hover:text-slate-100'
                   }`}
                 >
                   {vibe}
@@ -204,12 +198,12 @@ export const ExplorePage: React.FC = () => {
 
             {loading ? (
               <div className="py-16 flex justify-center">
-                <Loader2 className="animate-spin text-[#D4AF37]/50" />
+                <Loader2 className="animate-spin text-sky-500" />
               </div>
             ) : filteredCircles.length === 0 ? (
               <div className="text-center py-16 flex flex-col items-center gap-4">
-                <span className="text-black/40 dark:text-white/40 font-medium text-[16px]">לא נמצאו מועדונים</span>
-                <button onClick={() => navigate('/create-circle')} className="text-black dark:text-white font-bold underline underline-offset-4 opacity-70 hover:opacity-100 transition-opacity">
+                <span className="text-slate-400 font-medium text-[16px]">לא נמצאו מועדונים</span>
+                <button onClick={() => navigate('/create-circle')} className="text-sky-400 font-bold underline underline-offset-4 opacity-70 hover:opacity-100 transition-opacity">
                   פתח מועדון משלך
                 </button>
               </div>
@@ -223,30 +217,33 @@ export const ExplorePage: React.FC = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3, delay: Math.min(idx * 0.05, 0.3) }}
                   >
+                    {/* תוצאת מועדון - קו הפרדה עדין ללא כרטיסייה */}
                     <div
                       onClick={() => {
                         if (search.trim()) saveRecentSearch(search.trim());
                         triggerFeedback('pop');
                         navigate(`/circle/${circle.slug}`);
                       }}
-                      className="py-4 border-b border-black/5 dark:border-white/10 flex items-center justify-between cursor-pointer group hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors -mx-5 px-5"
+                      className="py-5 border-b border-slate-800 flex items-center justify-between cursor-pointer group hover:bg-slate-900/40 transition-colors -mx-4 px-4"
                     >
-                      <div className="flex items-center gap-5 text-right">
+                      <div className="flex items-center gap-4 text-right">
                         {circle.cover_url ? (
-                          <img src={circle.cover_url} className="w-14 h-14 rounded-full object-cover shadow-sm border border-black/5 dark:border-white/10" />
+                          <img src={circle.cover_url} className="w-14 h-14 rounded-full object-cover border-2 border-slate-800 group-hover:border-sky-800 transition-colors shadow-lg" />
                         ) : (
-                          <UserCircle size={56} className="text-black/10 dark:text-white/10" strokeWidth={1} />
+                          <div className="w-14 h-14 rounded-full border-2 border-slate-800 flex items-center justify-center bg-slate-900">
+                             <UserCircle size={28} className="text-slate-600" strokeWidth={1} />
+                          </div>
                         )}
 
                         <div className="flex flex-col">
-                          <span className="text-black dark:text-white font-black text-[17px]">{circle.name}</span>
-                          <span className="text-black/40 dark:text-white/40 text-[12px] font-medium mt-0.5">
+                          <span className="text-slate-100 font-black text-[17px] group-hover:text-sky-300 transition-colors">{circle.name}</span>
+                          <span className="text-slate-400 text-[12px] font-medium mt-0.5">
                             {circle.members_count || 0} חברים
                           </span>
                         </div>
                       </div>
 
-                      <ChevronLeft size={20} className="text-black/20 dark:text-white/20 group-hover:text-black/50 dark:group-hover:text-white/50 transition-colors" />
+                      <ChevronLeft size={20} className="text-slate-600 group-hover:text-slate-300 transition-colors" />
                     </div>
                   </motion.div>
                 ))}
@@ -263,24 +260,25 @@ export const ExplorePage: React.FC = () => {
             exit={{ opacity: 0 }}
             className="flex flex-col gap-6 z-10 relative"
           >
+            {/* מצב שבו לא הוקלד כלום - חיפושים אחרונים והצעות */}
             {!search.trim() ? (
               <div className="flex flex-col gap-8">
                 {recentSearches.length > 0 && (
                   <div className="flex flex-col">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-black/30 dark:text-white/30 text-[11px] font-bold uppercase tracking-widest">חיפושים אחרונים</span>
-                      <button onClick={() => { triggerFeedback('pop'); setRecentSearches([]); localStorage.removeItem('inner_recent_searches'); }} className="text-[#D4AF37] hover:text-black dark:hover:text-white text-[11px] font-bold transition-colors">נקה</button>
+                      <span className="text-slate-500 text-[11px] font-bold uppercase tracking-widest">חיפושים אחרונים</span>
+                      <button onClick={() => { triggerFeedback('pop'); setRecentSearches([]); localStorage.removeItem('inner_recent_searches'); }} className="text-sky-400 hover:text-sky-200 text-[11px] font-bold transition-colors">נקה</button>
                     </div>
 
-                    <div className="flex flex-col">
+                    <div className="flex flex-col bg-slate-900 border border-slate-800/80 rounded-[24px] px-2 shadow-inner overflow-hidden">
                       {recentSearches.map((term, i) => (
-                        <div key={i} className="flex items-center justify-between py-4 border-b border-black/5 dark:border-white/10 -mx-5 px-5 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] cursor-pointer transition-colors" onClick={() => { triggerFeedback('pop'); setSearch(term); }}>
+                        <div key={i} className={`flex items-center justify-between py-4.5 px-3 cursor-pointer hover:bg-slate-800/60 transition-colors ${i !== recentSearches.length -1 ? 'border-b border-slate-800' : ''}`} onClick={() => { triggerFeedback('pop'); setSearch(term); }}>
                           <div className="flex items-center gap-4">
-                            <Search size={18} className="text-black/30 dark:text-white/30" />
-                            <span className="text-black dark:text-white font-medium text-[16px]">{term}</span>
+                            <Search size={18} className="text-slate-600" />
+                            <span className="text-slate-100 font-medium text-[16px]">{term}</span>
                           </div>
-                          <button onClick={(e) => removeRecentSearch(term, e)} className="opacity-30 hover:opacity-100 p-2 -m-2 transition-opacity">
-                            <X size={18} className="text-black dark:text-white" />
+                          <button onClick={(e) => removeRecentSearch(term, e)} className="text-slate-500 hover:text-red-400 p-2 -m-2 transition-colors">
+                            <X size={18} />
                           </button>
                         </div>
                       ))}
@@ -289,26 +287,28 @@ export const ExplorePage: React.FC = () => {
                 )}
 
                 <div className="flex flex-col">
-                  <span className="text-black/30 dark:text-white/30 text-[11px] font-bold uppercase tracking-widest mb-2">הצעות עבורך</span>
+                  <span className="text-slate-500 text-[11px] font-bold uppercase tracking-widest mb-2">הצעות עבורך</span>
 
                   {loadingSuggestions ? (
-                    <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-[#D4AF37]/50" /></div>
+                    <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-sky-500/50" /></div>
                   ) : (
                     <div className="flex flex-col">
                       {suggestedUsers.map((u) => (
-                        <div key={u.id} className="py-4 border-b border-black/5 dark:border-white/10 flex items-center justify-between cursor-pointer group hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors -mx-5 px-5" onClick={() => { if (search.trim()) saveRecentSearch(search.trim()); triggerFeedback('pop'); navigate(`/profile/${u.id}`); }}>
+                        <div key={u.id} className="py-5 border-b border-slate-800 flex items-center justify-between cursor-pointer group hover:bg-slate-900/40 transition-colors -mx-4 px-4" onClick={() => { if (search.trim()) saveRecentSearch(search.trim()); triggerFeedback('pop'); navigate(`/profile/${u.id}`); }}>
                           <div className="flex items-center gap-5">
                             {u.avatar_url ? (
-                              <img src={u.avatar_url} className="w-14 h-14 rounded-full object-cover shadow-sm border border-black/5 dark:border-white/10" />
+                              <img src={u.avatar_url} className="w-14 h-14 rounded-full object-cover border-2 border-slate-800 group-hover:border-sky-800 transition-colors shadow-lg" />
                             ) : (
-                              <UserCircle size={56} className="text-black/10 dark:text-white/10" strokeWidth={1} />
+                              <div className="w-14 h-14 rounded-full border-2 border-slate-800 flex items-center justify-center bg-slate-900">
+                                <UserCircle size={28} className="text-slate-600" strokeWidth={1} />
+                              </div>
                             )}
                             <div className="flex flex-col text-right">
-                              <span className="text-black dark:text-white font-black text-[17px]">{u.full_name || 'משתמש'}</span>
-                              <span className="text-black/40 dark:text-white/40 text-[12px] font-medium mt-0.5" dir="ltr">@{u.username || 'user'} • רמה {u.level || 1}</span>
+                              <span className="text-slate-100 font-black text-[17px] group-hover:text-sky-300 transition-colors">{u.full_name || 'חבר חדש'}</span>
+                              <span className="text-slate-400 text-[12px] font-medium mt-0.5" dir="ltr">@{u.username || 'user'} • רמה {u.level || 1}</span>
                             </div>
                           </div>
-                          <ChevronLeft size={20} className="text-black/20 dark:text-white/20 group-hover:text-black/50 dark:group-hover:text-white/50 transition-colors" />
+                          <ChevronLeft size={20} className="text-slate-600 group-hover:text-slate-300 transition-colors" />
                         </div>
                       ))}
                     </div>
@@ -317,41 +317,45 @@ export const ExplorePage: React.FC = () => {
               </div>
             ) : (
               <>
-                <div className="flex gap-8 overflow-x-auto scrollbar-hide pb-2">
-                  <button onClick={() => { triggerFeedback('pop'); setActiveSearchTab('top'); }} className={`text-[14px] font-bold whitespace-nowrap transition-colors pb-1 border-b-2 ${activeSearchTab === 'top' ? 'text-[#D4AF37] border-[#D4AF37]' : 'text-black/40 dark:text-white/30 border-transparent hover:text-black/70 dark:hover:text-white/60'}`}>מובילים</button>
-                  <button onClick={() => { triggerFeedback('pop'); setActiveSearchTab('accounts'); }} className={`text-[14px] font-bold whitespace-nowrap transition-colors pb-1 border-b-2 ${activeSearchTab === 'accounts' ? 'text-[#D4AF37] border-[#D4AF37]' : 'text-black/40 dark:text-white/30 border-transparent hover:text-black/70 dark:hover:text-white/60'}`}>חשבונות</button>
-                  <button onClick={() => { triggerFeedback('pop'); setActiveSearchTab('tags'); }} className={`text-[14px] font-bold whitespace-nowrap transition-colors pb-1 border-b-2 ${activeSearchTab === 'tags' ? 'text-[#D4AF37] border-[#D4AF37]' : 'text-black/40 dark:text-white/30 border-transparent hover:text-black/70 dark:hover:text-white/60'}`}>ביו</button>
+                {/* טאבים משניים - Pills מעוצבים */}
+                <div className="flex gap-2.5 bg-slate-900 border border-slate-800/80 p-1.5 rounded-full z-10 relative shadow-lg">
+                  <button onClick={() => { triggerFeedback('pop'); setActiveSearchTab('top'); }} className={`flex-1 py-3 text-[13px] font-black transition-all rounded-full flex items-center justify-center whitespace-nowrap ${activeSearchTab === 'top' ? 'bg-slate-800 text-slate-100 shadow-md' : 'text-slate-400 hover:text-slate-100'}`}>מובילים</button>
+                  <button onClick={() => { triggerFeedback('pop'); setActiveSearchTab('accounts'); }} className={`flex-1 py-3 text-[13px] font-black transition-all rounded-full flex items-center justify-center whitespace-nowrap ${activeSearchTab === 'accounts' ? 'bg-slate-800 text-slate-100 shadow-md' : 'text-slate-400 hover:text-slate-100'}`}>חשבונות</button>
+                  <button onClick={() => { triggerFeedback('pop'); setActiveSearchTab('tags'); }} className={`flex-1 py-3 text-[13px] font-black transition-all rounded-full flex items-center justify-center whitespace-nowrap ${activeSearchTab === 'tags' ? 'bg-slate-800 text-slate-100 shadow-md' : 'text-slate-400 hover:text-slate-100'}`}>ביו</button>
                 </div>
 
                 <div>
                   {loading ? (
                     <div className="py-16 flex justify-center">
-                      <Loader2 className="animate-spin text-[#D4AF37]/50" size={28} />
+                      <Loader2 className="animate-spin text-sky-500/50" size={28} />
                     </div>
                   ) : (
                     <AnimatePresence mode="wait">
                       <motion.div key="users-list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col">
                         {usersListData.length === 0 ? (
                           <div className="text-center py-16 flex flex-col items-center gap-3">
-                            <span className="text-black/40 dark:text-white/40 text-[16px] font-medium">לא מצאנו תוצאות</span>
+                            <span className="text-slate-400 font-medium text-[16px]">לא מצאנו תוצאות</span>
                           </div>
                         ) : (
                           usersListData.map((u, idx) => (
                             <motion.div key={u.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: Math.min(idx * 0.05, 0.2) }}>
-                              <div onClick={() => { if (search.trim()) saveRecentSearch(search.trim()); triggerFeedback('pop'); navigate(`/profile/${u.id}`); }} className="py-4 border-b border-black/5 dark:border-white/10 flex items-center justify-between cursor-pointer group hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors -mx-5 px-5">
+                              {/* תוצאת משתמש - קו הפרדה עדין ללא כרטיסייה */}
+                              <div onClick={() => { if (search.trim()) saveRecentSearch(search.trim()); triggerFeedback('pop'); navigate(`/profile/${u.id}`); }} className="py-5 border-b border-slate-800 flex items-center justify-between cursor-pointer group hover:bg-slate-900/40 transition-colors -mx-4 px-4">
                                 <div className="flex items-center gap-5 text-right">
                                   {u.avatar_url ? (
-                                    <img src={u.avatar_url} className="w-14 h-14 rounded-full object-cover shadow-sm border border-black/5 dark:border-white/10" />
+                                    <img src={u.avatar_url} className="w-14 h-14 rounded-full object-cover border-2 border-slate-800 group-hover:border-sky-800 transition-colors shadow-lg" />
                                   ) : (
-                                    <UserCircle size={56} className="text-black/10 dark:text-white/10" strokeWidth={1} />
+                                    <div className="w-14 h-14 rounded-full border-2 border-slate-800 flex items-center justify-center bg-slate-900">
+                                      <UserCircle size={28} className="text-slate-600" strokeWidth={1} />
+                                    </div>
                                   )}
                                   <div className="flex flex-col">
-                                    <span className="text-black dark:text-white text-[17px] font-black">{u.full_name || 'משתמש'}</span>
-                                    <span className="text-black/40 dark:text-white/40 text-[12px] font-medium mt-0.5" dir="ltr">@{u.username || 'user'}</span>
-                                    {activeSearchTab === 'tags' && u.bio && <span className="text-black/60 dark:text-white/60 text-[11px] mt-1 line-clamp-1">{u.bio}</span>}
+                                    <span className="text-slate-100 text-[17px] font-black group-hover:text-sky-300 transition-colors">{u.full_name || 'משתמש'}</span>
+                                    <span className="text-slate-400 text-[12px] font-medium mt-0.5" dir="ltr">@{u.username || 'user'}</span>
+                                    {activeSearchTab === 'tags' && u.bio && <span className="text-slate-300 text-[12px] mt-1.5 line-clamp-1 bg-slate-900 px-3 py-1 rounded-full border border-slate-800 self-start">{u.bio}</span>}
                                   </div>
                                 </div>
-                                <ChevronLeft size={20} className="text-black/20 dark:text-white/20 group-hover:text-black/50 dark:group-hover:text-white/50 transition-colors" />
+                                <ChevronLeft size={20} className="text-slate-600 group-hover:text-slate-300 transition-colors" />
                               </div>
                             </motion.div>
                           ))
