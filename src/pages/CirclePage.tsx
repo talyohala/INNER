@@ -145,7 +145,7 @@ export const CirclePage: React.FC = () => {
       }
 
       let formattedPosts: any[] = [];
-      const { data: pData } = await supabase.from('posts').select('*, profiles(*), likes(user_id), comments(id)').eq('circle_id', circle.id).order('created_at', { ascending: false });
+      const { data: pData } = await supabase.from('posts').select('*, profiles!user_id(*), likes(user_id), comments(id)').eq('circle_id', circle.id).order('created_at', { ascending: false });
       if (pData) {
         formattedPosts = pData.map((p: any) => ({
           ...p,
@@ -223,7 +223,7 @@ export const CirclePage: React.FC = () => {
             media_url,
             media_type,
           })
-          .select('*, profiles(*), likes(user_id), comments(id)')
+          .select('*, profiles!user_id(*), likes(user_id), comments(id)')
           .single();
 
         if (error) throw error;
