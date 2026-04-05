@@ -9,7 +9,6 @@ import {
   Ghost,
   Sparkles,
   Pin,
-  Star,
   ShieldCheck,
   Flame,
   Radio,
@@ -112,16 +111,16 @@ export const BoostStorePage: React.FC = () => {
 
       <div className="relative z-10 px-4 w-full">
         
-        {/* Header - Clean, Centered, No Buttons */}
+        {/* Header */}
         <div className="flex justify-center items-center mb-8 h-12">
           <h1 className="text-[28px] font-black text-white tracking-tighter">החנות</h1>
         </div>
 
-        {/* Balance Card - Modern & Centered */}
-        <div className="mb-8 rounded-[32px] bg-[#0A0A0A] border border-white/5 p-8 shadow-2xl overflow-hidden relative flex flex-col items-center text-center">
+        {/* Balance Card - Dark Transparent Gray */}
+        <div className="mb-8 rounded-[32px] bg-white/[0.04] backdrop-blur-xl border border-white/5 p-8 shadow-2xl overflow-hidden relative flex flex-col items-center text-center">
           <div className="absolute top-0 right-0 w-32 h-32 bg-[#ffc107]/5 blur-3xl rounded-full pointer-events-none" />
           
-          <div className="w-12 h-12 rounded-full bg-[#111] flex items-center justify-center border border-white/10 shadow-inner mb-4 relative z-10">
+          <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center border border-white/10 shadow-inner mb-4 relative z-10">
             <Wallet size={20} className="text-[#ffc107]" />
           </div>
           
@@ -144,7 +143,7 @@ export const BoostStorePage: React.FC = () => {
           </Button>
         </div>
 
-        {/* Store Grid - Centered Icons & Text */}
+        {/* Store Grid - Dark Transparent Gray Cards */}
         <div className="grid grid-cols-2 gap-4">
           {items.map((item, idx) => (
             <motion.div
@@ -155,11 +154,11 @@ export const BoostStorePage: React.FC = () => {
               onClick={() => setSelectedItem(item)}
               className="h-full"
             >
-              <div className="h-full rounded-[32px] bg-[#0A0A0A] border border-white/5 p-5 flex flex-col items-center text-center active:scale-95 transition-transform shadow-lg relative overflow-hidden group">
+              <div className="h-full rounded-[32px] bg-white/[0.04] backdrop-blur-xl border border-white/5 p-5 flex flex-col items-center text-center active:scale-95 transition-transform shadow-lg relative overflow-hidden group">
                 
-                {/* Background Tint */}
+                {/* Background Tint on Hover */}
                 <div 
-                  className="absolute inset-0 opacity-0 group-hover:opacity-[0.03] transition-opacity duration-500 pointer-events-none" 
+                  className="absolute inset-0 opacity-0 group-hover:opacity-[0.05] transition-opacity duration-500 pointer-events-none" 
                   style={{ backgroundColor: item.color }}
                 />
 
@@ -191,7 +190,7 @@ export const BoostStorePage: React.FC = () => {
                     className={`w-full h-11 rounded-2xl font-black text-[11px] tracking-widest uppercase transition-all ${
                       balance !== null && balance >= item.price
                         ? 'bg-white text-black shadow-md'
-                        : 'bg-[#111] text-white/30 border border-white/5'
+                        : 'bg-white/5 text-white/30 border border-white/5'
                     }`}
                   >
                     {balance !== null && balance >= item.price ? 'רכישה' : 'חסר'}
@@ -203,10 +202,10 @@ export const BoostStorePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Purchase Modal - Bottom Sheet z-[9999999] */}
+      {/* Purchase Modal - Bottom Sheet z-[99999] */}
       <AnimatePresence>
         {selectedItem && (
-          <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation}>
+          <div className="fixed inset-0 z-[99999] flex flex-col justify-end" onTouchStart={stopPropagation}>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedItem(null)}/>
             <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: "spring", damping: 25, stiffness: 350 }} className="relative z-10 bg-[#0A0A0A] rounded-t-[40px] p-6 pb-10 border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.8)]">
               <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-8" />
@@ -222,7 +221,7 @@ export const BoostStorePage: React.FC = () => {
                 <p className="text-white/50 font-medium text-sm">האם ברצונך לשלם ולרכוש את <span className="text-white font-bold">{selectedItem.title}</span>?</p>
               </div>
 
-              <div className="bg-[#111] rounded-[24px] p-5 border border-white/5 flex justify-between items-center mb-8">
+              <div className="bg-white/[0.04] rounded-[24px] p-5 border border-white/5 flex justify-between items-center mb-8">
                 <span className="text-white/40 font-bold uppercase tracking-widest text-[10px]">מחיר סופי</span>
                 <div className="flex items-baseline gap-1">
                    <span className="text-2xl font-black text-[#ffc107] tabular-nums leading-none">{selectedItem.price.toLocaleString()}</span>
@@ -234,7 +233,7 @@ export const BoostStorePage: React.FC = () => {
                 <Button onClick={() => handleBuy(selectedItem)} disabled={buyingId === selectedItem.id} className="flex-1 h-14 bg-white text-black rounded-2xl font-black text-lg active:scale-95 shadow-xl">
                   {buyingId === selectedItem.id ? <Loader2 size={20} className="animate-spin" /> : 'אשר ושלם'}
                 </Button>
-                <button onClick={() => setSelectedItem(null)} className="w-14 h-14 bg-[#111] rounded-2xl flex items-center justify-center border border-white/10 active:scale-90"><X size={24} className="text-white/70" /></button>
+                <button onClick={() => setSelectedItem(null)} className="w-14 h-14 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10 active:scale-90"><X size={24} className="text-white/70" /></button>
               </div>
             </motion.div>
           </div>
