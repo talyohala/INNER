@@ -200,7 +200,8 @@ export const CirclePage: React.FC = () => {
     try {
       if (editingPost) {
         await supabase.from('posts').update({ content: newPost.trim() }).eq('id', editingPost.id);
-        toast.success('עודכן בהצלחה'); closeOverlay();
+        toast.success('עודכן בהצלחה');
+        closeOverlay();
       } else {
         let media_url: string | null = null;
         let media_type = 'text';
@@ -214,26 +215,41 @@ export const CirclePage: React.FC = () => {
           }
         }
         
-        const { data: insertedPost, error } = await supabase.from('posts').insert({
-          circle_id: data.circle.id,
-          user_id: currentUserId,
-          content: newPost.trim(),
-          media_url,
-          media_type,
-        }).select('*, profiles(*), likes(user_id), comments(id)').single();
+        const { data: insertedPost, error } = await supabase.from('posts')
+          .insert({
+            circle_id: data.circle.id,
+            user_id: currentUserId,
+            content: newPost.trim(),
+            media_url,
+            media_type,
+          })
+          .select('*, profiles(*), likes(user_id), comments(id)')
+          .single();
 
         if (error) throw error;
         
-        // הוספה ישירה ומיידית לממשק המשתמש (מונע בליעה)
         if (insertedPost) {
+          const newLocalPost = {
+            ...insertedPost,
+            likes_count: 0,
+            comments_count: 0,
+            is_liked: false
+          };
           setData((curr: any) => ({
             ...curr,
-            posts: [{ ...insertedPost, likes_count: 0, comments_count: 0, is_liked: false }, ...curr.posts]
+            posts: [newLocalPost, ...curr.posts]
           }));
         }
       }
-      setNewPost(''); setSelectedFile(null); setEditingPost(null); triggerFeedback('pop');
-    } catch { toast.error('שגיאה בשליחה'); } finally { setPosting(false); }
+      setNewPost('');
+      setSelectedFile(null);
+      setEditingPost(null);
+      triggerFeedback('pop');
+    } catch (err: any) {
+      toast.error('שגיאה: ' + (err.message || 'לא ניתן לשלוח את הפוסט'));
+    } finally {
+      setPosting(false);
+    }
   };
 
   const handleLike = async (postId: string, isLiked: boolean) => {
