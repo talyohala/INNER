@@ -39,16 +39,19 @@ export const ExplorePage: React.FC = () => {
     localStorage.setItem('inner_recent_searches', JSON.stringify(updated));
   };
 
+  // משיכת משתמשים מומלצים בטוחה
   useEffect(() => {
     const fetchSuggested = async () => {
       try {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('profiles')
-          .select('id, full_name, username, avatar_url, level')
-          .order('level', { ascending: false })
+          .select('id, full_name, username, avatar_url, bio')
           .limit(5);
-        if (data) setSuggestedUsers(data);
-      } catch {} finally {
+          
+        if (!error && data) setSuggestedUsers(data);
+      } catch (err) {
+        console.error("Suggested Error:", err);
+      } finally {
         setLoadingSuggestions(false);
       }
     };
@@ -61,13 +64,15 @@ export const ExplorePage: React.FC = () => {
         setLoading(true);
         const data = await apiFetch<any[]>('/api/circles');
         setCircles(Array.isArray(data) ? data : []);
-      } catch {} finally {
+      } catch {
+      } finally {
         setLoading(false);
       }
     };
     if (activeMainTab === 'clubs') fetchCircles();
   }, [activeMainTab]);
 
+  // חיפוש משתמשים בטוח
   useEffect(() => {
     const fetchUsers = async () => {
       if (activeMainTab !== 'users' || !search.trim()) {
@@ -76,17 +81,21 @@ export const ExplorePage: React.FC = () => {
       }
       setLoading(true);
       try {
-        let query = supabase.from('profiles').select('id, full_name, username, avatar_url, level, bio');
+        let query = supabase.from('profiles').select('id, full_name, username, avatar_url, bio');
+        
         if (activeSearchTab === 'tags') {
           query = query.ilike('bio', `%${search}%`);
         } else {
           query = query.or(`full_name.ilike.%${search}%,username.ilike.%${search}%`);
-          if (activeSearchTab === 'top') query = query.order('level', { ascending: false });
           if (activeSearchTab === 'accounts') query = query.order('full_name', { ascending: true });
         }
+        
         const { data, error } = await query.limit(30);
-        if (!error && data) setUsersListData(data);
-      } catch {} finally {
+        if (error) console.error("Search Error:", error);
+        if (data) setUsersListData(data);
+      } catch (err) {
+        console.error("Fetch Users Error:", err);
+      } finally {
         setLoading(false);
       }
     };

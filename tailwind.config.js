@@ -9,8 +9,8 @@ export default {
     extend: {
       colors: {
         surface: {
-          DEFAULT: '#18191C', // הרקע הכהה הראשי מהתמונה
-          card: '#2B2D31', // פחם בהיר יותר מהעיגול בתמונה
+          DEFAULT: '#18191C', 
+          card: '#2B2D31', 
           border: 'rgba(255, 255, 255, 0.06)', 
         },
         brand: {
@@ -18,7 +18,7 @@ export default {
           muted: '#949BA4',
         },
         accent: {
-          primary: '#A1B4FE', // התכלת-פסטל המדויק מהריבוע
+          primary: '#B8C8FA', // תכלת פסטל רך ונעים יותר
         }
       }
     },
