@@ -618,7 +618,7 @@ export const CirclePage: React.FC = () => {
                   </div>
                 )}
 
-                <div className="flex justify-between items-center mt-2 border-t border-white/[0.05] pt-3">
+                <div className="flex justify-end items-center gap-3 mt-2 border-t border-white/[0.05] pt-3">
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     className="text-brand-muted hover:text-brand transition-colors p-2"
