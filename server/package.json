@@ -1,8 +1,10 @@
 {
   "name": "inner-server",
   "version": "1.0.0",
+  "main": "dist/index.js",
   "scripts": {
-    "start": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
@@ -15,6 +17,7 @@
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
+    "@types/node": "^22.10.2",
     "tsx": "^4.7.1",
     "typescript": "^5.3.3"
   }
