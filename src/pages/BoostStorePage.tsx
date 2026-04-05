@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -33,10 +34,16 @@ type StoreItem = {
 export const BoostStorePage: React.FC = () => {
   const navigate = useNavigate();
 
+  const [mounted, setMounted] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [buyingId, setBuyingId] = useState<number | null>(null);
   const [selectedItem, setSelectedItem] = useState<StoreItem | null>(null);
+
+  // מוודאים שהעמוד נטען לפני שימוש ב-Portal
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const items: StoreItem[] = useMemo(
     () => [
@@ -204,43 +211,60 @@ export const BoostStorePage: React.FC = () => {
         </div>
       </FadeIn>
 
-      {/* Purchase Modal - Extracted from FadeIn to ignore CSS transforms */}
-      <AnimatePresence>
-        {selectedItem && (
-          <div className="fixed inset-0 z-[999999] flex flex-col justify-end" dir="rtl" onTouchStart={stopPropagation}>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedItem(null)}/>
-            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: "spring", damping: 25, stiffness: 350 }} className="relative z-10 bg-[#0A0A0A] rounded-t-[40px] p-6 pb-10 border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.8)]">
-              <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-8" />
-              
-              <div className="flex flex-col items-center text-center gap-4 mb-8">
-                <div 
-                  className="w-20 h-20 rounded-[24px] flex items-center justify-center text-3xl shadow-inner border border-white/10"
-                  style={{ backgroundColor: `${selectedItem.color}15` }}
-                >
-                  <selectedItem.icon size={36} style={{ color: selectedItem.color }} />
+      {/* Safe Portal for Bottom Sheet - Escapes all stacking contexts and z-index traps */}
+      {mounted && typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {selectedItem && (
+            <div className="fixed inset-0 z-[999999] flex flex-col justify-end" dir="rtl" onTouchStart={stopPropagation} style={{ touchAction: 'none' }}>
+              <motion.div 
+                initial={{ opacity: 0 }} 
+                animate={{ opacity: 1 }} 
+                exit={{ opacity: 0 }} 
+                className="absolute inset-0 bg-black/80 backdrop-blur-sm" 
+                onClick={() => setSelectedItem(null)}
+              />
+              <motion.div 
+                initial={{ y: '100%' }} 
+                animate={{ y: 0 }} 
+                exit={{ y: '100%' }} 
+                transition={{ type: "spring", damping: 25, stiffness: 350 }} 
+                className="relative z-10 bg-[#0A0A0A] rounded-t-[40px] p-6 pb-10 border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.8)]"
+              >
+                <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-8" />
+                
+                <div className="flex flex-col items-center text-center gap-4 mb-8">
+                  <div 
+                    className="w-20 h-20 rounded-[24px] flex items-center justify-center text-3xl shadow-inner border border-white/10"
+                    style={{ backgroundColor: `${selectedItem.color}15` }}
+                  >
+                    <selectedItem.icon size={36} style={{ color: selectedItem.color }} />
+                  </div>
+                  <h3 className="text-2xl font-black text-white">אישור רכישה</h3>
+                  <p className="text-white/50 font-medium text-sm">האם ברצונך לשלם ולרכוש את <span className="text-white font-bold">{selectedItem.title}</span>?</p>
                 </div>
-                <h3 className="text-2xl font-black text-white">אישור רכישה</h3>
-                <p className="text-white/50 font-medium text-sm">האם ברצונך לשלם ולרכוש את <span className="text-white font-bold">{selectedItem.title}</span>?</p>
-              </div>
 
-              <div className="bg-white/[0.04] rounded-[24px] p-5 border border-white/5 flex justify-between items-center mb-8">
-                <span className="text-white/40 font-bold uppercase tracking-widest text-[10px]">מחיר סופי</span>
-                <div className="flex items-baseline gap-1">
-                   <span className="text-2xl font-black text-[#ffc107] tabular-nums leading-none">{selectedItem.price.toLocaleString()}</span>
-                   <span className="text-[#ffc107]/50 text-[10px] font-black">CRD</span>
+                <div className="bg-white/[0.04] rounded-[24px] p-5 border border-white/5 flex justify-between items-center mb-8">
+                  <span className="text-white/40 font-bold uppercase tracking-widest text-[10px]">מחיר סופי</span>
+                  <div className="flex items-baseline gap-1">
+                     <span className="text-2xl font-black text-[#ffc107] tabular-nums leading-none">{selectedItem.price.toLocaleString()}</span>
+                     <span className="text-[#ffc107]/50 text-[10px] font-black">CRD</span>
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex gap-3">
-                <Button onClick={() => handleBuy(selectedItem)} disabled={buyingId === selectedItem.id} className="flex-1 h-14 bg-white text-black rounded-2xl font-black text-lg active:scale-95 shadow-xl">
-                  {buyingId === selectedItem.id ? <Loader2 size={20} className="animate-spin" /> : 'אשר ושלם'}
-                </Button>
-                <button onClick={() => setSelectedItem(null)} className="w-14 h-14 bg-[#111] rounded-2xl flex items-center justify-center border border-white/10 active:scale-90"><X size={24} className="text-white/70" /></button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+                <div className="flex gap-3">
+                  <Button onClick={() => handleBuy(selectedItem)} disabled={buyingId === selectedItem.id} className="flex-1 h-14 bg-white text-black rounded-2xl font-black text-lg active:scale-95 shadow-xl">
+                    {buyingId === selectedItem.id ? <Loader2 size={20} className="animate-spin" /> : 'אשר ושלם'}
+                  </Button>
+                  <button onClick={() => setSelectedItem(null)} className="w-14 h-14 bg-[#111] rounded-2xl flex items-center justify-center border border-white/10 active:scale-90">
+                    <X size={24} className="text-white/70" />
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </>
   );
 };
