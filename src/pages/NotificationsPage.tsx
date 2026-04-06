@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import {
   Loader2,
   Bell,
@@ -71,6 +71,7 @@ export const NotificationsPage: React.FC = () => {
   const { user, markNotificationsRead, checkUnread } = useAuth();
 
   const channelRef = useRef<any>(null);
+  const menuDragControls = useDragControls();
 
   const [mounted, setMounted] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -88,6 +89,7 @@ export const NotificationsPage: React.FC = () => {
 
   const enrichActorProfiles = useCallback(async (list: any[]) => {
     const actorIds = Array.from(new Set(list.map(getActorIdFromNotification).filter(Boolean))) as string[];
+
     if (actorIds.length === 0) {
       setActorProfiles({});
       return;
@@ -161,7 +163,12 @@ export const NotificationsPage: React.FC = () => {
       .channel(`notifications_page_${user.id}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
+        },
         async (payload) => {
           if (payload.eventType === 'INSERT') triggerFeedback('success');
           await fetchNotifs(false);
@@ -281,9 +288,15 @@ export const NotificationsPage: React.FC = () => {
 
   const markAllAsRead = async () => {
     if (!user?.id) return;
+
     setBusyId('mark-all-read');
     try {
-      await supabase.from('notifications').update({ is_read: true }).eq('user_id', user.id).eq('is_read', false);
+      await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('user_id', user.id)
+        .eq('is_read', false);
+
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
       await checkUnread(user.id);
       toast.success('הכל סומן כנקרא');
@@ -296,6 +309,7 @@ export const NotificationsPage: React.FC = () => {
 
   const deleteAllReadNotifications = async () => {
     if (!user?.id) return;
+
     setBusyId('delete-read-all');
     try {
       await supabase.from('notifications').delete().eq('user_id', user.id).eq('is_read', true);
@@ -310,7 +324,9 @@ export const NotificationsPage: React.FC = () => {
     }
   };
 
-  const stopPropagation = (e: React.MouseEvent | React.TouchEvent) => e.stopPropagation();
+  const stopPropagation = (e: React.MouseEvent | React.TouchEvent | React.PointerEvent) => {
+    e.stopPropagation();
+  };
 
   if (loading) {
     return (
@@ -337,6 +353,7 @@ export const NotificationsPage: React.FC = () => {
               >
                 <Bell size={40} className="text-brand-muted" />
               </motion.div>
+
               <p className="font-black text-brand-muted uppercase tracking-widest text-[13px]">
                 הכל שקט בינתיים
               </p>
@@ -390,6 +407,7 @@ export const NotificationsPage: React.FC = () => {
                       <span className="text-brand font-black text-[14px] truncate">
                         {actor?.full_name || notif.title}
                       </span>
+
                       {!notif.is_read && (
                         <span className="text-[9px] font-black text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full shrink-0">
                           חדש
@@ -432,22 +450,34 @@ export const NotificationsPage: React.FC = () => {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+                  className="absolute inset-0 bg-black/60 backdrop-blur-sm"
                   onClick={() => setActiveMenuNotif(null)}
                 />
 
                 <motion.div
+                  drag="y"
+                  dragControls={menuDragControls}
+                  dragListener={false}
+                  dragConstraints={{ top: 0, bottom: 0 }}
+                  dragElastic={0.22}
+                  onDragEnd={(_, info) => {
+                    if (info.offset.y > 120 || info.velocity.y > 700) {
+                      setActiveMenuNotif(null);
+                    }
+                  }}
                   initial={{ y: '100%' }}
                   animate={{ y: 0 }}
                   exit={{ y: '100%' }}
-                  transition={{ type: 'spring', damping: 25, stiffness: 260 }}
-                  className="relative z-10 bg-white rounded-t-[34px] p-5 pb-[calc(env(safe-area-inset-bottom)+32px)] shadow-[0_-20px_40px_rgba(0,0,0,0.18)] max-h-[85vh] overflow-y-auto scrollbar-hide"
+                  transition={{ type: 'spring', damping: 25, stiffness: 380 }}
+                  onPointerDownCapture={(e) => menuDragControls.start(e)}
+                  className="relative z-10 bg-white rounded-t-[40px] p-6 pb-[calc(env(safe-area-inset-bottom)+28px)] shadow-[0_-20px_50px_rgba(0,0,0,0.15)] border-t border-black/[0.05] max-h-[85vh] overflow-y-auto scrollbar-hide touch-pan-y"
+                  style={{ touchAction: 'pan-y' }}
                 >
-                  <div className="w-full flex justify-center mb-6">
-                    <div className="w-14 h-1.5 bg-black/10 rounded-full" />
+                  <div className="w-full py-2 mb-4 flex justify-center">
+                    <div className="w-16 h-1.5 bg-black/10 rounded-full" />
                   </div>
 
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-3">
                     <button
                       onClick={() => setNotificationReadState(activeMenuNotif, !activeMenuNotif.is_read)}
                       className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-neutral-100 border border-neutral-200 active:scale-[0.98] transition-all"
@@ -544,7 +574,7 @@ export const NotificationsPage: React.FC = () => {
 
                     <button
                       onClick={() => deleteNotification(activeMenuNotif.id)}
-                      className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-red-50 border border-red-100 active:scale-[0.98] transition-all mt-2"
+                      className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-red-50 border border-red-100 active:scale-[0.98] transition-all mt-1"
                     >
                       <div className="w-11 h-11 rounded-[16px] bg-red-50 border border-red-100 flex items-center justify-center shrink-0">
                         {busyId === activeMenuNotif.id ? (
