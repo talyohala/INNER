@@ -14,9 +14,7 @@ import toast from 'react-hot-toast';
 import { Share } from '@capacitor/share';
 import { useAuth } from '../context/AuthContext';
 
-// --------------------------------------------------------
-// רכיב וידאו חכם - מונע קריסות ומנגן רק כשהוא על המסך!
-// --------------------------------------------------------
+// רכיב וידאו חכם לביצועים
 const FeedVideo = ({ src, className }: { src: string; className?: string }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -29,29 +27,15 @@ const FeedVideo = ({ src, className }: { src: string; className?: string }) => {
           videoRef.current?.pause();
         }
       },
-      { threshold: 0.4 } // מתחיל לנגן כש-40% מהסרטון נראה לעין
+      { threshold: 0.4 }
     );
 
-    if (videoRef.current) {
-      observer.observe(videoRef.current);
-    }
-
+    if (videoRef.current) observer.observe(videoRef.current);
     return () => observer.disconnect();
   }, []);
 
-  return (
-    <video
-      ref={videoRef}
-      src={src}
-      loop
-      muted
-      playsInline
-      preload="metadata" // טוען רק מידע בסיסי כדי לא להעמיס על הרשת
-      className={className}
-    />
-  );
+  return <video ref={videoRef} src={src} loop muted playsInline preload="metadata" className={className} />;
 };
-// --------------------------------------------------------
 
 export const CirclePage: React.FC = () => {
   const { slug } = useParams();
@@ -67,7 +51,6 @@ export const CirclePage: React.FC = () => {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // Pagination States (מערכת טעינת פוסטים חכמה)
   const [page, setPage] = useState(0);
   const [hasMorePosts, setHasMorePosts] = useState(true);
   const POSTS_PER_PAGE = 20;
@@ -145,7 +128,6 @@ export const CirclePage: React.FC = () => {
   useEffect(() => {
     fetchCircleData();
     const channel = supabase.channel(`circle_${slug}`).on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => {
-      // רענון שקט רק לעמוד הראשון כשמגיע פוסט חדש ממישהו אחר
       if (page === 0) fetchCircleData(); 
     }).subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -188,7 +170,6 @@ export const CirclePage: React.FC = () => {
         isMember = !!(memberData && memberData.length > 0);
       }
 
-      // משיכה חכמה: רק ה-20 הראשונים
       const { data: pData } = await supabase.from('posts')
         .select('*, profiles!user_id(*), likes(user_id), comments(id)')
         .eq('circle_id', circle.id)
@@ -236,11 +217,7 @@ export const CirclePage: React.FC = () => {
       } else {
         setHasMorePosts(false);
       }
-    } catch (err) {
-      toast.error('שגיאה בטעינת פוסטים נוספים');
-    } finally {
-      setLoadingMore(false);
-    }
+    } catch (err) { toast.error('שגיאה בטעינת פוסטים נוספים'); } finally { setLoadingMore(false); }
   };
 
   const fetchMembersList = async () => {
@@ -310,7 +287,6 @@ export const CirclePage: React.FC = () => {
         if (error) throw error;
         
         if (insertedPost) {
-          // מנגנון Optimistic UI - משלב מיד במסך ללא עיכוב
           setData((curr: any) => ({
             ...curr,
             posts: [{ ...insertedPost, likes_count: 0, comments_count: 0, is_liked: false }, ...curr.posts]
@@ -551,7 +527,7 @@ export const CirclePage: React.FC = () => {
 
               if (!isMember) {
                 return (
-                  <div key={post.id} className="flex flex-col bg-surface-card border border-white/[0.05] overflow-hidden shadow-2xl w-full relative rounded-[32px]">
+                  <div key={post.id} className="flex flex-col bg-surface-card border border-white/[0.05] overflow-hidden shadow-2xl w-full relative rounded-[28px]">
                     <div className="w-full relative aspect-[3/4] bg-surface overflow-hidden flex items-center justify-center">
                       {hasMedia ? (
                         <img src={post.media_url} loading="lazy" className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-30 scale-110" />
@@ -581,21 +557,24 @@ export const CirclePage: React.FC = () => {
               }
 
               return (
-                <div key={post.id} className="flex flex-col bg-surface-card border border-white/[0.05] overflow-hidden shadow-xl rounded-[28px] w-full relative">
+                <div key={post.id} className="flex flex-col bg-black border border-white/[0.05] overflow-hidden shadow-xl rounded-[28px] w-full relative">
                   
-                  {/* התוכן העליון - עד הקצה */}
+                  {/* התוכן העליון - תמונה נוגעת בקצה ללא פס */}
                   {hasMedia ? (
-                    <div className="w-full relative cursor-pointer overflow-hidden bg-surface flex flex-col" onClick={() => openOverlay(() => { const vids = posts.filter((p: any) => p.media_url); setFullScreenMedia([post, ...vids.filter((v: any) => v.id !== post.id).sort(() => Math.random() - 0.5)]); setCurrentMediaIndex(0); })}>
-                      {/* מדיה יושבת עד למטה, ביחס מלבני אלגנטי */}
+                    <div className="w-full relative cursor-pointer overflow-hidden bg-black flex flex-col" onClick={() => openOverlay(() => { const vids = posts.filter((p: any) => p.media_url); setFullScreenMedia([post, ...vids.filter((v: any) => v.id !== post.id).sort(() => Math.random() - 0.5)]); setCurrentMediaIndex(0); })}>
+                      {/* מדיה יושבת עד למעלה בגובה חכם */}
                       {isVideo ? (
-                        <FeedVideo src={post.media_url} className="w-full max-h-[400px] aspect-[4/5] object-cover" />
+                        <FeedVideo src={post.media_url} className="w-full max-h-[360px] aspect-[4/5] object-cover" />
                       ) : (
-                        <img src={post.media_url} loading="lazy" className="w-full max-h-[400px] aspect-[4/5] object-cover" onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/1E1F22/333?text=Media+Unavailable'; }} />
+                        <img src={post.media_url} loading="lazy" className="w-full max-h-[360px] aspect-[4/5] object-cover" onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/1E1F22/333?text=Media+Unavailable'; }} />
                       )}
                       
+                      {/* השתלבות עדינה של התמונה למטה לשחור בלי קו מפריד */}
+                      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black via-black/40 to-transparent pointer-events-none"></div>
+
                       {/* טקסט מולבש על גבי התמונה בתחתית (בלי קופסה נפרדת) */}
                       {post.content && (
-                        <div className="absolute bottom-0 left-0 right-0 p-4 pt-24 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex items-end pointer-events-none">
+                        <div className="absolute bottom-0 left-0 right-0 p-4 pt-32 bg-gradient-to-t from-black via-black/30 to-transparent flex items-end pointer-events-none z-10">
                           <p onClick={(e) => { e.stopPropagation(); openOverlay(() => setActiveDescPost(post)); }} className="text-white text-[14px] font-medium leading-relaxed text-right line-clamp-2 w-full pr-1 cursor-pointer active:opacity-70 pointer-events-auto drop-shadow-md">
                             {post.content}
                           </p>
@@ -603,16 +582,16 @@ export const CirclePage: React.FC = () => {
                       )}
                     </div>
                   ) : (
-                    /* עיצוב חכם לטקסט בלבד - רק כמה שהוא צריך, ולא נבלע */
-                    <div className="w-full p-5 pt-6 cursor-pointer" onClick={() => openOverlay(() => setActiveDescPost(post))}>
+                    /* עיצוב חכם לטקסט בלבד - רק כמה שהוא צריך */
+                    <div className="w-full p-5 pt-6 cursor-pointer bg-surface-card" onClick={() => openOverlay(() => setActiveDescPost(post))}>
                       <p className="text-white text-[16px] leading-relaxed text-right line-clamp-6 whitespace-pre-wrap">{post.content}</p>
                     </div>
                   )}
 
-                  {/* שורה תחתונה: משתמש מימין, כפתורים משמאל */}
-                  <div className="flex items-center justify-between px-4 py-3 bg-surface border-t border-white/[0.05]">
+                  {/* שורה תחתונה: כפתורים בשמאל, משתמש בימין - שחור מלא (או צבע כרטיס לטקסט) */}
+                  <div className={`flex items-center justify-between px-4 py-3 ${hasMedia ? 'bg-black' : 'bg-surface-card border-t border-white/[0.05]'}`}>
                     
-                    {/* צד ימין: משתמש - חזר לשורה התחתונה לבקשתך */}
+                    {/* צד ימין: משתמש חזר למטה לבקשתך */}
                     <div className="flex items-center gap-2 cursor-pointer active:opacity-70 transition-opacity" onClick={() => navigate(`/profile/${post.user_id}`)}>
                       <div className="w-9 h-9 rounded-full bg-surface-card border border-white/[0.05] overflow-hidden shrink-0">
                         {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" loading="lazy" /> : <UserCircle className="w-full h-full p-1.5 text-brand-muted" />}
@@ -623,7 +602,7 @@ export const CirclePage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* צד שמאל: פעולות + 3 נקודות */}
+                    {/* צד שמאל: פעולות + 3 נקודות יחד */}
                     <div className="flex items-center gap-3">
                       <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-1.5 transition-all active:scale-90 ${post.is_liked ? 'text-red-500' : 'text-brand-muted hover:text-red-400'}`}>
                         <Heart size={18} fill={post.is_liked ? 'currentColor' : 'none'} strokeWidth={post.is_liked ? 0 : 2} />
@@ -637,10 +616,9 @@ export const CirclePage: React.FC = () => {
                         <Share2 size={18} />
                       </button>
                       
-                      {/* קו מפריד עדין */}
                       <div className="w-px h-4 bg-white/[0.1] mx-0.5"></div>
                       
-                      {/* 3 נקודות לאורך כמו פעם */}
+                      {/* 3 נקודות לאורך כמו פעם יחד בשורת הפעולות */}
                       <button onClick={() => openOverlay(() => setOptionsMenuPost(post))} className="text-brand-muted hover:text-white transition-colors active:scale-90">
                         <MoreVertical size={20} strokeWidth={2} />
                       </button>
@@ -652,7 +630,6 @@ export const CirclePage: React.FC = () => {
             })}
           </div>
 
-          {/* כפתור טען עוד למניעת קריסות (Pagination) */}
           {hasMorePosts && isMember && posts.length > 0 && (
              <div className="flex justify-center mt-2 mb-8">
                <button onClick={loadMorePosts} disabled={loadingMore} className="bg-surface-card border border-white/[0.05] rounded-full px-6 py-2.5 text-brand font-bold text-[13px] tracking-widest uppercase flex items-center gap-2 shadow-lg active:scale-95 transition-transform">
@@ -696,7 +673,7 @@ export const CirclePage: React.FC = () => {
               </motion.div>
             )}
 
-            {/* מודאל חברים */}
+            {/* מודאל חברים בלבן نקי */}
             {showMembers && (
               <div className="fixed inset-0 z-[100000] flex flex-col justify-end" dir="rtl" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
@@ -718,7 +695,7 @@ export const CirclePage: React.FC = () => {
               </div>
             )}
 
-            {/* מודאל אונליין ריל-טיים */}
+            {/* מודאל אונליין ריל-טיים בלבן נקי */}
             {showOnline && (
               <div className="fixed inset-0 z-[100000] flex flex-col justify-end" dir="rtl" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
@@ -743,7 +720,7 @@ export const CirclePage: React.FC = () => {
               </div>
             )}
 
-            {/* מודאל תגובות */}
+            {/* מודאל תגובות בלבן נקי */}
             {activeCommentsPostId && (
               <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
@@ -787,7 +764,7 @@ export const CirclePage: React.FC = () => {
               </div>
             )}
 
-            {/* מודאל אפשרויות פוסט */}
+            {/* מודאל אפשרויות פוסט בלבן נקי */}
             {optionsMenuPost && (
               <div className="fixed inset-0 z-[99999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
@@ -807,7 +784,7 @@ export const CirclePage: React.FC = () => {
               </div>
             )}
 
-            {/* מודאל פעולות לתגובה */}
+            {/* מודאל פעולות לתגובה בלבן נקי */}
             {commentActionModal && (
               <div className="fixed inset-0 z-[100000] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
@@ -824,7 +801,7 @@ export const CirclePage: React.FC = () => {
               </div>
             )}
 
-            {/* מודאל תיאור פוסט מלא */}
+            {/* מודאל תיאור פוסט מלא בלבן נקי */}
             {activeDescPost && (
               <div className="fixed inset-0 z-[99999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
