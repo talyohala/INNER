@@ -117,18 +117,14 @@ export const BoostStorePage: React.FC = () => {
 
   return (
     <>
-      <FadeIn className="px-4 pt-10 pb-32 bg-surface min-h-screen font-sans relative overflow-x-hidden" dir="rtl">
+      <FadeIn className="px-4 pt-5 pb-32 bg-surface min-h-screen font-sans relative overflow-x-hidden" dir="rtl">
         <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
           <div className="absolute top-[-8%] right-[-10%] w-[45%] h-[18%] bg-accent-primary/10 blur-[110px] rounded-full" />
           <div className="absolute bottom-[-8%] left-[-10%] w-[38%] h-[16%] bg-white/5 blur-[120px] rounded-full" />
         </div>
 
         <div className="relative z-10 w-full text-center">
-          <h1 className="text-[28px] font-black text-brand tracking-tight mb-8 h-12 flex items-center justify-center">
-            החנות
-          </h1>
-
-          <div className="mb-8 rounded-[32px] bg-surface-card border border-surface-border p-8 shadow-2xl flex flex-col items-center">
+          <div className="mb-6 rounded-[32px] bg-surface-card border border-surface-border p-7 shadow-2xl flex flex-col items-center">
             <div className="w-12 h-12 rounded-full bg-surface border border-surface-border flex items-center justify-center mb-4 shadow-inner">
               <Wallet size={20} className="text-[#ffc107]" />
             </div>
@@ -148,7 +144,7 @@ export const BoostStorePage: React.FC = () => {
 
             <Button
               onClick={() => navigate('/wallet')}
-              className="w-full h-14 rounded-2xl bg-accent-primary text-white font-black text-[12px] tracking-widest uppercase shadow-xl active:scale-95"
+              className="w-full h-14 rounded-2xl bg-white text-black font-black text-[12px] tracking-widest uppercase shadow-xl active:scale-95"
             >
               טען ארנק
             </Button>
@@ -196,8 +192,8 @@ export const BoostStorePage: React.FC = () => {
                     <Button
                       className={`w-full h-11 rounded-2xl font-black text-[11px] uppercase ${
                         balance !== null && balance >= item.price
-                          ? 'bg-accent-primary text-white'
-                          : 'bg-white/5 text-brand-muted border border-surface-border'
+                          ? 'bg-white text-black'
+                          : 'bg-white/80 text-black'
                       }`}
                     >
                       {balance !== null && balance >= item.price ? 'רכישה' : 'חסר'}
@@ -275,7 +271,7 @@ export const BoostStorePage: React.FC = () => {
                   <Button
                     onClick={() => handleBuy(selectedItem)}
                     disabled={buyingId === selectedItem.id}
-                    className="w-full h-16 bg-accent-primary text-white rounded-2xl font-black text-lg active:scale-95 shadow-xl"
+                    className="w-full h-16 bg-white text-black rounded-2xl font-black text-lg active:scale-95 shadow-xl border border-neutral-200"
                   >
                     {buyingId === selectedItem.id ? <Loader2 size={20} className="animate-spin" /> : 'רכוש'}
                   </Button>

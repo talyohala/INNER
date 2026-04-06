@@ -155,20 +155,13 @@ export const NotificationsPage: React.FC = () => {
   useEffect(() => {
     if (!user?.id) return;
 
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-    }
+    if (channelRef.current) supabase.removeChannel(channelRef.current);
 
     channelRef.current = supabase
       .channel(`notifications_page_${user.id}`)
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${user.id}`,
-        },
+        { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
         async (payload) => {
           if (payload.eventType === 'INSERT') triggerFeedback('success');
           await fetchNotifs(false);
@@ -328,8 +321,8 @@ export const NotificationsPage: React.FC = () => {
   }
 
   return (
-    <div className="px-4 pt-12 pb-32 bg-surface min-h-screen flex flex-col font-sans" dir="rtl">
-      <div className="flex items-center justify-center mb-8 px-2 relative">
+    <div className="px-4 pt-8 pb-32 bg-surface min-h-screen flex flex-col font-sans" dir="rtl">
+      <div className="flex items-center justify-center mb-7 px-2 relative">
         <div className="flex flex-col items-center">
           <h1 className="text-3xl font-black text-brand tracking-tight drop-shadow-md">התראות</h1>
           {unreadExists && (
