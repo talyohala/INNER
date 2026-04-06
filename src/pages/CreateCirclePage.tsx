@@ -40,61 +40,47 @@ export const CreateCirclePage: React.FC = () => {
 
       const tid = toast.loading('מעבד תמונת נושא...');
 
-      const options = {
+      const compressedFile = await imageCompression(file, {
         maxSizeMB: 1,
         maxWidthOrHeight: 1920,
         useWebWorker: true,
-      };
+      });
 
-      const compressedFile = await imageCompression(file, options);
-
-      const fileName = `circle_cover_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+      const fileName = `circle_${Date.now()}`;
       const { data, error } = await supabase.storage
         .from('avatars')
         .upload(fileName, compressedFile);
 
       if (error) throw error;
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from('avatars').getPublicUrl(data.path);
+      const { data: { publicUrl } } =
+        supabase.storage.from('avatars').getPublicUrl(data.path);
 
       setCoverUrl(publicUrl);
-      triggerFeedback('success');
       toast.success('התמונה מוכנה', { id: tid });
+      triggerFeedback('success');
     } catch {
+      toast.error('שגיאה בהעלאה');
       triggerFeedback('error');
-      toast.error('שגיאה בהעלאת התמונה');
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
   const handleSave = async () => {
-    if (!name.trim()) {
-      triggerFeedback('error');
-      return toast.error('חובה לתת שם למועדון שלך');
-    }
-
-    if (isPaid && (price === '' || Number(price) <= 0)) {
-      triggerFeedback('error');
-      return toast.error('אנא הזן דמי כניסה תקינים ב-CRD');
-    }
+    if (!name.trim()) return toast.error('תן שם למועדון');
 
     try {
       setSaving(true);
-      triggerFeedback('pop');
 
-      const { data: authData } = await supabase.auth.getUser();
-      const userId = authData.user?.id;
+      const { data: auth } = await supabase.auth.getUser();
 
-      const newCircle = await apiFetch<any>('/api/circles', {
+      const res = await apiFetch('/api/circles', {
         method: 'POST',
-        headers: { 'x-user-id': userId || '' },
+        headers: { 'x-user-id': auth.user?.id || '' },
         body: JSON.stringify({
-          name: name.trim(),
-          description: description.trim(),
+          name,
+          description,
           cover_url: coverUrl,
           is_private: isPaid,
           join_price: isPaid ? Number(price) : 0,
@@ -102,207 +88,132 @@ export const CreateCirclePage: React.FC = () => {
         }),
       });
 
-      triggerFeedback('success');
-      toast.success('המועדון הוקם בהצלחה');
-      navigate(`/circle/${newCircle.slug}`);
-    } catch (err: any) {
-      triggerFeedback('error');
-      toast.error(err?.message || 'שגיאה בהקמת המועדון');
+      toast.success('נוצר בהצלחה');
+      navigate(`/circle/${res.slug}`);
+    } catch {
+      toast.error('שגיאה ביצירה');
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <FadeIn
-      className="px-4 pt-5 pb-32 bg-surface min-h-screen font-sans relative overflow-x-hidden"
-      dir="rtl"
-    >
-      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden flex justify-center">
-        <div className="absolute top-[-8%] left-[-10%] w-[55%] h-[38%] bg-white/5 blur-[110px] rounded-full" />
-      </div>
+    <FadeIn className="px-4 pt-5 pb-32 bg-surface min-h-screen" dir="rtl">
 
       <input
         type="file"
         ref={fileInputRef}
         onChange={handleFileUpload}
-        accept="image/*"
         className="hidden"
       />
 
-      <div className="relative z-10 flex flex-col gap-5">
-        <div
-          onClick={() => fileInputRef.current?.click()}
-          className="w-full h-52 rounded-[34px] bg-surface-card border border-surface-border flex flex-col items-center justify-center relative shadow-[0_20px_50px_rgba(0,0,0,0.16)] overflow-hidden group cursor-pointer active:scale-[0.99] transition-all"
-        >
-          {uploading ? (
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 size={30} className="animate-spin text-brand-muted" />
-              <span className="text-brand-muted text-[10px] font-black tracking-widest uppercase">
-                מעבד תמונה
-              </span>
-            </div>
-          ) : coverUrl ? (
-            <>
-              <img src={coverUrl} className="w-full h-full object-cover" alt="Cover" />
-              <div className="absolute inset-0 bg-black/35 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="text-white font-black text-[11px] uppercase tracking-widest bg-white/10 px-4 py-2 rounded-full border border-white/20">
-                  החלף תמונה
-                </span>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="w-14 h-14 rounded-full bg-surface border border-surface-border flex items-center justify-center mb-3 shadow-inner">
-                <ImageIcon size={24} className="text-brand-muted" />
-              </div>
-              <span className="text-brand text-[13px] font-black">בחר תמונת נושא למועדון</span>
-              <span className="text-brand-muted text-[9px] font-bold mt-2 uppercase tracking-widest">
-                יחס מומלץ 16:9
-              </span>
-            </>
-          )}
-        </div>
-
-        <div className="bg-surface-card border border-surface-border rounded-[34px] p-6 flex flex-col gap-6 shadow-[0_20px_50px_rgba(0,0,0,0.14)]">
-          <div className="flex flex-col gap-2">
-            <label className="text-brand-muted text-[11px] font-black uppercase px-1 tracking-widest">
-              שם המועדון
-            </label>
-            <Input
-              value={name}
-              onChange={(e: any) => setName(e.target.value)}
-              placeholder="לדוגמה: יזמי הייטק"
-              className="bg-surface rounded-full border border-surface-border text-brand"
-            />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <label className="text-brand-muted text-[11px] font-black uppercase px-1 tracking-widest">
-              תיאור קצר
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="על מה הולכים לדבר במועדון ומה הווייב"
-              className="w-full bg-surface border border-surface-border rounded-[28px] p-4 text-brand text-right font-medium transition-all h-28 resize-none shadow-inner text-[15px] placeholder:text-brand-muted outline-none leading-relaxed"
-            />
-          </div>
-
-          <div className="flex flex-col gap-4 pt-4 border-t border-surface-border">
-            <label className="text-brand-muted text-[11px] font-black uppercase px-1 tracking-widest">
-              סוג גישה
-            </label>
-
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => {
-                  triggerFeedback('pop');
-                  setIsPaid(false);
-                }}
-                className={`flex items-center justify-center gap-2 h-14 rounded-full border transition-all ${
-                  !isPaid
-                    ? 'bg-accent-primary/10 border-accent-primary/20 text-accent-primary shadow-inner font-bold'
-                    : 'bg-surface border-surface-border text-brand-muted font-medium'
-                }`}
-              >
-                <Unlock size={16} />
-                חופשי
-              </button>
-
-              <button
-                onClick={() => {
-                  triggerFeedback('pop');
-                  setIsPaid(true);
-                }}
-                className={`flex items-center justify-center gap-2 h-14 rounded-full border transition-all ${
-                  isPaid
-                    ? 'bg-orange-500/10 border-orange-500/20 text-orange-500 shadow-inner font-bold'
-                    : 'bg-surface border-surface-border text-brand-muted font-medium'
-                }`}
-              >
-                <Lock size={16} />
-                סגור / בתשלום
-              </button>
-            </div>
-
-            <AnimatePresence>
-              {isPaid && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="mt-2 overflow-hidden flex flex-col gap-4"
-                >
-                  <div>
-                    <label className="text-orange-500 text-[10px] font-bold px-1 mb-1 block text-right">
-                      דמי כניסה (תשלום חד-פעמי)
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-orange-500/60 font-black text-xs tracking-wider">
-                        CRD
-                      </span>
-                      <input
-                        type="number"
-                        value={price}
-                        onChange={(e: any) => setPrice(e.target.value)}
-                        placeholder="סכום כניסה"
-                        className="w-full bg-surface text-left font-black h-14 border border-orange-500/20 text-orange-500 shadow-inner focus:border-orange-500/40 text-[16px] transition-all rounded-full px-12 outline-none"
-                        dir="ltr"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-purple-500 text-[10px] font-bold px-1 mb-1 flex items-center gap-1 text-right">
-                      <Shield size={12} />
-                      הסלקטור רמת מינימום לכניסה
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-purple-500/60 font-black text-xs tracking-wider">
-                        LEVEL
-                      </span>
-                      <input
-                        type="number"
-                        min="1"
-                        value={minLevel}
-                        onChange={(e: any) => setMinLevel(e.target.value)}
-                        placeholder="1"
-                        className="w-full bg-surface text-left font-black h-14 border border-purple-500/20 text-purple-500 shadow-inner focus:border-purple-500/40 text-[16px] transition-all rounded-full px-12 outline-none"
-                        dir="ltr"
-                      />
-                    </div>
-
-                    <p className="text-brand-muted text-[10px] font-bold mt-2.5 text-right px-1 leading-relaxed">
-                      משתמשים יצטרכו להגיע לרמה הזו באפליקציה כדי להיכנס למועדון
-                    </p>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-
-        <div className="bg-surface-card border border-surface-border p-5 rounded-[30px] flex items-start gap-4 shadow-inner">
-          <div className="w-11 h-11 rounded-full bg-accent-primary/10 border border-accent-primary/20 flex items-center justify-center shrink-0">
-            <ShieldCheck size={18} className="text-accent-primary" />
-          </div>
-
-          <p className="text-brand-muted text-[11px] font-medium leading-relaxed">
-            עם הקמת המועדון תוגדר אוטומטית כמנהל הראשי
-            <strong className="text-brand font-black"> </strong>
-            תוכל לנהל את השיח להעלות פוסטים ולקבל קרדיטים ישירות מהחברים
-          </p>
-        </div>
-
-        <Button
-          onClick={handleSave}
-          disabled={saving || uploading || !name.trim()}
-          className="w-full h-14 mt-1 rounded-full bg-accent-primary text-white shadow-[0_0_24px_rgba(161,180,254,0.22)]"
-        >
-          {saving ? <Loader2 size={24} className="animate-spin" /> : 'הקם מועדון עכשיו'}
-        </Button>
+      {/* COVER */}
+      <div
+        onClick={() => fileInputRef.current?.click()}
+        className="h-52 rounded-[32px] bg-surface-card border border-surface-border flex items-center justify-center mb-5 overflow-hidden"
+      >
+        {uploading ? (
+          <Loader2 className="animate-spin text-brand-muted" />
+        ) : coverUrl ? (
+          <img src={coverUrl} className="w-full h-full object-cover" />
+        ) : (
+          <ImageIcon className="text-brand-muted" />
+        )}
       </div>
+
+      {/* FORM */}
+      <div className="bg-surface-card border border-surface-border rounded-[32px] p-5 flex flex-col gap-5">
+
+        <Input
+          value={name}
+          onChange={(e: any) => setName(e.target.value)}
+          placeholder="שם המועדון"
+          className="bg-surface border border-surface-border text-white"
+        />
+
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="תיאור"
+          className="bg-surface border border-surface-border rounded-[24px] p-4 text-white"
+        />
+
+        {/* ACCESS */}
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => setIsPaid(false)}
+            className={`h-12 rounded-full ${
+              !isPaid
+                ? 'bg-accent-primary/10 text-accent-primary border border-accent-primary/20'
+                : 'bg-surface border border-surface-border text-brand-muted'
+            }`}
+          >
+            חופשי
+          </button>
+
+          <button
+            onClick={() => setIsPaid(true)}
+            className={`h-12 rounded-full ${
+              isPaid
+                ? 'bg-accent-primary/10 text-accent-primary border border-accent-primary/20'
+                : 'bg-surface border border-surface-border text-brand-muted'
+            }`}
+          >
+            בתשלום
+          </button>
+        </div>
+
+        <AnimatePresence>
+          {isPaid && (
+            <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }}>
+
+              {/* PRICE */}
+              <div className="relative mb-3">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-accent-primary text-xs tracking-widest">
+                  CRD
+                </span>
+                <input
+                  type="number"
+                  value={price}
+                  onChange={(e: any) => setPrice(e.target.value)}
+                  className="w-full bg-surface border border-surface-border rounded-full px-12 h-12 text-white"
+                />
+              </div>
+
+              {/* LEVEL */}
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-accent-primary text-xs tracking-widest">
+                  LEVEL
+                </span>
+                <input
+                  type="number"
+                  value={minLevel}
+                  onChange={(e: any) => setMinLevel(e.target.value)}
+                  className="w-full bg-surface border border-surface-border rounded-full px-12 h-12 text-white tracking-widest"
+                />
+              </div>
+
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+      </div>
+
+      {/* INFO */}
+      <div className="mt-4 bg-surface-card border border-surface-border p-4 rounded-[24px] text-brand-muted text-sm flex gap-3 items-center">
+        <ShieldCheck size={16} className="text-accent-primary" />
+        אתה תהיה מנהל המועדון
+      </div>
+
+      {/* BUTTON */}
+      <Button
+        onClick={handleSave}
+        disabled={saving}
+        className="w-full h-14 mt-4 bg-white text-black rounded-full font-black"
+      >
+        {saving ? <Loader2 className="animate-spin" /> : 'הקם מועדון'}
+      </Button>
+
     </FadeIn>
   );
 };
