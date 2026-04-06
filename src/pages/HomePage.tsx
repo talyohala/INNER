@@ -1157,84 +1157,88 @@ export const HomePage: React.FC = () => {
                           />
                         )}
 
-                        <div className="absolute bottom-0 left-0 right-0 px-4 pb-6 pt-28 bg-gradient-to-t from-black via-black/70 to-transparent">
-                          {vid.user_circles && vid.user_circles.length > 0 && (
-                            <div className="flex items-center justify-start gap-2 mb-4 overflow-x-auto scrollbar-hide pointer-events-auto">
-                              {vid.user_circles.slice(0, 5).map((c: any) => (
-                                <div
-                                  key={c.id}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    closeOverlay();
-                                    setTimeout(() => navigate(`/circle/${c.slug || c.id}`), 50);
-                                  }}
-                                  className="w-8 h-8 rounded-full bg-black shrink-0 overflow-hidden border border-white/20 shadow-md cursor-pointer pointer-events-auto"
-                                >
-                                  {c.cover_url ? (
-                                    <img src={c.cover_url} className="w-full h-full object-cover" loading="lazy" />
-                                  ) : (
-                                    <Users size={14} className="m-1.5 text-white/50" />
-                                  )}
-                                </div>
-                              ))}
-
-                              {vid.user_circles.length > 5 && (
-                                <div
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openOverlay(() => setUserCirclesModal(vid.user_circles));
-                                  }}
-                                  className="w-8 h-8 rounded-full border border-white/20 bg-white/10 flex items-center justify-center shrink-0 cursor-pointer active:scale-95 shadow-md pointer-events-auto"
-                                >
-                                  <ChevronLeft size={12} className="text-white" />
-                                </div>
-                              )}
-                            </div>
+                        <div className="absolute bottom-0 left-0 right-0 px-4 pb-7 pt-44 bg-gradient-to-t from-black via-black/70 to-transparent flex flex-col">
+                          {vid.content && (
+                            <p
+                              className="text-white/90 text-[15px] font-medium text-left ml-auto max-w-[78%] line-clamp-3 pointer-events-auto cursor-pointer mb-2 mt-8"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openOverlay(() => setActiveDescPost(vid));
+                              }}
+                            >
+                              {vid.content}
+                            </p>
                           )}
 
-                          <div
-                            className="flex items-center justify-start gap-3 mb-2 w-full cursor-pointer pointer-events-auto text-left"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              closeOverlay();
-                              setTimeout(() => navigate(`/profile/${vid.user_id}`), 50);
-                            }}
-                          >
-                            <div className="w-12 h-12 rounded-full overflow-hidden bg-black border-2 border-white/20 shrink-0 shadow-lg">
-                              {vid.profiles?.avatar_url ? (
-                                <img src={vid.profiles.avatar_url} className="w-full h-full object-cover" loading="lazy" />
-                              ) : (
-                                <UserCircle size={24} className="text-white/50 w-full h-full p-2" />
-                              )}
-                            </div>
+                          <div className="mt-5 flex flex-col gap-3">
+                            {vid.user_circles && vid.user_circles.length > 0 && (
+                              <div className="flex items-center justify-start gap-2 overflow-x-auto scrollbar-hide pointer-events-auto">
+                                {vid.user_circles.slice(0, 5).map((c: any) => (
+                                  <div
+                                    key={c.id}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      closeOverlay();
+                                      setTimeout(() => navigate(`/circle/${c.slug || c.id}`), 50);
+                                    }}
+                                    className="w-8 h-8 rounded-full bg-black shrink-0 overflow-hidden border border-white/20 shadow-md cursor-pointer pointer-events-auto"
+                                  >
+                                    {c.cover_url ? (
+                                      <img src={c.cover_url} className="w-full h-full object-cover" loading="lazy" />
+                                    ) : (
+                                      <Users size={14} className="m-1.5 text-white/50" />
+                                    )}
+                                  </div>
+                                ))}
 
-                            <div className="flex flex-col text-left">
-                              <span className="text-white font-black text-[17px] drop-shadow-md">
-                                {vid.profiles?.full_name || 'אנונימי'}
-                              </span>
-                              <span className="text-white/60 text-[11px]">
-                                {new Date(vid.created_at).toLocaleDateString('he-IL')}
-                              </span>
+                                {vid.user_circles.length > 5 && (
+                                  <div
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openOverlay(() => setUserCirclesModal(vid.user_circles));
+                                    }}
+                                    className="w-8 h-8 rounded-full border border-white/20 bg-white/10 flex items-center justify-center shrink-0 cursor-pointer active:scale-95 shadow-md pointer-events-auto"
+                                  >
+                                    <ChevronLeft size={12} className="text-white" />
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            <div
+                              className="flex items-center justify-start gap-3 w-full cursor-pointer pointer-events-auto text-left mt-1"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                closeOverlay();
+                                setTimeout(() => navigate(`/profile/${vid.user_id}`), 50);
+                              }}
+                            >
+                              <div className="w-12 h-12 rounded-full overflow-hidden bg-black border-2 border-white/20 shrink-0 shadow-lg">
+                                {vid.profiles?.avatar_url ? (
+                                  <img src={vid.profiles.avatar_url} className="w-full h-full object-cover" loading="lazy" />
+                                ) : (
+                                  <UserCircle size={24} className="text-white/50 w-full h-full p-2" />
+                                )}
+                              </div>
+
+                              <div className="flex flex-col text-left">
+                                <span className="text-white font-black text-[17px] drop-shadow-md">
+                                  {vid.profiles?.full_name || 'אנונימי'}
+                                </span>
+                                <span className="text-white/60 text-[11px]">
+                                  {new Date(vid.created_at).toLocaleDateString('he-IL')}
+                                </span>
+                              </div>
                             </div>
                           </div>
-
-                          <p
-                            className="text-white/90 text-[15px] font-medium text-left w-full line-clamp-3 pointer-events-auto cursor-pointer"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openOverlay(() => setActiveDescPost(vid));
-                            }}
-                          >
-                            {vid.content}
-                          </p>
                         </div>
 
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openOverlay(() => setOptionsMenuPost(vid));
-                          }}
-                          className="absolute bottom-6 left-4 z-[60] active:scale-90 transition-transform drop-shadow-md"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openOverlay(() => setOptionsMenuPost(vid));
+                            }}
+                          className="absolute bottom-10 left-4 z-[60] active:scale-90 transition-transform drop-shadow-md"
                         >
                           <MoreVertical size={24} className="text-white" />
                         </button>
