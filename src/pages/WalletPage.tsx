@@ -10,7 +10,6 @@ import {
   Landmark,
   UserCircle,
   CheckCircle2,
-  ChevronLeft,
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { supabase } from '../lib/supabase';
@@ -62,7 +61,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.16 }}
+            transition={{ duration: 0.14 }}
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={onClose}
           />
@@ -70,15 +69,15 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           <motion.div
             drag="y"
             dragConstraints={{ top: 0, bottom: 0 }}
-            dragElastic={{ top: 0.18, bottom: 0.28 }}
+            dragElastic={{ top: 0.16, bottom: 0.26 }}
             dragMomentum
             onDragEnd={(_, info) => {
-              if (info.offset.y > 82 || info.velocity.y > 560) onClose();
+              if (info.offset.y > 78 || info.velocity.y > 520) onClose();
             }}
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 28, stiffness: 430, mass: 0.72 }}
+            transition={{ type: 'spring', damping: 30, stiffness: 470, mass: 0.7 }}
             className={`relative bg-white rounded-t-[40px] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.16)] overflow-hidden border-t border-black/[0.05] ${heightClass}`}
             style={{ touchAction: 'none' }}
           >
@@ -86,7 +85,9 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
               <div className="w-16 h-1.5 bg-black/10 rounded-full" />
             </div>
 
-            <div className="flex-1 min-h-0">{children}</div>
+            <div className="flex-1 min-h-0">
+              {children}
+            </div>
           </motion.div>
         </div>
       )}
@@ -177,7 +178,7 @@ export const WalletPage: React.FC = () => {
       }
     };
 
-    const timeoutId = setTimeout(searchUsers, 220);
+    const timeoutId = setTimeout(searchUsers, 180);
     return () => clearTimeout(timeoutId);
   }, [transferUsername, showUserDropdown, currentUserId, selectedRecipient]);
 
@@ -224,7 +225,7 @@ export const WalletPage: React.FC = () => {
       } finally {
         setAdding(false);
       }
-    }, 1400);
+    }, 1200);
   };
 
   const selectRecipient = (user: SearchUser) => {
@@ -314,7 +315,7 @@ export const WalletPage: React.FC = () => {
       setRedeeming(false);
       setShowRedeem(false);
       setRedeemAmount('');
-    }, 1400);
+    }, 1200);
   };
 
   const PACKAGES: CreditPackage[] = [
@@ -540,7 +541,7 @@ export const WalletPage: React.FC = () => {
         createPortal(
           <>
             <BottomSheet open={showAllTx} onClose={() => setShowAllTx(false)} heightClass="h-[88vh]">
-              <div className="flex-1 overflow-y-auto p-4 flex flex-col scrollbar-hide">
+              <div className="h-full overflow-y-auto p-4 flex flex-col scrollbar-hide">
                 {transactions.map((tx) => {
                   const visuals = getTxVisuals(tx);
                   const TxIcon = visuals.icon;
@@ -575,7 +576,7 @@ export const WalletPage: React.FC = () => {
 
             <BottomSheet open={!!selectedPackage} onClose={closePaymentSheet} heightClass="h-auto max-h-[78vh]">
               {selectedPackage && (
-                <div className="p-6 flex flex-col items-center text-center gap-6 overflow-y-auto scrollbar-hide">
+                <div className="h-full overflow-y-auto p-6 flex flex-col items-center text-center gap-6 scrollbar-hide">
                   <div>
                     <p className="text-neutral-600 text-[13px] font-medium mt-1">
                       הוספת {selectedPackage.amount} CRD לארנק שלך
@@ -617,7 +618,7 @@ export const WalletPage: React.FC = () => {
             </BottomSheet>
 
             <BottomSheet open={showTransfer} onClose={resetTransferState} heightClass="h-[88vh]">
-              <div className="p-6 flex flex-col gap-6 overflow-y-auto scrollbar-hide">
+              <div className="h-full overflow-y-auto p-6 flex flex-col gap-6 scrollbar-hide">
                 <div className="flex items-center justify-center gap-2 -mt-1">
                   <ArrowLeftRight size={17} className="text-green-600" />
                 </div>
@@ -753,7 +754,7 @@ export const WalletPage: React.FC = () => {
             </BottomSheet>
 
             <BottomSheet open={showRedeem} onClose={() => setShowRedeem(false)} heightClass="h-[88vh]">
-              <div className="p-6 flex flex-col gap-6 overflow-y-auto scrollbar-hide">
+              <div className="h-full overflow-y-auto p-6 flex flex-col gap-6 scrollbar-hide">
                 <div className="flex items-center justify-center gap-2 -mt-1">
                   <Landmark size={17} className="text-red-500" />
                 </div>
@@ -795,4 +796,3 @@ export const WalletPage: React.FC = () => {
     </>
   );
 };
-
