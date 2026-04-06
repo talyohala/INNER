@@ -9,7 +9,8 @@ import {
   UserCircle,
   CheckCircle2,
   ChevronLeft,
-  Trash2,
+  ArrowLeftRight,
+  Landmark,
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { supabase } from '../lib/supabase';
@@ -248,7 +249,7 @@ export const WalletPage: React.FC = () => {
     setRedeeming(true);
     triggerFeedback('pop');
 
-    const tid = toast.loading('מכין בקשת פדיון...');
+    const tid = toast.loading('מכין בקשת משיכה...');
 
     setTimeout(() => {
       setBalance((prev) => prev - amountNum);
@@ -264,7 +265,7 @@ export const WalletPage: React.FC = () => {
       ]);
 
       triggerFeedback('success');
-      toast.success('בקשת הפדיון נשלחה לאישור', { id: tid });
+      toast.success('בקשת המשיכה נשלחה לאישור', { id: tid });
       setRedeeming(false);
       setShowRedeem(false);
       setRedeemAmount('');
@@ -286,6 +287,39 @@ export const WalletPage: React.FC = () => {
   );
 
   const stopPropagation = (e: React.SyntheticEvent) => e.stopPropagation();
+
+  const getTxVisuals = (tx: WalletTx) => {
+    const isPositive = tx.type === 'deposit' || tx.type === 'transfer_in';
+    const isNegative = tx.type === 'withdrawal' || tx.type === 'transfer_out';
+
+    if (isPositive) {
+      return {
+        icon: ArrowDownLeft,
+        iconWrap: 'bg-green-50 border border-green-100',
+        iconColor: 'text-green-600',
+        amountColor: 'text-green-600',
+        sign: '+',
+      };
+    }
+
+    if (isNegative) {
+      return {
+        icon: ArrowUpRight,
+        iconWrap: 'bg-red-50 border border-red-100',
+        iconColor: 'text-red-500',
+        amountColor: 'text-red-500',
+        sign: '-',
+      };
+    }
+
+    return {
+      icon: ArrowLeftRight,
+      iconWrap: 'bg-neutral-100 border border-neutral-200',
+      iconColor: 'text-neutral-500',
+      amountColor: 'text-neutral-500',
+      sign: '',
+    };
+  };
 
   if (loading) {
     return (
@@ -334,8 +368,9 @@ export const WalletPage: React.FC = () => {
                     triggerFeedback('pop');
                     setShowTransfer(true);
                   }}
-                  className="flex items-center justify-center gap-1.5 text-brand-muted hover:text-brand transition-colors text-[11px] font-black uppercase tracking-widest active:scale-95 w-full text-center"
+                  className="flex items-center justify-center gap-2 text-brand-muted hover:text-brand transition-colors text-[11px] font-black uppercase tracking-widest active:scale-95 w-full text-center"
                 >
+                  <ArrowLeftRight size={15} className="text-accent-primary" />
                   העברה
                 </button>
 
@@ -346,9 +381,10 @@ export const WalletPage: React.FC = () => {
                     triggerFeedback('pop');
                     setShowRedeem(true);
                   }}
-                  className="flex items-center justify-center gap-1.5 text-brand-muted hover:text-brand transition-colors text-[11px] font-black uppercase tracking-widest active:scale-95 w-full text-center"
+                  className="flex items-center justify-center gap-2 text-red-500 hover:text-red-600 transition-colors text-[11px] font-black uppercase tracking-widest active:scale-95 w-full text-center"
                 >
-                  פדיון
+                  <Landmark size={15} />
+                  משיכה
                 </button>
               </div>
             </div>
@@ -404,56 +440,43 @@ export const WalletPage: React.FC = () => {
                   </div>
                 ) : (
                   <div className="flex flex-col">
-                    {visibleTransactions.map((tx, idx) => (
-                      <div
-                        key={tx.id}
-                        className={`flex items-center justify-between p-4 ${
-                          idx !== visibleTransactions.length - 1 ? 'border-b border-surface-border' : ''
-                        }`}
-                      >
-                        <div className="flex items-center gap-4 text-right">
-                          <div
-                            className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${
-                              tx.type === 'deposit' || tx.type === 'transfer_in'
-                                ? 'bg-accent-primary/10 border border-accent-primary/15'
-                                : 'bg-surface border border-surface-border'
-                            }`}
-                          >
-                            {tx.type === 'deposit' || tx.type === 'transfer_in' ? (
-                              <ArrowDownLeft size={17} className="text-accent-primary" />
-                            ) : (
-                              <ArrowUpRight size={17} className="text-brand-muted" />
-                            )}
+                    {visibleTransactions.map((tx, idx) => {
+                      const visuals = getTxVisuals(tx);
+                      const TxIcon = visuals.icon;
+
+                      return (
+                        <div
+                          key={tx.id}
+                          className={`flex items-center justify-between p-4 ${
+                            idx !== visibleTransactions.length - 1 ? 'border-b border-surface-border' : ''
+                          }`}
+                        >
+                          <div className="flex items-center gap-4 text-right">
+                            <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${visuals.iconWrap}`}>
+                              <TxIcon size={17} className={visuals.iconColor} />
+                            </div>
+
+                            <div className="flex flex-col">
+                              <span className="text-brand text-[14px] font-black">{tx.description}</span>
+                              <span
+                                className="text-brand-muted text-[10px] font-bold mt-1 tracking-widest"
+                                dir="ltr"
+                              >
+                                {new Date(tx.created_at).toLocaleDateString('he-IL', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+                            </div>
                           </div>
 
-                          <div className="flex flex-col">
-                            <span className="text-brand text-[14px] font-black">{tx.description}</span>
-                            <span
-                              className="text-brand-muted text-[10px] font-bold mt-1 tracking-widest"
-                              dir="ltr"
-                            >
-                              {new Date(tx.created_at).toLocaleDateString('he-IL', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </span>
-                          </div>
-                        </div>
-
-                        <span className="font-black text-[16px] text-brand tracking-wide" dir="ltr">
-                          <span
-                            className={
-                              tx.type === 'deposit' || tx.type === 'transfer_in'
-                                ? 'text-accent-primary pl-0.5'
-                                : 'text-brand-muted pl-0.5'
-                            }
-                          >
-                            {tx.type === 'deposit' || tx.type === 'transfer_in' ? '+' : '-'}
+                          <span className="font-black text-[16px] tracking-wide" dir="ltr">
+                            <span className={`${visuals.amountColor} pl-0.5`}>{visuals.sign}</span>
+                            <span className={visuals.amountColor}>{tx.amount}</span>
                           </span>
-                          {tx.amount}
-                        </span>
-                      </div>
-                    ))}
+                        </div>
+                      );
+                    })}
 
                     {transactions.length > 3 && (
                       <button
@@ -519,48 +542,35 @@ export const WalletPage: React.FC = () => {
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-4 flex flex-col scrollbar-hide">
-                      {transactions.map((tx) => (
-                        <div key={tx.id} className="flex items-center justify-between p-4 border-b border-neutral-200">
-                          <div className="flex items-center gap-4 text-right">
-                            <div
-                              className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
-                                tx.type === 'deposit' || tx.type === 'transfer_in'
-                                  ? 'bg-accent-primary/10 border border-accent-primary/15'
-                                  : 'bg-neutral-100 border border-neutral-200'
-                              }`}
-                            >
-                              {tx.type === 'deposit' || tx.type === 'transfer_in' ? (
-                                <ArrowDownLeft size={18} className="text-accent-primary" />
-                              ) : (
-                                <ArrowUpRight size={18} className="text-neutral-500" />
-                              )}
+                      {transactions.map((tx) => {
+                        const visuals = getTxVisuals(tx);
+                        const TxIcon = visuals.icon;
+
+                        return (
+                          <div key={tx.id} className="flex items-center justify-between p-4 border-b border-neutral-200">
+                            <div className="flex items-center gap-4 text-right">
+                              <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${visuals.iconWrap}`}>
+                                <TxIcon size={18} className={visuals.iconColor} />
+                              </div>
+
+                              <div className="flex flex-col">
+                                <span className="text-black text-[15px] font-black">{tx.description}</span>
+                                <span className="text-neutral-500 text-[10px] font-bold mt-1 tracking-widest" dir="ltr">
+                                  {new Date(tx.created_at).toLocaleDateString('he-IL', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </span>
+                              </div>
                             </div>
 
-                            <div className="flex flex-col">
-                              <span className="text-black text-[15px] font-black">{tx.description}</span>
-                              <span className="text-neutral-500 text-[10px] font-bold mt-1 tracking-widest" dir="ltr">
-                                {new Date(tx.created_at).toLocaleDateString('he-IL', {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })}
-                              </span>
-                            </div>
-                          </div>
-
-                          <span className="font-black text-[18px] text-black tracking-wide" dir="ltr">
-                            <span
-                              className={
-                                tx.type === 'deposit' || tx.type === 'transfer_in'
-                                  ? 'text-accent-primary pl-0.5'
-                                  : 'text-neutral-400 pl-0.5'
-                              }
-                            >
-                              {tx.type === 'deposit' || tx.type === 'transfer_in' ? '+' : '-'}
+                            <span className="font-black text-[18px] tracking-wide" dir="ltr">
+                              <span className={`${visuals.amountColor} pl-0.5`}>{visuals.sign}</span>
+                              <span className={visuals.amountColor}>{tx.amount}</span>
                             </span>
-                            {tx.amount}
-                          </span>
-                        </div>
-                      ))}
+                          </div>
+                        );
+                      })}
                     </div>
                   </motion.div>
                 </div>
@@ -619,7 +629,7 @@ export const WalletPage: React.FC = () => {
                             <span className="text-neutral-500 text-[11px] font-black uppercase tracking-widest">
                               הנחה
                             </span>
-                            <span className="text-accent-primary font-black text-[14px]">
+                            <span className="text-green-600 font-black text-[14px]">
                               {selectedPackage.discount}% חיסכון
                             </span>
                           </div>
@@ -676,7 +686,8 @@ export const WalletPage: React.FC = () => {
                   >
                     <SheetHandle />
 
-                    <div className="flex justify-center items-center w-full px-6 pb-3">
+                    <div className="flex justify-center items-center w-full px-6 pb-3 gap-2">
+                      <ArrowLeftRight size={17} className="text-accent-primary" />
                       <h2 className="text-[16px] font-black text-black">העברה לחבר</h2>
                     </div>
 
@@ -848,12 +859,13 @@ export const WalletPage: React.FC = () => {
                   >
                     <SheetHandle />
 
-                    <div className="flex justify-center items-center w-full px-6 pb-3">
-                      <h2 className="text-[16px] font-black text-black">פדיון כספים לבנק</h2>
+                    <div className="flex justify-center items-center w-full px-6 pb-3 gap-2">
+                      <Landmark size={17} className="text-red-500" />
+                      <h2 className="text-[16px] font-black text-black">משיכה לחשבון בנק</h2>
                     </div>
 
                     <div className="p-6 flex flex-col gap-6 overflow-y-auto scrollbar-hide">
-                      <div className="bg-green-50 border border-green-100 p-4 rounded-[28px] flex items-start gap-3">
+                      <div className="bg-red-50 border border-red-100 p-4 rounded-[28px] flex items-start gap-3">
                         <p className="text-neutral-700 text-[11px] font-medium leading-relaxed">
                           משוך את הקרדיטים שהרווחת במועדונים שלך ישירות לחשבון הבנק המקושר
                           מינימום למשיכה 100 CRD
@@ -870,19 +882,19 @@ export const WalletPage: React.FC = () => {
                           onChange={(e: any) => setRedeemAmount(e.target.value)}
                           placeholder="0"
                           dir="ltr"
-                          className="bg-neutral-100 text-black font-black h-14 border border-neutral-200 focus:border-green-400/40 focus:outline-none transition-all rounded-full px-5 text-xl w-full"
+                          className="bg-neutral-100 text-black font-black h-14 border border-neutral-200 focus:border-red-300 focus:outline-none transition-all rounded-full px-5 text-xl w-full"
                         />
                       </div>
 
                       <Button
                         onClick={handleRedeem}
                         disabled={redeeming}
-                        className="w-full h-14 mt-4 bg-accent-primary text-white font-black text-[14px] uppercase tracking-widest rounded-full flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                        className="w-full h-14 mt-4 bg-red-500 text-white font-black text-[14px] uppercase tracking-widest rounded-full flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
                       >
                         {redeeming ? (
                           <Loader2 size={24} className="animate-spin text-white" />
                         ) : (
-                          'בקש פדיון'
+                          'בקש משיכה'
                         )}
                       </Button>
                     </div>
