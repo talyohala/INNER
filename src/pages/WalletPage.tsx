@@ -1,16 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence, useDragControls } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Loader2,
   ArrowDownLeft,
   ArrowUpRight,
+  ArrowLeftRight,
+  Landmark,
   UserCircle,
   CheckCircle2,
   ChevronLeft,
-  ArrowLeftRight,
-  Landmark,
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { supabase } from '../lib/supabase';
@@ -43,13 +43,8 @@ type CreditPackage = {
 
 export const WalletPage: React.FC = () => {
   const navigate = useNavigate();
+
   const [mounted, setMounted] = useState(false);
-
-  const historyDragControls = useDragControls();
-  const paymentDragControls = useDragControls();
-  const transferDragControls = useDragControls();
-  const redeemDragControls = useDragControls();
-
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<WalletTx[]>([]);
   const [loading, setLoading] = useState(true);
@@ -148,7 +143,6 @@ export const WalletPage: React.FC = () => {
 
     setAdding(true);
     triggerFeedback('pop');
-
     const tid = toast.loading('מעבד תשלום מאובטח...');
 
     setTimeout(async () => {
@@ -206,7 +200,6 @@ export const WalletPage: React.FC = () => {
 
     setTransferring(true);
     triggerFeedback('pop');
-
     const tid = toast.loading(`מעביר ${amountNum} CRD...`);
 
     try {
@@ -248,7 +241,6 @@ export const WalletPage: React.FC = () => {
 
     setRedeeming(true);
     triggerFeedback('pop');
-
     const tid = toast.loading('מכין בקשת משיכה...');
 
     setTimeout(() => {
@@ -280,12 +272,6 @@ export const WalletPage: React.FC = () => {
 
   const visibleTransactions = useMemo(() => transactions.slice(0, 3), [transactions]);
 
-  const SheetHandle = () => (
-    <div className="w-full py-2 mb-4 flex justify-center">
-      <div className="w-16 h-1.5 bg-black/10 rounded-full" />
-    </div>
-  );
-
   const stopPropagation = (e: React.SyntheticEvent) => e.stopPropagation();
 
   const getTxVisuals = (tx: WalletTx) => {
@@ -294,20 +280,18 @@ export const WalletPage: React.FC = () => {
 
     if (isPositive) {
       return {
-        icon: ArrowDownLeft,
+        icon: tx.type === 'transfer_in' ? ArrowLeftRight : ArrowDownLeft,
         iconWrap: 'bg-green-50 border border-green-100',
         iconColor: 'text-green-600',
-        amountColor: 'text-green-600',
         sign: '+',
       };
     }
 
     if (isNegative) {
       return {
-        icon: ArrowUpRight,
+        icon: tx.type === 'withdrawal' ? Landmark : ArrowUpRight,
         iconWrap: 'bg-red-50 border border-red-100',
         iconColor: 'text-red-500',
-        amountColor: 'text-red-500',
         sign: '-',
       };
     }
@@ -315,11 +299,24 @@ export const WalletPage: React.FC = () => {
     return {
       icon: ArrowLeftRight,
       iconWrap: 'bg-neutral-100 border border-neutral-200',
-      iconColor: 'text-neutral-500',
-      amountColor: 'text-neutral-500',
+      iconColor: 'text-green-600',
       sign: '',
     };
   };
+
+  const sheetProps = (onClose: () => void) => ({
+    drag: 'y' as const,
+    dragConstraints: { top: 0, bottom: 0 },
+    dragElastic: 0.22,
+    onDragEnd: (_: any, info: any) => {
+      if (info.offset.y > 120 || info.velocity.y > 700) onClose();
+    },
+    initial: { y: '100%' },
+    animate: { y: 0 },
+    exit: { y: '100%' },
+    transition: { type: 'spring', damping: 25, stiffness: 360 },
+    style: { touchAction: 'pan-y' as const },
+  });
 
   if (loading) {
     return (
@@ -370,7 +367,7 @@ export const WalletPage: React.FC = () => {
                   }}
                   className="flex items-center justify-center gap-2 text-brand-muted hover:text-brand transition-colors text-[11px] font-black uppercase tracking-widest active:scale-95 w-full text-center"
                 >
-                  <ArrowLeftRight size={15} className="text-accent-primary" />
+                  <ArrowLeftRight size={15} className="text-green-600" />
                   העברה
                 </button>
 
@@ -470,9 +467,9 @@ export const WalletPage: React.FC = () => {
                             </div>
                           </div>
 
-                          <span className="font-black text-[16px] tracking-wide" dir="ltr">
-                            <span className={`${visuals.amountColor} pl-0.5`}>{visuals.sign}</span>
-                            <span className={visuals.amountColor}>{tx.amount}</span>
+                          <span className="font-black text-[16px] tracking-wide text-white" dir="ltr">
+                            <span className="pl-0.5">{visuals.sign}</span>
+                            {tx.amount}
                           </span>
                         </div>
                       );
@@ -517,23 +514,12 @@ export const WalletPage: React.FC = () => {
                   />
 
                   <motion.div
-                    drag="y"
-                    dragControls={historyDragControls}
-                    dragListener={false}
-                    dragConstraints={{ top: 0, bottom: 0 }}
-                    dragElastic={0.22}
-                    onDragEnd={(_, info) => {
-                      if (info.offset.y > 120 || info.velocity.y > 700) setShowAllTx(false);
-                    }}
-                    onPointerDownCapture={(e) => historyDragControls.start(e)}
-                    initial={{ y: '100%' }}
-                    animate={{ y: 0 }}
-                    exit={{ y: '100%' }}
-                    transition={{ type: 'spring', damping: 25, stiffness: 360 }}
+                    {...sheetProps(() => setShowAllTx(false))}
                     className="bg-white rounded-t-[40px] h-[88vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.15)] relative overflow-hidden border-t border-black/[0.05] touch-pan-y"
-                    style={{ touchAction: 'pan-y' }}
                   >
-                    <SheetHandle />
+                    <div className="w-full py-5 flex justify-center">
+                      <div className="w-16 h-1.5 bg-black/10 rounded-full" />
+                    </div>
 
                     <div className="px-6 pb-3 flex items-center justify-center w-full">
                       <h3 className="text-[16px] font-black text-black">
@@ -564,9 +550,9 @@ export const WalletPage: React.FC = () => {
                               </div>
                             </div>
 
-                            <span className="font-black text-[18px] tracking-wide" dir="ltr">
-                              <span className={`${visuals.amountColor} pl-0.5`}>{visuals.sign}</span>
-                              <span className={visuals.amountColor}>{tx.amount}</span>
+                            <span className="font-black text-[18px] tracking-wide text-white" dir="ltr">
+                              <span className="pl-0.5">{visuals.sign}</span>
+                              {tx.amount}
                             </span>
                           </div>
                         );
@@ -589,23 +575,12 @@ export const WalletPage: React.FC = () => {
                   />
 
                   <motion.div
-                    drag="y"
-                    dragControls={paymentDragControls}
-                    dragListener={false}
-                    dragConstraints={{ top: 0, bottom: 0 }}
-                    dragElastic={0.22}
-                    onDragEnd={(_, info) => {
-                      if (info.offset.y > 120 || info.velocity.y > 700) closePaymentSheet();
-                    }}
-                    onPointerDownCapture={(e) => paymentDragControls.start(e)}
-                    initial={{ y: '100%' }}
-                    animate={{ y: 0 }}
-                    exit={{ y: '100%' }}
-                    transition={{ type: 'spring', damping: 25, stiffness: 360 }}
+                    {...sheetProps(closePaymentSheet)}
                     className="bg-white rounded-t-[40px] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.15)] relative pb-12 overflow-hidden border-t border-black/[0.05] touch-pan-y"
-                    style={{ touchAction: 'pan-y' }}
                   >
-                    <SheetHandle />
+                    <div className="w-full py-5 flex justify-center">
+                      <div className="w-16 h-1.5 bg-black/10 rounded-full" />
+                    </div>
 
                     <div className="flex justify-center items-center w-full px-6 pb-3">
                       <h2 className="text-[16px] font-black text-black">רכישת קרדיטים</h2>
@@ -668,26 +643,15 @@ export const WalletPage: React.FC = () => {
                   />
 
                   <motion.div
-                    drag="y"
-                    dragControls={transferDragControls}
-                    dragListener={false}
-                    dragConstraints={{ top: 0, bottom: 0 }}
-                    dragElastic={0.22}
-                    onDragEnd={(_, info) => {
-                      if (info.offset.y > 120 || info.velocity.y > 700) resetTransferState();
-                    }}
-                    onPointerDownCapture={(e) => transferDragControls.start(e)}
-                    initial={{ y: '100%' }}
-                    animate={{ y: 0 }}
-                    exit={{ y: '100%' }}
-                    transition={{ type: 'spring', damping: 25, stiffness: 360 }}
+                    {...sheetProps(resetTransferState)}
                     className="bg-white rounded-t-[40px] h-[88vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.15)] relative pb-12 overflow-hidden border-t border-black/[0.05] touch-pan-y"
-                    style={{ touchAction: 'pan-y' }}
                   >
-                    <SheetHandle />
+                    <div className="w-full py-5 flex justify-center">
+                      <div className="w-16 h-1.5 bg-black/10 rounded-full" />
+                    </div>
 
                     <div className="flex justify-center items-center w-full px-6 pb-3 gap-2">
-                      <ArrowLeftRight size={17} className="text-accent-primary" />
+                      <ArrowLeftRight size={17} className="text-green-600" />
                       <h2 className="text-[16px] font-black text-black">העברה לחבר</h2>
                     </div>
 
@@ -751,10 +715,7 @@ export const WalletPage: React.FC = () => {
                                           {u.full_name || 'משתמש'}
                                         </span>
                                         {u.username && (
-                                          <span
-                                            className="text-neutral-500 text-[10px] font-bold tracking-widest"
-                                            dir="ltr"
-                                          >
+                                          <span className="text-neutral-500 text-[10px] font-bold tracking-widest" dir="ltr">
                                             @{u.username}
                                           </span>
                                         )}
@@ -817,11 +778,7 @@ export const WalletPage: React.FC = () => {
                         disabled={transferring}
                         className="w-full h-14 mt-4 bg-accent-primary text-white font-black text-[14px] uppercase tracking-widest rounded-full flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 relative z-0"
                       >
-                        {transferring ? (
-                          <Loader2 size={24} className="animate-spin text-white" />
-                        ) : (
-                          'שלח קרדיטים'
-                        )}
+                        {transferring ? <Loader2 size={24} className="animate-spin text-white" /> : 'שלח קרדיטים'}
                       </Button>
                     </div>
                   </motion.div>
@@ -841,23 +798,12 @@ export const WalletPage: React.FC = () => {
                   />
 
                   <motion.div
-                    drag="y"
-                    dragControls={redeemDragControls}
-                    dragListener={false}
-                    dragConstraints={{ top: 0, bottom: 0 }}
-                    dragElastic={0.22}
-                    onDragEnd={(_, info) => {
-                      if (info.offset.y > 120 || info.velocity.y > 700) setShowRedeem(false);
-                    }}
-                    onPointerDownCapture={(e) => redeemDragControls.start(e)}
-                    initial={{ y: '100%' }}
-                    animate={{ y: 0 }}
-                    exit={{ y: '100%' }}
-                    transition={{ type: 'spring', damping: 25, stiffness: 360 }}
+                    {...sheetProps(() => setShowRedeem(false))}
                     className="bg-white rounded-t-[40px] h-[88vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.15)] relative pb-12 overflow-hidden border-t border-black/[0.05] touch-pan-y"
-                    style={{ touchAction: 'pan-y' }}
                   >
-                    <SheetHandle />
+                    <div className="w-full py-5 flex justify-center">
+                      <div className="w-16 h-1.5 bg-black/10 rounded-full" />
+                    </div>
 
                     <div className="flex justify-center items-center w-full px-6 pb-3 gap-2">
                       <Landmark size={17} className="text-red-500" />
@@ -891,11 +837,7 @@ export const WalletPage: React.FC = () => {
                         disabled={redeeming}
                         className="w-full h-14 mt-4 bg-red-500 text-white font-black text-[14px] uppercase tracking-widest rounded-full flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
                       >
-                        {redeeming ? (
-                          <Loader2 size={24} className="animate-spin text-white" />
-                        ) : (
-                          'בקש משיכה'
-                        )}
+                        {redeeming ? <Loader2 size={24} className="animate-spin text-white" /> : 'בקש משיכה'}
                       </Button>
                     </div>
                   </motion.div>
