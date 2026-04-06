@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,6 +10,7 @@ import {
   Landmark,
   UserCircle,
   CheckCircle2,
+  ChevronLeft,
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { supabase } from '../lib/supabase';
@@ -53,6 +54,93 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   children,
   heightClass = 'h-[88vh]',
 }) => {
+  const sheetRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const startYRef = useRef(0);
+  const currentYRef = useRef(0);
+  const draggingRef = useRef(false);
+  const pointerActiveRef = useRef(false);
+  const startInsideScrollableRef = useRef(false);
+
+  const setTranslate = (y: number) => {
+    if (!sheetRef.current) return;
+    sheetRef.current.style.transform = `translateY(${Math.max(0, y)}px)`;
+  };
+
+  const clearTransition = () => {
+    if (!sheetRef.current) return;
+    sheetRef.current.style.transition = '';
+  };
+
+  const animateBack = () => {
+    if (!sheetRef.current) return;
+    sheetRef.current.style.transition = 'transform 180ms cubic-bezier(0.22, 1, 0.36, 1)';
+    sheetRef.current.style.transform = 'translateY(0px)';
+    window.setTimeout(clearTransition, 200);
+  };
+
+  const beginDrag = (clientY: number, target: EventTarget | null) => {
+    startYRef.current = clientY;
+    currentYRef.current = 0;
+    draggingRef.current = false;
+    pointerActiveRef.current = true;
+
+    const scrollEl = scrollRef.current;
+    const targetEl = target instanceof HTMLElement ? target : null;
+    startInsideScrollableRef.current = !!(scrollEl && targetEl && scrollEl.contains(targetEl));
+
+    if (sheetRef.current) {
+      sheetRef.current.style.transition = '';
+    }
+  };
+
+  const moveDrag = (clientY: number) => {
+    if (!pointerActiveRef.current) return;
+
+    const deltaY = clientY - startYRef.current;
+    const scrollEl = scrollRef.current;
+    const atTop = !scrollEl || scrollEl.scrollTop <= 0;
+
+    if (startInsideScrollableRef.current) {
+      if (!draggingRef.current && deltaY > 8 && atTop) {
+        draggingRef.current = true;
+      }
+    } else {
+      if (!draggingRef.current && Math.abs(deltaY) > 4) {
+        draggingRef.current = true;
+      }
+    }
+
+    if (!draggingRef.current) return;
+
+    const downward = Math.max(0, deltaY);
+    currentYRef.current = downward;
+    setTranslate(downward);
+  };
+
+  const endDrag = () => {
+    if (!pointerActiveRef.current) return;
+
+    pointerActiveRef.current = false;
+
+    if (!draggingRef.current) {
+      startYRef.current = 0;
+      currentYRef.current = 0;
+      return;
+    }
+
+    const shouldClose = currentYRef.current > 110;
+    draggingRef.current = false;
+    startYRef.current = 0;
+    currentYRef.current = 0;
+
+    if (shouldClose) {
+      onClose();
+    } else {
+      animateBack();
+    }
+  };
+
   return (
     <AnimatePresence>
       {open && (
@@ -67,25 +155,34 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           />
 
           <motion.div
-            drag="y"
-            dragConstraints={{ top: 0, bottom: 0 }}
-            dragElastic={{ top: 0.16, bottom: 0.26 }}
-            dragMomentum
-            onDragEnd={(_, info) => {
-              if (info.offset.y > 78 || info.velocity.y > 520) onClose();
-            }}
+            ref={sheetRef}
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 30, stiffness: 470, mass: 0.7 }}
-            className={`relative bg-white rounded-t-[40px] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.16)] overflow-hidden border-t border-black/[0.05] ${heightClass}`}
+            transition={{ type: 'spring', damping: 30, stiffness: 470, mass: 0.72 }}
+            className={`relative bg-white rounded-t-[40px] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.15)] overflow-hidden border-t border-black/[0.05] ${heightClass}`}
             style={{ touchAction: 'none' }}
+            onTouchStart={(e) => beginDrag(e.touches[0].clientY, e.target)}
+            onTouchMove={(e) => {
+              moveDrag(e.touches[0].clientY);
+              if (draggingRef.current) e.preventDefault();
+            }}
+            onTouchEnd={endDrag}
+            onTouchCancel={endDrag}
+            onMouseDown={(e) => beginDrag(e.clientY, e.target)}
+            onMouseMove={(e) => moveDrag(e.clientY)}
+            onMouseUp={endDrag}
+            onMouseLeave={endDrag}
           >
-            <div className="w-full flex justify-center pt-4 pb-3">
+            <div className="w-full py-5 flex justify-center pointer-events-none">
               <div className="w-16 h-1.5 bg-black/10 rounded-full" />
             </div>
 
-            <div className="flex-1 min-h-0">
+            <div
+              ref={scrollRef}
+              className="flex-1 min-h-0 overflow-y-auto scrollbar-hide"
+              style={{ WebkitOverflowScrolling: 'touch' }}
+            >
               {children}
             </div>
           </motion.div>
@@ -178,7 +275,7 @@ export const WalletPage: React.FC = () => {
       }
     };
 
-    const timeoutId = setTimeout(searchUsers, 180);
+    const timeoutId = setTimeout(searchUsers, 250);
     return () => clearTimeout(timeoutId);
   }, [transferUsername, showUserDropdown, currentUserId, selectedRecipient]);
 
@@ -225,7 +322,7 @@ export const WalletPage: React.FC = () => {
       } finally {
         setAdding(false);
       }
-    }, 1200);
+    }, 1400);
   };
 
   const selectRecipient = (user: SearchUser) => {
@@ -271,7 +368,7 @@ export const WalletPage: React.FC = () => {
       setBalance(
         typeof data === 'number'
           ? data
-          : Number(data?.new_balance ?? data?.newBalance ?? balance - amountNum)
+          : Number(data?.new_balance ?? data?.newBalance ?? balance - amountNum),
       );
 
       await fetchWallet();
@@ -315,7 +412,7 @@ export const WalletPage: React.FC = () => {
       setRedeeming(false);
       setShowRedeem(false);
       setRedeemAmount('');
-    }, 1200);
+    }, 1400);
   };
 
   const PACKAGES: CreditPackage[] = [
@@ -355,6 +452,8 @@ export const WalletPage: React.FC = () => {
       sign: '',
     };
   };
+
+  const stopPropagation = (e: React.SyntheticEvent) => e.stopPropagation();
 
   if (loading) {
     return (
@@ -541,7 +640,11 @@ export const WalletPage: React.FC = () => {
         createPortal(
           <>
             <BottomSheet open={showAllTx} onClose={() => setShowAllTx(false)} heightClass="h-[88vh]">
-              <div className="h-full overflow-y-auto p-4 flex flex-col scrollbar-hide">
+              <div className="px-6 pb-3 flex items-center justify-center w-full">
+                <h3 className="text-[16px] font-black text-black">היסטוריית פעולות ({transactions.length})</h3>
+              </div>
+
+              <div className="px-4 pb-8 flex flex-col">
                 {transactions.map((tx) => {
                   const visuals = getTxVisuals(tx);
                   const TxIcon = visuals.icon;
@@ -574,9 +677,9 @@ export const WalletPage: React.FC = () => {
               </div>
             </BottomSheet>
 
-            <BottomSheet open={!!selectedPackage} onClose={closePaymentSheet} heightClass="h-auto max-h-[78vh]">
+            <BottomSheet open={!!selectedPackage} onClose={closePaymentSheet} heightClass="h-auto max-h-[88vh]">
               {selectedPackage && (
-                <div className="h-full overflow-y-auto p-6 flex flex-col items-center text-center gap-6 scrollbar-hide">
+                <div className="p-6 pt-0 flex flex-col items-center text-center gap-6">
                   <div>
                     <p className="text-neutral-600 text-[13px] font-medium mt-1">
                       הוספת {selectedPackage.amount} CRD לארנק שלך
@@ -618,11 +721,12 @@ export const WalletPage: React.FC = () => {
             </BottomSheet>
 
             <BottomSheet open={showTransfer} onClose={resetTransferState} heightClass="h-[88vh]">
-              <div className="h-full overflow-y-auto p-6 flex flex-col gap-6 scrollbar-hide">
-                <div className="flex items-center justify-center gap-2 -mt-1">
-                  <ArrowLeftRight size={17} className="text-green-600" />
-                </div>
+              <div className="flex justify-center items-center w-full px-6 pb-3 gap-2">
+                <ArrowLeftRight size={17} className="text-green-600" />
+                <h2 className="text-[16px] font-black text-black">העברה לחבר</h2>
+              </div>
 
+              <div className="p-6 pt-0 flex flex-col gap-6" onPointerDown={stopPropagation} onTouchStart={stopPropagation}>
                 <div className="flex flex-col gap-2 relative z-20">
                   <label className="text-neutral-500 text-[11px] font-black uppercase px-2 tracking-widest text-right">
                     שם המשתמש או חיפוש (@)
@@ -678,14 +782,9 @@ export const WalletPage: React.FC = () => {
                                 </div>
 
                                 <div className="flex flex-col text-right w-full">
-                                  <span className="text-black text-[13px] font-black">
-                                    {u.full_name || 'משתמש'}
-                                  </span>
+                                  <span className="text-black text-[13px] font-black">{u.full_name || 'משתמש'}</span>
                                   {u.username && (
-                                    <span
-                                      className="text-neutral-500 text-[10px] font-bold tracking-widest"
-                                      dir="ltr"
-                                    >
+                                    <span className="text-neutral-500 text-[10px] font-bold tracking-widest" dir="ltr">
                                       @{u.username}
                                     </span>
                                   )}
@@ -746,7 +845,7 @@ export const WalletPage: React.FC = () => {
                 <Button
                   onClick={handleTransfer}
                   disabled={transferring}
-                  className="w-full h-14 mt-2 bg-accent-primary text-white font-black text-[14px] uppercase tracking-widest rounded-full flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 relative z-0"
+                  className="w-full h-14 mt-4 bg-accent-primary text-white font-black text-[14px] uppercase tracking-widest rounded-full flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 relative z-0"
                 >
                   {transferring ? <Loader2 size={24} className="animate-spin text-white" /> : 'שלח קרדיטים'}
                 </Button>
@@ -754,11 +853,12 @@ export const WalletPage: React.FC = () => {
             </BottomSheet>
 
             <BottomSheet open={showRedeem} onClose={() => setShowRedeem(false)} heightClass="h-[88vh]">
-              <div className="h-full overflow-y-auto p-6 flex flex-col gap-6 scrollbar-hide">
-                <div className="flex items-center justify-center gap-2 -mt-1">
-                  <Landmark size={17} className="text-red-500" />
-                </div>
+              <div className="flex justify-center items-center w-full px-6 pb-3 gap-2">
+                <Landmark size={17} className="text-red-500" />
+                <h2 className="text-[16px] font-black text-black">משיכה לחשבון בנק</h2>
+              </div>
 
+              <div className="p-6 pt-0 flex flex-col gap-6" onPointerDown={stopPropagation} onTouchStart={stopPropagation}>
                 <div className="bg-red-50 border border-red-100 p-4 rounded-[28px] flex items-start gap-3">
                   <p className="text-neutral-700 text-[11px] font-medium leading-relaxed">
                     משוך את הקרדיטים שהרווחת במועדונים שלך ישירות לחשבון הבנק המקושר
@@ -784,14 +884,14 @@ export const WalletPage: React.FC = () => {
                 <Button
                   onClick={handleRedeem}
                   disabled={redeeming}
-                  className="w-full h-14 mt-2 bg-red-500 text-white font-black text-[14px] uppercase tracking-widest rounded-full flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                  className="w-full h-14 mt-4 bg-red-500 text-white font-black text-[14px] uppercase tracking-widest rounded-full flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
                 >
                   {redeeming ? <Loader2 size={24} className="animate-spin text-white" /> : 'בקש משיכה'}
                 </Button>
               </div>
             </BottomSheet>
           </>,
-          document.getElementById('root') || document.body
+          document.getElementById('root') || document.body,
         )}
     </>
   );
