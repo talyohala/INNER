@@ -12,14 +12,13 @@ import {
   Circle,
   CheckCircle2,
   ExternalLink,
-  RefreshCw
+  RefreshCw,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 
-// --- Types & Helpers ---
 type ActorProfile = {
   id: string;
   full_name: string | null;
@@ -28,7 +27,15 @@ type ActorProfile = {
 };
 
 const getActorIdFromNotification = (notif: any): string | null => {
-  return notif?.actor_id || notif?.sender_id || notif?.from_user_id || notif?.initiator_id || notif?.profile_id || notif?.target_user_id || null;
+  return (
+    notif?.actor_id ||
+    notif?.sender_id ||
+    notif?.from_user_id ||
+    notif?.initiator_id ||
+    notif?.profile_id ||
+    notif?.target_user_id ||
+    null
+  );
 };
 
 const extractProfileTargetFromActionUrl = (actionUrl?: string | null): string | null => {
@@ -40,9 +47,13 @@ const extractProfileTargetFromActionUrl = (actionUrl?: string | null): string | 
 const parseActorNameFromNotification = (notif: any): string | null => {
   const candidates = [notif?.content, notif?.title].filter(Boolean);
   const patterns = [
-    /^(.+?)\s+הגיב\/ה/u, /^(.+?)\s+אהב\/ה/u, /^(.+?)\s+עקב\/ה/u,
-    /^(.+?)\s+שלח\/ה/u, /^(.+?)\s+צפה\/תה/u, /^(.+?)\s+הזמין\/ה/u,
-    /^(.+?)\s+הצטרף\/ה/u // תמיכה בהתראות הצטרפות למועדון שחסרות ID
+    /^(.+?)\s+הגיב\/ה/u,
+    /^(.+?)\s+אהב\/ה/u,
+    /^(.+?)\s+עקב\/ה/u,
+    /^(.+?)\s+שלח\/ה/u,
+    /^(.+?)\s+צפה\/תה/u,
+    /^(.+?)\s+הזמין\/ה/u,
+    /^(.+?)\s+הצטרף\/ה/u,
   ];
 
   for (const text of candidates) {
@@ -51,16 +62,16 @@ const parseActorNameFromNotification = (notif: any): string | null => {
       if (match?.[1]) return match[1].trim();
     }
   }
+
   return null;
 };
 
-// --- Main Component ---
 export const NotificationsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, markNotificationsRead, checkUnread } = useAuth();
+
   const channelRef = useRef<any>(null);
 
-  // State
   const [mounted, setMounted] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [actorProfiles, setActorProfiles] = useState<Record<string, ActorProfile>>({});
@@ -75,122 +86,151 @@ export const NotificationsPage: React.FC = () => {
     setMounted(true);
   }, []);
 
-  // --- Data Fetching ---
   const enrichActorProfiles = useCallback(async (list: any[]) => {
     const actorIds = Array.from(new Set(list.map(getActorIdFromNotification).filter(Boolean))) as string[];
-    if (actorIds.length === 0) return setActorProfiles({});
+    if (actorIds.length === 0) {
+      setActorProfiles({});
+      return;
+    }
 
     try {
-      const { data, error } = await supabase.from('profiles').select('id, full_name, username, avatar_url').in('id', actorIds);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, username, avatar_url')
+        .in('id', actorIds);
+
       if (error) throw error;
 
       const map: Record<string, ActorProfile> = {};
-      data?.forEach((profile: any) => { map[profile.id] = profile; });
+      data?.forEach((profile: any) => {
+        map[profile.id] = profile;
+      });
+
       setActorProfiles(map);
     } catch (err) {
       console.error('enrichActorProfiles error:', err);
     }
   }, []);
 
-  const fetchNotifs = useCallback(async (markAsRead = true) => {
-    if (!user?.id) {
-      setNotifications([]);
-      setActorProfiles({});
-      return setLoading(false);
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      const safeData = Array.isArray(data) ? data : [];
-      setNotifications(safeData);
-      await enrichActorProfiles(safeData);
-
-      if (markAsRead && safeData.some((n) => !n.is_read)) {
-        await markNotificationsRead();
-      } else {
-        await checkUnread(user.id);
+  const fetchNotifs = useCallback(
+    async (markAsRead = true) => {
+      if (!user?.id) {
+        setNotifications([]);
+        setActorProfiles({});
+        setLoading(false);
+        return;
       }
-    } catch (err) {
-      console.error('fetchNotifs error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [user?.id, markNotificationsRead, checkUnread, enrichActorProfiles]);
 
-  useEffect(() => { fetchNotifs(true); }, [fetchNotifs]);
+      try {
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        const safeData = Array.isArray(data) ? data : [];
+        setNotifications(safeData);
+        await enrichActorProfiles(safeData);
+
+        if (markAsRead && safeData.some((n) => !n.is_read)) {
+          await markNotificationsRead();
+        } else {
+          await checkUnread(user.id);
+        }
+      } catch (err) {
+        console.error('fetchNotifs error:', err);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [user?.id, markNotificationsRead, checkUnread, enrichActorProfiles]
+  );
+
+  useEffect(() => {
+    fetchNotifs(true);
+  }, [fetchNotifs]);
 
   useEffect(() => {
     if (!user?.id) return;
 
-    if (channelRef.current) supabase.removeChannel(channelRef.current);
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+    }
 
     channelRef.current = supabase
       .channel(`notifications_page_${user.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` }, async (payload) => {
-        if (payload.eventType === 'INSERT') triggerFeedback('success');
-        await fetchNotifs(false);
-      })
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
+        },
+        async (payload) => {
+          if (payload.eventType === 'INSERT') triggerFeedback('success');
+          await fetchNotifs(false);
+        }
+      )
       .subscribe();
 
-    return () => { if (channelRef.current) supabase.removeChannel(channelRef.current); };
+    return () => {
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
+    };
   }, [user?.id, fetchNotifs]);
 
-  // --- Actions ---
-  const resolveProfileTarget = useCallback(async (notif: any): Promise<string | null> => {
-    const actorId = getActorIdFromNotification(notif);
-    
-    // 1. אם יש ID תקין בבסיס הנתונים
-    if (actorId) {
-      const actor = actorProfiles[actorId];
-      if (actor?.username) return actor.username;
-      if (actor?.id) return actor.id;
-      return actorId;
-    }
+  const resolveProfileTarget = useCallback(
+    async (notif: any): Promise<string | null> => {
+      const actorId = getActorIdFromNotification(notif);
 
-    // 2. אם יש שדות עזר שהוזרקו להתראה
-    if (notif?.actor_username) return notif.actor_username;
-    if (notif?.from_username) return notif.from_username;
-    if (notif?.username) return notif.username;
+      if (actorId) {
+        const actor = actorProfiles[actorId];
+        if (actor?.username) return actor.username;
+        if (actor?.id) return actor.id;
+        return actorId;
+      }
 
-    // 3. ניסיון לחלץ מה-URL פעולה
-    const fromAction = extractProfileTargetFromActionUrl(notif?.action_url);
-    if (fromAction) return fromAction;
+      if (notif?.actor_username) return notif.actor_username;
+      if (notif?.from_username) return notif.from_username;
+      if (notif?.username) return notif.username;
 
-    // 4. ניסיון אחרון וחכם - חילוץ השם מהטקסט ושליפה מהמסד נתונים
-    const parsedName = parseActorNameFromNotification(notif);
-    if (parsedName) {
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, username')
-        .or(`full_name.ilike.%${parsedName}%,username.ilike.%${parsedName}%`)
-        .limit(1);
-        
-      if (data?.[0]) return data[0].username || data[0].id;
-    }
+      const fromAction = extractProfileTargetFromActionUrl(notif?.action_url);
+      if (fromAction) return fromAction;
 
-    // 5. Fallback אבסולוטי - אם זו הודעת מערכת (למשל רכישת חנות), נשלח אותך לפרופיל שלך במקום לזרוק שגיאה
-    return user?.id || null;
-  }, [actorProfiles, user?.id]);
+      const parsedName = parseActorNameFromNotification(notif);
+      if (parsedName) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id, username')
+          .or(`full_name.ilike.%${parsedName}%,username.ilike.%${parsedName}%`)
+          .limit(1);
 
-  const navigateToActorProfile = useCallback(async (notif: any) => {
-    const target = await resolveProfileTarget(notif);
-    
-    if (!target) {
-      triggerFeedback('error');
-      return toast.error('הפרופיל לא נמצא');
-    }
-    
-    triggerFeedback('pop');
-    setActiveMenuNotif(null);
-    navigate(`/profile/${target}`);
-  }, [resolveProfileTarget, navigate]);
+        if (data?.[0]) return data[0].username || data[0].id;
+      }
+
+      return user?.id || null;
+    },
+    [actorProfiles, user?.id]
+  );
+
+  const navigateToActorProfile = useCallback(
+    async (notif: any) => {
+      const target = await resolveProfileTarget(notif);
+
+      if (!target) {
+        triggerFeedback('error');
+        toast.error('הפרופיל לא נמצא');
+        return;
+      }
+
+      triggerFeedback('pop');
+      setActiveMenuNotif(null);
+      navigate(`/profile/${target}`);
+    },
+    [resolveProfileTarget, navigate]
+  );
 
   const handleRefresh = async () => {
     triggerFeedback('pop');
@@ -201,13 +241,18 @@ export const NotificationsPage: React.FC = () => {
 
   const handleNotifClick = async (notif: any) => {
     triggerFeedback('pop');
+
     if (!notif.is_read) {
       await supabase.from('notifications').update({ is_read: true }).eq('id', notif.id);
       setNotifications((prev) => prev.map((n) => (n.id === notif.id ? { ...n, is_read: true } : n)));
       if (user?.id) await checkUnread(user.id);
     }
-    
-    if (notif.action_url) return navigate(notif.action_url);
+
+    if (notif.action_url) {
+      navigate(notif.action_url);
+      return;
+    }
+
     await navigateToActorProfile(notif);
   };
 
@@ -218,7 +263,7 @@ export const NotificationsPage: React.FC = () => {
       setNotifications((prev) => prev.map((n) => (n.id === notif.id ? { ...n, is_read: nextReadState } : n)));
       if (user?.id) await checkUnread(user.id);
       toast.success(nextReadState ? 'סומן כנקראה' : 'סומן כלא נקראה');
-    } catch (err) {
+    } catch {
       toast.error('שגיאה בעדכון ההתראה');
     } finally {
       setBusyId(null);
@@ -233,7 +278,7 @@ export const NotificationsPage: React.FC = () => {
       setNotifications((prev) => prev.filter((n) => n.id !== notifId));
       if (user?.id) await checkUnread(user.id);
       toast.success('ההתראה נמחקה');
-    } catch (err) {
+    } catch {
       toast.error('שגיאה במחיקת ההתראה');
     } finally {
       setBusyId(null);
@@ -249,7 +294,7 @@ export const NotificationsPage: React.FC = () => {
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
       await checkUnread(user.id);
       toast.success('הכל סומן כנקרא');
-    } catch (err) {
+    } catch {
       toast.error('שגיאה בעדכון');
     } finally {
       setBusyId(null);
@@ -264,7 +309,7 @@ export const NotificationsPage: React.FC = () => {
       setNotifications((prev) => prev.filter((n) => !n.is_read));
       await checkUnread(user.id);
       toast.success('כל ההתראות שנקראו נמחקו');
-    } catch (err) {
+    } catch {
       toast.error('שגיאה במחיקת ההתראות');
     } finally {
       setBusyId(null);
@@ -275,29 +320,40 @@ export const NotificationsPage: React.FC = () => {
   const stopPropagation = (e: React.MouseEvent | React.TouchEvent) => e.stopPropagation();
 
   if (loading) {
-    return <div className="fixed inset-0 bg-[#0A0A0A] flex items-center justify-center"><Loader2 className="animate-spin text-white/20" /></div>;
+    return (
+      <div className="fixed inset-0 bg-surface flex items-center justify-center">
+        <Loader2 className="animate-spin text-accent-primary" />
+      </div>
+    );
   }
 
   return (
-    <div className="px-4 pt-12 pb-32 bg-[#0A0A0A] min-h-screen flex flex-col font-sans" dir="rtl">
-      
-      {/* Header */}
+    <div className="px-4 pt-12 pb-32 bg-surface min-h-screen flex flex-col font-sans" dir="rtl">
       <div className="flex items-center justify-center mb-8 px-2 relative">
         <div className="flex flex-col items-center">
-          <h1 className="text-3xl font-black text-white tracking-tighter drop-shadow-md">התראות</h1>
-          {unreadExists && <span className="text-[10px] font-black text-red-400 tracking-[0.2em] uppercase mt-1">חדש</span>}
+          <h1 className="text-3xl font-black text-brand tracking-tight drop-shadow-md">התראות</h1>
+          {unreadExists && (
+            <span className="text-[10px] font-black text-red-400 tracking-[0.2em] uppercase mt-1">חדש</span>
+          )}
         </div>
       </div>
 
-      {/* Notifications List */}
       <div className="flex-1 flex flex-col gap-3">
         <AnimatePresence mode="popLayout">
           {notifications.length === 0 ? (
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex-1 flex flex-col items-center justify-center pb-20 opacity-80">
-              <motion.div animate={{ rotate: [0, -15, 15, -10, 10, 0] }} transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut', repeatDelay: 1 }} className="w-24 h-24 rounded-[32px] bg-white/[0.03] border border-white/10 flex items-center justify-center mb-6 shadow-2xl">
-                <Bell size={40} className="text-white/20" />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex-1 flex flex-col items-center justify-center pb-20 opacity-80"
+            >
+              <motion.div
+                animate={{ rotate: [0, -15, 15, -10, 10, 0] }}
+                transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut', repeatDelay: 1 }}
+                className="w-24 h-24 rounded-[32px] bg-surface-card border border-surface-border flex items-center justify-center mb-6 shadow-2xl"
+              >
+                <Bell size={40} className="text-brand-muted" />
               </motion.div>
-              <p className="font-black text-white/30 uppercase tracking-widest text-[13px]">הכל שקט בינתיים</p>
+              <p className="font-black text-brand-muted uppercase tracking-widest text-[13px]">הכל שקט בינתיים</p>
             </motion.div>
           ) : (
             notifications.map((notif) => {
@@ -312,38 +368,58 @@ export const NotificationsPage: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   onClick={() => handleNotifClick(notif)}
                   className={`relative p-4 rounded-[24px] border transition-all cursor-pointer flex items-center gap-4 pl-12 ${
-                    notif.is_read ? 'bg-transparent border-white/5 opacity-60' : 'bg-white/[0.04] border-white/10 shadow-[0_8px_20px_rgba(0,0,0,0.4)] active:scale-[0.985]'
+                    notif.is_read
+                      ? 'bg-surface-card/50 border-surface-border opacity-70'
+                      : 'bg-surface-card border-surface-border shadow-[0_8px_20px_rgba(0,0,0,0.22)] active:scale-[0.985]'
                   }`}
                 >
-                  {/* 3 Dots Menu - Top Left Corner */}
                   <button
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveMenuNotif(notif); }}
-                    className="absolute top-3 left-3 w-8 h-8 flex items-center justify-center shrink-0 text-white/40 hover:text-white hover:bg-white/10 active:scale-90 transition-all rounded-full z-10"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setActiveMenuNotif(notif);
+                    }}
+                    className="absolute top-3 left-3 w-8 h-8 flex items-center justify-center shrink-0 text-brand-muted hover:text-brand hover:bg-white/5 active:scale-90 transition-all rounded-full z-10"
                   >
                     <MoreHorizontal size={18} />
                   </button>
 
-                  {/* Profile (Right) */}
-                  <button 
-                    onClick={(e) => { 
-                      e.preventDefault(); 
-                      e.stopPropagation(); 
-                      navigateToActorProfile(notif); 
-                    }} 
-                    className="w-12 h-12 rounded-full overflow-hidden bg-black/30 border border-white/10 shrink-0 active:scale-95 transition-transform z-10 relative"
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      navigateToActorProfile(notif);
+                    }}
+                    className="w-12 h-12 rounded-full overflow-hidden bg-surface border border-surface-border shrink-0 active:scale-95 transition-transform z-10 relative"
                   >
-                    {actor?.avatar_url ? <img src={actor.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-2 text-white/30" />}
+                    {actor?.avatar_url ? (
+                      <img src={actor.avatar_url} className="w-full h-full object-cover" loading="lazy" />
+                    ) : (
+                      <UserCircle className="w-full h-full p-2 text-brand-muted" />
+                    )}
                   </button>
 
-                  {/* Content (Center) */}
                   <div className="flex-1 min-w-0 flex flex-col text-right">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-white/95 font-black text-[14px] truncate">{actor?.full_name || notif.title}</span>
-                      {!notif.is_read && <span className="text-[9px] font-black text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full shrink-0">חדש</span>}
+                    <div className="flex items-center justify-between mb-1 gap-3">
+                      <span className="text-brand font-black text-[14px] truncate">
+                        {actor?.full_name || notif.title}
+                      </span>
+                      {!notif.is_read && (
+                        <span className="text-[9px] font-black text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full shrink-0">
+                          חדש
+                        </span>
+                      )}
                     </div>
-                    <p className="text-white/72 text-[13px] leading-relaxed line-clamp-2 pr-1">{notif.content}</p>
-                    <div className="flex items-center justify-between mt-2 text-white/30 text-[10px] font-bold">
-                      <span className="tracking-widest uppercase">{new Date(notif.created_at).toLocaleDateString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>
+
+                    <p className="text-brand-muted text-[13px] leading-relaxed line-clamp-2 pr-1">{notif.content}</p>
+
+                    <div className="flex items-center justify-between mt-2 text-brand-muted text-[10px] font-bold">
+                      <span className="tracking-widest uppercase">
+                        {new Date(notif.created_at).toLocaleDateString('he-IL', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
                       {actor?.username && <span dir="ltr">@{actor.username}</span>}
                     </div>
                   </div>
@@ -354,86 +430,140 @@ export const NotificationsPage: React.FC = () => {
         </AnimatePresence>
       </div>
 
-      {/* --- Merged Actions Modal using Portal --- */}
-      {mounted && typeof document !== 'undefined' && createPortal(
-        <AnimatePresence>
-          {activeMenuNotif && (
-            <div className="fixed inset-0 z-[999999] flex flex-col justify-end" dir="rtl" onTouchStart={stopPropagation}>
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setActiveMenuNotif(null)} />
-              <motion.div 
-                initial={{ y: '100%' }} 
-                animate={{ y: 0 }} 
-                exit={{ y: '100%' }} 
-                transition={{ type: 'spring', damping: 25, stiffness: 260 }} 
-                className="relative z-10 bg-[#0A0A0A] border-t border-white/10 rounded-t-[34px] p-5 pb-[calc(env(safe-area-inset-bottom)+32px)] shadow-[0_-20px_40px_rgba(0,0,0,0.5)] max-h-[85vh] overflow-y-auto scrollbar-hide"
+      {mounted &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <AnimatePresence>
+            {activeMenuNotif && (
+              <div
+                className="fixed inset-0 z-[999999] flex flex-col justify-end"
+                dir="rtl"
+                onTouchStart={stopPropagation}
               >
-                <div className="w-full flex justify-center mb-6"><div className="w-14 h-1.5 bg-white/15 rounded-full" /></div>
-                
-                <div className="flex flex-col gap-2">
-                  
-                  {/* סמן כנקראה */}
-                  <button onClick={() => setNotificationReadState(activeMenuNotif, !activeMenuNotif.is_read)} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all">
-                    <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-                      {activeMenuNotif.is_read ? <Circle size={18} className="text-white/75" /> : <CheckCircle2 size={18} className="text-green-400" />}
-                    </div>
-                    <span className="flex-1 text-right text-white text-[14px] font-black">{activeMenuNotif.is_read ? 'סמן כלא נקראה' : 'סמן כנקראה'}</span>
-                  </button>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+                  onClick={() => setActiveMenuNotif(null)}
+                />
 
-                  {/* מעבר לפרופיל */}
-                  <button onClick={() => navigateToActorProfile(activeMenuNotif)} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all">
-                    <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0"><UserCircle size={18} className="text-white/75" /></div>
-                    <span className="flex-1 text-right text-white text-[14px] font-black">מעבר לפרופיל</span>
-                  </button>
+                <motion.div
+                  initial={{ y: '100%' }}
+                  animate={{ y: 0 }}
+                  exit={{ y: '100%' }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 260 }}
+                  className="relative z-10 bg-white rounded-t-[34px] p-5 pb-[calc(env(safe-area-inset-bottom)+32px)] shadow-[0_-20px_40px_rgba(0,0,0,0.18)] max-h-[85vh] overflow-y-auto scrollbar-hide"
+                >
+                  <div className="w-full flex justify-center mb-6">
+                    <div className="w-14 h-1.5 bg-black/10 rounded-full" />
+                  </div>
 
-                  {/* פתח יעד התראה */}
-                  {activeMenuNotif.action_url && (
-                    <button onClick={() => { triggerFeedback('pop'); setActiveMenuNotif(null); navigate(activeMenuNotif.action_url); }} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all">
-                      <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0"><ExternalLink size={18} className="text-white/75" /></div>
-                      <span className="flex-1 text-right text-white text-[14px] font-black">פתח יעד ההתראה</span>
-                    </button>
-                  )}
-
-                  {/* רענן התראות */}
-                  <button onClick={handleRefresh} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all">
-                    <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0"><RefreshCw size={18} className="text-white/75" /></div>
-                    <span className="flex-1 text-right text-white text-[14px] font-black">רענן התראות</span>
-                  </button>
-
-                  {/* סמן הכל כנקרא */}
-                  {unreadExists && (
-                    <button onClick={markAllAsRead} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all">
-                      <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-                        {busyId === 'mark-all-read' ? <Loader2 size={18} className="animate-spin text-white/75" /> : <CheckCheck size={18} className="text-white/75" />}
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={() => setNotificationReadState(activeMenuNotif, !activeMenuNotif.is_read)}
+                      className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-neutral-100 border border-neutral-200 active:scale-[0.98] transition-all"
+                    >
+                      <div className="w-11 h-11 rounded-[16px] bg-white border border-neutral-200 flex items-center justify-center shrink-0">
+                        {activeMenuNotif.is_read ? (
+                          <Circle size={18} className="text-neutral-500" />
+                        ) : (
+                          <CheckCircle2 size={18} className="text-green-500" />
+                        )}
                       </div>
-                      <span className="flex-1 text-right text-white text-[14px] font-black">סמן הכל כנקרא</span>
+                      <span className="flex-1 text-right text-black text-[14px] font-black">
+                        {activeMenuNotif.is_read ? 'סמן כלא נקראה' : 'סמן כנקראה'}
+                      </span>
                     </button>
-                  )}
 
-                  {/* מחק את כל מה שנקרא */}
-                  {readExists && (
-                    <button onClick={deleteAllReadNotifications} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-white/5 border border-white/10 active:scale-[0.98] transition-all">
-                      <div className="w-11 h-11 rounded-[16px] bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-                        {busyId === 'delete-read-all' ? <Loader2 size={18} className="animate-spin text-white/75" /> : <Trash2 size={18} className="text-white/75" />}
+                    <button
+                      onClick={() => navigateToActorProfile(activeMenuNotif)}
+                      className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-neutral-100 border border-neutral-200 active:scale-[0.98] transition-all"
+                    >
+                      <div className="w-11 h-11 rounded-[16px] bg-white border border-neutral-200 flex items-center justify-center shrink-0">
+                        <UserCircle size={18} className="text-neutral-500" />
                       </div>
-                      <span className="flex-1 text-right text-white text-[14px] font-black">מחק את כל מה שנקרא</span>
+                      <span className="flex-1 text-right text-black text-[14px] font-black">מעבר לפרופיל</span>
                     </button>
-                  )}
 
-                  {/* מחק התראה זו - סכנת מחיקה (תמיד בסוף) */}
-                  <button onClick={() => deleteNotification(activeMenuNotif.id)} className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-red-500/10 border border-red-500/20 active:scale-[0.98] transition-all mt-2">
-                    <div className="w-11 h-11 rounded-[16px] bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
-                      {busyId === activeMenuNotif.id ? <Loader2 size={18} className="animate-spin text-red-400" /> : <Trash2 size={18} className="text-red-400" />}
-                    </div>
-                    <span className="flex-1 text-right text-red-400 text-[14px] font-black">מחק התראה זו</span>
-                  </button>
+                    {activeMenuNotif.action_url && (
+                      <button
+                        onClick={() => {
+                          triggerFeedback('pop');
+                          setActiveMenuNotif(null);
+                          navigate(activeMenuNotif.action_url);
+                        }}
+                        className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-neutral-100 border border-neutral-200 active:scale-[0.98] transition-all"
+                      >
+                        <div className="w-11 h-11 rounded-[16px] bg-white border border-neutral-200 flex items-center justify-center shrink-0">
+                          <ExternalLink size={18} className="text-neutral-500" />
+                        </div>
+                        <span className="flex-1 text-right text-black text-[14px] font-black">פתח יעד ההתראה</span>
+                      </button>
+                    )}
 
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>,
-        document.body
-      )}
+                    <button
+                      onClick={handleRefresh}
+                      className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-neutral-100 border border-neutral-200 active:scale-[0.98] transition-all"
+                    >
+                      <div className="w-11 h-11 rounded-[16px] bg-white border border-neutral-200 flex items-center justify-center shrink-0">
+                        <RefreshCw size={18} className="text-neutral-500" />
+                      </div>
+                      <span className="flex-1 text-right text-black text-[14px] font-black">רענן התראות</span>
+                    </button>
+
+                    {unreadExists && (
+                      <button
+                        onClick={markAllAsRead}
+                        className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-neutral-100 border border-neutral-200 active:scale-[0.98] transition-all"
+                      >
+                        <div className="w-11 h-11 rounded-[16px] bg-white border border-neutral-200 flex items-center justify-center shrink-0">
+                          {busyId === 'mark-all-read' ? (
+                            <Loader2 size={18} className="animate-spin text-neutral-500" />
+                          ) : (
+                            <CheckCheck size={18} className="text-neutral-500" />
+                          )}
+                        </div>
+                        <span className="flex-1 text-right text-black text-[14px] font-black">סמן הכל כנקרא</span>
+                      </button>
+                    )}
+
+                    {readExists && (
+                      <button
+                        onClick={deleteAllReadNotifications}
+                        className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-neutral-100 border border-neutral-200 active:scale-[0.98] transition-all"
+                      >
+                        <div className="w-11 h-11 rounded-[16px] bg-white border border-neutral-200 flex items-center justify-center shrink-0">
+                          {busyId === 'delete-read-all' ? (
+                            <Loader2 size={18} className="animate-spin text-neutral-500" />
+                          ) : (
+                            <Trash2 size={18} className="text-neutral-500" />
+                          )}
+                        </div>
+                        <span className="flex-1 text-right text-black text-[14px] font-black">מחק את כל מה שנקרא</span>
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => deleteNotification(activeMenuNotif.id)}
+                      className="w-full flex items-center gap-4 p-4 rounded-[22px] bg-red-50 border border-red-100 active:scale-[0.98] transition-all mt-2"
+                    >
+                      <div className="w-11 h-11 rounded-[16px] bg-red-50 border border-red-100 flex items-center justify-center shrink-0">
+                        {busyId === activeMenuNotif.id ? (
+                          <Loader2 size={18} className="animate-spin text-red-400" />
+                        ) : (
+                          <Trash2 size={18} className="text-red-400" />
+                        )}
+                      </div>
+                      <span className="flex-1 text-right text-red-500 text-[14px] font-black">מחק התראה זו</span>
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>,
+          document.body
+        )}
     </div>
   );
 };
