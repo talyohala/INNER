@@ -11,8 +11,6 @@ import {
   ChevronLeft,
   Volume2,
   Vibrate,
-  ArrowRight,
-  Settings as SettingsIcon,
   AlertTriangle,
   Accessibility,
   Trash2,
@@ -20,8 +18,8 @@ import {
   Link as LinkIcon,
   Ban,
   MessageSquare,
-  CheckCircle2,
   Mail,
+  Settings as SettingsIcon,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
@@ -307,7 +305,7 @@ export const SettingsPage: React.FC = () => {
       case 'linked':
         return (
           <div className="flex flex-col gap-4 items-center text-center py-6">
-            <div className="w-16 h-16 rounded-[20px] bg-surface border border-surface-border flex items-center justify-center">
+            <div className="w-16 h-16 rounded-[20px] bg-neutral-100 border border-neutral-200 flex items-center justify-center">
               <LinkIcon size={26} className="text-accent-primary" />
             </div>
             <h3 className="text-xl font-black text-black">חשבונות מקושרים</h3>
@@ -468,30 +466,6 @@ export const SettingsPage: React.FC = () => {
         className="px-4 pt-5 pb-32 flex flex-col gap-5 bg-surface min-h-screen font-sans relative"
         dir="rtl"
       >
-        <div className="flex justify-between items-center relative z-10">
-          <button
-            onClick={() => {
-              triggerFeedback('pop');
-              navigate(-1);
-            }}
-            className="w-10 h-10 flex justify-center items-center bg-surface-card border border-surface-border rounded-full active:scale-90 transition-all"
-          >
-            <ArrowRight size={17} className="text-brand" />
-          </button>
-
-          <div className="flex flex-col items-center">
-            <h1 className="text-2xl font-black text-brand flex items-center gap-2 tracking-tight">
-              <SettingsIcon size={19} className="text-brand-muted" />
-              הגדרות
-            </h1>
-            <span className="text-brand-muted text-[10px] font-bold uppercase tracking-widest mt-1">
-              שליטה מלאה
-            </span>
-          </div>
-
-          <div className="w-10" />
-        </div>
-
         <div className="flex flex-col gap-5 relative z-10">
           {SETTINGS_GROUPS.map((group, gIdx) => (
             <div key={gIdx} className="flex flex-col gap-3">
