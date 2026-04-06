@@ -449,29 +449,23 @@ export const CirclePage: React.FC = () => {
               {circle.description}
             </p>
 
-            <div className="flex items-center gap-5 bg-surface-card backdrop-blur-xl rounded-full py-3.5 px-6 w-fit text-brand font-black text-[11px] justify-center border border-white/[0.05] shadow-2xl">
+            <div className="flex items-center gap-8 bg-surface-card backdrop-blur-xl rounded-full py-3.5 px-10 w-fit text-brand font-black justify-center border border-white/[0.05] shadow-2xl">
               <button 
                 onClick={() => { openOverlay(() => setShowMembers(true)); fetchMembersList(); triggerFeedback('pop'); }} 
-                className="flex items-center gap-2 text-white hover:text-white/70 transition-colors active:scale-95"
+                className="flex flex-col items-center justify-center text-white hover:text-white/70 transition-colors active:scale-95 min-w-[64px]"
               >
-                <Users size={16} className="text-brand-muted" />
-                <span className="flex flex-col items-start leading-none gap-0.5 text-right">
-                  <span className="text-[13px]">{circle.members_count || 0}</span>
-                  <span className="text-[9px] text-brand-muted font-bold tracking-widest uppercase">חברים</span>
-                </span>
+                <span className="text-[18px] leading-none mb-1">{circle.members_count || 0}</span>
+                <span className="text-[10px] text-brand-muted font-bold tracking-widest uppercase">חברים</span>
               </button>
               
-              <div className="w-px h-6 bg-white/[0.05]"></div>
+              <div className="w-px h-10 bg-white/[0.08]"></div>
               
               <button 
                 onClick={() => { openOverlay(() => setShowOnline(true)); triggerFeedback('pop'); }} 
-                className="flex items-center gap-2 text-green-400 hover:text-green-300 transition-colors active:scale-95"
+                className="flex flex-col items-center justify-center text-green-400 hover:text-green-300 transition-colors active:scale-95 min-w-[64px]"
               >
-                <Radio size={16} className="text-green-500" />
-                <span className="flex flex-col items-start leading-none gap-0.5 text-right">
-                  <span className="text-[13px]">{activeNow}</span>
-                  <span className="text-[9px] text-green-500/70 font-bold tracking-widest uppercase">אונליין</span>
-                </span>
+                <span className="text-[18px] leading-none mb-1">{activeNow}</span>
+                <span className="text-[10px] text-green-500/70 font-bold tracking-widest uppercase">אונליין</span>
               </button>
             </div>
           </div>
