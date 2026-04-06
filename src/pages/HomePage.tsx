@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,13 +8,13 @@ import { FadeIn, Button } from '../components/ui';
 import {
   Loader2, Bell, Users, Heart, MessageSquare, Send, X,
   Paperclip, RefreshCw, UserCircle, Trash2, Edit2, Share2,
-  MoreVertical, ChevronLeft, Reply, ChevronDown, ChevronUp, ArrowUp, Download, Link, Bookmark,
+  MoreVertical, ChevronLeft, Reply, ChevronDown, ChevronUp, ArrowUp, Download, Link as LinkIcon, Bookmark, ShieldAlert, Image as ImageIcon
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 import { Share } from '@capacitor/share';
+import { useAuth } from '../context/AuthContext';
 
-// רכיב וידאו חכם לביצועים - מנגן רק מה שעל המסך
 const FeedVideo = ({ src, className }: { src: string; className?: string }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -38,6 +38,8 @@ const FeedVideo = ({ src, className }: { src: string; className?: string }) => {
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
+  const { user, profile: myProfile } = useAuth();
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   
@@ -45,6 +47,7 @@ export const HomePage: React.FC = () => {
   const lastScrollY = useRef(0);
 
   const [mounted, setMounted] = useState(false);
+  const [portalReady, setPortalReady] = useState(false);
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -53,6 +56,11 @@ export const HomePage: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [editingPost, setEditingPost] = useState<any | null>(null);
   const [showCreatePost, setShowCreatePost] = useState(false);
+
+  const [page, setPage] = useState(0);
+  const [hasMorePosts, setHasMorePosts] = useState(true);
+  const POSTS_PER_PAGE = 15;
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const [activePost, setActivePost] = useState<any>(null);
   const [activeCommentsPostId, setActiveCommentsPostId] = useState<string | null>(null);
@@ -97,6 +105,8 @@ export const HomePage: React.FC = () => {
     }
     return batch;
   };
+
+  useEffect(() => { setMounted(true); setPortalReady(true); }, []);
 
   useEffect(() => {
     stateRef.current = {
@@ -144,53 +154,54 @@ export const HomePage: React.FC = () => {
     } catch {}
   };
 
-  const fetchData = async (isSilentRefresh = false) => {
-    if (!isSilentRefresh) setLoading(true);
+  const fetchFeed = useCallback(async (isLoadMore = false) => {
+    if (!user) return;
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      const uid = authData.user?.id || '';
-      if (uid) setCurrentUserId(uid);
+      const currentPage = isLoadMore ? page + 1 : 0;
+      if (!isLoadMore) setLoading(true);
+      else setLoadingMore(true);
 
-      const [rawPosts, rawProfiles, rawLikes, rawComments, rawMembers, rawCircles] = await Promise.all([
-        supabase.from('posts').select('*').order('created_at', { ascending: false }).then((r) => r.data || []),
-        supabase.from('profiles').select('*').then((r) => r.data || []),
-        supabase.from('likes').select('*').then((r) => r.data || []),
-        supabase.from('comments').select('*').then((r) => r.data || []),
-        supabase.from('circle_members').select('*').then((r) => r.data || []),
-        supabase.from('circles').select('*').then((r) => r.data || []),
-      ]);
+      const { data: pData, error } = await supabase.from('posts')
+        .select('*, profiles!user_id(*), circles(*), likes(user_id), comments(id)')
+        .order('created_at', { ascending: false })
+        .range(currentPage * POSTS_PER_PAGE, (currentPage + 1) * POSTS_PER_PAGE - 1);
 
-      const fetchedPosts = rawPosts
-        .filter((p: any) => !p.circle_id)
-        .map((p: any) => {
-          const prof = rawProfiles.find((pr: any) => pr.id === p.user_id) || {};
-          const pLikes = rawLikes.filter((l: any) => l.post_id === p.id);
-          const pComments = rawComments.filter((c: any) => c.post_id === p.id);
-          const userCircles = rawCircles.filter((c: any) => rawMembers.some((m: any) => m.circle_id === c.id && m.user_id === p.user_id));
-          return {
-            ...p,
-            profiles: prof,
-            likes_count: pLikes.length,
-            comments_count: pComments.length,
-            is_liked: !!uid && pLikes.some((l: any) => l.user_id === uid),
-            user_circles: userCircles,
-          };
-        });
+      if (error) throw error;
 
-      setPosts(fetchedPosts);
-    } catch {
-      toast.error('שגיאה בטעינת הפיד');
+      let formattedPosts: any[] = [];
+      if (pData) {
+        formattedPosts = pData.map((p: any) => ({
+          ...p,
+          likes_count: p.likes?.length || 0,
+          comments_count: p.comments?.length || 0,
+          is_liked: p.likes?.some((l: any) => l.user_id === user.id),
+        }));
+      }
+
+      if (isLoadMore) {
+        setPosts((prev) => [...prev, ...formattedPosts]);
+        if (pData && pData.length < POSTS_PER_PAGE) setHasMorePosts(false);
+      } else {
+        setPosts(formattedPosts);
+        setHasMorePosts(pData && pData.length === POSTS_PER_PAGE);
+      }
+      setPage(currentPage);
+    } catch (error) {
+      console.error('Error fetching feed:', error);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
       setRefreshing(false);
     }
-  };
+  }, [user, page]);
 
   useEffect(() => {
-    setMounted(true);
-    fetchData(false);
-    checkUnreadNotifications();
-  }, []);
+    if (user) {
+      fetchFeed();
+      setCurrentUserId(user.id);
+      checkUnreadNotifications();
+    }
+  }, [user]);
 
   useEffect(() => {
     const presenceChannel = supabase.channel('global_online');
@@ -226,7 +237,7 @@ export const HomePage: React.FC = () => {
     if (isAnyModalOpen()) return;
     if (pullY > 60) {
       setRefreshing(true); setPullY(0); triggerFeedback('coin');
-      await fetchData(true); await checkUnreadNotifications();
+      await fetchFeed(false); await checkUnreadNotifications();
     } else { setPullY(0); }
     pullStartY.current = 0;
   };
@@ -258,9 +269,13 @@ export const HomePage: React.FC = () => {
         media_url = supabase.storage.from('feed_images').getPublicUrl(uploadRes.data.path).data.publicUrl;
         media_type = selectedFile.type.startsWith('video/') ? 'video' : 'image';
       }
-      const insertRes = await supabase.from('posts').insert({ user_id: currentUserId, content: newPost.trim(), media_url, media_type, circle_id: null });
+      const insertRes = await supabase.from('posts').insert({ user_id: currentUserId, content: newPost.trim(), media_url, media_type, circle_id: null }).select('*, profiles!user_id(*), likes(user_id), comments(id)').single();
       if (insertRes.error) throw insertRes.error;
-      setNewPost(''); setSelectedFile(null); setEditingPost(null); await fetchData(true);
+      
+      if (insertRes.data) {
+        setPosts((curr) => [{ ...insertRes.data, likes_count: 0, comments_count: 0, is_liked: false }, ...curr]);
+      }
+      setNewPost(''); setSelectedFile(null); setEditingPost(null);
     } catch { toast.error('שגיאה בשמירה'); } finally { setPosting(false); }
   };
 
@@ -308,11 +323,11 @@ export const HomePage: React.FC = () => {
     const update = (list: any[]) => list.map((p) => p.id === postId ? { ...p, is_liked: !isLiked, likes_count: isLiked ? p.likes_count - 1 : p.likes_count + 1 } : p);
     setPosts((prev) => update(prev));
     if (fullScreenMedia) { setFullScreenMedia((prev) => (prev ? update(prev) : prev)); }
-    try { await apiFetch(`/api/posts/${postId}/like`, { method: 'POST', headers: { 'x-user-id': currentUserId } }); } catch { fetchData(true); }
+    try { await apiFetch(`/api/posts/${postId}/like`, { method: 'POST', headers: { 'x-user-id': currentUserId } }); } catch {}
   };
 
   const submitComment = async () => {
-    if (!newComment.trim() || !activePost) return;
+    if (!newComment.trim() || !activePost || !user) return;
     try {
       if (editingCommentId) {
         const updateRes = await supabase.from('comments').update({ content: newComment.trim() }).eq('id', editingCommentId);
@@ -334,14 +349,9 @@ export const HomePage: React.FC = () => {
     } catch { toast.error('שגיאה בשרת'); }
   };
 
-  const toggleCommentLike = (commentId: string) => {
-    setLikedComments((prev) => { const next = new Set(prev); if (next.has(commentId)) next.delete(commentId); else next.add(commentId); return next; });
-    triggerFeedback('pop');
-  };
-
   const deletePost = async (postId: string) => {
     triggerFeedback('error'); closeOverlay();
-    setPosts((curr) => curr.filter((p) => p.id !== postId));
+    setPosts((curr) => curr.filter((p: any) => p.id !== postId));
     await supabase.from('posts').delete().eq('id', postId);
   };
 
@@ -372,18 +382,11 @@ export const HomePage: React.FC = () => {
     }, 120);
   };
 
-  const renderCommentText = (text: string) => {
-    if (!text) return null;
-    const parts = text.split(/(@[\wא-ת]+)/g);
-    return parts.map((part, i) => part.startsWith('@') ? <span key={i} className="text-[#2196f3] font-bold">{part}</span> : <span key={i}>{part}</span>);
-  };
-
   const stopPropagation = (e: React.SyntheticEvent) => e.stopPropagation();
 
   if (loading && posts.length === 0) {
-    return <div className="min-h-screen bg-[#030303] flex items-center justify-center"><Loader2 className="animate-spin text-white/20" /></div>;
+    return <div className="min-h-screen bg-surface flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" /></div>;
   }
-
 
   const portalTarget = typeof document !== 'undefined' ? document.body || document.getElementById('root') : null;
 
@@ -412,7 +415,6 @@ export const HomePage: React.FC = () => {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        {/* Pull to refresh indicator */}
         <div
           className="fixed top-0 left-0 right-0 flex justify-center z-50 pointer-events-none transition-transform duration-200"
           style={{ transform: `translateY(${Math.max(pullY - 40, -40)}px)`, opacity: pullY / 60 }}
@@ -422,7 +424,6 @@ export const HomePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Header - Feed */}
         <div className="flex items-center justify-between px-5 pt-8 pb-4 sticky top-0 z-40 bg-surface/90 backdrop-blur-xl border-b border-white/[0.05]">
           <div className="flex items-center gap-3">
             <h1 className="text-[22px] font-black text-brand tracking-tight uppercase drop-shadow-sm">INNER</h1>
@@ -441,7 +442,6 @@ export const HomePage: React.FC = () => {
 
         <div className="flex flex-col gap-6 w-full p-2 mt-2">
           
-          {/* Create Post Section */}
           <div className="px-1 mb-2">
             <div className="p-4 rounded-[28px] border border-white/[0.05] bg-surface-card shadow-lg relative z-10 flex flex-col gap-3">
               <div className="flex gap-3 items-start">
@@ -480,7 +480,6 @@ export const HomePage: React.FC = () => {
             </div>
           </div>
 
-          {/* Feed Posts */}
           {posts.length === 0 && !loading ? (
             <div className="text-center text-brand-muted mt-10 text-[14px]">אין פוסטים להצגה בפיד</div>
           ) : (
@@ -488,14 +487,11 @@ export const HomePage: React.FC = () => {
               {posts.map((post) => {
                 const hasMedia = !!post.media_url;
                 const isVideo = post.media_url?.match(/\.(mp4|webm|mov)$/i);
-                
-                // בודקים אם יש לפוסט מועדון שהוא הגיע ממנו (פוסט גלובלי או שייך למועדון)
                 const postCircle = post.circles ? post.circles : (post.user_circles && post.user_circles.length > 0 ? post.user_circles[0] : null);
 
                 return (
                   <div key={post.id} className="flex flex-col bg-black border border-white/[0.05] overflow-hidden shadow-xl rounded-[28px] w-full relative">
                     
-                    {/* תג מועדון - רק אם שייך למועדון ויש תמונה/וידאו נשים צף, אם זה טקסט נשים רגיל למטה */}
                     {postCircle && hasMedia && (
                       <div className="absolute top-4 right-4 z-20 bg-black/50 backdrop-blur-md border border-white/[0.05] rounded-full px-3 py-1.5 flex items-center gap-1.5 cursor-pointer active:scale-95" onClick={() => navigate(`/circle/${postCircle.slug}`)}>
                         <span className="w-1.5 h-1.5 rounded-full bg-accent-primary shadow-[0_0_8px_rgba(var(--accent-primary),0.8)]"></span>
@@ -503,20 +499,16 @@ export const HomePage: React.FC = () => {
                       </div>
                     )}
 
-                    {/* התוכן העליון - תמונה נוגעת בקצה ללא פס */}
                     {hasMedia ? (
                       <div className="w-full relative cursor-pointer overflow-hidden bg-black flex flex-col" onClick={() => handleOpenFullscreen(post)}>
-                        {/* מדיה יושבת עד למעלה בגובה חכם */}
                         {isVideo ? (
                           <FeedVideo src={post.media_url} className="w-full max-h-[400px] aspect-[4/5] object-cover" />
                         ) : (
                           <img src={post.media_url} loading="lazy" className="w-full max-h-[400px] aspect-[4/5] object-cover" onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/1E1F22/333?text=Media+Unavailable'; }} />
                         )}
                         
-                        {/* השתלבות עדינה של התמונה למטה לשחור בלי קו מפריד */}
                         <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black via-black/40 to-transparent pointer-events-none"></div>
 
-                        {/* טקסט מולבש על גבי התמונה בתחתית (בלי קופסה נפרדת) */}
                         {post.content && (
                           <div className="absolute bottom-0 left-0 right-0 p-4 pt-32 bg-gradient-to-t from-black via-black/30 to-transparent flex items-end pointer-events-none z-10">
                             <p onClick={(e) => { e.stopPropagation(); openOverlay(() => setActiveDescPost(post)); }} className="text-white text-[14px] font-medium leading-relaxed text-right line-clamp-2 w-full pr-1 cursor-pointer active:opacity-70 pointer-events-auto drop-shadow-md">
@@ -526,7 +518,6 @@ export const HomePage: React.FC = () => {
                         )}
                       </div>
                     ) : (
-                      /* עיצוב חכם לטקסט בלבד - רק כמה שהוא צריך */
                       <div className="w-full p-5 pt-6 cursor-pointer bg-surface-card" onClick={() => openOverlay(() => setActiveDescPost(post))}>
                         {postCircle && (
                           <div className="mb-3 inline-flex items-center gap-1.5 cursor-pointer text-brand-muted" onClick={(e) => { e.stopPropagation(); navigate(`/circle/${postCircle.slug}`); }}>
@@ -538,10 +529,8 @@ export const HomePage: React.FC = () => {
                       </div>
                     )}
 
-                    {/* שורה תחתונה: משתמש מימין, כפתורים משמאל - שחור מלא (או צבע כרטיס לטקסט) */}
                     <div className={`flex items-center justify-between px-4 py-3 ${hasMedia ? 'bg-black' : 'bg-surface-card border-t border-white/[0.05]'}`}>
                       
-                      {/* צד ימין: משתמש */}
                       <div className="flex items-center gap-2 cursor-pointer active:opacity-70 transition-opacity" onClick={() => navigate(`/profile/${post.user_id}`)}>
                         <div className="w-9 h-9 rounded-full bg-surface-card border border-white/[0.05] overflow-hidden shrink-0">
                           {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" loading="lazy" /> : <UserCircle className="w-full h-full p-1.5 text-brand-muted" />}
@@ -552,13 +541,12 @@ export const HomePage: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* צד שמאל: פעולות + 3 נקודות יחד */}
                       <div className="flex items-center gap-3">
                         <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-1.5 transition-all active:scale-90 ${post.is_liked ? 'text-red-500' : 'text-brand-muted hover:text-red-400'}`}>
                           <Heart size={18} fill={post.is_liked ? 'currentColor' : 'none'} strokeWidth={post.is_liked ? 0 : 2} />
                           <span className="text-[13px] font-black text-white">{post.likes_count}</span>
                         </button>
-                        <button onClick={() => openOverlay(() => { setActivePost(post); setActiveCommentsPostId(post.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', post.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); })} className="flex items-center gap-1.5 text-brand-muted hover:text-accent-primary transition-all active:scale-90">
+                        <button onClick={() => openOverlay(() => { setActivePost(post); setActiveCommentsPostId(post.id); setLoadingComments(true); supabase.from('comments').select('*, profiles!user_id(*)').eq('post_id', post.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); })} className="flex items-center gap-1.5 text-brand-muted hover:text-accent-primary transition-all active:scale-90">
                           <MessageSquare size={18} />
                           <span className="text-[13px] font-black text-white">{post.comments_count}</span>
                         </button>
@@ -566,15 +554,12 @@ export const HomePage: React.FC = () => {
                           <Share2 size={18} />
                         </button>
                         
-                        {/* קו מפריד עדין */}
                         <div className="w-px h-4 bg-white/[0.1] mx-0.5"></div>
                         
-                        {/* 3 נקודות לאורך כמו פעם */}
                         <button onClick={() => openOverlay(() => setOptionsMenuPost(post))} className="text-brand-muted hover:text-white transition-colors active:scale-90">
                           <MoreVertical size={20} strokeWidth={2} />
                         </button>
                       </div>
-
                     </div>
                   </div>
                 );
@@ -593,7 +578,7 @@ export const HomePage: React.FC = () => {
       </FadeIn>
 
       {/* OVERLAYS */}
-      {mounted && portalTarget && createPortal(
+      {portalReady && portalTarget && createPortal(
         <>
           <AnimatePresence>
             {/* מסך מדיה מלא (נשאר שחור) */}
@@ -609,7 +594,7 @@ export const HomePage: React.FC = () => {
                         <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }} className="absolute bottom-6 left-4 z-[60] active:scale-90 transition-transform drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"><MoreVertical size={26} strokeWidth={2.5} className="text-white" /></button>
                         <div className="absolute bottom-48 left-4 flex flex-col gap-6 items-center z-50">
                           <button onClick={(e) => { e.stopPropagation(); handleLike(vid.id, vid.is_liked); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform"><Heart size={30} className={vid.is_liked ? 'text-[#ff4757]' : 'text-white'} fill={vid.is_liked ? 'currentColor' : 'none'} strokeWidth={1.5} /><span className="text-white text-[13px] font-black drop-shadow-md">{vid.likes_count}</span></button>
-                          <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(vid); setActiveCommentsPostId(vid.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', vid.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); }); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform"><MessageSquare size={30} className="text-white" strokeWidth={1.5} /><span className="text-white text-[13px] font-black drop-shadow-md">{vid.comments_count}</span></button>
+                          <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(vid); setActiveCommentsPostId(vid.id); setLoadingComments(true); supabase.from('comments').select('*, profiles!user_id(*)').eq('post_id', vid.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); }); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform"><MessageSquare size={30} className="text-white" strokeWidth={1.5} /><span className="text-white text-[13px] font-black drop-shadow-md">{vid.comments_count}</span></button>
                           <button onClick={(e) => { e.stopPropagation(); handleShare(vid); }} className="active:scale-90 transition-transform"><Share2 size={30} className="text-white" strokeWidth={1.5} /></button>
                         </div>
                         <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end pointer-events-none">
@@ -707,6 +692,18 @@ export const HomePage: React.FC = () => {
               </div>
             )}
 
+            {/* מודאל תיאור פוסט מלא בלבן נקי */}
+            {activeDescPost && (
+              <div className="fixed inset-0 z-[99999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
+                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-white rounded-t-[40px] flex flex-col overflow-hidden pb-10 max-h-[75vh] shadow-[0_-10px_50px_rgba(0,0,0,0.15)] border-t border-black/[0.05]">
+                  <div className="w-full py-6 flex justify-center cursor-grab active:cursor-grabbing border-b border-neutral-200/50"><div className="w-16 h-1.5 bg-black/10 rounded-full" /></div>
+                  <div className="px-6 py-4 border-b border-neutral-200/50"><h2 className="text-black font-black text-lg text-center">תיאור מלא</h2></div>
+                  <div className="p-6 overflow-y-auto" onPointerDown={stopPropagation} onTouchStart={stopPropagation}><p className="text-neutral-700 text-[15px] leading-relaxed text-right whitespace-pre-wrap">{activeDescPost.content}</p></div>
+                </motion.div>
+              </div>
+            )}
+            
             {/* מודאל עריכת פוסט */}
             {showCreatePost && (
               <div className="fixed inset-0 z-[100000] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
@@ -716,18 +713,6 @@ export const HomePage: React.FC = () => {
                   <div className="flex justify-between items-center"><h3 className="text-black font-black text-lg">עריכת פוסט</h3><button onClick={closeOverlay} className="text-neutral-400 hover:text-black"><X size={20} /></button></div>
                   <textarea value={newPost} onChange={(e) => setNewPost(e.target.value)} placeholder="כתוב משהו..." className="h-36 bg-neutral-50 rounded-[20px] p-5 text-black text-[16px] outline-none resize-none border border-neutral-200 placeholder:text-neutral-400" />
                   <Button onClick={handlePost} disabled={!newPost.trim()} className="h-14 bg-accent-primary text-white font-black rounded-full mt-2 shadow-lg hover:bg-accent-primary/90">שמור עריכה</Button>
-                </motion.div>
-              </div>
-            )}
-
-            {/* מודאל תיאור פוסט מלא בלבן נקי */}
-            {activeDescPost && (
-              <div className="fixed inset-0 z-[99999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
-                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-white rounded-t-[40px] flex flex-col overflow-hidden pb-10 max-h-[75vh] shadow-[0_-10px_50px_rgba(0,0,0,0.15)] border-t border-black/[0.05]">
-                  <div className="w-full py-6 flex justify-center cursor-grab active:cursor-grabbing border-b border-neutral-200/50"><div className="w-16 h-1.5 bg-black/10 rounded-full" /></div>
-                  <div className="px-6 py-4 border-b border-neutral-200/50"><h2 className="text-black font-black text-lg text-center">תיאור מלא</h2></div>
-                  <div className="p-6 overflow-y-auto" onPointerDown={stopPropagation} onTouchStart={stopPropagation}><p className="text-neutral-700 text-[15px] leading-relaxed text-right whitespace-pre-wrap">{activeDescPost.content}</p></div>
                 </motion.div>
               </div>
             )}
