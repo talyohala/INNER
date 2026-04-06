@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { apiFetch } from '../lib/api';
 import { FadeIn, Button } from '../components/ui';
 import {
   Loader2, Bell, Users, Heart, MessageSquare, Send, X,
   Paperclip, RefreshCw, UserCircle, Trash2, Edit2, Share2,
-  MoreVertical, ChevronLeft, Reply, ChevronDown, ChevronUp, ArrowUp, Download, Link as LinkIcon, Bookmark, ShieldAlert, Image as ImageIcon
+  MoreVertical, ChevronLeft, Reply, ChevronDown, ChevronUp, ArrowUp, Download, Link as LinkIcon, Bookmark
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -43,6 +43,8 @@ export const HomePage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   
+  const commentsDragControls = useDragControls();
+  
   const pullStartY = useRef(0);
   const lastScrollY = useRef(0);
 
@@ -51,16 +53,17 @@ export const HomePage: React.FC = () => {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Pagination States
+  const [page, setPage] = useState(0);
+  const [hasMorePosts, setHasMorePosts] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const POSTS_PER_PAGE = 15;
+
   const [newPost, setNewPost] = useState('');
   const [posting, setPosting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [editingPost, setEditingPost] = useState<any | null>(null);
   const [showCreatePost, setShowCreatePost] = useState(false);
-
-  const [page, setPage] = useState(0);
-  const [hasMorePosts, setHasMorePosts] = useState(true);
-  const POSTS_PER_PAGE = 15;
-  const [loadingMore, setLoadingMore] = useState(false);
 
   const [activePost, setActivePost] = useState<any>(null);
   const [activeCommentsPostId, setActiveCommentsPostId] = useState<string | null>(null);
@@ -155,14 +158,14 @@ export const HomePage: React.FC = () => {
   };
 
   const fetchFeed = useCallback(async (isLoadMore = false) => {
-    if (!user) return;
     try {
+      const { data: authData } = await supabase.auth.getUser();
+      const uid = authData.user?.id || '';
+      if (uid) setCurrentUserId(uid);
+
       const currentPage = isLoadMore ? page + 1 : 0;
       if (!isLoadMore) setLoading(true);
       else setLoadingMore(true);
-
-      const uid = user.id;
-      setCurrentUserId(uid);
 
       const [rawPosts, rawProfiles, rawLikes, rawComments, rawMembers, rawCircles] = await Promise.all([
         supabase.from('posts').select('*').order('created_at', { ascending: false }).range(currentPage * POSTS_PER_PAGE, (currentPage + 1) * POSTS_PER_PAGE - 1).then((r) => r.data || []),
@@ -198,23 +201,22 @@ export const HomePage: React.FC = () => {
         setHasMorePosts(fetchedPosts.length === POSTS_PER_PAGE);
       }
       setPage(currentPage);
-    } catch (error) {
+    } catch {
       toast.error('שגיאה בטעינת הפיד');
     } finally {
       setLoading(false);
       setLoadingMore(false);
       setRefreshing(false);
     }
-  }, [user, page]);
+  }, [page]);
 
   useEffect(() => {
-    if (user) {
-      fetchFeed();
-      checkUnreadNotifications();
-    }
-  }, [user]);
+    fetchFeed();
+    checkUnreadNotifications();
+  }, [fetchFeed]);
 
   useEffect(() => {
+    if (!currentUserId) return;
     const presenceChannel = supabase.channel('global_online');
     presenceChannel
       .on('presence', { event: 'sync' }, () => {
@@ -280,11 +282,12 @@ export const HomePage: React.FC = () => {
         media_url = supabase.storage.from('feed_images').getPublicUrl(uploadRes.data.path).data.publicUrl;
         media_type = selectedFile.type.startsWith('video/') ? 'video' : 'image';
       }
-      const insertRes = await supabase.from('posts').insert({ user_id: currentUserId, content: newPost.trim(), media_url, media_type, circle_id: null }).select('*, profiles!user_id(*), likes(user_id), comments(id)').single();
+      const insertRes = await supabase.from('posts').insert({ user_id: currentUserId, content: newPost.trim(), media_url, media_type, circle_id: null }).select('*').single();
       if (insertRes.error) throw insertRes.error;
       
       if (insertRes.data) {
-        setPosts((curr) => [{ ...insertRes.data, likes_count: 0, comments_count: 0, is_liked: false, user_circles: [] }, ...curr]);
+        const newLocalPost = { ...insertRes.data, profiles: myProfile || {}, likes_count: 0, comments_count: 0, is_liked: false, user_circles: [] };
+        setPosts((curr) => [newLocalPost, ...curr]);
       }
       setNewPost(''); setSelectedFile(null); setEditingPost(null);
     } catch { toast.error('שגיאה בשמירה'); } finally { setPosting(false); }
@@ -334,11 +337,11 @@ export const HomePage: React.FC = () => {
     const update = (list: any[]) => list.map((p) => p.id === postId ? { ...p, is_liked: !isLiked, likes_count: isLiked ? p.likes_count - 1 : p.likes_count + 1 } : p);
     setPosts((prev) => update(prev));
     if (fullScreenMedia) { setFullScreenMedia((prev) => (prev ? update(prev) : prev)); }
-    try { await apiFetch(`/api/posts/${postId}/like`, { method: 'POST', headers: { 'x-user-id': currentUserId } }); } catch {}
+    try { await apiFetch(`/api/posts/${postId}/like`, { method: 'POST', headers: { 'x-user-id': currentUserId } }); } catch { fetchData(true); }
   };
 
   const submitComment = async () => {
-    if (!newComment.trim() || !activePost || !user) return;
+    if (!newComment.trim() || !activePost || !currentUserId) return;
     try {
       if (editingCommentId) {
         const updateRes = await supabase.from('comments').update({ content: newComment.trim() }).eq('id', editingCommentId);
@@ -360,9 +363,14 @@ export const HomePage: React.FC = () => {
     } catch { toast.error('שגיאה בשרת'); }
   };
 
+  const toggleCommentLike = (commentId: string) => {
+    setLikedComments((prev) => { const next = new Set(prev); if (next.has(commentId)) next.delete(commentId); else next.add(commentId); return next; });
+    triggerFeedback('pop');
+  };
+
   const deletePost = async (postId: string) => {
     triggerFeedback('error'); closeOverlay();
-    setPosts((curr) => curr.filter((p: any) => p.id !== postId));
+    setPosts((curr) => curr.filter((p) => p.id !== postId));
     await supabase.from('posts').delete().eq('id', postId);
   };
 
@@ -396,9 +404,8 @@ export const HomePage: React.FC = () => {
   const stopPropagation = (e: React.SyntheticEvent) => e.stopPropagation();
 
   if (loading && posts.length === 0) {
-    return <div className="min-h-screen bg-[#030303] flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" /></div>;
+    return <div className="min-h-screen bg-[#030303] flex items-center justify-center"><Loader2 className="animate-spin text-white/20" /></div>;
   }
-
 
   const portalTarget = typeof document !== 'undefined' ? document.body || document.getElementById('root') : null;
 
@@ -443,7 +450,7 @@ export const HomePage: React.FC = () => {
             <span className="text-[10px] font-black text-brand-muted tracking-widest">{onlineUsers.toLocaleString()}</span>
           </div>
           
-          {/* לוגו באמצע */}
+          {/* לוגו ממורכז */}
           <h1 className="absolute left-1/2 -translate-x-1/2 text-[22px] font-black text-brand tracking-tight uppercase drop-shadow-sm">INNER</h1>
           
           <button onClick={() => navigate('/notifications')} className="w-10 h-10 flex justify-center items-center bg-surface-card border border-white/[0.05] rounded-full active:scale-90 relative shadow-sm">
@@ -488,7 +495,7 @@ export const HomePage: React.FC = () => {
                 <button onClick={() => fileInputRef.current?.click()} className="w-10 h-10 rounded-full bg-surface flex items-center justify-center text-brand-muted hover:text-brand border border-white/[0.05] transition-all active:scale-95 shadow-md">
                   <Paperclip size={18} />
                 </button>
-                {/* כפתור שליחה בצבע תכלת ואייקון לבן */}
+                {/* כפתור שליחה: רקע תכלת, אייקון לבן */}
                 <button onClick={handlePost} disabled={posting || (!newPost.trim() && !selectedFile)} className="w-10 h-10 rounded-full bg-accent-primary flex items-center justify-center transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-accent-primary/20">
                   {posting ? <Loader2 size={16} className="animate-spin text-white" /> : <Send size={16} className="rtl:-scale-x-100 -ml-0.5 text-white" />}
                 </button>
@@ -503,20 +510,23 @@ export const HomePage: React.FC = () => {
               {posts.map((post) => {
                 const hasMedia = !!post.media_url;
                 const isVideo = post.media_url?.match(/\.(mp4|webm|mov)$/i);
+                
                 const postCircle = post.circles ? post.circles : (post.user_circles && post.user_circles.length > 0 ? post.user_circles[0] : null);
 
                 return (
                   <div key={post.id} className="flex flex-col bg-black border border-white/[0.05] overflow-hidden shadow-xl rounded-[28px] w-full relative">
                     
-                    {/* התוכן העליון - תמונה מוקטנת טיפה ונוגעת בקצה */}
+                    {/* התוכן העליון */}
                     {hasMedia ? (
                       <div className="w-full relative cursor-pointer overflow-hidden bg-black flex flex-col" onClick={() => handleOpenFullscreen(post)}>
+                        {/* תמונה מוקטנת טיפה ונוגעת בקצה העליון */}
                         {isVideo ? (
-                          <FeedVideo src={post.media_url} className="w-full max-h-[360px] aspect-[4/5] object-cover" />
+                          <FeedVideo src={post.media_url} className="w-full max-h-[380px] aspect-[4/5] object-cover" />
                         ) : (
-                          <img src={post.media_url} loading="lazy" className="w-full max-h-[360px] aspect-[4/5] object-cover" onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/1E1F22/333?text=Media+Unavailable'; }} />
+                          <img src={post.media_url} loading="lazy" className="w-full max-h-[380px] aspect-[4/5] object-cover" onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/1E1F22/333?text=Media+Unavailable'; }} />
                         )}
                         
+                        {/* השתלבות עדינה של התמונה למטה לשחור בלי קו מפריד */}
                         <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black via-black/40 to-transparent pointer-events-none"></div>
 
                         {post.content && (
@@ -528,16 +538,21 @@ export const HomePage: React.FC = () => {
                         )}
                       </div>
                     ) : (
-                      <div className="w-full p-5 pt-6 cursor-pointer bg-surface-card" onClick={() => openOverlay(() => setActiveDescPost(post))}>
-                        <p className="text-white text-[16px] leading-relaxed text-right line-clamp-6 whitespace-pre-wrap">{post.content}</p>
+                      /* עיצוב חכם לטקסט בלבד - עם מעבר השתלבות למטה */
+                      <div className="w-full relative cursor-pointer overflow-hidden bg-surface-card min-h-[160px]" onClick={() => openOverlay(() => setActiveDescPost(post))}>
+                        <div className="p-5 pt-6 pb-16 z-10 relative">
+                          <p className="text-white text-[16px] leading-relaxed text-right line-clamp-6 whitespace-pre-wrap">{post.content}</p>
+                        </div>
+                        {/* השתלבות הטקסט לכיוון השחור שלמטה */}
+                        <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none z-0"></div>
                       </div>
                     )}
 
-                    {/* שורה תחתונה */}
-                    <div className={`flex items-center justify-between px-4 py-3 ${hasMedia ? 'bg-black' : 'bg-surface-card border-t border-white/[0.05]'}`}>
+                    {/* שורה תחתונה: משתמש מימין, כפתורים משמאל - שחור מלא */}
+                    <div className={`flex items-center justify-between px-4 py-3 bg-black z-10 relative`}>
                       
                       {/* צד ימין: מועדון + משתמש מוצמדים לימין */}
-                      <div className="flex flex-col items-start text-right cursor-pointer active:opacity-70 transition-opacity" onClick={() => navigate(`/profile/${post.user_id}`)}>
+                      <div className="flex flex-col items-start w-full max-w-[60%] text-right cursor-pointer active:opacity-70 transition-opacity" onClick={() => navigate(`/profile/${post.user_id}`)}>
                         {postCircle && (
                            <div className="flex items-center gap-1.5 mb-1 text-accent-primary" onClick={(e) => { e.stopPropagation(); navigate(`/circle/${postCircle.slug}`); }}>
                              <span className="text-[10px] font-black tracking-wide uppercase">{postCircle.name}</span>
@@ -548,14 +563,14 @@ export const HomePage: React.FC = () => {
                             {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" loading="lazy" /> : <UserCircle className="w-full h-full p-1.5 text-brand-muted" />}
                           </div>
                           <div className="flex flex-col text-right">
-                            <span className="text-white font-bold text-[13px] leading-tight">{post.profiles?.full_name || 'אנונימי'}</span>
+                            <span className="text-white font-bold text-[13px] leading-tight truncate w-full">{post.profiles?.full_name || 'אנונימי'}</span>
                             <span className="text-brand-muted text-[10px]">{new Date(post.created_at).toLocaleDateString('he-IL')}</span>
                           </div>
                         </div>
                       </div>
 
                       {/* צד שמאל: פעולות + 3 נקודות יחד */}
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 shrink-0">
                         <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-1.5 transition-all active:scale-90 ${post.is_liked ? 'text-red-500' : 'text-brand-muted hover:text-red-400'}`}>
                           <Heart size={18} fill={post.is_liked ? 'currentColor' : 'none'} strokeWidth={post.is_liked ? 0 : 2} />
                           <span className="text-[13px] font-black text-white">{post.likes_count}</span>
@@ -570,7 +585,7 @@ export const HomePage: React.FC = () => {
                         
                         <div className="w-px h-4 bg-white/[0.1] mx-0.5"></div>
                         
-                        <button onClick={() => openOverlay(() => setOptionsMenuPost(post))} className="text-brand-muted hover:text-white transition-colors active:scale-90 p-1">
+                        <button onClick={() => openOverlay(() => setOptionsMenuPost(post))} className="text-brand-muted hover:text-white transition-colors active:scale-90 p-1 -mr-2">
                           <MoreVertical size={20} strokeWidth={2} />
                         </button>
                       </div>
@@ -592,11 +607,11 @@ export const HomePage: React.FC = () => {
         </div>
       </FadeIn>
 
-      {/* OVERLAYS */}
+      {/* OVERLAYS בלבן נקי */}
       {portalReady && portalTarget && createPortal(
         <>
           <AnimatePresence>
-            {/* מסך מדיה מלא */}
+            {/* מסך מדיה מלא (נשאר שחור) */}
             {fullScreenMedia && (
               <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed inset-0 z-[999999] bg-[#000]">
                 <div className="w-full h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide" onScroll={handleContainerScroll}>
@@ -609,12 +624,12 @@ export const HomePage: React.FC = () => {
                       <div key={keyVal} className="w-full h-screen snap-center relative bg-[#000] flex items-center justify-center">
                         {isVid ? <video src={vid.media_url} loop playsInline className="w-full h-full object-cover full-media-item" onClick={(e) => (e.currentTarget.paused ? e.currentTarget.play() : e.currentTarget.pause())} /> : <img src={vid.media_url} className="w-full h-full object-contain full-media-item" onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Media+Unavailable'; }} />}
                         
-                        {/* 3 נקודות - עובד פיקס ומוצמד לשמאל למטה */}
-                        <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }} className="absolute bottom-6 left-4 z-[70] p-2 active:scale-90 transition-transform drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] pointer-events-auto">
-                           <MoreVertical size={28} strokeWidth={2.5} className="text-white" />
-                        </button>
-                        
                         <div className="absolute bottom-48 left-4 flex flex-col gap-6 items-center z-50 pointer-events-auto">
+                          {/* 3 נקודות - למעלה בשורת הפעולות שמאלה (כדי שלא ייחסם) */}
+                          <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }} className="p-1 active:scale-90 transition-transform drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] pointer-events-auto mb-2">
+                             <MoreVertical size={28} strokeWidth={2.5} className="text-white" />
+                          </button>
+                          
                           <button onClick={(e) => { e.stopPropagation(); handleLike(vid.id, vid.is_liked); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform"><Heart size={30} className={vid.is_liked ? 'text-[#ff4757]' : 'text-white'} fill={vid.is_liked ? 'currentColor' : 'none'} strokeWidth={1.5} /><span className="text-white text-[13px] font-black drop-shadow-md">{vid.likes_count}</span></button>
                           <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(vid); setActiveCommentsPostId(vid.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', vid.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); }); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform"><MessageSquare size={30} className="text-white" strokeWidth={1.5} /><span className="text-white text-[13px] font-black drop-shadow-md">{vid.comments_count}</span></button>
                           <button onClick={(e) => { e.stopPropagation(); handleShare(vid); }} className="active:scale-90 transition-transform"><Share2 size={30} className="text-white" strokeWidth={1.5} /></button>
@@ -622,19 +637,19 @@ export const HomePage: React.FC = () => {
 
                         <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end pointer-events-none">
                           {/* משתמש ומועדונים צמודים לימין במסך המלא */}
-                          <div className="flex flex-col items-end mb-2 w-full pr-2">
+                          <div className="flex flex-col items-start mb-2 w-full pr-2">
                              {vidCircle && (
                                <div className="flex items-center gap-1.5 mb-1 cursor-pointer pointer-events-auto text-accent-primary" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/circle/${vidCircle.slug}`), 50); }}>
                                  <span className="text-[11px] font-black tracking-wide uppercase drop-shadow-md">{vidCircle.name}</span>
                                </div>
                              )}
                              <div className="flex items-center gap-3 cursor-pointer pointer-events-auto" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${vid.user_id}`), 50); }}>
-                               <span className="text-white font-black text-[17px] drop-shadow-md">{vid.profiles?.full_name || 'אנונימי'}</span>
                                <div className="w-12 h-12 rounded-full overflow-hidden bg-surface-card border-2 border-white/[0.05] shrink-0 shadow-lg">{vid.profiles?.avatar_url ? <img src={vid.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={24} className="text-brand-muted w-full h-full p-2" />}</div>
+                               <span className="text-white font-black text-[17px] drop-shadow-md">{vid.profiles?.full_name || 'אנונימי'}</span>
                              </div>
                           </div>
                           
-                          <p className="text-white text-[15px] font-medium text-right pr-2 w-[85%] ml-auto line-clamp-3 pointer-events-auto cursor-pointer drop-shadow-md" onClick={(e) => { e.stopPropagation(); openOverlay(() => setActiveDescPost(vid)); }}>{vid.content}</p>
+                          <p className="text-white text-[15px] font-medium text-right pr-2 w-[85%] line-clamp-3 pointer-events-auto cursor-pointer drop-shadow-md" onClick={(e) => { e.stopPropagation(); openOverlay(() => setActiveDescPost(vid)); }}>{vid.content}</p>
                         </div>
                       </div>
                     );
@@ -688,7 +703,7 @@ export const HomePage: React.FC = () => {
               </div>
             )}
 
-            {/* מודאל אפשרויות פוסט בלבן נקי */}
+            {/* מודאל אפשרויות פוסט בלבן */}
             {optionsMenuPost && (
               <div className="fixed inset-0 z-[99999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
@@ -708,7 +723,7 @@ export const HomePage: React.FC = () => {
               </div>
             )}
 
-            {/* מודאל פעולות לתגובה בלבן נקי */}
+            {/* מודאל פעולות לתגובה בלבן */}
             {commentActionModal && (
               <div className="fixed inset-0 z-[100000] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
@@ -725,7 +740,7 @@ export const HomePage: React.FC = () => {
               </div>
             )}
             
-            {/* מודאל עריכת פוסט */}
+            {/* מודאל עריכת פוסט בלבן */}
             {showCreatePost && (
               <div className="fixed inset-0 z-[100000] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
@@ -738,7 +753,7 @@ export const HomePage: React.FC = () => {
               </div>
             )}
 
-            {/* מודאל תיאור פוסט מלא בלבן נקי */}
+            {/* מודאל תיאור פוסט מלא בלבן */}
             {activeDescPost && (
               <div className="fixed inset-0 z-[99999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
