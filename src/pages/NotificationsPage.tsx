@@ -321,32 +321,25 @@ export const NotificationsPage: React.FC = () => {
   }
 
   return (
-    <div className="px-4 pt-8 pb-32 bg-surface min-h-screen flex flex-col font-sans" dir="rtl">
-      <div className="flex items-center justify-center mb-7 px-2 relative">
-        <div className="flex flex-col items-center">
-          <h1 className="text-3xl font-black text-brand tracking-tight drop-shadow-md">התראות</h1>
-          {unreadExists && (
-            <span className="text-[10px] font-black text-red-400 tracking-[0.2em] uppercase mt-1">חדש</span>
-          )}
-        </div>
-      </div>
-
+    <div className="px-4 pt-5 pb-32 bg-surface min-h-screen flex flex-col font-sans" dir="rtl">
       <div className="flex-1 flex flex-col gap-3">
         <AnimatePresence mode="popLayout">
           {notifications.length === 0 ? (
             <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
+              initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
               className="flex-1 flex flex-col items-center justify-center pb-20 opacity-80"
             >
               <motion.div
-                animate={{ rotate: [0, -15, 15, -10, 10, 0] }}
+                animate={{ rotate: [0, -12, 12, -8, 8, 0] }}
                 transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut', repeatDelay: 1 }}
                 className="w-24 h-24 rounded-[32px] bg-surface-card border border-surface-border flex items-center justify-center mb-6 shadow-2xl"
               >
                 <Bell size={40} className="text-brand-muted" />
               </motion.div>
-              <p className="font-black text-brand-muted uppercase tracking-widest text-[13px]">הכל שקט בינתיים</p>
+              <p className="font-black text-brand-muted uppercase tracking-widest text-[13px]">
+                הכל שקט בינתיים
+              </p>
             </motion.div>
           ) : (
             notifications.map((notif) => {
@@ -362,7 +355,7 @@ export const NotificationsPage: React.FC = () => {
                   onClick={() => handleNotifClick(notif)}
                   className={`relative p-4 rounded-[24px] border transition-all cursor-pointer flex items-center gap-4 pl-12 ${
                     notif.is_read
-                      ? 'bg-surface-card/50 border-surface-border opacity-70'
+                      ? 'bg-surface-card/55 border-surface-border opacity-70'
                       : 'bg-surface-card border-surface-border shadow-[0_8px_20px_rgba(0,0,0,0.22)] active:scale-[0.985]'
                   }`}
                 >
@@ -404,7 +397,9 @@ export const NotificationsPage: React.FC = () => {
                       )}
                     </div>
 
-                    <p className="text-brand-muted text-[13px] leading-relaxed line-clamp-2 pr-1">{notif.content}</p>
+                    <p className="text-brand-muted text-[13px] leading-relaxed line-clamp-2 pr-1">
+                      {notif.content}
+                    </p>
 
                     <div className="flex items-center justify-between mt-2 text-brand-muted text-[10px] font-bold">
                       <span className="tracking-widest uppercase">
@@ -476,7 +471,9 @@ export const NotificationsPage: React.FC = () => {
                       <div className="w-11 h-11 rounded-[16px] bg-white border border-neutral-200 flex items-center justify-center shrink-0">
                         <UserCircle size={18} className="text-neutral-500" />
                       </div>
-                      <span className="flex-1 text-right text-black text-[14px] font-black">מעבר לפרופיל</span>
+                      <span className="flex-1 text-right text-black text-[14px] font-black">
+                        מעבר לפרופיל
+                      </span>
                     </button>
 
                     {activeMenuNotif.action_url && (
@@ -491,7 +488,9 @@ export const NotificationsPage: React.FC = () => {
                         <div className="w-11 h-11 rounded-[16px] bg-white border border-neutral-200 flex items-center justify-center shrink-0">
                           <ExternalLink size={18} className="text-neutral-500" />
                         </div>
-                        <span className="flex-1 text-right text-black text-[14px] font-black">פתח יעד ההתראה</span>
+                        <span className="flex-1 text-right text-black text-[14px] font-black">
+                          פתח יעד ההתראה
+                        </span>
                       </button>
                     )}
 
@@ -502,7 +501,9 @@ export const NotificationsPage: React.FC = () => {
                       <div className="w-11 h-11 rounded-[16px] bg-white border border-neutral-200 flex items-center justify-center shrink-0">
                         <RefreshCw size={18} className="text-neutral-500" />
                       </div>
-                      <span className="flex-1 text-right text-black text-[14px] font-black">רענן התראות</span>
+                      <span className="flex-1 text-right text-black text-[14px] font-black">
+                        רענן התראות
+                      </span>
                     </button>
 
                     {unreadExists && (
@@ -517,7 +518,9 @@ export const NotificationsPage: React.FC = () => {
                             <CheckCheck size={18} className="text-neutral-500" />
                           )}
                         </div>
-                        <span className="flex-1 text-right text-black text-[14px] font-black">סמן הכל כנקרא</span>
+                        <span className="flex-1 text-right text-black text-[14px] font-black">
+                          סמן הכל כנקרא
+                        </span>
                       </button>
                     )}
 
@@ -533,7 +536,9 @@ export const NotificationsPage: React.FC = () => {
                             <Trash2 size={18} className="text-neutral-500" />
                           )}
                         </div>
-                        <span className="flex-1 text-right text-black text-[14px] font-black">מחק את כל מה שנקרא</span>
+                        <span className="flex-1 text-right text-black text-[14px] font-black">
+                          מחק את כל מה שנקרא
+                        </span>
                       </button>
                     )}
 
@@ -548,7 +553,9 @@ export const NotificationsPage: React.FC = () => {
                           <Trash2 size={18} className="text-red-400" />
                         )}
                       </div>
-                      <span className="flex-1 text-right text-red-500 text-[14px] font-black">מחק התראה זו</span>
+                      <span className="flex-1 text-right text-red-500 text-[14px] font-black">
+                        מחק התראה זו
+                      </span>
                     </button>
                   </div>
                 </motion.div>
