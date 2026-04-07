@@ -11,11 +11,13 @@ import {
   UserCheck,
   MapPin,
   Calendar,
+  GraduationCap,
   HeartHandshake,
   Shield,
   Camera,
   Key,
   Crown,
+  Briefcase,
   Sparkles,
   ChevronDown
 } from 'lucide-react';
@@ -63,7 +65,7 @@ export const EditProfilePage: React.FC = () => {
   const [showRelationshipPicker, setShowRelationshipPicker] = useState(false);
 
   const [formData, setFormData] = useState({
-    full_name: '', username: '', bio: '', social_link: '', zodiac: '', location: '', birth_date: '', relationship_status: ''
+    full_name: '', username: '', bio: '', social_link: '', zodiac: '', location: '', birth_date: '', relationship_status: '', education: '', job_title: '',
   });
 
   const [passwordData, setPasswordData] = useState({ current_password: '', new_password: '', confirm_password: '', });
@@ -84,14 +86,7 @@ export const EditProfilePage: React.FC = () => {
         setData({ profile: profileData });
         if (profileData) {
           setFormData({
-            full_name: profileData.full_name || '', 
-            username: profileData.username || '', 
-            bio: profileData.bio || '', 
-            social_link: profileData.social_link || '', 
-            zodiac: profileData.zodiac || '', 
-            location: profileData.location || '', 
-            birth_date: profileData.birth_date ? profileData.birth_date.split('T')[0] : '', 
-            relationship_status: profileData.relationship_status || ''
+            full_name: profileData.full_name || '', username: profileData.username || '', bio: profileData.bio || '', social_link: profileData.social_link || '', zodiac: profileData.zodiac || '', location: profileData.location || '', birth_date: profileData.birth_date ? profileData.birth_date.split('T')[0] : '', relationship_status: profileData.relationship_status || '', education: profileData.education || '', job_title: profileData.job_title || '',
           });
         }
       } catch (err: any) {
@@ -245,6 +240,9 @@ export const EditProfilePage: React.FC = () => {
                     <SelectField label="מצב משפחתי" icon={HeartHandshake} value={selectedRelationship ? selectedRelationship.name : ''} placeholder="בחר מצב..." onClick={() => setShowRelationshipPicker(true)} />
                   </div>
 
+                  {/* Restored Fields */}
+                  <InputField label="עיסוק / מקצוע" icon={Briefcase} value={formData.job_title} onChange={v => setFormData(p=>({...p, job_title: v}))} placeholder="מעצב מוצר, מפתח..." />
+                  <InputField label="השכלה" icon={GraduationCap} value={formData.education} onChange={v => setFormData(p=>({...p, education: v}))} placeholder="סטודנט, תואר ראשון..." />
                 </div>
 
                 <div className="flex justify-between items-center mt-4 bg-surface border border-surface-border rounded-[20px] px-5 py-4 relative z-10 shadow-inner">
