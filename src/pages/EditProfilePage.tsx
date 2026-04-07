@@ -21,6 +21,7 @@ import {
   Sparkles,
   ChevronDown
 } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { FadeIn, Button } from '../components/ui';
@@ -34,7 +35,6 @@ const ZODIAC_SIGNS = [
   { name: 'גדי', icon: '♑' }, { name: 'דלי', icon: '♒' }, { name: 'דגים', icon: '♓' }
 ];
 
-// Clean Relationship Statuses (No Icons)
 const RELATIONSHIP_STATUSES = [
   { name: 'רווק/ה' },
   { name: 'במערכת יחסים' },
@@ -52,6 +52,9 @@ export const EditProfilePage: React.FC = () => {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
 
+  const [mounted, setMounted] = useState(false);
+  const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
+
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [savingDetails, setSavingDetails] = useState(false);
@@ -67,6 +70,11 @@ export const EditProfilePage: React.FC = () => {
 
   const [passwordData, setPasswordData] = useState({ current_password: '', new_password: '', confirm_password: '', });
   const [data, setData] = useState<any>({ profile: {} });
+
+  useEffect(() => {
+    setMounted(true);
+    setPortalNode(document.getElementById('root') || document.body);
+  }, []);
 
   useEffect(() => {
     const loadProfileData = async () => {
@@ -145,16 +153,16 @@ export const EditProfilePage: React.FC = () => {
   const selectedRelationship = RELATIONSHIP_STATUSES.find(s => s.name === formData.relationship_status);
 
   return (
-    <div className="bg-surface min-h-screen relative font-sans" dir="rtl">
+    <div className="bg-surface min-h-screen relative font-sans overflow-x-hidden" dir="rtl">
       
-      {/* HEADER (Clean, hovering, no frame) */}
-      <div className="fixed top-6 left-0 right-0 flex justify-center items-center z-[99999] pointer-events-none">
-        <span className="text-brand font-black text-[12px] tracking-widest uppercase drop-shadow-md">עריכת פרופיל</span>
+      {/* 🔝 HEADER (Fixed, Outside FadeIn to stay perfectly static) */}
+      <div className="fixed top-5 left-0 right-0 flex justify-center items-center z-[99999] pointer-events-none">
+        <span className="text-brand font-black text-[12px] tracking-[0.2em] uppercase drop-shadow-md">עריכת פרופיל</span>
       </div>
 
-      <FadeIn className="relative w-full overflow-x-hidden flex flex-col pb-32">
+      <FadeIn className="relative w-full flex flex-col pb-32">
         
-        {/* 📸 COVER SECTION (Absolute to scroll natively) */}
+        {/* 📸 COVER SECTION (Scrolls naturally with the page) */}
         <div className="absolute top-0 left-0 w-full h-[240px] bg-surface-card z-0 overflow-hidden">
           <input type="file" ref={coverInputRef} onChange={(e) => { if (e.target.files?.[0]) handleMediaUpload(e.target.files[0], 'cover'); if (coverInputRef.current) coverInputRef.current.value = ''; }} accept="image/*" className="hidden" />
           
@@ -168,30 +176,37 @@ export const EditProfilePage: React.FC = () => {
           <button 
             onClick={() => coverInputRef.current?.click()} 
             disabled={uploadingCover} 
-            className="absolute top-5 left-5 w-10 h-10 bg-surface-card/80 backdrop-blur-xl text-brand rounded-full flex items-center justify-center shadow-lg border border-surface-border active:scale-90 transition-all disabled:opacity-50 z-20"
+            className="absolute top-5 left-5 w-10 h-10 bg-surface-card/80 backdrop-blur-xl text-brand rounded-full flex items-center justify-center shadow-lg border border-surface-border active:scale-90 transition-all disabled:opacity-50 z-20 pointer-events-auto"
           >
             {uploadingCover ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
           </button>
         </div>
 
-        {/* 👤 CONTENT WRAPPER (Edge-to-Edge inside) */}
-        <div className="relative z-10 w-full pt-[190px]">
-          <div className="bg-surface rounded-t-[40px] w-full min-h-screen flex flex-col items-center pt-0 shadow-[0_-20px_40px_rgba(0,0,0,0.7)] border-t border-surface-border px-4">
+        {/* 👤 CONTENT WRAPPER */}
+        <div className="relative z-10 w-full pt-[200px] px-2">
+          {/* Main Card (Rounded top, taking almost full width with tiny margins) */}
+          <div className="bg-surface rounded-t-[40px] w-full min-h-screen flex flex-col items-center shadow-[0_-20px_40px_rgba(0,0,0,0.7)] border-t border-surface-border">
             
-            {/* Avatar (Translucent White Camera) */}
-            <motion.div whileHover={{ scale: 1.05 }} className="w-[110px] h-[110px] rounded-full bg-surface shadow-xl p-1.5 relative -mt-[55px] z-20 group mb-6">
+            {/* Avatar */}
+            <motion.div whileHover={{ scale: 1.05 }} className="w-[110px] h-[110px] rounded-full bg-surface shadow-xl p-1.5 relative -mt-[55px] z-20 mb-8">
               <div className="w-full h-full rounded-full overflow-hidden bg-surface-card border border-surface-border relative">
                 {data.profile?.avatar_url ? <img src={data.profile.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={50} className="text-brand-muted absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />}
               </div>
               <input type="file" ref={avatarInputRef} onChange={(e) => { if (e.target.files?.[0]) handleMediaUpload(e.target.files[0], 'avatar'); if (avatarInputRef.current) avatarInputRef.current.value = ''; }} accept="image/*" className="hidden" />
-              <button onClick={() => avatarInputRef.current?.click()} disabled={uploadingAvatar} className="absolute bottom-0 right-0 w-10 h-10 bg-white/20 backdrop-blur-md text-white rounded-full flex items-center justify-center shadow-lg border border-white/30 active:scale-90 transition-all z-20 disabled:opacity-50">
-                <Camera size={18} />
+              
+              <button 
+                onClick={() => avatarInputRef.current?.click()} 
+                disabled={uploadingAvatar} 
+                className="absolute bottom-0 right-0 w-10 h-10 bg-white/20 backdrop-blur-md text-white rounded-full flex items-center justify-center shadow-lg border border-white/20 active:scale-90 transition-all z-20 disabled:opacity-50"
+              >
+                {uploadingAvatar ? <Loader2 size={18} className="animate-spin text-white" /> : <Camera size={18} />}
               </button>
             </motion.div>
 
-            {/* MAIN FORM - WIDE EDGE TO EDGE */}
-            <div className="w-full flex flex-col gap-6">
+            {/* MAIN FORM - EDGE TO EDGE */}
+            <div className="w-full flex flex-col gap-6 px-1">
               
+              {/* PERSONAL DETAILS CARD */}
               <div className="bg-surface-card border border-surface-border flex flex-col gap-6 rounded-[32px] p-6 shadow-sm relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-40 h-40 bg-accent-primary/5 blur-[50px] rounded-full pointer-events-none" />
                 
@@ -200,9 +215,7 @@ export const EditProfilePage: React.FC = () => {
                   <Users size={20} className="text-accent-primary" />
                 </div>
 
-                {/* FIELDS - Clean Underline Style */}
-                <div className="grid grid-cols-1 gap-6 relative z-10 px-1">
-                  
+                <div className="grid grid-cols-1 gap-6 relative z-10">
                   <div className="grid grid-cols-2 gap-4">
                     <InputField label="שם מלא" icon={UserCheck} value={formData.full_name} onChange={v => setFormData(p=>({...p, full_name: v}))} placeholder="ישראל ישראלי" />
                     <InputField label="שם משתמש" icon={Edit2} value={formData.username} onChange={v => setFormData(p=>({...p, username: v}))} placeholder="user123" dir="ltr" />
@@ -210,7 +223,7 @@ export const EditProfilePage: React.FC = () => {
 
                   <div className="flex flex-col gap-1.5 text-right border-b border-surface-border pb-2.5">
                     <label className="text-brand-muted text-[11px] font-black tracking-widest uppercase flex items-center gap-2"><MessageSquare size={14} /><span>ביו</span></label>
-                    <textarea value={formData.bio} onChange={e => setFormData(p=>({...p, bio: e.target.value}))} className="bg-transparent border-none outline-none text-brand text-[15px] font-bold placeholder:text-brand-muted/50 h-24 resize-none px-1" placeholder="ספר קצת על עצמך..." />
+                    <textarea value={formData.bio} onChange={e => setFormData(p=>({...p, bio: e.target.value}))} className="bg-transparent border-none outline-none text-brand text-[15px] font-bold placeholder:text-brand-muted/40 h-24 resize-none px-1" placeholder="ספר קצת על עצמך..." />
                   </div>
                   
                   <InputField label="קישור חברתי" icon={LinkIcon} value={formData.social_link} onChange={v => setFormData(p=>({...p, social_link: v}))} placeholder="instagram.com/user" dir="ltr" />
@@ -229,7 +242,7 @@ export const EditProfilePage: React.FC = () => {
                   <InputField label="השכלה" icon={GraduationCap} value={formData.education} onChange={v => setFormData(p=>({...p, education: v}))} placeholder="סטודנט, תואר ראשון..." />
                 </div>
 
-                <div className="flex justify-between items-center mt-4 bg-surface border border-surface-border rounded-[20px] px-5 py-4 relative z-10 shadow-inner">
+                <div className="flex justify-between items-center mt-2 bg-surface border border-surface-border rounded-[20px] px-5 py-4 relative z-10 shadow-inner">
                   <div className="text-right">
                     <div className="text-brand text-[13px] font-black">תצוגת אודות בפרופיל</div>
                     <div className="text-brand-muted text-[11px] mt-0.5">הפרטים יוצגו בצורה מסודרת בפרופיל שלך.</div>
@@ -244,14 +257,14 @@ export const EditProfilePage: React.FC = () => {
                 </div>
               </div>
 
-              {/* SECURITY */}
+              {/* SECURITY CARD */}
               <div className="bg-surface-card backdrop-blur-xl border border-surface-border flex flex-col gap-6 rounded-[32px] p-7 shadow-sm mb-6 relative overflow-hidden">
                 <div className="flex justify-between items-center border-b border-surface-border pb-4 relative z-10">
                   <div className="flex flex-col text-right"><span className="text-brand font-black text-[16px] tracking-wide">אבטחה וסיסמה</span></div>
                   <Key size={20} className="text-accent-primary" />
                 </div>
                 
-                <div className="flex flex-col gap-6 relative z-10 px-1">
+                <div className="flex flex-col gap-6 relative z-10">
                   <InputField label="סיסמה נוכחית" icon={Shield} value={passwordData.current_password} onChange={v => setPasswordData(p=>({...p, current_password: v}))} placeholder="••••••••" type="password" />
                   <InputField label="סיסמה חדשה" icon={Shield} value={passwordData.new_password} onChange={v => setPasswordData(p=>({...p, new_password: v}))} placeholder="••••••••" type="password" />
                   <InputField label="אימות סיסמה חדשה" icon={UserCheck} value={passwordData.confirm_password} onChange={v => setPasswordData(p=>({...p, confirm_password: v}))} placeholder="••••••••" type="password" />
@@ -263,77 +276,82 @@ export const EditProfilePage: React.FC = () => {
                   </Button>
                 </div>
               </div>
+
             </div>
-            
           </div>
         </div>
       </FadeIn>
 
-      {/* 🔮 ZODIAC PICKER BOTTOM SHEET */}
-      <AnimatePresence>
-        {showZodiacPicker && (
-          <div className="fixed inset-0 z-[999999] flex flex-col justify-end" dir="rtl">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowZodiacPicker(false)} />
-            <motion.div 
-              drag="y" 
-              dragConstraints={{ top: 0, bottom: 0 }} 
-              dragElastic={0.2}
-              onDragEnd={(e, info) => { if (info.offset.y > 100 || info.velocity.y > 500) setShowZodiacPicker(false); }}
-              initial={{ y: '100%' }} 
-              animate={{ y: 0 }} 
-              exit={{ y: '100%' }} 
-              transition={{ type: 'spring', damping: 25, stiffness: 400 }} 
-              className="relative z-10 bg-surface rounded-t-[40px] p-6 pb-12 border-t border-surface-border max-h-[85vh] flex flex-col"
-            >
-              <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-6 shrink-0 cursor-grab active:cursor-grabbing" />
-              <div className="flex justify-center items-center mb-6 shrink-0">
-                <h3 className="text-brand font-black text-lg">בחר את המזל שלך</h3>
+      {/* OVERLAYS USING PORTAL (Covers Bottom Nav completely) */}
+      {mounted && portalNode && createPortal(
+        <>
+          {/* 🔮 ZODIAC PICKER BOTTOM SHEET */}
+          <AnimatePresence>
+            {showZodiacPicker && (
+              <div className="fixed inset-0 z-[999999] flex flex-col justify-end" dir="rtl">
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowZodiacPicker(false)} />
+                <motion.div 
+                  drag="y" 
+                  dragConstraints={{ top: 0, bottom: 0 }} 
+                  dragElastic={0.2}
+                  onDragEnd={(e, info) => { if (info.offset.y > 100 || info.velocity.y > 500) setShowZodiacPicker(false); }}
+                  initial={{ y: '100%' }} 
+                  animate={{ y: 0 }} 
+                  exit={{ y: '100%' }} 
+                  transition={{ type: 'spring', damping: 25, stiffness: 400 }} 
+                  className="relative z-10 bg-surface rounded-t-[40px] p-6 pb-12 border-t border-surface-border max-h-[85vh] flex flex-col"
+                >
+                  <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-6 shrink-0 cursor-grab active:cursor-grabbing" />
+                  <div className="flex justify-center items-center mb-6 shrink-0">
+                    <h3 className="text-brand font-black text-lg">בחר את המזל שלך</h3>
+                  </div>
+                  <div className="flex-1 overflow-y-auto grid grid-cols-2 gap-3 scrollbar-hide pr-1">
+                    {ZODIAC_SIGNS.map((sign) => (
+                      <button key={sign.name} onClick={() => { setFormData(p => ({ ...p, zodiac: sign.name })); triggerFeedback('pop'); setShowZodiacPicker(false); }} className={`flex items-center justify-center gap-3 p-4 rounded-2xl border transition-all ${formData.zodiac === sign.name ? 'bg-white border-white text-black shadow-md' : 'bg-surface-card border-surface-border text-brand hover:border-brand/30'}`}>
+                        <span className="text-2xl">{sign.icon}</span>
+                        <span className="font-black text-[15px]">{sign.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
               </div>
-              <div className="flex-1 overflow-y-auto grid grid-cols-2 gap-3 scrollbar-hide pr-1">
-                {ZODIAC_SIGNS.map((sign) => (
-                  <button key={sign.name} onClick={() => { setFormData(p => ({ ...p, zodiac: sign.name })); triggerFeedback('pop'); setShowZodiacPicker(false); }} className={`flex items-center justify-center gap-3 p-4 rounded-2xl border transition-all ${formData.zodiac === sign.name ? 'bg-white border-white text-black shadow-md' : 'bg-surface-card border-surface-border text-brand hover:border-brand/30'}`}>
-                    <span className="text-2xl">{sign.icon}</span>
-                    <span className="font-black text-[15px]">{sign.name}</span>
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+            )}
+          </AnimatePresence>
 
-      {/* 💍 RELATIONSHIP STATUS BOTTOM SHEET */}
-      <AnimatePresence>
-        {showRelationshipPicker && (
-          <div className="fixed inset-0 z-[999999] flex flex-col justify-end" dir="rtl">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowRelationshipPicker(false)} />
-            <motion.div 
-              drag="y" 
-              dragConstraints={{ top: 0, bottom: 0 }} 
-              dragElastic={0.2}
-              onDragEnd={(e, info) => { if (info.offset.y > 100 || info.velocity.y > 500) setShowRelationshipPicker(false); }}
-              initial={{ y: '100%' }} 
-              animate={{ y: 0 }} 
-              exit={{ y: '100%' }} 
-              transition={{ type: 'spring', damping: 25, stiffness: 400 }} 
-              className="relative z-10 bg-surface rounded-t-[40px] p-6 pb-12 border-t border-surface-border max-h-[85vh] flex flex-col"
-            >
-              <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-6 shrink-0 cursor-grab active:cursor-grabbing" />
-              <div className="flex justify-center items-center mb-6 shrink-0">
-                <h3 className="text-brand font-black text-lg">מצב משפחתי</h3>
+          {/* 💍 RELATIONSHIP STATUS BOTTOM SHEET */}
+          <AnimatePresence>
+            {showRelationshipPicker && (
+              <div className="fixed inset-0 z-[999999] flex flex-col justify-end" dir="rtl">
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowRelationshipPicker(false)} />
+                <motion.div 
+                  drag="y" 
+                  dragConstraints={{ top: 0, bottom: 0 }} 
+                  dragElastic={0.2}
+                  onDragEnd={(e, info) => { if (info.offset.y > 100 || info.velocity.y > 500) setShowRelationshipPicker(false); }}
+                  initial={{ y: '100%' }} 
+                  animate={{ y: 0 }} 
+                  exit={{ y: '100%' }} 
+                  transition={{ type: 'spring', damping: 25, stiffness: 400 }} 
+                  className="relative z-10 bg-surface rounded-t-[40px] p-6 pb-12 border-t border-surface-border max-h-[85vh] flex flex-col"
+                >
+                  <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-6 shrink-0 cursor-grab active:cursor-grabbing" />
+                  <div className="flex justify-center items-center mb-6 shrink-0">
+                    <h3 className="text-brand font-black text-lg">מצב משפחתי</h3>
+                  </div>
+                  <div className="flex-1 overflow-y-auto flex flex-col gap-3 scrollbar-hide pr-1">
+                    {RELATIONSHIP_STATUSES.map((status) => (
+                      <button key={status.name} onClick={() => { setFormData(p => ({ ...p, relationship_status: status.name })); triggerFeedback('pop'); setShowRelationshipPicker(false); }} className={`flex items-center justify-center p-4 rounded-2xl border transition-all ${formData.relationship_status === status.name ? 'bg-white border-white text-black shadow-md' : 'bg-surface-card border-surface-border text-brand hover:border-brand/30'}`}>
+                        <span className="font-black text-[15px]">{status.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
               </div>
-              <div className="flex-1 overflow-y-auto flex flex-col gap-3 scrollbar-hide pr-1">
-                {RELATIONSHIP_STATUSES.map((status) => (
-                  <button key={status.name} onClick={() => { setFormData(p => ({ ...p, relationship_status: status.name })); triggerFeedback('pop'); setShowRelationshipPicker(false); }} className={`flex items-center justify-center p-4 rounded-2xl border transition-all ${formData.relationship_status === status.name ? 'bg-white border-white text-black shadow-md' : 'bg-surface-card border-surface-border text-brand hover:border-brand/30'}`}>
-                    <span className="font-black text-[15px]">{status.name}</span>
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
+            )}
+          </AnimatePresence>
+        </>,
+        portalNode
+      )}
     </div>
   );
 };
