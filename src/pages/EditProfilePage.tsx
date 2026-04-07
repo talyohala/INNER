@@ -19,7 +19,6 @@ import {
   Key,
   Crown,
   Briefcase,
-  Sparkles,
   CheckCircle2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -93,9 +92,7 @@ export const EditProfilePage: React.FC = () => {
           });
         }
       } catch (err: any) {
-        toast.error(`שגיאה בטעינת הנתונים: ${err.message}`, {
-          style: { background: '#111', color: '#ef4444' },
-        });
+        toast.error(`שגיאה בטעינת הנתונים: ${err.message}`);
       } finally {
         setLoadingData(false);
       }
@@ -129,9 +126,7 @@ export const EditProfilePage: React.FC = () => {
     const setUploading = type === 'avatar' ? setUploadingAvatar : setUploadingCover;
     setUploading(true);
 
-    const tid = toast.loading(`מעדכן תמונת ${type === 'avatar' ? 'פרופיל' : 'נושא'}...`, {
-      style: { background: '#111', color: '#fff' },
-    });
+    const tid = toast.loading(`מעדכן תמונת ${type === 'avatar' ? 'פרופיל' : 'נושא'}...`);
 
     try {
       const fileExt = file.name.split('.').pop();
@@ -158,15 +153,11 @@ export const EditProfilePage: React.FC = () => {
         },
       }));
 
-      toast.success(`תמונת ה${type === 'avatar' ? 'פרופיל' : 'נושא'} עודכנה בהצלחה!`, {
-        id: tid,
-        style: { background: '#111', color: '#e5e4e2', border: '1px solid rgba(229,228,226,0.2)' },
-      });
+      triggerFeedback('success');
+      toast.success(`תמונת ה${type === 'avatar' ? 'פרופיל' : 'נושא'} עודכנה בהצלחה!`, { id: tid });
     } catch (err: any) {
-      toast.error(`שגיאה בהעלאה: ${err.message}`, {
-        id: tid,
-        style: { background: '#111', color: '#ef4444' },
-      });
+      triggerFeedback('error');
+      toast.error(`שגיאה בהעלאה: ${err.message}`, { id: tid });
     } finally {
       setUploading(false);
     }
@@ -178,9 +169,7 @@ export const EditProfilePage: React.FC = () => {
     setSavingDetails(true);
     triggerFeedback('pop');
 
-    const tid = toast.loading('שומר שינויים...', {
-      style: { background: '#111', color: '#fff' },
-    });
+    const tid = toast.loading('שומר שינויים...');
 
     try {
       const updates = {
@@ -201,15 +190,11 @@ export const EditProfilePage: React.FC = () => {
         },
       }));
 
-      toast.success('הפרטים עודכנו בהצלחה!', {
-        id: tid,
-        style: { background: '#111', color: '#e5e4e2', border: '1px solid rgba(229,228,226,0.2)' },
-      });
+      triggerFeedback('success');
+      toast.success('הפרטים עודכנו בהצלחה!', { id: tid });
     } catch (err: any) {
-      toast.error(`שגיאה: ${err.message || 'נכשל בעדכון'}`, {
-        id: tid,
-        style: { background: '#111', color: '#ef4444' },
-      });
+      triggerFeedback('error');
+      toast.error(`שגיאה: ${err.message || 'נכשל בעדכון'}`, { id: tid });
     } finally {
       setSavingDetails(false);
     }
@@ -219,25 +204,21 @@ export const EditProfilePage: React.FC = () => {
     if (!user?.id || updatingPassword) return;
 
     if (passwordData.new_password !== passwordData.confirm_password) {
-      toast.error('הסיסמאות החדשות לא תואמות', {
-        style: { background: '#111', color: '#ef4444' },
-      });
+      triggerFeedback('error');
+      toast.error('הסיסמאות החדשות לא תואמות');
       return;
     }
 
     if (passwordData.new_password.length < 6) {
-      toast.error('הסיסמה החדשה חייבת להיות לפחות 6 תווים', {
-        style: { background: '#111', color: '#ef4444' },
-      });
+      triggerFeedback('error');
+      toast.error('הסיסמה החדשה חייבת להיות לפחות 6 תווים');
       return;
     }
 
     setUpdatingPassword(true);
     triggerFeedback('pop');
 
-    const tid = toast.loading('מעדכן סיסמה...', {
-      style: { background: '#111', color: '#fff' },
-    });
+    const tid = toast.loading('מעדכן סיסמה...');
 
     try {
       const { error } = await supabase.auth.updateUser({ password: passwordData.new_password });
@@ -249,15 +230,11 @@ export const EditProfilePage: React.FC = () => {
         confirm_password: '',
       });
 
-      toast.success('הסיסמה עודכנה בהצלחה!', {
-        id: tid,
-        style: { background: '#111', color: '#e5e4e2', border: '1px solid rgba(229,228,226,0.2)' },
-      });
+      triggerFeedback('success');
+      toast.success('הסיסמה עודכנה בהצלחה!', { id: tid });
     } catch (err: any) {
-      toast.error(`שגיאה: ${err.message}`, {
-        id: tid,
-        style: { background: '#111', color: '#ef4444' },
-      });
+      triggerFeedback('error');
+      toast.error(`שגיאה: ${err.message}`, { id: tid });
     } finally {
       setUpdatingPassword(false);
     }
@@ -265,45 +242,33 @@ export const EditProfilePage: React.FC = () => {
 
   if (authLoading || loadingData) {
     return (
-      <div className="min-h-screen bg-[#0C0C0C] flex items-center justify-center">
-        <Loader2 className="animate-spin text-white/20" />
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <Loader2 className="animate-spin text-accent-primary" />
       </div>
     );
   }
 
   return (
-    <div className="bg-[#0C0C0C] min-h-screen relative font-sans" dir="rtl">
-      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden flex justify-center">
-        <div className="absolute top-[-10%] left-[-20%] w-[60%] h-[40%] bg-white/10 blur-[120px] rounded-full mix-blend-screen" />
-        <div className="absolute bottom-[-10%] right-[-20%] w-[60%] h-[40%] bg-white/5 blur-[120px] rounded-full mix-blend-screen" />
-      </div>
-
-      <div className="fixed top-6 left-4 right-4 flex justify-between items-center z-[99999] pointer-events-none">
+    <div className="bg-surface min-h-screen relative font-sans" dir="rtl">
+      
+      {/* 🔝 HEADER */}
+      <div className="fixed top-4 left-4 right-4 flex justify-between items-center z-50 pointer-events-none">
         <button
-          onClick={() => {
-            triggerFeedback('pop');
-            navigate(-1);
-          }}
-          className="pointer-events-auto w-10 h-10 flex justify-center items-center bg-black/40 backdrop-blur-xl border border-white/10 rounded-full shadow-lg active:scale-90 transition-all hover:bg-black/60"
+          onClick={() => { triggerFeedback('pop'); navigate(-1); }}
+          className="pointer-events-auto w-10 h-10 flex justify-center items-center bg-surface-card border border-surface-border rounded-full shadow-sm active:scale-90 transition-all hover:bg-white/5"
         >
-          <ChevronLeft size={20} className="text-white" />
+          <ChevronLeft size={20} className="text-brand" />
         </button>
 
-        <div className="bg-black/40 backdrop-blur-xl border border-white/10 px-4 py-2 rounded-full shadow-lg flex items-center gap-2">
-          <span className="text-white/60 font-black text-[13px] tracking-wide">עריכת פרופיל</span>
-          <Edit2 size={16} className="text-[#e5e4e2]" />
+        <div className="bg-surface-card border border-surface-border px-5 py-2.5 rounded-full shadow-sm flex items-center gap-2 pointer-events-auto">
+          <span className="text-brand font-black text-[12px] tracking-widest uppercase">עריכת פרופיל</span>
         </div>
+        
+        <div className="w-10" /> {/* Spacer for symmetry */}
       </div>
 
-      <div className="fixed top-0 left-0 w-full h-[220px] bg-[#111] z-0 rounded-b-[40px] overflow-hidden shadow-2xl origin-top border-b border-white/5 group">
-        {data.profile?.cover_url ? (
-          <img src={data.profile.cover_url} className="w-full h-full object-cover opacity-80" />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-b from-[#2196f3]/10 to-transparent" />
-        )}
-      </div>
-
-      <div className="fixed top-[160px] right-6 z-[99999]">
+      {/* 📸 COVER SECTION */}
+      <div className="relative w-full h-[200px] bg-black overflow-hidden shrink-0 z-0">
         <input
           type="file"
           ref={coverInputRef}
@@ -314,29 +279,29 @@ export const EditProfilePage: React.FC = () => {
           accept="image/*"
           className="hidden"
         />
+        
+        {data.profile?.cover_url ? (
+          <img src={data.profile.cover_url} className="w-full h-full object-cover opacity-60 mix-blend-luminosity" />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-b from-surface-card to-surface" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-surface via-transparent to-transparent" />
+
         <button
-          onClick={(e) => {
-            e.preventDefault();
-            coverInputRef.current?.click();
-          }}
+          onClick={(e) => { e.preventDefault(); coverInputRef.current?.click(); }}
           disabled={uploadingCover}
-          className="w-11 h-11 bg-black/80 backdrop-blur-2xl text-[#e5e4e2] rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(0,0,0,0.8)] border border-white/20 active:scale-90 transition-all hover:bg-black disabled:opacity-50 pointer-events-auto"
+          className="absolute bottom-4 left-4 w-10 h-10 bg-surface-card/80 backdrop-blur-md text-brand rounded-full flex items-center justify-center border border-surface-border active:scale-90 transition-all shadow-sm disabled:opacity-50 z-20"
         >
-          {uploadingCover ? <Loader2 size={20} className="animate-spin" /> : <Camera size={20} />}
+          {uploadingCover ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
         </button>
       </div>
 
-      <FadeIn className="relative z-10 pt-[170px] pb-32 pointer-events-auto">
-        <div className="bg-[#0C0C0C]/90 backdrop-blur-3xl rounded-t-[40px] px-4 min-h-screen flex flex-col items-center pt-0 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] border-t border-white/5 relative z-10">
-          <motion.div whileHover={{ scale: 1.05 }} className="w-[110px] h-[110px] rounded-full bg-[#0C0C0C] shadow-[0_10px_30px_rgba(0,0,0,0.8)] p-1.5 relative -mt-[55px] z-20 group">
-            <div className="w-full h-full rounded-full overflow-hidden bg-[#1a1a1a] border border-white/5 relative">
-              {data.profile?.avatar_url ? (
-                <img src={data.profile.avatar_url} className="w-full h-full object-cover" alt="" />
-              ) : (
-                <UserCircle size={50} className="text-white/20 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-              )}
-            </div>
-
+      {/* 👤 AVATAR & FORM SECTION */}
+      <FadeIn className="relative z-10 pb-32">
+        <div className="bg-surface px-4 flex flex-col items-center pt-0">
+          
+          {/* Avatar Upload */}
+          <div className="relative -mt-12 z-20 mb-6">
             <input
               type="file"
               ref={avatarInputRef}
@@ -347,288 +312,295 @@ export const EditProfilePage: React.FC = () => {
               accept="image/*"
               className="hidden"
             />
+            
+            <div className="w-[100px] h-[100px] rounded-full bg-surface p-1.5 shadow-sm">
+              <div className="w-full h-full rounded-full overflow-hidden bg-surface-card border border-surface-border flex items-center justify-center relative">
+                {data.profile?.avatar_url ? (
+                  <img src={data.profile.avatar_url} className="w-full h-full object-cover" alt="" />
+                ) : (
+                  <UserCircle size={40} className="text-brand-muted" />
+                )}
+              </div>
+            </div>
 
             <button
               onClick={() => avatarInputRef.current?.click()}
               disabled={uploadingAvatar}
-              className="absolute bottom-1 left-1 w-9 h-9 bg-[#e5e4e2] text-black rounded-full flex items-center justify-center shadow-lg border-4 border-[#0C0C0C] active:scale-90 transition-all z-20 hover:bg-white disabled:opacity-50"
+              className="absolute bottom-1 right-1 w-9 h-9 bg-surface-card text-brand border border-surface-border rounded-full flex items-center justify-center shadow-md active:scale-90 transition-all z-20 disabled:opacity-50"
             >
-              {uploadingAvatar ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} className="ml-0.5" />}
+              {uploadingAvatar ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
             </button>
-          </motion.div>
+          </div>
 
-          <div className="w-full mt-8 mb-5 px-4">
-            <div className="bg-white/[0.03] border border-white/10 rounded-[24px] p-4 backdrop-blur-xl shadow-2xl">
+          {/* Profile Completeness Status */}
+          <div className="w-full max-w-[500px] mb-6">
+            <div className="bg-surface-card border border-surface-border rounded-[24px] p-5 shadow-sm">
               <div className="flex items-center justify-between mb-3">
                 <div className="text-right">
-                  <div className="text-white font-black text-[15px]">מצב פרופיל</div>
-                  <div className="text-white/30 text-[10px] font-bold tracking-widest uppercase">PROFILE STATUS</div>
+                  <div className="text-brand font-black text-[14px]">מצב פרופיל</div>
+                  <div className="text-brand-muted text-[10px] font-black tracking-widest uppercase">Profile Status</div>
                 </div>
-                <div className="flex items-center gap-2 text-[#e5e4e2]">
-                  <CheckCircle2 size={18} />
-                  <span className="text-sm font-black">{profileCompleteness}%</span>
+                <div className="flex items-center gap-1.5 text-accent-primary">
+                  <CheckCircle2 size={16} />
+                  <span className="text-[16px] font-black tabular-nums">{profileCompleteness}%</span>
                 </div>
               </div>
 
-              <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden shadow-inner">
+              <div className="w-full h-2.5 bg-surface rounded-full overflow-hidden shadow-inner border border-surface-border">
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${profileCompleteness}%` }}
                   transition={{ duration: 0.8, ease: 'easeOut' }}
-                  className="h-full rounded-full bg-gradient-to-l from-[#2196f3] via-[#8b5cf6] to-[#e5e4e2]"
+                  className="h-full rounded-full bg-accent-primary"
                 />
-              </div>
-
-              <div className="mt-3 text-white/45 text-[11px] leading-5 text-right">
-                תמונת פרופיל תמונת נושא ביו מיקום ועיסוק יעזרו לפרופיל שלך להיראות מלא ומדויק יותר.
               </div>
             </div>
           </div>
 
-          <div className="px-4 flex flex-col gap-5 w-full mb-2">
-            <div className="bg-white/[0.02] backdrop-blur-xl border border-white/10 flex flex-col gap-5 rounded-[24px] p-6 shadow-2xl">
-              <div className="flex justify-between items-center border-b border-white/10 pb-4 mb-1">
+          {/* FORM: PERSONAL DETAILS */}
+          <div className="w-full max-w-[500px] flex flex-col gap-6">
+            <div className="bg-surface-card border border-surface-border flex flex-col gap-5 rounded-[28px] p-6 shadow-sm">
+              
+              <div className="flex justify-between items-center border-b border-surface-border pb-4">
                 <div className="flex flex-col text-right">
-                  <span className="text-white font-black text-[15px] tracking-wide">פרטים אישיים</span>
-                  <span className="text-white/30 text-[10px] uppercase font-bold tracking-widest">PERSONAL DETAILS</span>
+                  <span className="text-brand font-black text-[15px] tracking-wide">פרטים אישיים</span>
+                  <span className="text-brand-muted text-[10px] uppercase font-black tracking-widest">Personal Details</span>
                 </div>
-                <Users size={18} className="text-[#e5e4e2]" />
+                <div className="w-10 h-10 rounded-full bg-surface border border-surface-border flex items-center justify-center text-brand-muted">
+                  <Users size={18} />
+                </div>
               </div>
 
               <div className="flex flex-col gap-4">
-                <div className="grid grid-cols-1 gap-4">
+                
+                {/* Name & Username */}
+                <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5 text-right w-full">
-                    <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5">
-                      <span>שם מלא</span>
-                      <UserCheck size={12} />
+                    <label className="text-brand-muted text-[11px] font-black tracking-widest uppercase flex items-center gap-1.5">
+                      <UserCheck size={12} /> <span>שם מלא</span>
                     </label>
                     <input
                       type="text"
                       value={formData.full_name}
                       onChange={(e) => setFormData((prev) => ({ ...prev, full_name: e.target.value }))}
-                      className="bg-transparent border border-white/5 rounded-xl px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors"
+                      className="w-full bg-surface border border-surface-border rounded-2xl px-4 py-3 text-brand text-[13px] font-bold focus:border-accent-primary/50 outline-none transition-colors"
                       placeholder="ישראל ישראלי"
                     />
                   </div>
 
                   <div className="flex flex-col gap-1.5 text-right w-full">
-                    <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5">
-                      <span>שם משתמש (@)</span>
-                      <Edit2 size={12} />
+                    <label className="text-brand-muted text-[11px] font-black tracking-widest uppercase flex items-center gap-1.5">
+                      <Edit2 size={12} /> <span>שם משתמש</span>
                     </label>
                     <input
                       type="text"
                       value={formData.username}
                       onChange={(e) => setFormData((prev) => ({ ...prev, username: e.target.value }))}
-                      className="bg-transparent border border-white/5 rounded-xl px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors"
+                      className="w-full bg-surface border border-surface-border rounded-2xl px-4 py-3 text-brand text-[13px] font-bold focus:border-accent-primary/50 outline-none transition-colors"
                       placeholder="user123"
+                      dir="ltr"
                     />
                   </div>
+                </div>
 
+                {/* Bio */}
+                <div className="flex flex-col gap-1.5 text-right w-full">
+                  <label className="text-brand-muted text-[11px] font-black tracking-widest uppercase flex items-center gap-1.5">
+                    <MessageSquare size={12} /> <span>ביו</span>
+                  </label>
+                  <textarea
+                    value={formData.bio}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, bio: e.target.value }))}
+                    className="w-full bg-surface border border-surface-border rounded-2xl px-4 py-3 text-brand text-[13px] font-medium focus:border-accent-primary/50 outline-none transition-colors h-24 resize-none"
+                    placeholder="ספר קצת על עצמך..."
+                  />
+                </div>
+
+                {/* Social & Zodiac */}
+                <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5 text-right w-full">
-                    <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5">
-                      <span>ביו</span>
-                      <MessageSquare size={12} />
-                    </label>
-                    <textarea
-                      value={formData.bio}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, bio: e.target.value }))}
-                      className="bg-transparent border border-white/5 rounded-xl px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors h-24 resize-none"
-                      placeholder="ספר קצת על עצמך..."
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-1.5 text-right w-full">
-                      <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5">
-                        <span>קישור חברתי</span>
-                        <LinkIcon size={12} />
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.social_link}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, social_link: e.target.value }))}
-                        className="bg-transparent border border-white/5 rounded-xl px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors"
-                        placeholder="instagram.com/user"
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-1.5 text-right w-full">
-                      <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5">
-                        <span>מזל</span>
-                        <Crown size={12} />
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.zodiac}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, zodiac: e.target.value }))}
-                        className="bg-transparent border border-white/5 rounded-xl px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors"
-                        placeholder="אריה"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-1.5 text-right w-full">
-                      <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5">
-                        <span>מתגורר ב</span>
-                        <MapPin size={12} />
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.location}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, location: e.target.value }))}
-                        className="bg-transparent border border-white/5 rounded-xl px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors"
-                        placeholder="תל אביב"
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-1.5 text-right w-full">
-                      <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5">
-                        <span>תאריך לידה</span>
-                        <Calendar size={12} />
-                      </label>
-                      <input
-                        type="date"
-                        value={formData.birth_date}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, birth_date: e.target.value }))}
-                        className="bg-transparent border border-white/5 rounded-xl px-4 py-3 text-white text-[13px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors text-right"
-                        style={{ colorScheme: 'dark' }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-1.5 text-right w-full">
-                      <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5">
-                        <span>מצב משפחתי</span>
-                        <HeartHandshake size={12} />
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.relationship_status}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, relationship_status: e.target.value }))}
-                        className="bg-transparent border border-white/5 rounded-xl px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors"
-                        placeholder="במערכת יחסים"
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-1.5 text-right w-full">
-                      <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5">
-                        <span>עיסוק</span>
-                        <Briefcase size={12} />
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.job_title}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, job_title: e.target.value }))}
-                        className="bg-transparent border border-white/5 rounded-xl px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors"
-                        placeholder="מעצב מוצר"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-1.5 text-right w-full">
-                    <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5">
-                      <span>השכלה / קריירה</span>
-                      <GraduationCap size={12} />
+                    <label className="text-brand-muted text-[11px] font-black tracking-widest uppercase flex items-center gap-1.5">
+                      <LinkIcon size={12} /> <span>קישור חברתי</span>
                     </label>
                     <input
                       type="text"
-                      value={formData.education}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, education: e.target.value }))}
-                      className="bg-transparent border border-white/5 rounded-xl px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors"
-                      placeholder="סטודנט למדעי המחשב"
+                      value={formData.social_link}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, social_link: e.target.value }))}
+                      className="w-full bg-surface border border-surface-border rounded-2xl px-4 py-3 text-brand text-[13px] font-medium focus:border-accent-primary/50 outline-none transition-colors"
+                      placeholder="instagram.com/user"
+                      dir="ltr"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5 text-right w-full">
+                    <label className="text-brand-muted text-[11px] font-black tracking-widest uppercase flex items-center gap-1.5">
+                      <Crown size={12} /> <span>מזל</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.zodiac}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, zodiac: e.target.value }))}
+                      className="w-full bg-surface border border-surface-border rounded-2xl px-4 py-3 text-brand text-[13px] font-medium focus:border-accent-primary/50 outline-none transition-colors"
+                      placeholder="אריה"
                     />
                   </div>
                 </div>
-              </div>
 
-              <div className="flex justify-between items-center mt-2 bg-white/[0.03] border border-white/8 rounded-[18px] px-4 py-3">
-                <div className="text-right">
-                  <div className="text-white text-[13px] font-black">תצוגת אודות בפרופיל</div>
-                  <div className="text-white/35 text-[11px]">
-                    הפרטים האלה יוצגו בתוך אזור אודות שנפתח עם חץ קטן בפרופיל.
+                {/* Location & Birth Date */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5 text-right w-full">
+                    <label className="text-brand-muted text-[11px] font-black tracking-widest uppercase flex items-center gap-1.5">
+                      <MapPin size={12} /> <span>מתגורר ב</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.location}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, location: e.target.value }))}
+                      className="w-full bg-surface border border-surface-border rounded-2xl px-4 py-3 text-brand text-[13px] font-medium focus:border-accent-primary/50 outline-none transition-colors"
+                      placeholder="תל אביב"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5 text-right w-full">
+                    <label className="text-brand-muted text-[11px] font-black tracking-widest uppercase flex items-center gap-1.5">
+                      <Calendar size={12} /> <span>תאריך לידה</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.birth_date}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, birth_date: e.target.value }))}
+                      className="w-full bg-surface border border-surface-border rounded-2xl px-4 py-3 text-brand text-[13px] font-medium focus:border-accent-primary/50 outline-none transition-colors text-right"
+                      style={{ colorScheme: 'dark' }}
+                    />
                   </div>
                 </div>
-                <Sparkles size={16} className="text-[#e5e4e2]" />
+
+                {/* Relationship & Job */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5 text-right w-full">
+                    <label className="text-brand-muted text-[11px] font-black tracking-widest uppercase flex items-center gap-1.5">
+                      <HeartHandshake size={12} /> <span>מצב משפחתי</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.relationship_status}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, relationship_status: e.target.value }))}
+                      className="w-full bg-surface border border-surface-border rounded-2xl px-4 py-3 text-brand text-[13px] font-medium focus:border-accent-primary/50 outline-none transition-colors"
+                      placeholder="רווק/ה"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5 text-right w-full">
+                    <label className="text-brand-muted text-[11px] font-black tracking-widest uppercase flex items-center gap-1.5">
+                      <Briefcase size={12} /> <span>עיסוק</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.job_title}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, job_title: e.target.value }))}
+                      className="w-full bg-surface border border-surface-border rounded-2xl px-4 py-3 text-brand text-[13px] font-medium focus:border-accent-primary/50 outline-none transition-colors"
+                      placeholder="מעצב/ת"
+                    />
+                  </div>
+                </div>
+
+                {/* Education */}
+                <div className="flex flex-col gap-1.5 text-right w-full">
+                  <label className="text-brand-muted text-[11px] font-black tracking-widest uppercase flex items-center gap-1.5">
+                    <GraduationCap size={12} /> <span>השכלה / רקע</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.education}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, education: e.target.value }))}
+                    className="w-full bg-surface border border-surface-border rounded-2xl px-4 py-3 text-brand text-[13px] font-medium focus:border-accent-primary/50 outline-none transition-colors"
+                    placeholder="לימודי מדעי המחשב"
+                  />
+                </div>
+                
               </div>
 
-              <div className="flex justify-end mt-2">
+              {/* Save Details Button */}
+              <div className="mt-2">
                 <Button
                   onClick={handleSaveDetails}
                   disabled={savingDetails}
-                  className="bg-[#e5e4e2] text-black rounded-xl font-black text-[13px] tracking-wide flex items-center justify-center active:scale-95 transition-transform px-8 h-11"
+                  className="w-full bg-white text-black rounded-2xl font-black text-[14px] tracking-widest uppercase flex items-center justify-center active:scale-95 transition-transform h-14 shadow-md"
                 >
-                  {savingDetails ? <Loader2 size={16} className="animate-spin" /> : 'שמור שינויים'}
+                  {savingDetails ? <Loader2 size={20} className="animate-spin text-black" /> : 'שמור פרופיל'}
                 </Button>
               </div>
+
             </div>
 
-            <div className="bg-white/[0.02] backdrop-blur-xl border border-white/10 flex flex-col gap-5 rounded-[24px] p-6 shadow-2xl">
-              <div className="flex justify-between items-center border-b border-white/10 pb-4 mb-1">
+            {/* FORM: SECURITY */}
+            <div className="bg-surface-card border border-surface-border flex flex-col gap-5 rounded-[28px] p-6 shadow-sm mb-6">
+              
+              <div className="flex justify-between items-center border-b border-surface-border pb-4">
                 <div className="flex flex-col text-right">
-                  <span className="text-white font-black text-[15px] tracking-wide">אבטחה וסיסמה</span>
-                  <span className="text-white/30 text-[10px] uppercase font-bold tracking-widest">SECURITY</span>
+                  <span className="text-brand font-black text-[15px] tracking-wide">אבטחה וסיסמה</span>
+                  <span className="text-brand-muted text-[10px] uppercase font-black tracking-widest">Security</span>
                 </div>
-                <Key size={18} className="text-[#e5e4e2]" />
+                <div className="w-10 h-10 rounded-full bg-surface border border-surface-border flex items-center justify-center text-brand-muted">
+                  <Key size={18} />
+                </div>
               </div>
 
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1.5 text-right w-full">
-                  <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5">
-                    <span>סיסמה נוכחית</span>
-                    <Shield size={12} />
+                  <label className="text-brand-muted text-[11px] font-black tracking-widest uppercase flex items-center gap-1.5">
+                    <Shield size={12} /> <span>סיסמה נוכחית</span>
                   </label>
                   <input
                     type="password"
                     value={passwordData.current_password}
                     onChange={(e) => setPasswordData((prev) => ({ ...prev, current_password: e.target.value }))}
-                    className="bg-transparent border border-white/5 rounded-xl px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors"
+                    className="w-full bg-surface border border-surface-border rounded-2xl px-4 py-3 text-brand text-[13px] font-medium focus:border-accent-primary/50 outline-none transition-colors"
                     placeholder="••••••••"
                   />
                 </div>
 
                 <div className="flex flex-col gap-1.5 text-right w-full">
-                  <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5">
-                    <span>סיסמה חדשה</span>
-                    <Shield size={12} />
+                  <label className="text-brand-muted text-[11px] font-black tracking-widest uppercase flex items-center gap-1.5">
+                    <Shield size={12} /> <span>סיסמה חדשה</span>
                   </label>
                   <input
                     type="password"
                     value={passwordData.new_password}
                     onChange={(e) => setPasswordData((prev) => ({ ...prev, new_password: e.target.value }))}
-                    className="bg-transparent border border-white/5 rounded-xl px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors"
+                    className="w-full bg-surface border border-surface-border rounded-2xl px-4 py-3 text-brand text-[13px] font-medium focus:border-accent-primary/50 outline-none transition-colors"
                     placeholder="••••••••"
                   />
                 </div>
 
                 <div className="flex flex-col gap-1.5 text-right w-full">
-                  <label className="text-white/40 text-[11px] font-bold tracking-widest uppercase flex items-center justify-start gap-1.5">
-                    <span>אימות סיסמה חדשה</span>
-                    <UserCheck size={12} />
+                  <label className="text-brand-muted text-[11px] font-black tracking-widest uppercase flex items-center gap-1.5">
+                    <UserCheck size={12} /> <span>אימות סיסמה חדשה</span>
                   </label>
                   <input
                     type="password"
                     value={passwordData.confirm_password}
                     onChange={(e) => setPasswordData((prev) => ({ ...prev, confirm_password: e.target.value }))}
-                    className="bg-transparent border border-white/5 rounded-xl px-4 py-3 text-white text-[14px] font-medium placeholder:text-white/10 focus:border-[#e5e4e2]/50 transition-colors"
+                    className="w-full bg-surface border border-surface-border rounded-2xl px-4 py-3 text-brand text-[13px] font-medium focus:border-accent-primary/50 outline-none transition-colors"
                     placeholder="••••••••"
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end mt-4">
+              {/* Save Password Button */}
+              <div className="mt-2">
                 <Button
                   onClick={handleUpdatePassword}
-                  disabled={updatingPassword}
-                  className="bg-[#e5e4e2] text-black rounded-xl font-black text-[13px] tracking-wide flex items-center justify-center active:scale-95 transition-transform px-8 h-11"
+                  disabled={updatingPassword || !passwordData.new_password}
+                  className="w-full bg-surface text-brand border border-surface-border rounded-2xl font-black text-[13px] tracking-widest uppercase flex items-center justify-center active:scale-95 transition-transform h-12 shadow-sm disabled:opacity-50"
                 >
-                  {updatingPassword ? <Loader2 size={16} className="animate-spin" /> : 'עדכן סיסמה'}
+                  {updatingPassword ? <Loader2 size={18} className="animate-spin text-brand-muted" /> : 'עדכן סיסמה'}
                 </Button>
               </div>
+
             </div>
           </div>
+
         </div>
       </FadeIn>
     </div>
