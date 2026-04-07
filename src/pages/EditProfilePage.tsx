@@ -19,8 +19,7 @@ import {
   Crown,
   Briefcase,
   Sparkles,
-  ChevronDown,
-  X
+  ChevronDown
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -35,14 +34,15 @@ const ZODIAC_SIGNS = [
   { name: 'גדי', icon: '♑' }, { name: 'דלי', icon: '♒' }, { name: 'דגים', icon: '♓' }
 ];
 
+// Clean Relationship Statuses (No Icons)
 const RELATIONSHIP_STATUSES = [
-  { name: 'רווק/ה', icon: '👤' },
-  { name: 'במערכת יחסים', icon: '💑' },
-  { name: 'נשוי/ה', icon: '💍' },
-  { name: 'גרוש/ה', icon: '💔' },
-  { name: 'אלמן/ה', icon: '🕊️' },
-  { name: 'זה מסובך', icon: '🤷‍♂️' },
-  { name: 'פתוח/ה להצעות', icon: '👀' }
+  { name: 'רווק/ה' },
+  { name: 'במערכת יחסים' },
+  { name: 'נשוי/ה' },
+  { name: 'גרוש/ה' },
+  { name: 'אלמן/ה' },
+  { name: 'זה מסובך' },
+  { name: 'פתוח/ה להצעות' }
 ];
 
 export const EditProfilePage: React.FC = () => {
@@ -147,14 +147,14 @@ export const EditProfilePage: React.FC = () => {
   return (
     <div className="bg-surface min-h-screen relative font-sans" dir="rtl">
       
-      {/* HEADER (Clean, no frame) */}
+      {/* HEADER (Clean, hovering, no frame) */}
       <div className="fixed top-6 left-0 right-0 flex justify-center items-center z-[99999] pointer-events-none">
         <span className="text-brand font-black text-[12px] tracking-widest uppercase drop-shadow-md">עריכת פרופיל</span>
       </div>
 
       <FadeIn className="relative w-full overflow-x-hidden flex flex-col pb-32">
         
-        {/* 📸 COVER SECTION */}
+        {/* 📸 COVER SECTION (Absolute to scroll natively) */}
         <div className="absolute top-0 left-0 w-full h-[240px] bg-surface-card z-0 overflow-hidden">
           <input type="file" ref={coverInputRef} onChange={(e) => { if (e.target.files?.[0]) handleMediaUpload(e.target.files[0], 'cover'); if (coverInputRef.current) coverInputRef.current.value = ''; }} accept="image/*" className="hidden" />
           
@@ -174,7 +174,7 @@ export const EditProfilePage: React.FC = () => {
           </button>
         </div>
 
-        {/* 👤 CONTENT WRAPPER (Edge-to-Edge) */}
+        {/* 👤 CONTENT WRAPPER (Edge-to-Edge inside) */}
         <div className="relative z-10 w-full pt-[190px]">
           <div className="bg-surface rounded-t-[40px] w-full min-h-screen flex flex-col items-center pt-0 shadow-[0_-20px_40px_rgba(0,0,0,0.7)] border-t border-surface-border px-4">
             
@@ -189,8 +189,8 @@ export const EditProfilePage: React.FC = () => {
               </button>
             </motion.div>
 
-            {/* MAIN FORM - CLEAN UI */}
-            <div className="w-full max-w-[500px] flex flex-col gap-6">
+            {/* MAIN FORM - WIDE EDGE TO EDGE */}
+            <div className="w-full flex flex-col gap-6">
               
               <div className="bg-surface-card border border-surface-border flex flex-col gap-6 rounded-[32px] p-6 shadow-sm relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-40 h-40 bg-accent-primary/5 blur-[50px] rounded-full pointer-events-none" />
@@ -222,7 +222,7 @@ export const EditProfilePage: React.FC = () => {
 
                   <div className="grid grid-cols-2 gap-4">
                     <InputField label="תאריך לידה" icon={Calendar} value={formData.birth_date} onChange={v => setFormData(p=>({...p, birth_date: v}))} placeholder="בחר..." type="date" />
-                    <SelectField label="מצב משפחתי" icon={HeartHandshake} value={selectedRelationship ? `${selectedRelationship.icon} ${selectedRelationship.name}` : ''} placeholder="בחר מצב..." onClick={() => setShowRelationshipPicker(true)} />
+                    <SelectField label="מצב משפחתי" icon={HeartHandshake} value={selectedRelationship ? selectedRelationship.name : ''} placeholder="בחר מצב..." onClick={() => setShowRelationshipPicker(true)} />
                   </div>
 
                   <InputField label="עיסוק / מקצוע" icon={Briefcase} value={formData.job_title} onChange={v => setFormData(p=>({...p, job_title: v}))} placeholder="מעצב מוצר, מפתח..." />
@@ -272,14 +272,26 @@ export const EditProfilePage: React.FC = () => {
       {/* 🔮 ZODIAC PICKER BOTTOM SHEET */}
       <AnimatePresence>
         {showZodiacPicker && (
-          <div className="fixed inset-0 z-[100000] flex flex-col justify-end" dir="rtl">
+          <div className="fixed inset-0 z-[999999] flex flex-col justify-end" dir="rtl">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowZodiacPicker(false)} />
-            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 400 }} className="relative z-10 bg-surface rounded-t-[40px] p-6 pb-12 border-t border-surface-border max-h-[85vh] flex flex-col">
-              <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-6 shrink-0" />
-              <div className="flex justify-between items-center mb-6 shrink-0"><h3 className="text-brand font-black text-lg">בחר את המזל שלך</h3><button onClick={() => setShowZodiacPicker(false)} className="text-brand-muted hover:text-brand"><X size={22} /></button></div>
+            <motion.div 
+              drag="y" 
+              dragConstraints={{ top: 0, bottom: 0 }} 
+              dragElastic={0.2}
+              onDragEnd={(e, info) => { if (info.offset.y > 100 || info.velocity.y > 500) setShowZodiacPicker(false); }}
+              initial={{ y: '100%' }} 
+              animate={{ y: 0 }} 
+              exit={{ y: '100%' }} 
+              transition={{ type: 'spring', damping: 25, stiffness: 400 }} 
+              className="relative z-10 bg-surface rounded-t-[40px] p-6 pb-12 border-t border-surface-border max-h-[85vh] flex flex-col"
+            >
+              <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-6 shrink-0 cursor-grab active:cursor-grabbing" />
+              <div className="flex justify-center items-center mb-6 shrink-0">
+                <h3 className="text-brand font-black text-lg">בחר את המזל שלך</h3>
+              </div>
               <div className="flex-1 overflow-y-auto grid grid-cols-2 gap-3 scrollbar-hide pr-1">
                 {ZODIAC_SIGNS.map((sign) => (
-                  <button key={sign.name} onClick={() => { setFormData(p => ({ ...p, zodiac: sign.name })); triggerFeedback('pop'); setShowZodiacPicker(false); }} className={`flex items-center gap-3 p-4 rounded-2xl border transition-all ${formData.zodiac === sign.name ? 'bg-white border-white text-black shadow-md' : 'bg-surface-card border-surface-border text-brand hover:border-brand/30'}`}>
+                  <button key={sign.name} onClick={() => { setFormData(p => ({ ...p, zodiac: sign.name })); triggerFeedback('pop'); setShowZodiacPicker(false); }} className={`flex items-center justify-center gap-3 p-4 rounded-2xl border transition-all ${formData.zodiac === sign.name ? 'bg-white border-white text-black shadow-md' : 'bg-surface-card border-surface-border text-brand hover:border-brand/30'}`}>
                     <span className="text-2xl">{sign.icon}</span>
                     <span className="font-black text-[15px]">{sign.name}</span>
                   </button>
@@ -293,15 +305,26 @@ export const EditProfilePage: React.FC = () => {
       {/* 💍 RELATIONSHIP STATUS BOTTOM SHEET */}
       <AnimatePresence>
         {showRelationshipPicker && (
-          <div className="fixed inset-0 z-[100000] flex flex-col justify-end" dir="rtl">
+          <div className="fixed inset-0 z-[999999] flex flex-col justify-end" dir="rtl">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowRelationshipPicker(false)} />
-            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 400 }} className="relative z-10 bg-surface rounded-t-[40px] p-6 pb-12 border-t border-surface-border max-h-[85vh] flex flex-col">
-              <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-6 shrink-0" />
-              <div className="flex justify-between items-center mb-6 shrink-0"><h3 className="text-brand font-black text-lg">מצב משפחתי</h3><button onClick={() => setShowRelationshipPicker(false)} className="text-brand-muted hover:text-brand"><X size={22} /></button></div>
+            <motion.div 
+              drag="y" 
+              dragConstraints={{ top: 0, bottom: 0 }} 
+              dragElastic={0.2}
+              onDragEnd={(e, info) => { if (info.offset.y > 100 || info.velocity.y > 500) setShowRelationshipPicker(false); }}
+              initial={{ y: '100%' }} 
+              animate={{ y: 0 }} 
+              exit={{ y: '100%' }} 
+              transition={{ type: 'spring', damping: 25, stiffness: 400 }} 
+              className="relative z-10 bg-surface rounded-t-[40px] p-6 pb-12 border-t border-surface-border max-h-[85vh] flex flex-col"
+            >
+              <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-6 shrink-0 cursor-grab active:cursor-grabbing" />
+              <div className="flex justify-center items-center mb-6 shrink-0">
+                <h3 className="text-brand font-black text-lg">מצב משפחתי</h3>
+              </div>
               <div className="flex-1 overflow-y-auto flex flex-col gap-3 scrollbar-hide pr-1">
                 {RELATIONSHIP_STATUSES.map((status) => (
-                  <button key={status.name} onClick={() => { setFormData(p => ({ ...p, relationship_status: status.name })); triggerFeedback('pop'); setShowRelationshipPicker(false); }} className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${formData.relationship_status === status.name ? 'bg-white border-white text-black shadow-md' : 'bg-surface-card border-surface-border text-brand hover:border-brand/30'}`}>
-                    <span className="text-2xl">{status.icon}</span>
+                  <button key={status.name} onClick={() => { setFormData(p => ({ ...p, relationship_status: status.name })); triggerFeedback('pop'); setShowRelationshipPicker(false); }} className={`flex items-center justify-center p-4 rounded-2xl border transition-all ${formData.relationship_status === status.name ? 'bg-white border-white text-black shadow-md' : 'bg-surface-card border-surface-border text-brand hover:border-brand/30'}`}>
                     <span className="font-black text-[15px]">{status.name}</span>
                   </button>
                 ))}
