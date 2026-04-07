@@ -51,6 +51,8 @@ export const AuthPage: React.FC = () => {
     }
   };
 
+  const springConfig = { type: "spring", stiffness: 400, damping: 30 };
+
   return (
     <div className="min-h-screen bg-surface flex flex-col items-center justify-center p-6 font-sans relative overflow-hidden" dir="rtl">
 
@@ -106,64 +108,66 @@ export const AuthPage: React.FC = () => {
             </button>
             <motion.div
               layout
-              transition={{ type: "spring", stiffness: 800, damping: 45 }}
+              transition={springConfig}
               className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white rounded-[16px] shadow-md pointer-events-none"
               animate={{ right: isLogin ? "4px" : "calc(50%)" }}
             />
           </div>
 
           {/* Form Container */}
-          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-            <AnimatePresence mode="wait">
+          <form onSubmit={handleSubmit} className="flex flex-col">
+            <AnimatePresence initial={false}>
               {!isLogin && (
                 <motion.div
                   key="signup-fields"
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="flex flex-col gap-5 overflow-hidden"
+                  transition={{ opacity: { duration: 0.2 }, height: springConfig }}
+                  className="overflow-hidden"
                 >
-                  <div className="relative group">
-                    <User className="absolute right-5 top-1/2 -translate-y-1/2 text-brand-muted group-focus-within:text-accent-primary transition-colors" size={18} />
-                    <input
-                      type="text" value={fullName} onChange={(e) => setFullName(e.target.value)}
-                      placeholder="שם מלא"
-                      className="w-full bg-surface-card border border-surface-border rounded-[24px] h-[56px] pr-12 pl-5 text-brand placeholder:text-brand-muted/50 outline-none focus:border-accent-primary/50 transition-all font-bold shadow-sm"
-                    />
-                  </div>
-                  <div className="relative group">
-                    <AtSign className="absolute right-5 top-1/2 -translate-y-1/2 text-brand-muted group-focus-within:text-accent-primary transition-colors" size={18} />
-                    <input
-                      type="text" value={username} onChange={(e) => setUsername(e.target.value.toLowerCase())}
-                      placeholder="שם משתמש באנגלית" dir="ltr"
-                      className="w-full bg-surface-card border border-surface-border rounded-[24px] h-[56px] pr-12 pl-5 text-left text-brand placeholder:text-brand-muted/50 outline-none focus:border-accent-primary/50 transition-all font-bold placeholder:text-right shadow-sm"
-                    />
+                  <div className="flex flex-col gap-5 pb-5">
+                    <div className="relative group">
+                      <User className="absolute right-5 top-1/2 -translate-y-1/2 text-brand-muted group-focus-within:text-accent-primary transition-colors" size={18} />
+                      <input
+                        type="text" value={fullName} onChange={(e) => setFullName(e.target.value)}
+                        placeholder="שם מלא"
+                        className="w-full bg-surface-card border border-surface-border rounded-[24px] h-[56px] pr-12 pl-5 text-brand placeholder:text-brand-muted/50 outline-none focus:border-accent-primary/50 transition-all font-bold shadow-sm"
+                      />
+                    </div>
+                    <div className="relative group">
+                      <AtSign className="absolute right-5 top-1/2 -translate-y-1/2 text-brand-muted group-focus-within:text-accent-primary transition-colors" size={18} />
+                      <input
+                        type="text" value={username} onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                        placeholder="שם משתמש באנגלית" dir="ltr"
+                        className="w-full bg-surface-card border border-surface-border rounded-[24px] h-[56px] pr-12 pl-5 text-left text-brand placeholder:text-brand-muted/50 outline-none focus:border-accent-primary/50 transition-all font-bold placeholder:text-right shadow-sm"
+                      />
+                    </div>
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            <div className="relative group">
+            <motion.div layout transition={springConfig} className="relative group mb-5">
               <Mail className="absolute right-5 top-1/2 -translate-y-1/2 text-brand-muted group-focus-within:text-accent-primary transition-colors" size={18} />
               <input
                 type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                 placeholder="אימייל" dir="ltr"
                 className="w-full bg-surface-card border border-surface-border rounded-[24px] h-[56px] pr-12 pl-5 text-left text-brand placeholder:text-brand-muted/50 outline-none focus:border-accent-primary/50 transition-all font-bold placeholder:text-right shadow-sm"
               />
-            </div>
+            </motion.div>
 
-            <div className="relative group">
+            <motion.div layout transition={springConfig} className="relative group">
               <Lock className="absolute right-5 top-1/2 -translate-y-1/2 text-brand-muted group-focus-within:text-accent-primary transition-colors" size={18} />
               <input
                 type="password" value={password} onChange={(e) => setPassword(e.target.value)}
                 placeholder="סיסמה" dir="ltr"
                 className="w-full bg-surface-card border border-surface-border rounded-[24px] h-[56px] pr-12 pl-5 text-left text-brand placeholder:text-brand-muted/50 outline-none focus:border-accent-primary/50 transition-all font-bold placeholder:text-right shadow-sm"
               />
-            </div>
+            </motion.div>
 
             {/* Main Action Circular Button */}
-            <div className="flex justify-center mt-8">
+            <motion.div layout transition={springConfig} className="flex justify-center mt-8">
               <button
                 type="submit"
                 disabled={loading}
@@ -175,7 +179,7 @@ export const AuthPage: React.FC = () => {
                   <ChevronLeft size={28} className="transition-transform group-hover:-translate-x-1" strokeWidth={2.5} />
                 )}
               </button>
-            </div>
+            </motion.div>
           </form>
         </motion.div>
 
