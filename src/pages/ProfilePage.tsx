@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence, useDragControls, useScroll, useTransform } from 'framer-motion';
 import {
-  UserCircle, Loader2, Heart, MessageSquare, MoreVertical, MoreHorizontal, Share2, Reply, Trash2, X, Send, Download, Link as LinkIcon, Edit2, Bookmark, MapPin, GraduationCap, ChevronDown, ChevronUp, Briefcase, Calendar, Sparkles, LogOut, Flame, Crown
+  UserCircle, Loader2, Heart, MessageSquare, MoreVertical, MoreHorizontal, Share2, Reply, Trash2, X, Send, Download, Link as LinkIcon, Edit2, Bookmark, MapPin, GraduationCap, ChevronDown, ChevronUp, Briefcase, Calendar, Sparkles, LogOut, Crown
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
@@ -12,6 +12,20 @@ import { FadeIn, Button } from '../components/ui';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 import { Share } from '@capacitor/share';
+
+// 🎨 CUSTOM PREMIUM SVG FLAME
+const SvgFlame = () => (
+  <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 drop-shadow-[0_0_8px_rgba(249,115,22,0.5)]">
+    <defs>
+      <linearGradient id="flameGrad" x1="24" y1="8" x2="24" y2="44">
+        <stop stopColor="#FDBA74" />
+        <stop offset="0.5" stopColor="#F97316" />
+        <stop offset="1" stopColor="#EA580C" />
+      </linearGradient>
+    </defs>
+    <path d="M24 44C31.732 44 38 37.732 38 30C38 21.5 24 4 24 4C24 4 10 21.5 10 30C10 37.732 16.268 44 24 44Z" fill="url(#flameGrad)" className="animate-[pulse_1.5s_ease-in-out_infinite]" />
+  </svg>
+);
 
 export const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
@@ -381,16 +395,6 @@ export const ProfilePage: React.FC = () => {
     } catch { toast.error('שגיאה בעדכון הפוסט'); }
   };
 
-  const toggleCommentLike = (commentId: string) => {
-    setLikedComments((prev) => {
-      const next = new Set(prev);
-      if (next.has(commentId)) next.delete(commentId);
-      else next.add(commentId);
-      return next;
-    });
-    triggerFeedback('pop');
-  };
-
   const stopPropagation = (e: any) => e.stopPropagation();
 
   if (authLoading || loadingData) {
@@ -461,7 +465,7 @@ export const ProfilePage: React.FC = () => {
           <div className="text-center mt-3 w-full">
             <div className="flex items-center justify-center gap-2 mb-1">
               <h2 className="text-[22px] font-black text-brand tracking-tight">{userProfile?.full_name || 'משתמש'}</h2>
-              {userProfile?.role_label === 'CORE' && <Crown size={16} className="text-yellow-500 drop-shadow-sm" />}
+              {userProfile?.role_label === 'CORE' && <Crown size={16} className="text-accent-primary drop-shadow-sm" />}
             </div>
             <p className="text-brand-muted font-bold text-[13px] tracking-widest mb-5" dir="ltr">@{userProfile?.username || 'user'}</p>
 
@@ -542,40 +546,27 @@ export const ProfilePage: React.FC = () => {
           </div>
 
           {/* ==============================================
-              🔥 ADDICTION ENGINE: STREAK & XP (SEPARATED)
+              🔥 ADDICTION ENGINE: STREAK & XP (CLEAN & SEPARATED)
               ============================================== */}
-          <div className="w-full flex flex-col gap-4 px-2 mb-8 mt-2">
+          <div className="w-full flex flex-col gap-6 px-4 mb-8 mt-2">
             
             {/* 1. Streak Block */}
-            <div className="w-full bg-surface-card border border-white/[0.05] rounded-3xl p-4 flex items-center justify-between shadow-md">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-orange-500/10 flex items-center justify-center border border-orange-500/20">
-                  <Flame size={24} className="text-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.6)]" />
-                </div>
-                <div className="flex flex-col text-right">
-                  <span className="text-white font-black text-[15px]">רצף כניסות</span>
-                  <span className="text-brand-muted text-[11px] font-bold">שמור על המומנטום!</span>
-                </div>
+                <SvgFlame />
+                <span className="text-brand-muted text-[14px] font-black tracking-widest">רצף כניסות</span>
               </div>
-              <div className="flex items-baseline gap-1 bg-surface border border-white/[0.05] px-4 py-2 rounded-2xl">
-                <span className="text-2xl font-black text-orange-500">{streak}</span>
-                <span className="text-orange-500/70 text-[10px] font-black uppercase tracking-widest">ימים</span>
-              </div>
+              <span className="text-white font-black text-[18px]">{streak} ימים</span>
             </div>
 
-            {/* 2. XP & Daily Activity Block */}
+            {/* 2. XP & Activity Block */}
             {isMyProfile && (
-              <div className="w-full bg-surface-card border border-white/[0.05] rounded-3xl p-5 flex flex-col gap-3 shadow-md">
-                <div className="flex justify-between items-center w-full">
-                  <div className="flex flex-col text-right">
-                    <span className="text-white font-black text-[15px]">פעילות יומית</span>
-                    <span className="text-brand-muted text-[11px] font-bold">בדרך לרמה {currentLevel + 1}</span>
-                  </div>
-                  <span className="text-brand-muted text-[12px] font-black tracking-widest bg-surface px-3 py-1.5 rounded-xl border border-white/[0.05]">
-                    <span className="text-accent-primary drop-shadow-[0_0_5px_rgba(168,85,247,0.5)]">{currentXP}</span> / {xpToNextLevel}
-                  </span>
+              <div className="flex flex-col gap-2.5">
+                <div className="flex justify-between items-end">
+                  <span className="text-brand-muted text-[12px] font-black tracking-widest">פעילות יומית</span>
+                  <span className="text-brand-muted text-[12px] font-bold"><span className="text-accent-primary font-black drop-shadow-md">{currentXP}</span> / {xpToNextLevel}</span>
                 </div>
-                <div className="w-full h-3 bg-surface rounded-full overflow-hidden relative shadow-inner border border-white/[0.02] mt-1">
+                <div className="w-full h-3 bg-surface-card border border-white/[0.02] rounded-full overflow-hidden relative shadow-inner">
                   <motion.div initial={{ width: 0 }} animate={{ width: `${xpProgress}%` }} transition={{ duration: 1.5, ease: 'easeOut' }} className="absolute top-0 right-0 h-full bg-gradient-to-l from-accent-primary via-indigo-400 to-purple-400 rounded-full" />
                 </div>
               </div>
