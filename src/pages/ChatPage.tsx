@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useScroll, useMotionValueEvent } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { Loader2, Send, UserCircle, Edit2, Trash2, X, ChevronLeft, Crown } from 'lucide-react';
+import { Loader2, Send, Edit2, Trash2, X, Crown } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 
@@ -137,24 +137,21 @@ export const ChatPage: React.FC = () => {
   return (
     <div className="fixed inset-0 z-[80] flex flex-col h-[100dvh] bg-surface" dir="rtl">
       
-      {/* HEADER */}
+      {/* HEADER - Centered and Clean */}
       <motion.div
         initial={{ y: 0 }}
         animate={{ y: showHeader ? 0 : -100 }}
         transition={{ duration: 0.2 }}
-        className="fixed top-0 left-0 right-0 z-[90] flex items-center justify-between px-4 pt-6 pb-4 bg-surface/90 backdrop-blur-2xl border-b border-surface-border shadow-sm"
+        className="fixed top-0 left-0 right-0 z-[90] flex flex-col items-center justify-center pt-6 pb-4 bg-surface/90 backdrop-blur-2xl border-b border-surface-border shadow-sm"
       >
-        <button
-          onClick={() => { triggerFeedback('pop'); navigate(-1); }}
-          className="w-10 h-10 flex justify-center items-center bg-surface-card border border-surface-border rounded-full shadow-sm active:scale-90 transition-all hover:bg-white/5"
-        >
-          <ChevronLeft size={20} className="text-brand" />
-        </button>
-
         <div className="flex flex-col items-center cursor-pointer active:scale-95 transition-transform" onClick={() => navigate(`/profile/${userId}`)}>
           <div className="relative mb-1">
             <div className="w-10 h-10 rounded-full bg-surface-card overflow-hidden border border-surface-border flex items-center justify-center shadow-sm">
-              {targetProfile?.avatar_url ? <img src={targetProfile.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={24} className="text-brand-muted" />}
+              {targetProfile?.avatar_url ? (
+                <img src={targetProfile.avatar_url} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-brand-muted font-black text-[16px]">{(targetProfile?.full_name || 'א')[0]}</span>
+              )}
             </div>
             <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-surface rounded-full shadow-[0_0_8px_#22c55e]" />
           </div>
@@ -163,15 +160,12 @@ export const ChatPage: React.FC = () => {
             {isCore && <Crown size={12} className="text-accent-primary" />}
           </div>
         </div>
-
-        <div className="w-10" /> {/* Spacer for symmetry */}
       </motion.div>
 
       {/* MESSAGES AREA */}
       <div className="flex-1 overflow-y-auto px-4 pt-32 pb-4 flex flex-col gap-5 scrollbar-hide" ref={scrollRef}>
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center m-auto opacity-50">
-            <MessageSquare size={48} className="text-brand-muted mb-4" />
             <p className="text-brand-muted font-black text-[12px] tracking-widest uppercase">אין הודעות עדיין</p>
           </div>
         ) : (
@@ -182,7 +176,11 @@ export const ChatPage: React.FC = () => {
             return (
               <div key={msg.id} className={`flex gap-3 w-full items-end ${isMine ? 'flex-row' : 'flex-row-reverse'}`}>
                 <div className="w-8 h-8 min-w-[32px] rounded-full shrink-0 overflow-hidden border border-surface-border flex items-center justify-center bg-surface-card shadow-sm">
-                  {profileInfo?.avatar_url ? <img src={profileInfo.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-1.5 text-brand-muted" />}
+                  {profileInfo?.avatar_url ? (
+                    <img src={profileInfo.avatar_url} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-brand-muted font-black text-[12px]">{(profileInfo?.full_name || 'א')[0]}</span>
+                  )}
                 </div>
                 
                 <div
@@ -204,8 +202,8 @@ export const ChatPage: React.FC = () => {
         )}
       </div>
 
-      {/* TYPING AREA */}
-      <div className="p-4 bg-surface/90 backdrop-blur-2xl border-t border-surface-border shrink-0 pb-[calc(env(safe-area-inset-bottom)+16px)] z-[90]">
+      {/* TYPING AREA - Pushed up above Bottom Nav */}
+      <div className="p-4 bg-surface/90 backdrop-blur-2xl border-t border-surface-border shrink-0 pb-[100px] z-[90]">
         
         {editingMessageId && (
           <div className="text-[11px] text-accent-primary flex items-center justify-between px-3 py-1.5 bg-surface-card border border-surface-border rounded-lg w-fit mb-2 shadow-sm">
