@@ -37,7 +37,6 @@ export const CirclePage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const commentsDragControls = useDragControls();
-  const membersDragControls = useDragControls();
 
   const [mounted, setMounted] = useState(false);
   const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
@@ -248,23 +247,28 @@ export const CirclePage: React.FC = () => {
 
       // Edit Main Post
       if (editingPost) {
-        await supabase.from('posts').update({ content: newPost.trim() }).eq('id', editingPost.id);
+        const { error } = await supabase.from('posts').update({ content: newPost.trim() }).eq('id', editingPost.id);
+        if (error) throw error;
         toast.success('עודכן בהצלחה'); closeOverlay();
       } else {
         // Create Main Post (Text or Media)
         let media_url: string | null = null;
         let media_type = 'text';
+        
         if (selectedFile) {
           const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}`;
           const { data: uploadData, error: uploadError } = await supabase.storage.from('feed_images').upload(fileName, selectedFile);
-          if (uploadError) throw uploadError;
+          
+          if (uploadError) {
+             throw new Error('שגיאה בהעלאת התמונה: ' + uploadError.message);
+          }
+          
           if (uploadData) {
             media_url = supabase.storage.from('feed_images').getPublicUrl(uploadData.path).data.publicUrl;
             media_type = selectedFile.type.startsWith('video/') ? 'video' : 'image';
           }
         }
 
-        // שימו לב: הסרתי את gift_amount מההכנסה ל-DB כדי למנוע שגיאות, זה מנוהל רק מקומית לצרכי תצוגה בלייב (לפי האפיון שלנו)
         const { data: insertedPost, error } = await supabase.from('posts').insert({
           circle_id: data.circle.id, 
           user_id: currentUserId, 
@@ -274,13 +278,22 @@ export const CirclePage: React.FC = () => {
         }).select('*, profiles!user_id(*), likes(user_id), comments(id)').single();
 
         if (error) throw error;
+        
         if (insertedPost) {
           const newMsg = { ...insertedPost, likes_count: 0, comments_count: 0, is_liked: false, gift_amount: isGift ? giftAmount : 0 };
           setData((curr: any) => ({ ...curr, posts: [newMsg, ...curr.posts] }));
         }
       }
-      setNewPost(''); setSelectedFile(null); setEditingPost(null); triggerFeedback('pop');
-    } catch { toast.error('שגיאה בשליחה'); } finally { setPosting(false); }
+      
+      setNewPost(''); 
+      setSelectedFile(null); 
+      setEditingPost(null); 
+      triggerFeedback('pop');
+    } catch (err: any) { 
+      toast.error(err.message || 'שגיאה בשליחת ההודעה'); 
+    } finally { 
+      setPosting(false); 
+    }
   };
 
   const handleLike = async (postId: string, isLiked: boolean) => {
@@ -372,11 +385,11 @@ export const CirclePage: React.FC = () => {
     <>
       <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*" />
       
-      {/* MAIN LAYOUT: 100dvh, flex-col, overflow-hidden */}
+      {/* MAIN LAYOUT: 100dvh flex-col to bound the content accurately */}
       <FadeIn className="bg-surface h-[100dvh] font-sans flex flex-col relative overflow-hidden" dir="rtl">
         
         {/* 🔝 HERO SECTION & STATS (Fixed Top) */}
-        <div className="relative w-full h-[180px] shrink-0 bg-black overflow-hidden flex flex-col justify-end pb-4">
+        <div className="relative w-full h-[160px] shrink-0 bg-black overflow-hidden flex flex-col justify-end pb-3">
           {circle.cover_url ? (
             <img src={circle.cover_url} className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-luminosity" />
           ) : (
@@ -385,10 +398,9 @@ export const CirclePage: React.FC = () => {
           <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/80 to-transparent"></div>
           
           <div className="relative z-10 px-5 text-center flex flex-col items-center">
-            <h1 className="text-2xl font-black text-brand drop-shadow-md tracking-tight mb-1">{circle.name}</h1>
-            <p className="text-brand-muted text-[11px] font-medium max-w-[280px] line-clamp-1 leading-relaxed mb-3">{circle.description}</p>
+            <h1 className="text-2xl font-black text-brand drop-shadow-md tracking-tight mb-2">{circle.name}</h1>
             
-            {/* Inline Live Stats replacing INNER MEMBER block */}
+            {/* Inline Live Stats */}
             <div className="flex items-center justify-center gap-4 bg-surface/50 backdrop-blur-md border border-surface-border px-5 py-1.5 rounded-full shadow-sm">
               <div className="flex items-center gap-1.5">
                 <Eye size={12} className="text-brand-muted" />
@@ -440,8 +452,8 @@ export const CirclePage: React.FC = () => {
           /* 📱 LOGGED IN MEMBER VIEW */
           <div className="flex flex-col flex-1 overflow-hidden">
             
-            {/* TABS (Aligned to Right/Start) */}
-            <div className="flex justify-start border-b border-surface-border shrink-0 px-4 mt-1 gap-6 overflow-x-auto scrollbar-hide">
+            {/* TABS (Right, Center, Left alignment) */}
+            <div className="flex justify-between border-b border-surface-border shrink-0 px-6 mt-1">
               {['chat', 'drops', 'members'].map((tab) => (
                 <button
                   key={tab}
@@ -459,7 +471,7 @@ export const CirclePage: React.FC = () => {
               <div className="flex-1 flex flex-col overflow-hidden bg-surface relative">
                 
                 {/* Chat Feed (flex-col-reverse = WhatsApp style, scrolls from bottom) */}
-                <div className="flex-1 p-4 flex flex-col-reverse gap-6 overflow-y-auto scrollbar-hide">
+                <div className="flex-1 p-4 flex flex-col-reverse gap-5 overflow-y-auto scrollbar-hide">
                   
                   {hasMorePosts && posts.length > 0 && (
                     <div className="flex justify-center mt-2 mb-4">
@@ -482,39 +494,44 @@ export const CirclePage: React.FC = () => {
                             {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <span className="text-brand-muted font-black">{(post.profiles?.full_name || 'א')[0]}</span>}
                           </div>
                           
-                          <div className={`flex flex-col max-w-[80%] ${isMine ? 'items-end' : 'items-start'}`}>
+                          <div className={`flex flex-col max-w-[85%] ${isMine ? 'items-end' : 'items-start'}`}>
                             <div className="flex items-center gap-1.5 mb-1 px-1">
                               <span className="text-[11px] font-bold text-brand-muted">{post.profiles?.full_name || 'אנונימי'}</span>
                               {isCore && <span className="text-accent-primary text-[9px] font-black uppercase">CORE</span>}
                             </div>
                             
-                            {/* UNIFIED BUBBLE FOR TEXT & MEDIA */}
-                            <div className={`p-3 rounded-[22px] shadow-sm ${
+                            {/* UNIFIED BUBBLE FOR TEXT & MEDIA (Bleeds to edges) */}
+                            <div className={`rounded-[22px] shadow-sm flex flex-col overflow-hidden ${
                               post.gift_amount 
                                 ? 'bg-surface-card border border-accent-primary/50' 
                                 : isMine ? 'bg-surface-card border border-surface-border rounded-tr-sm' : 'bg-surface border border-surface-border rounded-tl-sm'
                             }`}>
                               {post.gift_amount > 0 && (
-                                <div className="flex items-center gap-1.5 text-accent-primary text-[10px] font-black mb-1.5 uppercase tracking-widest">
+                                <div className="flex items-center gap-1.5 text-accent-primary text-[10px] font-black mb-1 px-3 pt-3 uppercase tracking-widest">
                                   <Gift size={12} /> נשלח {post.gift_amount} CRD
                                 </div>
                               )}
                               
+                              {/* Media stretches to the edges of the bubble! */}
                               {hasMedia && (
-                                <div className="mb-2 w-full overflow-hidden rounded-[16px] border border-surface-border bg-black" onClick={() => { if (!isVideo) openOverlay(() => { setFullScreenMedia([post]); setCurrentMediaIndex(0); }); }}>
+                                <div className="w-full relative bg-black cursor-pointer" onClick={() => { if (!isVideo) openOverlay(() => { setFullScreenMedia([post]); setCurrentMediaIndex(0); }); }}>
                                   {isVideo ? (
-                                    <FeedVideo src={post.media_url} className="w-full max-h-[250px] object-cover" />
+                                    <FeedVideo src={post.media_url} className="w-full max-h-[300px] object-cover" />
                                   ) : (
-                                    <img src={post.media_url} loading="lazy" className="w-full max-h-[250px] object-cover" />
+                                    <img src={post.media_url} loading="lazy" className="w-full max-h-[300px] object-cover" />
                                   )}
                                 </div>
                               )}
 
+                              {/* Text content under the media */}
                               {post.content && (
-                                <p className={`text-[14px] leading-relaxed whitespace-pre-wrap px-1 ${post.gift_amount ? 'text-brand font-medium' : 'text-brand'}`}>{post.content}</p>
+                                <p className={`text-[14px] leading-relaxed whitespace-pre-wrap px-3 ${hasMedia ? 'py-3' : 'p-3'} ${post.gift_amount ? 'text-brand font-medium' : 'text-brand'}`}>
+                                  {post.content}
+                                </p>
                               )}
                             </div>
                             
+                            {/* Actions under the bubble */}
                             <div className={`flex items-center gap-4 mt-1.5 px-2 ${isMine ? 'flex-row-reverse' : ''}`}>
                               <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-1 active:scale-90 transition-transform ${post.is_liked ? 'text-red-500' : 'text-brand-muted'}`}>
                                 <Heart size={12} fill={post.is_liked ? 'currentColor' : 'none'} />
@@ -561,11 +578,10 @@ export const CirclePage: React.FC = () => {
                       </div>
                     );
                   })}
-
                 </div>
 
-                {/* 💡 SMART CHAT INPUT (Fixed Bottom, Adjusted Padding) */}
-                <div className="shrink-0 bg-surface border-t border-surface-border px-3 py-3 pb-6 flex flex-col gap-2 z-40 shadow-[0_-10px_20px_rgba(0,0,0,0.2)]">
+                {/* 💡 SMART CHAT INPUT (Fixed above Bottom Nav with mb-[80px]) */}
+                <div className="shrink-0 bg-surface border-t border-surface-border px-3 py-3 flex flex-col gap-2 z-40 shadow-[0_-10px_20px_rgba(0,0,0,0.2)] mb-[80px]">
                   
                   {/* Thread Reply Indicator */}
                   <AnimatePresence>
@@ -620,7 +636,7 @@ export const CirclePage: React.FC = () => {
 
             {/* 📦 DROPS */}
             {activeTab === 'drops' && (
-              <div className="flex-1 p-4 grid grid-cols-2 gap-4 bg-surface overflow-y-auto">
+              <div className="flex-1 p-4 grid grid-cols-2 gap-4 bg-surface overflow-y-auto mb-[80px]">
                 {[1, 2, 3, 4].map((drop) => (
                   <div key={drop} className="aspect-[3/4] bg-surface-card rounded-[24px] border border-surface-border overflow-hidden relative group cursor-pointer shadow-md">
                     <img src={`https://images.unsplash.com/photo-${drop === 1 ? '1600880292203-757bb62b4baf' : drop === 2 ? '1571171637578-41bc2dd41cd2' : drop === 3 ? '1551028719-0c1bb9643c70' : '1564648351416-3eaf9a8eb5fc'}?auto=format&fit=crop&q=80&w=400`} className="w-full h-full object-cover blur-md opacity-40 scale-110" />
@@ -639,7 +655,7 @@ export const CirclePage: React.FC = () => {
 
             {/* 👥 MEMBERS */}
             {activeTab === 'members' && (
-              <div className="flex-1 p-4 flex flex-col gap-3 bg-surface overflow-y-auto">
+              <div className="flex-1 p-4 flex flex-col gap-3 bg-surface overflow-y-auto mb-[80px]">
                 {membersList.length === 0 ? (
                   <div className="text-center text-brand-muted text-[13px] mt-10 font-bold">אין חברים במועדון</div>
                 ) : (
@@ -682,7 +698,7 @@ export const CirclePage: React.FC = () => {
                         
                         <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }} className="absolute bottom-6 left-4 z-[60] active:scale-90 transition-transform"><MoreVertical size={26} strokeWidth={2.5} className="text-brand" /></button>
                         
-                        <button onClick={(e) => { e.stopPropagation(); closeOverlay(); }} className="absolute top-6 left-4 z-[60] active:scale-90 transition-transform bg-surface-card rounded-full p-2"><X size={20} className="text-brand" /></button>
+                        <button onClick={(e) => { e.stopPropagation(); closeOverlay(); }} className="absolute top-6 left-4 z-[60] active:scale-90 transition-transform bg-surface-card border border-surface-border rounded-full p-2"><X size={20} className="text-brand" /></button>
                       </div>
                     );
                   })}
