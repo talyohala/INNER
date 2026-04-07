@@ -223,7 +223,11 @@ export const ChatPage: React.FC = () => {
           <button 
             onClick={sendMessage} 
             disabled={!newMessage.trim()} 
-            className={`w-10 h-10 rounded-full flex items-center justify-center text-surface transition-all shadow-md active:scale-95 ${newMessage.trim() ? 'bg-white opacity-100' : 'bg-surface-border opacity-30 text-brand-muted'}`}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md active:scale-95 ${
+              newMessage.trim() 
+              ? 'bg-accent-primary text-white opacity-100' 
+              : 'bg-surface-border text-brand-muted opacity-30'
+            }`}
           >
             <Send size={18} className="rtl:-scale-x-100 -ml-0.5" />
           </button>
