@@ -872,29 +872,36 @@ export const HomePage: React.FC = () => {
                       )}
 
                       {/* Action Buttons: Left side column */}
-                      <div className="absolute bottom-32 left-4 flex flex-col gap-6 items-center z-50 pointer-events-auto">
+                      <div className="absolute bottom-36 left-4 flex flex-col gap-6 items-center z-50 pointer-events-auto">
                         <button onClick={(e) => { e.stopPropagation(); handleLike(vid.id, vid.is_liked); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform">
                           <Heart size={30} className={vid.is_liked ? 'text-red-500' : 'text-white'} fill={vid.is_liked ? 'currentColor' : 'none'} strokeWidth={1.5} />
                           <span className="text-white text-[13px] font-black drop-shadow-md">{vid.likes_count}</span>
                         </button>
                         
-                        <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(vid); setActiveCommentsPostId(vid.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', vid.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); }); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform">
-                          <MessageSquare size={30} className="text-white" strokeWidth={1.5} />
+                        <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(vid); setActiveCommentsPostId(vid.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', vid.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); }); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform text-white">
+                          <MessageSquare size={30} strokeWidth={1.5} />
                           <span className="text-white text-[13px] font-black drop-shadow-md">{vid.comments_count}</span>
                         </button>
-                        
-                        <button onClick={(e) => { e.stopPropagation(); handleShare(vid); }} className="active:scale-90 transition-transform">
-                          <Share2 size={30} className="text-white" strokeWidth={1.5} />
+
+                        <button onClick={(e) => { e.stopPropagation(); handleShare(vid); }} className="active:scale-90 transition-transform text-white">
+                          <Share2 size={30} strokeWidth={1.5} />
                         </button>
 
-                        <button onClick={(e) => { e.stopPropagation(); handleSavePost(vid); }} className="active:scale-90 transition-transform">
-                          <Bookmark size={30} className="text-white" strokeWidth={1.5} />
-                        </button>
-
-                        <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }} className="active:scale-90 transition-transform">
-                          <MoreVertical size={30} className="text-white" strokeWidth={1.5} />
+                        <button onClick={(e) => { e.stopPropagation(); handleSavePost(vid); }} className="active:scale-90 transition-transform text-white">
+                          <Bookmark size={30} strokeWidth={1.5} />
                         </button>
                       </div>
+
+                      {/* 3 Dots at the bottom left */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openOverlay(() => setOptionsMenuPost(vid));
+                        }}
+                        className="absolute bottom-10 left-5 z-[60] active:scale-90 transition-transform drop-shadow-md pointer-events-auto"
+                      >
+                        <MoreVertical size={24} className="text-white" />
+                      </button>
 
                       {/* Profile and Content Info: Bottom area */}
                       <div className="absolute bottom-0 left-0 right-0 px-5 pb-8 pt-44 bg-gradient-to-t from-surface via-surface/80 to-transparent flex flex-col pointer-events-none">
