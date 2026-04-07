@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -19,7 +19,6 @@ import {
   Crown,
   Briefcase,
   Sparkles,
-  CheckCircle2,
   ChevronDown,
   X
 } from 'lucide-react';
@@ -89,12 +88,6 @@ export const EditProfilePage: React.FC = () => {
     if (user && !authLoading) loadProfileData();
   }, [user, authLoading]);
 
-  const profileCompleteness = useMemo(() => {
-    const fields = [formData.full_name, formData.username, formData.bio, formData.social_link, formData.zodiac, formData.location, formData.birth_date, formData.relationship_status, formData.education, formData.job_title, data.profile?.avatar_url, data.profile?.cover_url];
-    const filled = fields.filter(Boolean).length;
-    return Math.round((filled / fields.length) * 100);
-  }, [formData, data.profile]);
-
   const handleMediaUpload = async (file: File, type: 'avatar' | 'cover') => {
     if (!file || !user?.id) return;
     const setUploading = type === 'avatar' ? setUploadingAvatar : setUploadingCover;
@@ -154,17 +147,14 @@ export const EditProfilePage: React.FC = () => {
   return (
     <div className="bg-surface min-h-screen relative font-sans" dir="rtl">
       
-      {/* HEADER */}
-      <div className="fixed top-6 left-4 right-4 flex justify-center items-center z-[99999] pointer-events-none">
-        <div className="bg-surface-card/70 backdrop-blur-xl border border-surface-border px-6 py-2.5 rounded-full shadow-lg flex items-center gap-2.5">
-          <span className="text-brand font-black text-[13px] tracking-widest uppercase">עריכת פרופיל</span>
-          <Edit2 size={16} className="text-accent-primary" />
-        </div>
+      {/* HEADER (Clean, no frame) */}
+      <div className="fixed top-6 left-0 right-0 flex justify-center items-center z-[99999] pointer-events-none">
+        <span className="text-brand font-black text-[12px] tracking-widest uppercase drop-shadow-md">עריכת פרופיל</span>
       </div>
 
       <FadeIn className="relative w-full overflow-x-hidden flex flex-col pb-32">
         
-        {/* 📸 COVER SECTION (Absolute to scroll natively) */}
+        {/* 📸 COVER SECTION */}
         <div className="absolute top-0 left-0 w-full h-[240px] bg-surface-card z-0 overflow-hidden">
           <input type="file" ref={coverInputRef} onChange={(e) => { if (e.target.files?.[0]) handleMediaUpload(e.target.files[0], 'cover'); if (coverInputRef.current) coverInputRef.current.value = ''; }} accept="image/*" className="hidden" />
           
@@ -174,45 +164,33 @@ export const EditProfilePage: React.FC = () => {
             <div className="absolute inset-0 bg-gradient-to-b from-accent-primary/10 to-transparent" />
           )}
 
-          {/* Camera Button scrolls natively with the cover! */}
+          {/* Camera Button in Top Left Corner */}
           <button 
             onClick={() => coverInputRef.current?.click()} 
             disabled={uploadingCover} 
-            className="absolute bottom-5 left-5 w-11 h-11 bg-surface-card/80 backdrop-blur-xl text-brand rounded-full flex items-center justify-center shadow-lg border border-surface-border active:scale-90 transition-all disabled:opacity-50 z-20"
+            className="absolute top-5 left-5 w-10 h-10 bg-surface-card/80 backdrop-blur-xl text-brand rounded-full flex items-center justify-center shadow-lg border border-surface-border active:scale-90 transition-all disabled:opacity-50 z-20"
           >
-            {uploadingCover ? <Loader2 size={20} className="animate-spin" /> : <Camera size={20} />}
+            {uploadingCover ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
           </button>
         </div>
 
-        {/* 👤 CONTENT WRAPPER */}
-        <div className="relative z-10 w-full px-2 pt-[190px]">
-          <div className="bg-surface rounded-t-[40px] w-full min-h-screen flex flex-col items-center pt-0 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] border-t border-surface-border">
+        {/* 👤 CONTENT WRAPPER (Edge-to-Edge) */}
+        <div className="relative z-10 w-full pt-[190px]">
+          <div className="bg-surface rounded-t-[40px] w-full min-h-screen flex flex-col items-center pt-0 shadow-[0_-20px_40px_rgba(0,0,0,0.7)] border-t border-surface-border px-4">
             
-            {/* Avatar */}
-            <motion.div whileHover={{ scale: 1.05 }} className="w-[110px] h-[110px] rounded-full bg-surface shadow-xl p-1.5 relative -mt-[55px] z-20 group">
+            {/* Avatar (Translucent White Camera) */}
+            <motion.div whileHover={{ scale: 1.05 }} className="w-[110px] h-[110px] rounded-full bg-surface shadow-xl p-1.5 relative -mt-[55px] z-20 group mb-6">
               <div className="w-full h-full rounded-full overflow-hidden bg-surface-card border border-surface-border relative">
                 {data.profile?.avatar_url ? <img src={data.profile.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={50} className="text-brand-muted absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />}
               </div>
               <input type="file" ref={avatarInputRef} onChange={(e) => { if (e.target.files?.[0]) handleMediaUpload(e.target.files[0], 'avatar'); if (avatarInputRef.current) avatarInputRef.current.value = ''; }} accept="image/*" className="hidden" />
-              <button onClick={() => avatarInputRef.current?.click()} disabled={uploadingAvatar} className="absolute bottom-0 right-0 w-9 h-9 bg-accent-primary text-surface rounded-full flex items-center justify-center shadow-lg border-2 border-surface active:scale-90 transition-all z-20 disabled:opacity-50"><Camera size={16} /></button>
+              <button onClick={() => avatarInputRef.current?.click()} disabled={uploadingAvatar} className="absolute bottom-0 right-0 w-10 h-10 bg-white/20 backdrop-blur-md text-white rounded-full flex items-center justify-center shadow-lg border border-white/30 active:scale-90 transition-all z-20 disabled:opacity-50">
+                <Camera size={18} />
+              </button>
             </motion.div>
 
-            {/* Status Card (Edge to Edge width) */}
-            <div className="w-full mt-6 mb-6">
-              <div className="bg-surface-card border border-surface-border rounded-[32px] p-5 shadow-sm">
-                <div className="flex items-center justify-between mb-3.5 px-1">
-                  <div className="text-right">
-                    <div className="text-brand font-black text-[16px]">התקדמות פרופיל</div>
-                    <div className="text-brand-muted text-[10px] font-bold tracking-widest uppercase">Profile Status</div>
-                  </div>
-                  <div className="flex items-center gap-2 text-accent-primary"><CheckCircle2 size={18} /><span className="text-lg font-black">{profileCompleteness}%</span></div>
-                </div>
-                <div className="w-full h-3 bg-surface rounded-full overflow-hidden shadow-inner border border-surface-border"><motion.div initial={{ width: 0 }} animate={{ width: `${profileCompleteness}%` }} transition={{ duration: 0.8 }} className="h-full rounded-full bg-accent-primary" /></div>
-              </div>
-            </div>
-
             {/* MAIN FORM - CLEAN UI */}
-            <div className="w-full flex flex-col gap-6">
+            <div className="w-full max-w-[500px] flex flex-col gap-6">
               
               <div className="bg-surface-card border border-surface-border flex flex-col gap-6 rounded-[32px] p-6 shadow-sm relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-40 h-40 bg-accent-primary/5 blur-[50px] rounded-full pointer-events-none" />
