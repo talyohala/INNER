@@ -11,13 +11,11 @@ import {
   UserCheck,
   MapPin,
   Calendar,
-  GraduationCap,
   HeartHandshake,
   Shield,
   Camera,
   Key,
   Crown,
-  Briefcase,
   Sparkles,
   ChevronDown
 } from 'lucide-react';
@@ -65,7 +63,7 @@ export const EditProfilePage: React.FC = () => {
   const [showRelationshipPicker, setShowRelationshipPicker] = useState(false);
 
   const [formData, setFormData] = useState({
-    full_name: '', username: '', bio: '', social_link: '', zodiac: '', location: '', birth_date: '', relationship_status: '', education: '', job_title: '',
+    full_name: '', username: '', bio: '', social_link: '', zodiac: '', location: '', birth_date: '', relationship_status: ''
   });
 
   const [passwordData, setPasswordData] = useState({ current_password: '', new_password: '', confirm_password: '', });
@@ -86,7 +84,14 @@ export const EditProfilePage: React.FC = () => {
         setData({ profile: profileData });
         if (profileData) {
           setFormData({
-            full_name: profileData.full_name || '', username: profileData.username || '', bio: profileData.bio || '', social_link: profileData.social_link || '', zodiac: profileData.zodiac || '', location: profileData.location || '', birth_date: profileData.birth_date ? profileData.birth_date.split('T')[0] : '', relationship_status: profileData.relationship_status || '', education: profileData.education || '', job_title: profileData.job_title || '',
+            full_name: profileData.full_name || '', 
+            username: profileData.username || '', 
+            bio: profileData.bio || '', 
+            social_link: profileData.social_link || '', 
+            zodiac: profileData.zodiac || '', 
+            location: profileData.location || '', 
+            birth_date: profileData.birth_date ? profileData.birth_date.split('T')[0] : '', 
+            relationship_status: profileData.relationship_status || ''
           });
         }
       } catch (err: any) {
@@ -154,16 +159,17 @@ export const EditProfilePage: React.FC = () => {
 
   return (
     <div className="bg-surface min-h-screen relative font-sans overflow-x-hidden" dir="rtl">
-      
-      {/* 🔝 HEADER (Fixed, Outside FadeIn to stay perfectly static) */}
-      <div className="fixed top-5 left-0 right-0 flex justify-center items-center z-[99999] pointer-events-none">
-        <span className="text-brand font-black text-[12px] tracking-[0.2em] uppercase drop-shadow-md">עריכת פרופיל</span>
-      </div>
 
       <FadeIn className="relative w-full flex flex-col pb-32">
         
-        {/* 📸 COVER SECTION (Scrolls naturally with the page) */}
+        {/* 📸 COVER SECTION (Absolute to scroll natively) */}
         <div className="absolute top-0 left-0 w-full h-[240px] bg-surface-card z-0 overflow-hidden">
+          
+          {/* הכותרת מקובעת בתוך הקאבר ונגללת יחד איתו */}
+          <div className="absolute top-6 left-0 right-0 flex justify-center items-center z-30 pointer-events-none">
+            <span className="text-white font-black text-[13px] tracking-[0.2em] uppercase drop-shadow-md">עריכת פרופיל</span>
+          </div>
+
           <input type="file" ref={coverInputRef} onChange={(e) => { if (e.target.files?.[0]) handleMediaUpload(e.target.files[0], 'cover'); if (coverInputRef.current) coverInputRef.current.value = ''; }} accept="image/*" className="hidden" />
           
           {data.profile?.cover_url ? (
@@ -184,7 +190,7 @@ export const EditProfilePage: React.FC = () => {
 
         {/* 👤 CONTENT WRAPPER */}
         <div className="relative z-10 w-full pt-[200px] px-2">
-          {/* Main Card (Rounded top, taking almost full width with tiny margins) */}
+          {/* Main Card (Rounded top, edge to edge) */}
           <div className="bg-surface rounded-t-[40px] w-full min-h-screen flex flex-col items-center shadow-[0_-20px_40px_rgba(0,0,0,0.7)] border-t border-surface-border">
             
             {/* Avatar */}
@@ -203,7 +209,7 @@ export const EditProfilePage: React.FC = () => {
               </button>
             </motion.div>
 
-            {/* MAIN FORM - EDGE TO EDGE */}
+            {/* MAIN FORM */}
             <div className="w-full flex flex-col gap-6 px-1">
               
               {/* PERSONAL DETAILS CARD */}
@@ -215,7 +221,8 @@ export const EditProfilePage: React.FC = () => {
                   <Users size={20} className="text-accent-primary" />
                 </div>
 
-                <div className="grid grid-cols-1 gap-6 relative z-10">
+                <div className="grid grid-cols-1 gap-6 relative z-10 px-1">
+                  
                   <div className="grid grid-cols-2 gap-4">
                     <InputField label="שם מלא" icon={UserCheck} value={formData.full_name} onChange={v => setFormData(p=>({...p, full_name: v}))} placeholder="ישראל ישראלי" />
                     <InputField label="שם משתמש" icon={Edit2} value={formData.username} onChange={v => setFormData(p=>({...p, username: v}))} placeholder="user123" dir="ltr" />
@@ -238,11 +245,9 @@ export const EditProfilePage: React.FC = () => {
                     <SelectField label="מצב משפחתי" icon={HeartHandshake} value={selectedRelationship ? selectedRelationship.name : ''} placeholder="בחר מצב..." onClick={() => setShowRelationshipPicker(true)} />
                   </div>
 
-                  <InputField label="עיסוק / מקצוע" icon={Briefcase} value={formData.job_title} onChange={v => setFormData(p=>({...p, job_title: v}))} placeholder="מעצב מוצר, מפתח..." />
-                  <InputField label="השכלה" icon={GraduationCap} value={formData.education} onChange={v => setFormData(p=>({...p, education: v}))} placeholder="סטודנט, תואר ראשון..." />
                 </div>
 
-                <div className="flex justify-between items-center mt-2 bg-surface border border-surface-border rounded-[20px] px-5 py-4 relative z-10 shadow-inner">
+                <div className="flex justify-between items-center mt-4 bg-surface border border-surface-border rounded-[20px] px-5 py-4 relative z-10 shadow-inner">
                   <div className="text-right">
                     <div className="text-brand text-[13px] font-black">תצוגת אודות בפרופיל</div>
                     <div className="text-brand-muted text-[11px] mt-0.5">הפרטים יוצגו בצורה מסודרת בפרופיל שלך.</div>
@@ -264,7 +269,7 @@ export const EditProfilePage: React.FC = () => {
                   <Key size={20} className="text-accent-primary" />
                 </div>
                 
-                <div className="flex flex-col gap-6 relative z-10">
+                <div className="flex flex-col gap-6 relative z-10 px-1">
                   <InputField label="סיסמה נוכחית" icon={Shield} value={passwordData.current_password} onChange={v => setPasswordData(p=>({...p, current_password: v}))} placeholder="••••••••" type="password" />
                   <InputField label="סיסמה חדשה" icon={Shield} value={passwordData.new_password} onChange={v => setPasswordData(p=>({...p, new_password: v}))} placeholder="••••••••" type="password" />
                   <InputField label="אימות סיסמה חדשה" icon={UserCheck} value={passwordData.confirm_password} onChange={v => setPasswordData(p=>({...p, confirm_password: v}))} placeholder="••••••••" type="password" />
@@ -276,8 +281,8 @@ export const EditProfilePage: React.FC = () => {
                   </Button>
                 </div>
               </div>
-
             </div>
+            
           </div>
         </div>
       </FadeIn>
