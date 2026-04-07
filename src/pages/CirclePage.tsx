@@ -6,8 +6,8 @@ import { supabase } from '../lib/supabase';
 import { apiFetch } from '../lib/api';
 import { FadeIn, Button } from '../components/ui';
 import {
-  Users, Loader2, ArrowRight, MessageSquare, Heart, Crown, Radio,
-  Send, Lock, X, UserCircle, Trash2, Edit2, Reply, MoreHorizontal, MoreVertical, Paperclip, Share2, Download, Link as LinkIcon, Bookmark, ShieldAlert, Image as ImageIcon
+  Users, Loader2, MessageSquare, Heart, Crown, Radio,
+  Send, Lock, X, UserCircle, Trash2, Edit2, Reply, MoreVertical, Paperclip, Share2, Download, Link as LinkIcon, Bookmark, ShieldAlert, Image as ImageIcon, Gift, Flame, Eye
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -51,49 +51,50 @@ export const CirclePage: React.FC = () => {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // Tabs State
+  const [activeTab, setActiveTab] = useState<'chat' | 'drops' | 'members'>('chat');
+
+  // Posts / Chat State
   const [page, setPage] = useState(0);
   const [hasMorePosts, setHasMorePosts] = useState(true);
   const POSTS_PER_PAGE = 20;
   const [loadingMore, setLoadingMore] = useState(false);
-
   const [newPost, setNewPost] = useState('');
   const [posting, setPosting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [editingPost, setEditingPost] = useState<any | null>(null);
   const [showCreatePost, setShowCreatePost] = useState(false);
-
   const [joining, setJoining] = useState(false);
 
+  // Comments State
   const [activePost, setActivePost] = useState<any>(null);
   const [activeCommentsPostId, setActiveCommentsPostId] = useState<string | null>(null);
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState('');
   const [loadingComments, setLoadingComments] = useState(false);
-
   const [replyingTo, setReplyingTo] = useState<any | null>(null);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [expandedThreads, setExpandedThreads] = useState<Record<string, boolean>>({});
   const [likedComments, setLikedComments] = useState<Set<string>>(new Set());
   const [commentActionModal, setCommentActionModal] = useState<any | null>(null);
 
+  // Overlays State
   const [optionsMenuPost, setOptionsMenuPost] = useState<any>(null);
   const [activeDescPost, setActiveDescPost] = useState<any>(null);
   const [fullScreenMedia, setFullScreenMedia] = useState<any[] | null>(null);
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
   const scrollTimeout = useRef<any>(null);
-
   const [currentUserId, setCurrentUserId] = useState<string>('');
 
+  // Live & Members State
   const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
   const [membersList, setMembersList] = useState<any[]>([]);
-  const [showMembers, setShowMembers] = useState(false);
-  const [showOnline, setShowOnline] = useState(false);
   const [loadingMembers, setLoadingMembers] = useState(false);
+  const [liveStats, setLiveStats] = useState({ active: 0, typing: 0, giftsSent: 0 });
 
   const stateRef = useRef({
     comments: false, options: false, desc: false,
     fullscreen: false, commentAction: false, create: false,
-    members: false, online: false,
   });
 
   useEffect(() => { setMounted(true); setPortalReady(true); }, []);
@@ -102,16 +103,13 @@ export const CirclePage: React.FC = () => {
     stateRef.current = {
       comments: !!activeCommentsPostId, options: !!optionsMenuPost, desc: !!activeDescPost,
       fullscreen: !!fullScreenMedia, commentAction: !!commentActionModal, create: showCreatePost,
-      members: showMembers, online: showOnline,
     };
-  }, [activeCommentsPostId, optionsMenuPost, activeDescPost, fullScreenMedia, commentActionModal, showCreatePost, showMembers, showOnline]);
+  }, [activeCommentsPostId, optionsMenuPost, activeDescPost, fullScreenMedia, commentActionModal, showCreatePost]);
 
   useEffect(() => {
     const handlePopState = () => {
       const s = stateRef.current;
       if (s.commentAction) setCommentActionModal(null);
-      else if (s.members) setShowMembers(false);
-      else if (s.online) setShowOnline(false);
       else if (s.comments) { setActiveCommentsPostId(null); setActivePost(null); setReplyingTo(null); }
       else if (s.options) setOptionsMenuPost(null);
       else if (s.desc) setActiveDescPost(null);
@@ -128,26 +126,28 @@ export const CirclePage: React.FC = () => {
   useEffect(() => {
     fetchCircleData();
     const channel = supabase.channel(`circle_${slug}`).on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => {
-      if (page === 0) fetchCircleData(); 
+      if (page === 0) fetchCircleData();
     }).subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [slug]);
 
   useEffect(() => {
-    if (!currentUserId || !myProfile || !slug) return;
-    const presenceChannel = supabase.channel(`presence_${slug}`, { config: { presence: { key: currentUserId } } });
+    if (!currentUserId || !myProfile || !data?.circle?.id) return;
+    const presenceChannel = supabase.channel(`presence_${data.circle.id}`, { config: { presence: { key: currentUserId } } });
+    
     presenceChannel.on('presence', { event: 'sync' }, () => {
       const state = presenceChannel.presenceState();
       const activeUsers = Object.values(state).map((s: any) => s[0]);
       const uniqueUsers = Array.from(new Map(activeUsers.map(item => [item.id, item])).values());
       setOnlineUsers(uniqueUsers);
+      setLiveStats(prev => ({ ...prev, active: uniqueUsers.length > 0 ? uniqueUsers.length : prev.active }));
     }).subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
         await presenceChannel.track({ id: currentUserId, full_name: myProfile.full_name, username: myProfile.username, avatar_url: myProfile.avatar_url });
       }
     });
     return () => { supabase.removeChannel(presenceChannel); };
-  }, [currentUserId, myProfile, slug]);
+  }, [currentUserId, myProfile, data?.circle?.id]);
 
   const fetchCircleData = async () => {
     try {
@@ -165,9 +165,13 @@ export const CirclePage: React.FC = () => {
       if (!circle) throw new Error('מועדון לא נמצא');
 
       let isMember = false;
+      let membership = null;
       if (uid) {
-        const { data: memberData } = await supabase.from('circle_members').select('user_id').eq('circle_id', circle.id).eq('user_id', uid);
-        isMember = !!(memberData && memberData.length > 0);
+        const { data: memberData } = await supabase.from('circle_members').select('*').eq('circle_id', circle.id).eq('user_id', uid).maybeSingle();
+        if (memberData) {
+          isMember = true;
+          membership = memberData;
+        }
       }
 
       const { data: pData } = await supabase.from('posts')
@@ -175,7 +179,7 @@ export const CirclePage: React.FC = () => {
         .eq('circle_id', circle.id)
         .order('created_at', { ascending: false })
         .limit(POSTS_PER_PAGE);
-      
+
       let formattedPosts: any[] = [];
       if (pData) {
         formattedPosts = pData.map((p: any) => ({
@@ -186,10 +190,27 @@ export const CirclePage: React.FC = () => {
         }));
       }
 
+      // חברי מועדון לטאב חברים
+      fetchMembersList(circle.id);
+
+      // סטטיסטיקות לייב מזויפות (FOMO Engine)
+      setLiveStats({
+        active: Math.max(1, Math.floor((circle.members_count || 10) * 0.2 + Math.random() * 5)),
+        typing: Math.floor(Math.random() * 4),
+        giftsSent: Math.floor(Math.random() * 200) * 10
+      });
+
       setPage(0);
       setHasMorePosts(pData?.length === POSTS_PER_PAGE);
-      setData({ circle, isMember, posts: formattedPosts });
+      setData({ circle, isMember, membership, posts: formattedPosts });
     } catch { navigate('/'); } finally { setLoading(false); }
+  };
+
+  const fetchMembersList = async (circleId: string) => {
+    try {
+      const { data: membersData } = await supabase.from('circle_members').select('role, profiles(*)').eq('circle_id', circleId);
+      if (membersData) setMembersList(membersData.sort((a, b) => (a.role === 'admin' ? -1 : b.role === 'admin' ? 1 : 0)));
+    } catch (err) {}
   };
 
   const loadMorePosts = async () => {
@@ -210,7 +231,6 @@ export const CirclePage: React.FC = () => {
           comments_count: p.comments?.length || 0,
           is_liked: !!currentUserId && p.likes?.some((l: any) => l.user_id === currentUserId),
         }));
-        
         setData((curr: any) => ({ ...curr, posts: [...curr.posts, ...formatted] }));
         setPage(nextPage);
         if (pData.length < POSTS_PER_PAGE) setHasMorePosts(false);
@@ -220,34 +240,30 @@ export const CirclePage: React.FC = () => {
     } catch (err) { toast.error('שגיאה בטעינת פוסטים נוספים'); } finally { setLoadingMore(false); }
   };
 
-  const fetchMembersList = async () => {
-    if (loadingMembers || !data?.circle?.id) return;
-    setLoadingMembers(true);
-    try {
-      const { data: membersData } = await supabase.from('circle_members').select('role, profiles(*)').eq('circle_id', data.circle.id);
-      if (membersData) setMembersList(membersData.sort((a, b) => (a.role === 'admin' ? -1 : b.role === 'admin' ? 1 : 0)));
-    } catch (err) { toast.error('שגיאה בטעינת חברים'); } finally { setLoadingMembers(false); }
-  };
-
-  const handleJoin = async () => {
+  const handleJoin = async (tier: 'INNER' | 'CORE') => {
     if (!currentUserId) return toast.error('יש להתחבר תחילה');
     const reqLevel = data.circle.min_level || 1;
     const curLevel = myProfile?.level || 1;
     if (curLevel < reqLevel) { triggerFeedback('error'); return toast.error(`הסלקטור חסם אותך. דרושה רמה ${reqLevel}.`); }
+    
     setJoining(true); triggerFeedback('pop');
+    
     try {
       if (data.isMember) {
-        await supabase.from('circle_members').delete().match({ circle_id: data.circle.id, user_id: currentUserId });
-        setData((prev: any) => ({ ...prev, isMember: false, circle: { ...prev.circle, members_count: Math.max((prev.circle.members_count || 1) - 1, 0) } }));
+        // Upgrade flow if already member
+        await apiFetch(`/api/circles/${data.circle.slug}/upgrade`, { method: 'POST', headers: { 'x-user-id': currentUserId }, body: JSON.stringify({ tier }) });
+        triggerFeedback('success'); toast.success(`שודרגת ל-${tier}! 👑`);
       } else {
-        const res = await apiFetch(`/api/circles/${data.circle.slug}/join`, { method: 'POST', headers: { 'x-user-id': currentUserId } });
-        if (res) {
-          setData((prev: any) => ({ ...prev, isMember: true, circle: { ...prev.circle, members_count: (prev.circle.members_count || 0) + 1 } }));
-          triggerFeedback('success'); toast.success('ברוך הבא למועדון!');
-          fetchCircleData();
-        }
+        // New join flow
+        await apiFetch(`/api/circles/${data.circle.slug}/join`, { method: 'POST', headers: { 'x-user-id': currentUserId } });
+        triggerFeedback('success'); toast.success('ברוך הבא למועדון! 🎉');
       }
-    } catch (err: any) { toast.error(err?.message || 'שגיאה בהצטרפות'); } finally { setJoining(false); }
+      fetchCircleData();
+    } catch (err: any) { 
+      toast.error(err?.message || 'שגיאה בהצטרפות/שדרוג'); 
+    } finally { 
+      setJoining(false); 
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -256,10 +272,19 @@ export const CirclePage: React.FC = () => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handlePost = async () => {
-    if (!newPost.trim() && !selectedFile && !editingPost) return;
+  const handlePost = async (isGift = false, giftAmount = 0) => {
+    if (!newPost.trim() && !selectedFile && !editingPost && !isGift) return;
     setPosting(true);
     try {
+      if (isGift) {
+        if ((myProfile?.credits || 0) < giftAmount) {
+          toast.error('אין לך מספיק CRD. קפוץ לארנק.');
+          setPosting(false);
+          return;
+        }
+        triggerFeedback('coin');
+      }
+
       if (editingPost) {
         await supabase.from('posts').update({ content: newPost.trim() }).eq('id', editingPost.id);
         toast.success('עודכן בהצלחה'); closeOverlay();
@@ -279,7 +304,7 @@ export const CirclePage: React.FC = () => {
         const { data: insertedPost, error } = await supabase.from('posts').insert({
           circle_id: data.circle.id,
           user_id: currentUserId,
-          content: newPost.trim(),
+          content: newPost.trim() || (isGift ? `שלח מתנה בשווי ${giftAmount} CRD 🎁` : ''),
           media_url,
           media_type,
         }).select('*, profiles!user_id(*), likes(user_id), comments(id)').single();
@@ -287,10 +312,9 @@ export const CirclePage: React.FC = () => {
         if (error) throw error;
         
         if (insertedPost) {
-          setData((curr: any) => ({
-            ...curr,
-            posts: [{ ...insertedPost, likes_count: 0, comments_count: 0, is_liked: false }, ...curr.posts]
-          }));
+          // If it's a gift, we append it visually to look like a highlighted message
+          const newMsg = { ...insertedPost, likes_count: 0, comments_count: 0, is_liked: false, gift_amount: giftAmount };
+          setData((curr: any) => ({ ...curr, posts: [newMsg, ...curr.posts] }));
         }
       }
       setNewPost(''); setSelectedFile(null); setEditingPost(null); triggerFeedback('pop');
@@ -405,8 +429,7 @@ export const CirclePage: React.FC = () => {
 
   if (loading || !data) return <div className="min-h-screen bg-surface flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" /></div>;
 
-  const { circle, isMember, posts } = data;
-  const activeNow = onlineUsers.length > 0 ? onlineUsers.length : Math.floor((circle.members_count || 1) * 0.4) + 1;
+  const { circle, isMember, membership, posts } = data;
   const requiredLevel = circle.min_level || 1;
   const currentLevel = myProfile?.level || 1;
   const levelTooLow = requiredLevel > currentLevel;
@@ -417,227 +440,296 @@ export const CirclePage: React.FC = () => {
     <>
       <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*" />
 
-      <FadeIn className="bg-surface min-h-screen font-sans flex flex-col gap-6 relative overflow-x-hidden pb-32" dir="rtl">
+      <FadeIn className="bg-surface min-h-screen font-sans flex flex-col relative overflow-x-hidden pb-0" dir="rtl">
         
-        {/* סרגל עליון */}
-        <div className="flex items-center justify-center relative z-10 px-5 pt-8">
-          <div className="flex flex-col items-center w-full pointer-events-none">
-            <h1 className="text-[16px] font-black text-brand tracking-tight drop-shadow-md truncate max-w-[200px]">
-              {circle.name}
-            </h1>
-            <span className="text-[10px] text-green-400 font-bold flex items-center gap-1.5 mt-0.5">
-              <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_#22c55e]"></span>
-              לייב
-            </span>
-          </div>
-        </div>
-
-        {/* קאבר מועדון ונתונים */}
-        <div className="flex flex-col items-center text-center relative overflow-hidden min-h-[280px] justify-center w-full border-b border-white/[0.05] -mt-[88px] pt-[88px]">
+        {/* 🔝 HERO SECTION */}
+        <div className="relative w-full h-64 bg-black overflow-hidden shrink-0">
           {circle.cover_url ? (
-            <div className="absolute inset-0 z-0">
-              <img src={circle.cover_url} className="w-full h-full object-cover opacity-40 mix-blend-luminosity" />
-              <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/40 to-transparent"></div>
-            </div>
+            <img src={circle.cover_url} className="w-full h-full object-cover opacity-50 mix-blend-luminosity" />
           ) : (
-            <div className="absolute inset-0 bg-gradient-to-br from-accent-primary/10 to-transparent z-0"></div>
+            <div className="absolute inset-0 bg-gradient-to-br from-accent-primary/20 to-surface"></div>
           )}
-
-          <div className="relative z-10 flex flex-col items-center p-6 w-full mt-auto pb-8">
-            <h2 className="text-3xl font-black text-white drop-shadow-lg mb-3">{circle.name}</h2>
-            <p className="text-brand-muted text-[13px] font-medium max-w-[280px] mb-6 leading-relaxed drop-shadow-md">
-              {circle.description}
-            </p>
-
-            <div className="flex items-center gap-8 bg-surface-card backdrop-blur-xl rounded-full py-3.5 px-10 w-fit text-brand font-black justify-center border border-white/[0.05] shadow-2xl">
-              <button 
-                onClick={() => { openOverlay(() => setShowMembers(true)); fetchMembersList(); triggerFeedback('pop'); }} 
-                className="flex flex-col items-center justify-center text-white hover:text-white/70 transition-colors active:scale-95 min-w-[64px]"
-              >
-                <span className="text-[18px] leading-none mb-1">{circle.members_count || 0}</span>
-                <span className="text-[10px] text-brand-muted font-bold tracking-widest uppercase">חברים</span>
-              </button>
-              
-              <div className="w-px h-10 bg-white/[0.08]"></div>
-              
-              <button 
-                onClick={() => { openOverlay(() => setShowOnline(true)); triggerFeedback('pop'); }} 
-                className="flex flex-col items-center justify-center text-green-400 hover:text-green-300 transition-colors active:scale-95 min-w-[64px]"
-              >
-                <span className="text-[18px] leading-none mb-1">{activeNow}</span>
-                <span className="text-[10px] text-green-500/70 font-bold tracking-widest uppercase">אונליין</span>
-              </button>
-            </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/80 to-transparent"></div>
+          
+          <div className="absolute bottom-0 left-0 right-0 p-5 flex flex-col items-center text-center pb-8">
+            <h1 className="text-3xl font-black text-white drop-shadow-lg tracking-tight mb-2">{circle.name}</h1>
+            <p className="text-brand-muted text-[13px] font-medium max-w-[280px] line-clamp-2 leading-relaxed">{circle.description}</p>
+            
+            {/* User Status Badge */}
+            {isMember && (
+              <div className="mt-4 bg-white/10 backdrop-blur-md border border-white/20 px-4 py-1.5 rounded-full flex items-center gap-2 shadow-lg">
+                <Crown size={14} className={membership?.tier === 'CORE' ? 'text-yellow-400' : 'text-brand-muted'} />
+                <span className="text-[11px] font-black text-white uppercase tracking-widest">{membership?.tier || 'INNER'} MEMBER</span>
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="relative flex flex-col gap-6 w-full px-2">
-          {/* אזור יצירת פוסט */}
-          {isMember && (
-            <div className="w-full px-2">
-              <div className="p-4 rounded-[28px] border border-white/[0.05] bg-surface-card shadow-lg relative z-10 flex flex-col gap-3">
-                <div className="flex gap-3 items-start">
-                  <div className="w-10 h-10 rounded-full bg-surface border border-white/[0.05] shrink-0 overflow-hidden shadow-inner flex items-center justify-center">
-                    {myProfile?.avatar_url ? <img src={myProfile.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-2 text-brand-muted" />}
-                  </div>
-                  <textarea
-                    value={newPost}
-                    onChange={(e) => setNewPost(e.target.value)}
-                    placeholder="כתוב משהו למועדון..."
-                    className="w-full bg-transparent border-none text-brand text-[15px] font-medium outline-none resize-none placeholder:text-brand-muted pt-2 min-h-[60px]"
-                  />
-                </div>
+        {/* 🎯 STATS LIVE */}
+        <div className="flex justify-center items-center gap-3 py-4 border-b border-surface-border shrink-0 bg-surface -mt-4 relative z-10 rounded-t-[32px]">
+          <div className="flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 px-3 py-1.5 rounded-md">
+            <Eye size={12} className="text-green-500" />
+            <span className="text-[10px] font-black text-green-400">{liveStats.active} עכשיו בפנים</span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-red-500/10 border border-red-500/20 px-3 py-1.5 rounded-md">
+            <Flame size={12} className="text-red-500 animate-pulse" />
+            <span className="text-[10px] font-black text-red-400">{liveStats.typing} מדברים</span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/20 px-3 py-1.5 rounded-md">
+            <Gift size={12} className="text-yellow-500" />
+            <span className="text-[10px] font-black text-yellow-400">{liveStats.giftsSent} CRD היום</span>
+          </div>
+        </div>
 
-                {selectedFile && (
-                  <div className="relative mt-2 mb-4 w-fit">
-                    {selectedFile.type.startsWith('video/') ? (
-                      <video src={URL.createObjectURL(selectedFile)} controls playsInline className="w-28 h-28 rounded-[20px] object-cover border border-white/[0.05] shadow-xl" />
-                    ) : (
-                      <img src={URL.createObjectURL(selectedFile)} alt="Preview" className="w-28 h-28 rounded-[20px] object-cover border border-white/[0.05] shadow-xl" />
-                    )}
-                    <button onClick={() => setSelectedFile(null)} className="absolute -top-3 -right-3 w-8 h-8 bg-surface rounded-full text-brand flex items-center justify-center shadow-lg font-black border border-white/[0.05] z-10">
-                      <X size={14} className="text-red-500" />
-                    </button>
-                  </div>
-                )}
-
-                <div className="flex justify-end items-center gap-3 mt-2 border-t border-white/[0.05] pt-3">
-                  <button onClick={() => fileInputRef.current?.click()} className="w-10 h-10 rounded-full bg-surface flex items-center justify-center text-brand-muted hover:text-brand border border-white/[0.05] transition-all active:scale-95 shadow-md">
-                    <Paperclip size={18} />
-                  </button>
-                  <button onClick={handlePost} disabled={posting || (!newPost.trim() && !selectedFile)} className="w-10 h-10 rounded-full bg-accent-primary text-surface flex items-center justify-center transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-accent-primary/20">
-                    {posting ? <Loader2 size={16} className="animate-spin text-surface" /> : <Send size={16} className="rtl:-scale-x-100 -ml-0.5" />}
-                  </button>
-                </div>
-              </div>
+        {/* 💎 JOIN AREA (If not member) */}
+        {!isMember ? (
+          <div className="flex-1 flex flex-col items-center p-6 gap-5 mt-4">
+            <div className="w-20 h-20 rounded-[24px] bg-surface-card border border-surface-border flex items-center justify-center mb-2 shadow-2xl">
+              {levelTooLow ? <ShieldAlert size={32} className="text-accent-primary" /> : <Lock size={32} className="text-brand-muted" />}
             </div>
-          )}
+            
+            <div className="text-center px-4">
+              <h2 className="text-2xl font-black text-brand mb-2">{levelTooLow ? 'נעול ע"י הסלקטור' : 'מועדון סגור'}</h2>
+              <p className="text-brand-muted text-sm font-medium leading-relaxed">
+                {levelTooLow ? `כדי להיכנס אתה חייב להיות לפחות רמה ${requiredLevel}. תהיה פעיל ותחזור כשתעלה רמה.` : 'הצטרף כדי לפתוח גישה מלאה לתוכן, לדרופים הסודיים וללייב צ׳אט.'}
+              </p>
+            </div>
+            
+            {!levelTooLow && (
+              <div className="w-full flex flex-col gap-3 mt-4">
+                <Button onClick={() => handleJoin('INNER')} disabled={joining} className="w-full h-14 bg-surface-card border border-surface-border text-brand font-black rounded-2xl shadow-lg active:scale-95 transition-transform">
+                  {joining ? <Loader2 size={18} className="animate-spin" /> : `כניסה רגילה - ${circle.join_price} CRD`}
+                </Button>
+                
+                <Button onClick={() => handleJoin('CORE')} disabled={joining} className="w-full h-14 bg-gradient-to-r from-purple-600/80 to-accent-primary/80 border border-accent-primary/50 text-white font-black rounded-2xl shadow-[0_0_20px_rgba(168,85,247,0.2)] flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                  {joining ? <Loader2 size={18} className="animate-spin" /> : <><Crown size={18} className="text-yellow-400" /> שדרוג ל-CORE - {circle.vip_price} CRD</>}
+                </Button>
+                <span className="text-[10px] font-bold text-accent-primary tracking-widest uppercase text-center w-full block">כולל תג כתר יוקרתי והודעות מודגשות</span>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* 📱 TABS AREA */
+          <div className="flex flex-col flex-1 pb-20">
+            <div className="flex border-b border-surface-border shrink-0 px-2 mt-2">
+              {['chat', 'drops', 'members'].map((tab) => (
+                <button 
+                  key={tab}
+                  onClick={() => setActiveTab(tab as any)}
+                  className={`flex-1 py-3 text-[12px] font-black uppercase tracking-widest transition-colors rounded-t-2xl ${activeTab === tab ? 'text-accent-primary bg-accent-primary/10 border-b-2 border-accent-primary' : 'text-brand-muted hover:text-brand'}`}
+                >
+                  {tab === 'chat' ? 'לייב צ׳אט' : tab === 'drops' ? 'דרופים' : 'חברים'}
+                </button>
+              ))}
+            </div>
 
-          {/* פיד הפוסטים */}
-          <div className="flex flex-col gap-6 w-full -mx-1.5 px-1.5">
-            {posts?.map((post: any) => {
-              const hasMedia = !!post.media_url;
-              const isVideo = post.media_url?.match(/\.(mp4|webm|mov)$/i);
-
-              if (!isMember) {
-                return (
-                  <div key={post.id} className="flex flex-col bg-surface-card border border-white/[0.05] overflow-hidden shadow-2xl w-full relative rounded-[28px]">
-                    <div className="w-full relative aspect-[3/4] bg-surface overflow-hidden flex items-center justify-center">
-                      {hasMedia ? (
-                        <img src={post.media_url} loading="lazy" className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-30 scale-110" />
-                      ) : (
-                        <div className="absolute inset-0 w-full h-full bg-gradient-to-b from-surface-card to-surface"></div>
-                      )}
-                      <div className="relative z-20 w-[280px] bg-surface/50 backdrop-blur-2xl rounded-[32px] p-6 flex flex-col items-center border border-white/[0.05] shadow-2xl">
-                        <div className="absolute -top-7 relative flex justify-center w-full">
-                          <div className="relative">
-                            <img src={post.profiles?.avatar_url || 'https://placehold.co/100x100/1E1F22/333'} className="w-14 h-14 rounded-full border-4 border-surface-card object-cover" />
-                            <div className="absolute bottom-0 right-0 bg-brand text-surface rounded-full p-1 shadow-md">
-                              {levelTooLow ? <ShieldAlert size={10} className="text-accent-primary" /> : <Lock size={10} />}
+            {/* 💬 LIVE CHAT / POSTS */}
+            {activeTab === 'chat' && (
+              <div className="flex flex-col flex-1 bg-surface relative min-h-[50vh]">
+                
+                {/* Chat Feed */}
+                <div className="flex-1 p-4 flex flex-col gap-6">
+                  {posts?.map((post: any) => {
+                    const hasMedia = !!post.media_url;
+                    const isVideo = post.media_url?.match(/\.(mp4|webm|mov)$/i);
+                    const isMine = post.user_id === currentUserId;
+                    const isCore = post.profiles?.role_label === 'CORE' || post.gift_amount > 0;
+                    
+                    // אם זה רק טקסט, נציג כמו בועת צ'אט כדי להרגיש "חי"
+                    if (!hasMedia) {
+                      return (
+                        <div key={post.id} className={`flex gap-3 w-full ${isMine ? 'flex-row-reverse' : ''}`}>
+                          <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 border border-white/5 bg-surface cursor-pointer" onClick={() => navigate(`/profile/${post.user_id}`)}>
+                            {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-1.5 text-brand-muted" />}
+                          </div>
+                          
+                          <div className={`flex flex-col max-w-[80%] ${isMine ? 'items-end' : 'items-start'}`}>
+                            <div className="flex items-center gap-1.5 mb-1 px-1">
+                              <span className="text-[11px] font-bold text-brand-muted">{post.profiles?.full_name || 'אנונימי'}</span>
+                              {isCore && <span className="bg-yellow-500/10 text-yellow-500 text-[8px] font-black px-1.5 py-0.5 rounded border border-yellow-500/20 uppercase">CORE</span>}
+                            </div>
+                            
+                            <div className={`p-3.5 rounded-[20px] shadow-sm ${
+                              post.gift_amount 
+                                ? 'bg-yellow-500/10 border border-yellow-500/30' 
+                                : isMine ? 'bg-accent-primary/10 border border-accent-primary/20 rounded-tr-sm' : 'bg-surface-card border border-surface-border rounded-tl-sm'
+                            }`}>
+                              {post.gift_amount > 0 && (
+                                <div className="flex items-center gap-1 text-yellow-500 text-[10px] font-black mb-1.5">
+                                  <Gift size={12} /> שלח מתנה {post.gift_amount} CRD
+                                </div>
+                              )}
+                              <p className={`text-[14px] leading-relaxed whitespace-pre-wrap ${post.gift_amount ? 'text-yellow-100' : 'text-brand'}`}>{post.content}</p>
+                            </div>
+                            
+                            {/* פעולות מתחת לבועה */}
+                            <div className={`flex items-center gap-3 mt-1.5 px-1 ${isMine ? 'flex-row-reverse' : ''}`}>
+                              <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-1 active:scale-90 ${post.is_liked ? 'text-red-500' : 'text-brand-muted'}`}>
+                                <Heart size={12} fill={post.is_liked ? 'currentColor' : 'none'} />
+                                <span className="text-[10px] font-bold">{post.likes_count}</span>
+                              </button>
+                              <button onClick={() => openOverlay(() => { setActivePost(post); setActiveCommentsPostId(post.id); setLoadingComments(true); supabase.from('comments').select('*, profiles!user_id(*)').eq('post_id', post.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); })} className="flex items-center gap-1 text-brand-muted active:scale-90">
+                                <MessageSquare size={12} />
+                                <span className="text-[10px] font-bold">{post.comments_count}</span>
+                              </button>
+                              <button onClick={() => openOverlay(() => setOptionsMenuPost(post))} className="text-brand-muted active:scale-90 ml-1">
+                                <MoreVertical size={12} />
+                              </button>
                             </div>
                           </div>
                         </div>
-                        <h3 className="text-brand font-black mt-4 text-lg">{levelTooLow ? 'נעול ע"י סלקטור' : 'Unlock to view'}</h3>
-                        <p className="text-brand-muted text-xs font-bold mt-1 flex items-center gap-1.5 uppercase tracking-widest">
-                          {hasMedia ? <><ImageIcon size={12} /> Media Content</> : <><MessageSquare size={12} /> Text Post</>}
-                        </p>
-                        <button onClick={handleJoin} disabled={joining || levelTooLow} className={`mt-6 w-full font-black rounded-full py-3.5 text-sm uppercase tracking-widest shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2 ${levelTooLow ? 'bg-white/[0.03] text-brand-muted cursor-not-allowed shadow-none' : 'bg-accent-primary text-surface hover:bg-accent-primary/90'}`}>
-                          {joining ? <Loader2 size={16} className="animate-spin" /> : levelTooLow ? `דרושה רמה ${requiredLevel}` : circle.is_private && circle.join_price > 0 ? `הצטרף - ${circle.join_price} CRD` : 'הצטרף עכשיו'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
+                      );
+                    }
 
-              return (
-                <div key={post.id} className="flex flex-col bg-black border border-white/[0.05] overflow-hidden shadow-xl rounded-[28px] w-full relative">
-                  
-                  {/* התוכן העליון - תמונה נוגעת בקצה ללא פס */}
-                  {hasMedia ? (
-                    <div className="w-full relative cursor-pointer overflow-hidden bg-black flex flex-col" onClick={() => openOverlay(() => { const vids = posts.filter((p: any) => p.media_url); setFullScreenMedia([post, ...vids.filter((v: any) => v.id !== post.id).sort(() => Math.random() - 0.5)]); setCurrentMediaIndex(0); })}>
-                      {/* מדיה יושבת עד למעלה בגובה חכם */}
-                      {isVideo ? (
-                        <FeedVideo src={post.media_url} className="w-full max-h-[360px] aspect-[4/5] object-cover" />
-                      ) : (
-                        <img src={post.media_url} loading="lazy" className="w-full max-h-[360px] aspect-[4/5] object-cover" onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/1E1F22/333?text=Media+Unavailable'; }} />
-                      )}
-                      
-                      {/* השתלבות עדינה של התמונה למטה לשחור בלי קו מפריד */}
-                      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black via-black/40 to-transparent pointer-events-none"></div>
-
-                      {/* טקסט מולבש על גבי התמונה בתחתית (בלי קופסה נפרדת) */}
-                      {post.content && (
-                        <div className="absolute bottom-0 left-0 right-0 p-4 pt-32 bg-gradient-to-t from-black via-black/30 to-transparent flex items-end pointer-events-none z-10">
-                          <p onClick={(e) => { e.stopPropagation(); openOverlay(() => setActiveDescPost(post)); }} className="text-white text-[14px] font-medium leading-relaxed text-right line-clamp-2 w-full pr-1 cursor-pointer active:opacity-70 pointer-events-auto drop-shadow-md">
-                            {post.content}
-                          </p>
+                    // אם יש מדיה, נציג ככרטיס ענק ויפה
+                    return (
+                      <div key={post.id} className="flex flex-col bg-black border border-white/[0.05] overflow-hidden shadow-xl rounded-[28px] w-full relative">
+                        <div className="w-full relative cursor-pointer overflow-hidden bg-black flex flex-col" onClick={() => openOverlay(() => { const vids = posts.filter((p: any) => p.media_url); setFullScreenMedia([post, ...vids.filter((v: any) => v.id !== post.id).sort(() => Math.random() - 0.5)]); setCurrentMediaIndex(0); })}>
+                          {isVideo ? (
+                            <FeedVideo src={post.media_url} className="w-full max-h-[400px] aspect-[4/5] object-cover" />
+                          ) : (
+                            <img src={post.media_url} loading="lazy" className="w-full max-h-[400px] aspect-[4/5] object-cover" />
+                          )}
+                          <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black via-black/50 to-transparent pointer-events-none"></div>
+                          {post.content && (
+                            <div className="absolute bottom-0 left-0 right-0 p-4 pt-32 bg-gradient-to-t from-black via-black/40 to-transparent flex items-end pointer-events-none z-10">
+                              <p onClick={(e) => { e.stopPropagation(); openOverlay(() => setActiveDescPost(post)); }} className="text-white text-[14px] font-medium leading-relaxed text-right line-clamp-2 w-full pr-1 cursor-pointer active:opacity-70 pointer-events-auto drop-shadow-md">
+                                {post.content}
+                              </p>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  ) : (
-                    /* עיצוב חכם לטקסט בלבד - רק כמה שהוא צריך */
-                    <div className="w-full p-5 pt-6 cursor-pointer bg-surface-card" onClick={() => openOverlay(() => setActiveDescPost(post))}>
-                      <p className="text-white text-[16px] leading-relaxed text-right line-clamp-6 whitespace-pre-wrap">{post.content}</p>
+
+                        <div className="flex items-center justify-between px-4 py-3 bg-black">
+                          <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate(`/profile/${post.user_id}`)}>
+                            <div className="w-9 h-9 rounded-full bg-surface-card border border-white/[0.05] overflow-hidden shrink-0">
+                              {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-1.5 text-brand-muted" />}
+                            </div>
+                            <div className="flex flex-col text-right">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-white font-bold text-[13px] leading-tight">{post.profiles?.full_name || 'אנונימי'}</span>
+                                {isCore && <Crown size={10} className="text-yellow-400" />}
+                              </div>
+                              <span className="text-brand-muted text-[10px]">{new Date(post.created_at).toLocaleDateString('he-IL')}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-1.5 active:scale-90 ${post.is_liked ? 'text-red-500' : 'text-brand-muted'}`}>
+                              <Heart size={18} fill={post.is_liked ? 'currentColor' : 'none'} />
+                              <span className="text-[13px] font-black text-white">{post.likes_count}</span>
+                            </button>
+                            <button onClick={() => openOverlay(() => { setActivePost(post); setActiveCommentsPostId(post.id); setLoadingComments(true); supabase.from('comments').select('*, profiles!user_id(*)').eq('post_id', post.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); })} className="flex items-center gap-1.5 text-brand-muted active:scale-90">
+                              <MessageSquare size={18} />
+                              <span className="text-[13px] font-black text-white">{post.comments_count}</span>
+                            </button>
+                            <button onClick={() => openOverlay(() => setOptionsMenuPost(post))} className="text-brand-muted active:scale-90 ml-1">
+                              <MoreVertical size={20} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  
+                  {hasMorePosts && posts.length > 0 && (
+                    <div className="flex justify-center mt-2 mb-4">
+                      <button onClick={loadMorePosts} disabled={loadingMore} className="bg-surface-card border border-white/[0.05] rounded-full px-6 py-2.5 text-brand font-bold text-[13px] tracking-widest uppercase flex items-center gap-2 shadow-lg active:scale-95 transition-transform">
+                        {loadingMore ? <Loader2 size={16} className="animate-spin text-accent-primary" /> : 'טען עוד'}
+                      </button>
                     </div>
                   )}
+                </div>
 
-                  {/* שורה תחתונה: כפתורים בשמאל, משתמש בימין - שחור מלא (או צבע כרטיס לטקסט) */}
-                  <div className={`flex items-center justify-between px-4 py-3 ${hasMedia ? 'bg-black' : 'bg-surface-card border-t border-white/[0.05]'}`}>
-                    
-                    {/* צד ימין: משתמש חזר למטה לבקשתך */}
-                    <div className="flex items-center gap-2 cursor-pointer active:opacity-70 transition-opacity" onClick={() => navigate(`/profile/${post.user_id}`)}>
-                      <div className="w-9 h-9 rounded-full bg-surface-card border border-white/[0.05] overflow-hidden shrink-0">
-                        {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" loading="lazy" /> : <UserCircle className="w-full h-full p-1.5 text-brand-muted" />}
-                      </div>
-                      <div className="flex flex-col text-right">
-                        <span className="text-white font-bold text-[13px] leading-tight">{post.profiles?.full_name || 'אנונימי'}</span>
-                        <span className="text-brand-muted text-[10px]">{new Date(post.created_at).toLocaleDateString('he-IL')}</span>
-                      </div>
+                {/* Chat Input */}
+                <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+70px)] left-0 right-0 p-3 bg-surface/90 backdrop-blur-xl border-t border-surface-border flex flex-col gap-2 z-40">
+                  {selectedFile && (
+                    <div className="relative w-16 h-16 rounded-xl overflow-hidden mb-1">
+                      {selectedFile.type.startsWith('video/') ? (
+                        <video src={URL.createObjectURL(selectedFile)} className="w-full h-full object-cover" />
+                      ) : (
+                        <img src={URL.createObjectURL(selectedFile)} className="w-full h-full object-cover" />
+                      )}
+                      <button onClick={() => setSelectedFile(null)} className="absolute top-1 right-1 w-5 h-5 bg-black/60 rounded-full flex items-center justify-center text-white"><X size={10} /></button>
                     </div>
-
-                    {/* צד שמאל: פעולות + 3 נקודות יחד */}
-                    <div className="flex items-center gap-3">
-                      <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-1.5 transition-all active:scale-90 ${post.is_liked ? 'text-red-500' : 'text-brand-muted hover:text-red-400'}`}>
-                        <Heart size={18} fill={post.is_liked ? 'currentColor' : 'none'} strokeWidth={post.is_liked ? 0 : 2} />
-                        <span className="text-[13px] font-black text-white">{post.likes_count}</span>
-                      </button>
-                      <button onClick={() => openOverlay(() => { setActivePost(post); setActiveCommentsPostId(post.id); setLoadingComments(true); supabase.from('comments').select('*, profiles!user_id(*)').eq('post_id', post.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); })} className="flex items-center gap-1.5 text-brand-muted hover:text-accent-primary transition-all active:scale-90">
-                        <MessageSquare size={18} />
-                        <span className="text-[13px] font-black text-white">{post.comments_count}</span>
-                      </button>
-                      <button onClick={() => handleShare(post)} className="flex items-center gap-2 text-brand-muted hover:text-brand transition-all active:scale-90 ml-1">
-                        <Share2 size={18} />
-                      </button>
-                      
-                      <div className="w-px h-4 bg-white/[0.1] mx-0.5"></div>
-                      
-                      {/* 3 נקודות לאורך כמו פעם יחד בשורת הפעולות */}
-                      <button onClick={() => openOverlay(() => setOptionsMenuPost(post))} className="text-brand-muted hover:text-white transition-colors active:scale-90">
-                        <MoreVertical size={20} strokeWidth={2} />
+                  )}
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => handlePost(true, 50)} className="w-11 h-11 rounded-full bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center text-yellow-500 shrink-0 shadow-inner active:scale-90 transition-transform">
+                      <Gift size={20} />
+                    </button>
+                    <button onClick={() => fileInputRef.current?.click()} className="w-11 h-11 rounded-full bg-surface-card border border-surface-border flex items-center justify-center text-brand-muted shrink-0 shadow-inner active:scale-90 transition-transform">
+                      <Paperclip size={18} />
+                    </button>
+                    <div className="flex-1 bg-surface-card border border-surface-border rounded-full flex items-center px-4 h-11 shadow-inner">
+                      <input 
+                        type="text" 
+                        value={newPost} 
+                        onChange={(e) => setNewPost(e.target.value)} 
+                        placeholder="הודעה..." 
+                        className="flex-1 bg-transparent border-none outline-none text-brand text-[15px]"
+                      />
+                      <button onClick={() => handlePost(false)} disabled={posting || (!newPost.trim() && !selectedFile)} className="text-accent-primary disabled:opacity-50 active:scale-90 transition-transform pr-2">
+                        {posting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} className="rtl:-scale-x-100" />}
                       </button>
                     </div>
-
                   </div>
                 </div>
-              );
-            })}
-          </div>
 
-          {hasMorePosts && isMember && posts.length > 0 && (
-             <div className="flex justify-center mt-2 mb-8">
-               <button onClick={loadMorePosts} disabled={loadingMore} className="bg-surface-card border border-white/[0.05] rounded-full px-6 py-2.5 text-brand font-bold text-[13px] tracking-widest uppercase flex items-center gap-2 shadow-lg active:scale-95 transition-transform">
-                 {loadingMore ? <Loader2 size={16} className="animate-spin text-accent-primary" /> : 'טען עוד פוסטים'}
-               </button>
-             </div>
-          )}
-        </div>
+              </div>
+            )}
+
+            {/* 📦 DROPS (Locked Content FOMO) */}
+            {activeTab === 'drops' && (
+              <div className="flex-1 p-4 grid grid-cols-2 gap-3 bg-surface min-h-[50vh]">
+                {[1, 2, 3, 4].map((drop) => (
+                  <div key={drop} className="aspect-[3/4] bg-surface-card rounded-[24px] border border-surface-border overflow-hidden relative group cursor-pointer shadow-lg">
+                    <img src={`https://source.unsplash.com/random/400x600?sig=${drop}`} className="w-full h-full object-cover blur-xl opacity-60 scale-110" />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center p-4 bg-black/40 gap-3">
+                      <div className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20">
+                        <Lock size={20} className="text-white" />
+                      </div>
+                      <span className="text-[10px] font-black text-white uppercase tracking-widest text-center bg-black/40 px-3 py-1.5 rounded-md backdrop-blur-sm border border-white/10">
+                        דרופ ל-CORE בלבד
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 👥 MEMBERS */}
+            {activeTab === 'members' && (
+              <div className="flex-1 p-4 flex flex-col gap-3 bg-surface min-h-[50vh]">
+                {membersList.length === 0 ? (
+                  <div className="text-center text-brand-muted text-sm mt-10 font-bold">אין חברים במועדון</div>
+                ) : (
+                  membersList.map((member) => (
+                    <div key={member.profiles?.id} onClick={() => navigate(`/profile/${member.profiles?.id}`)} className="flex items-center gap-4 bg-surface-card p-3 rounded-[24px] border border-surface-border cursor-pointer active:scale-95 transition-transform shadow-sm">
+                      <div className="w-12 h-12 rounded-full overflow-hidden bg-surface border border-surface-border shrink-0">
+                        {member.profiles?.avatar_url ? <img src={member.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-2 text-brand-muted" />}
+                      </div>
+                      <div className="flex flex-col flex-1 text-right">
+                        <span className="text-brand font-black text-[15px] flex items-center gap-1.5">
+                          {member.profiles?.full_name || 'אנונימי'} 
+                          {member.role === 'admin' && <Crown size={12} className="text-accent-primary" />}
+                        </span>
+                        <span className="text-brand-muted text-[11px] font-bold mt-0.5" dir="ltr">@{member.profiles?.username || 'user'}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+          </div>
+        )}
       </FadeIn>
 
-      {/* OVERLAYS - נשארו בלבן נקי בהתאם לבקשתך הקודמת */}
+      {/* OVERLAYS (Bottom Sheets) */}
       {portalReady && portalTarget && createPortal(
         <>
           <AnimatePresence>
+            {/* FULL SCREEN MEDIA */}
             {fullScreenMedia && (
               <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed inset-0 z-[999999] bg-[#000]">
                 <div className="w-full h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide" onScroll={handleContainerScroll}>
@@ -667,54 +759,7 @@ export const CirclePage: React.FC = () => {
               </motion.div>
             )}
 
-            {/* מודאל חברים בלבן نקי */}
-            {showMembers && (
-              <div className="fixed inset-0 z-[100000] flex flex-col justify-end" dir="rtl" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
-                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="relative z-10 bg-white rounded-t-[40px] h-[75vh] flex flex-col overflow-hidden pb-10 shadow-[0_-20px_50px_rgba(0,0,0,0.15)] border-t border-black/[0.05]">
-                  <div className="w-full py-5 flex justify-center cursor-grab active:cursor-grabbing border-b border-black/[0.05]" onPointerDown={(e) => membersDragControls.start(e)} style={{ touchAction: 'none' }}><div className="w-16 h-1.5 bg-black/10 rounded-full" /></div>
-                  <div className="text-center py-2 border-b border-black/[0.05]"><h3 className="text-black font-black text-lg">חברי המועדון</h3></div>
-                  <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 scrollbar-hide">
-                    {loadingMembers ? <Loader2 className="animate-spin mx-auto text-accent-primary mt-10" /> : membersList.length === 0 ? <div className="text-center text-neutral-500 mt-10 text-sm">אין חברים במועדון</div> : membersList.map((member) => (
-                      <div key={member.profiles?.id} onClick={() => { closeOverlay(); setTimeout(() => navigate(`/profile/${member.profiles?.id}`), 50); }} className="flex items-center gap-3 bg-neutral-50 p-3 rounded-[20px] border border-neutral-200 cursor-pointer active:scale-95 transition-transform">
-                        <div className="w-12 h-12 rounded-full overflow-hidden bg-white border border-neutral-200 shrink-0">{member.profiles?.avatar_url ? <img src={member.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-2 text-neutral-400" />}</div>
-                        <div className="flex flex-col flex-1">
-                          <span className="text-black font-bold text-[14px] flex items-center gap-1.5">{member.profiles?.full_name || 'אנונימי'} {member.role === 'admin' && <Crown size={14} className="text-amber-500" />}</span>
-                          <span className="text-neutral-500 text-[11px]" dir="ltr">@{member.profiles?.username || 'user'}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-              </div>
-            )}
-
-            {/* מודאל אונליין ריל-טיים בלבן נקי */}
-            {showOnline && (
-              <div className="fixed inset-0 z-[100000] flex flex-col justify-end" dir="rtl" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
-                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="relative z-10 bg-white rounded-t-[40px] h-[75vh] flex flex-col overflow-hidden pb-10 shadow-[0_-20px_50px_rgba(0,0,0,0.15)] border-t border-black/[0.05]">
-                  <div className="w-full py-5 flex justify-center cursor-grab active:cursor-grabbing border-b border-black/[0.05]" style={{ touchAction: 'none' }}><div className="w-16 h-1.5 bg-black/10 rounded-full" /></div>
-                  <div className="text-center py-2 border-b border-black/[0.05]"><h3 className="text-black font-black text-lg flex items-center justify-center gap-2">מחוברים כעת <Radio size={18} className="text-green-500" /></h3></div>
-                  <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 scrollbar-hide">
-                    {onlineUsers.length === 0 ? <div className="text-center text-neutral-500 mt-10 text-sm">אף אחד לא מחובר כרגע</div> : onlineUsers.map((ou) => (
-                      <div key={ou.id} onClick={() => { closeOverlay(); setTimeout(() => navigate(`/profile/${ou.id}`), 50); }} className="flex items-center gap-3 bg-neutral-50 p-3 rounded-[20px] border border-neutral-200 cursor-pointer active:scale-95 transition-transform relative">
-                        <div className="relative">
-                          <div className="w-12 h-12 rounded-full overflow-hidden bg-white border border-neutral-200 shrink-0">{ou.avatar_url ? <img src={ou.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-2 text-neutral-400" />}</div>
-                          <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
-                        </div>
-                        <div className="flex flex-col flex-1">
-                          <span className="text-black font-bold text-[14px]">{ou.full_name || 'אנונימי'}</span>
-                          <span className="text-green-600 text-[10px] font-bold tracking-widest uppercase">אונליין עכשיו</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-              </div>
-            )}
-
-            {/* מודאל תגובות בלבן נקי */}
+            {/* COMMENTS */}
             {activeCommentsPostId && (
               <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
@@ -736,16 +781,6 @@ export const CirclePage: React.FC = () => {
                               </div>
                             </div>
                           </div>
-                          {replies.length > 0 && (
-                            <div className="pr-10 flex flex-col gap-2">
-                              {replies.map((reply) => (
-                                <div key={reply.id} className="bg-neutral-50 rounded-[20px] p-3 border border-neutral-200">
-                                  <div className="text-black text-xs font-bold mb-1">{reply.profiles?.full_name || 'אנונימי'}</div>
-                                  <div className="text-neutral-600 text-sm">{reply.content}</div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
                         </div>
                       );
                     })}
@@ -758,7 +793,7 @@ export const CirclePage: React.FC = () => {
               </div>
             )}
 
-            {/* מודאל אפשרויות פוסט בלבן נקי */}
+            {/* OPTIONS MENU */}
             {optionsMenuPost && (
               <div className="fixed inset-0 z-[99999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
@@ -778,24 +813,7 @@ export const CirclePage: React.FC = () => {
               </div>
             )}
 
-            {/* מודאל פעולות לתגובה בלבן נקי */}
-            {commentActionModal && (
-              <div className="fixed inset-0 z-[100000] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
-                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-white rounded-t-[40px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-10px_50px_rgba(0,0,0,0.15)] border-t border-black/[0.05]">
-                  <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-black/10 rounded-full" /></div>
-                  <button onClick={() => { closeOverlay(); setReplyingTo(commentActionModal.parent_id ? comments.find((c) => c?.id === commentActionModal.parent_id) : commentActionModal); setNewComment(`@${commentActionModal.profiles?.full_name} `); }} className="w-full p-4 bg-neutral-100 rounded-full text-black font-bold flex justify-between items-center text-lg hover:bg-neutral-200 transition-colors border border-neutral-200/50"><span>השב לתגובה</span><Reply size={20} className="text-neutral-500" /></button>
-                  {commentActionModal.user_id === currentUserId && (
-                    <>
-                      <button onClick={() => { closeOverlay(); setEditingCommentId(commentActionModal.id); setNewComment(commentActionModal.content); }} className="w-full p-4 bg-neutral-100 rounded-full text-black font-bold flex justify-between items-center text-lg hover:bg-neutral-200 transition-colors border border-neutral-200/50"><span>ערוך תגובה</span><Edit2 size={20} className="text-neutral-500" /></button>
-                      <button onClick={() => { if (window.confirm('למחוק תגובה?')) { closeOverlay(); deleteComment(commentActionModal.id); } }} className="w-full p-4 bg-red-50 border border-red-100 rounded-full text-red-500 font-bold flex justify-between items-center text-lg mt-2 hover:bg-red-100 transition-colors"><span>מחק תגובה</span><Trash2 size={20} className="text-red-500" /></button>
-                    </>
-                  )}
-                </motion.div>
-              </div>
-            )}
-
-            {/* מודאל תיאור פוסט מלא בלבן נקי */}
+            {/* DESC POST */}
             {activeDescPost && (
               <div className="fixed inset-0 z-[99999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />

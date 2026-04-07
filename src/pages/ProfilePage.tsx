@@ -41,6 +41,7 @@ export const ProfilePage: React.FC = () => {
   const { user, profile: authProfile, loading: authLoading } = useAuth();
 
   const [mounted, setMounted] = useState(false);
+  const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
   const followersDragControls = useDragControls();
   const followingDragControls = useDragControls();
   const commentsDragControls = useDragControls();
@@ -122,6 +123,11 @@ export const ProfilePage: React.FC = () => {
   };
 
   useEffect(() => {
+    setMounted(true);
+    setPortalNode(document.getElementById('root') || document.body);
+  }, []);
+
+  useEffect(() => {
     stateRef.current = {
       comments: !!activeCommentsPostId,
       options: !!optionsMenuPost,
@@ -173,7 +179,6 @@ export const ProfilePage: React.FC = () => {
 
   useEffect(() => {
     let isMounted = true;
-    setMounted(true);
 
     const loadProfileData = async () => {
       try {
@@ -745,7 +750,7 @@ export const ProfilePage: React.FC = () => {
       </FadeIn>
 
       {/* OVERLAYS */}
-      {mounted && createPortal(
+      {mounted && portalNode && createPortal(
         <>
           <AnimatePresence>
             {fullScreenMedia && (
@@ -756,27 +761,19 @@ export const ProfilePage: React.FC = () => {
                     const keyVal = vid._uid ? vid._uid : `${vid.id}-${idx}`;
                     return (
                       <div key={keyVal} className="w-full h-screen snap-center relative bg-[#000] flex items-center justify-center">
-                        {isVid ? <video src={vid.media_url} loop playsInline className="w-full h-full object-cover profile-full-media-item" onClick={(e) => (e.currentTarget.paused ? e.currentTarget.play() : e.currentTarget.pause())} /> : <img src={vid.media_url} className="w-full h-full object-contain profile-full-media-item" />}
-                        <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }} className="absolute bottom-8 left-4 z-[60] active:scale-90 transition-transform drop-shadow-md"><MoreVertical size={26} className="text-brand" /></button>
+                        {isVid ? <video src={vid.media_url} loop playsInline className="w-full h-full object-cover full-media-item" onClick={(e) => (e.currentTarget.paused ? e.currentTarget.play() : e.currentTarget.pause())} /> : <img src={vid.media_url} className="w-full h-full object-contain full-media-item" onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Media+Unavailable'; }} />}
+                        <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }} className="absolute bottom-6 left-4 z-[60] active:scale-90 transition-transform drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"><MoreVertical size={26} strokeWidth={2.5} className="text-white" /></button>
                         <div className="absolute bottom-48 left-4 flex flex-col gap-6 items-center z-50">
-                          <button onClick={(e) => { e.stopPropagation(); handleLike(vid.id, vid.is_liked); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform">
-                            <Heart size={32} className={vid.is_liked ? 'text-[#ff4757]' : 'text-brand'} fill={vid.is_liked ? 'currentColor' : 'none'} strokeWidth={1.5} />
-                            <span className="text-brand text-[13px] font-black drop-shadow-md">{vid.likes_count}</span>
-                          </button>
-                          <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(vid); setActiveCommentsPostId(vid.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', vid.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); }); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform">
-                            <MessageSquare size={32} className="text-brand" strokeWidth={1.5} />
-                            <span className="text-brand text-[13px] font-black drop-shadow-md">{vid.comments_count}</span>
-                          </button>
-                          <button onClick={(e) => { e.stopPropagation(); handleShare(vid); }} className="active:scale-90 transition-transform"><Share2 size={32} className="text-brand" strokeWidth={1.5} /></button>
+                          <button onClick={(e) => { e.stopPropagation(); handleLike(vid.id, vid.is_liked); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform"><Heart size={30} className={vid.is_liked ? 'text-[#ff4757]' : 'text-white'} fill={vid.is_liked ? 'currentColor' : 'none'} strokeWidth={1.5} /><span className="text-white text-[13px] font-black drop-shadow-md">{vid.likes_count}</span></button>
+                          <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(vid); setActiveCommentsPostId(vid.id); setLoadingComments(true); supabase.from('comments').select('*, profiles!user_id(*)').eq('post_id', vid.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); }); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform"><MessageSquare size={30} className="text-white" strokeWidth={1.5} /><span className="text-white text-[13px] font-black drop-shadow-md">{vid.comments_count}</span></button>
+                          <button onClick={(e) => { e.stopPropagation(); handleShare(vid); }} className="active:scale-90 transition-transform"><Share2 size={30} className="text-white" strokeWidth={1.5} /></button>
                         </div>
-                        <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-surface/90 via-surface/40 to-transparent flex flex-col justify-end pointer-events-none">
-                          <div className="flex items-center gap-3 mb-3 cursor-pointer w-fit pr-2 pointer-events-auto" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${vid.user_id}`), 50); }}>
-                            <div className="w-12 h-12 rounded-full overflow-hidden bg-surface-card border-2 border-white/[0.05] shrink-0 shadow-lg">
-                              {vid.profiles?.avatar_url ? <img src={vid.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={24} className="text-brand-muted w-full h-full p-2" />}
-                            </div>
-                            <span className="text-brand font-black text-[18px] drop-shadow-md">{vid.profiles?.full_name || 'אנונימי'}</span>
+                        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-surface/90 via-surface/40 to-transparent flex flex-col justify-end pointer-events-none">
+                          <div className="flex items-center gap-3 mb-2 cursor-pointer w-fit pr-2 pointer-events-auto" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${vid.user_id}`), 50); }}>
+                            <div className="w-12 h-12 rounded-full overflow-hidden bg-surface-card border-2 border-white/[0.05] shrink-0 shadow-lg">{vid.profiles?.avatar_url ? <img src={vid.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={24} className="text-brand-muted w-full h-full p-2" />}</div>
+                            <span className="text-white font-black text-[17px] drop-shadow-md">{vid.profiles?.full_name || 'אנונימי'}</span>
                           </div>
-                          <p className="text-brand-muted text-[15px] font-medium text-right pr-2 w-5/6 line-clamp-3 pointer-events-auto cursor-pointer" onClick={(e) => { e.stopPropagation(); openOverlay(() => setActiveDescPost(vid)); }}>{vid.content}</p>
+                          <p className="text-white text-[15px] font-medium text-right pr-2 w-5/6 line-clamp-3 pointer-events-auto cursor-pointer" onClick={(e) => { e.stopPropagation(); openOverlay(() => setActiveDescPost(vid)); }}>{vid.content}</p>
                         </div>
                       </div>
                     );
@@ -785,172 +782,164 @@ export const ProfilePage: React.FC = () => {
               </motion.div>
             )}
 
-            {gridActionModal && (
-              <div className="fixed inset-0 z-[100000] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-surface/80 backdrop-blur-sm" onClick={closeOverlay} />
-                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[40px] p-6 flex flex-col gap-2 pb-12 shadow-[0_-10px_50px_rgba(0,0,0,0.8)] border-t border-white/[0.05]" onPointerDown={(e) => gridActionDragControls.start(e)} style={{ touchAction: 'none' }}>
-                  <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/[0.1] rounded-full" /></div>
-                  
-                  {gridActionModal.type === 'post' && (
-                    <>
-                      <button onClick={() => { closeOverlay(); setTimeout(() => { openOverlay(() => { setEditingPost(gridActionModal.item); setEditPostText(gridActionModal.item.content || ''); setShowCreatePost(true); }); }, 100); }} className="w-full p-4 bg-surface-card border border-white/[0.05] rounded-[20px] text-brand font-bold flex justify-between items-center text-lg hover:bg-white/[0.05] transition-colors"><span>ערוך פוסט</span><Edit2 size={20} className="text-brand-muted" /></button>
-                      <button onClick={() => { if (window.confirm('למחוק פוסט?')) deletePost(gridActionModal.item.id); }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-[20px] text-red-500 font-bold flex justify-between items-center text-lg mt-2 hover:bg-red-500/20 transition-colors"><span>מחק פוסט</span><Trash2 size={20} className="text-red-500" /></button>
-                    </>
-                  )}
-
-                  {gridActionModal.type === 'saved' && (
-                    <button onClick={() => removeFromSaved(gridActionModal.item.id)} className="w-full p-4 bg-surface-card border border-white/[0.05] rounded-[20px] text-brand font-bold flex justify-between items-center text-lg hover:bg-white/[0.05] transition-colors"><span>הסר משמורים</span><Bookmark size={20} className="text-brand-muted" /></button>
-                  )}
-
-                  {gridActionModal.type === 'circle' && (
-                    <>
-                      <button onClick={() => { closeOverlay(); setTimeout(() => { navigate(`/circle/${gridActionModal.item.slug}`); }, 100); }} className="w-full p-4 bg-surface-card border border-white/[0.05] rounded-[20px] text-brand font-bold flex justify-between items-center text-lg hover:bg-white/[0.05] transition-colors"><span>כנס למועדון</span><LinkIcon size={20} className="text-brand-muted" /></button>
-                      <button onClick={() => { if (window.confirm('לעזוב את המועדון?')) leaveCircle(gridActionModal.item.id); }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-[20px] text-red-500 font-bold flex justify-between items-center text-lg mt-2 hover:bg-red-500/20 transition-colors"><span>עזוב מועדון</span><LogOut size={20} className="text-red-500" /></button>
-                    </>
-                  )}
-                </motion.div>
-              </div>
-            )}
-
-            {activeCommentsPostId && (
-              <div className="fixed inset-0 z-[100000] flex flex-col justify-end" dir="rtl" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-surface/80 backdrop-blur-sm" onClick={closeOverlay} />
-                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="relative z-10 bg-surface rounded-t-[40px] h-[85vh] flex flex-col overflow-hidden pb-10 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-white/[0.05]">
-                  <div className="w-full py-5 flex justify-center cursor-grab active:cursor-grabbing border-b border-white/[0.05]" onPointerDown={(e) => commentsDragControls.start(e)} style={{ touchAction: 'none' }}><div className="w-16 h-1.5 bg-white/[0.1] rounded-full" /></div>
-                  <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6" onPointerDown={stopPropagation} onTouchStart={stopPropagation}>
-                    {loadingComments ? <Loader2 className="animate-spin mx-auto text-accent-primary mt-10" /> : comments.filter((c) => c && !c.parent_id).map((c) => {
-                      const replies = comments.filter((r) => r && r.parent_id === c.id);
-                      const isThreadExpanded = expandedThreads[c.id];
-                      return (
-                        <div key={c.id} className="flex flex-col gap-2">
-                          <div className="flex gap-3">
-                            <div className="w-10 h-10 min-w-[40px] rounded-full bg-surface-card shrink-0 overflow-hidden cursor-pointer border border-white/[0.05] flex items-center justify-center" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${c.user_id}`), 50); }}>
-                              {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover object-center" /> : <UserCircle className="w-full h-full p-2 text-brand-muted" />}
-                            </div>
-                            <div className="flex flex-col flex-1">
-                              <div className="bg-surface-card p-3 rounded-[20px] rounded-tr-sm cursor-pointer" onClick={() => openOverlay(() => setCommentActionModal(c))}>
-                                <span className="text-brand font-bold text-xs mb-1 inline-block" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${c.user_id}`), 50); }}>{c.profiles?.full_name || 'אנונימי'}</span>
-                                <p className="text-brand-muted text-sm whitespace-pre-wrap leading-relaxed">{renderCommentText(c.content)}</p>
-                              </div>
-                              <div className="flex items-center gap-4 mt-2 px-2">
-                                <span className="text-[11px] text-brand-muted cursor-pointer font-medium hover:text-brand" onClick={() => { setReplyingTo(c); setNewComment(`@${c.profiles?.full_name} `); }}>השב</span>
-                                <button onClick={() => toggleCommentLike(c.id)} className={`ml-auto flex items-center gap-1 ${likedComments.has(c.id) ? 'text-[#ff4757]' : 'text-brand-muted'}`}><Heart size={12} fill={likedComments.has(c.id) ? 'currentColor' : 'none'} /></button>
-                              </div>
-                              {replies.length > 0 && <button onClick={() => setExpandedThreads((prev) => ({ ...prev, [c.id]: !prev[c.id] }))} className="text-left text-[11px] font-bold text-brand-muted hover:text-brand mt-2 flex items-center gap-1"><span className="flex-1 border-t border-white/[0.05] mr-2" />{isThreadExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}{isThreadExpanded ? 'הסתר תגובות' : `צפה ב-${replies.length} תגובות`}</button>}
-                            </div>
-                          </div>
-                          {isThreadExpanded && replies.map((reply) => (
-                            <div key={reply.id} className="flex gap-3 pr-10 mt-2 relative">
-                              <div className="absolute right-[20px] top-[-10px] bottom-6 border-r-2 border-white/[0.05] rounded-br-xl w-4" />
-                              <div className="w-8 h-8 min-w-[32px] rounded-full bg-surface-card shrink-0 overflow-hidden cursor-pointer z-10 border border-white/[0.05] flex items-center justify-center" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${reply.user_id}`), 50); }}>
-                                {reply.profiles?.avatar_url ? <img src={reply.profiles.avatar_url} className="w-full h-full object-cover object-center" /> : <UserCircle className="w-full h-full p-1.5 text-brand-muted" />}
-                              </div>
-                              <div className="flex flex-col flex-1 z-10">
-                                <div className="bg-surface-card p-3 rounded-[20px] rounded-tr-sm cursor-pointer" onClick={() => openOverlay(() => setCommentActionModal(reply))}>
-                                  <span className="text-brand font-bold text-[11px] mb-1 inline-block" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${reply.user_id}`), 50); }}>{reply.profiles?.full_name || 'אנונימי'}</span>
-                                  <p className="text-brand-muted text-[13px] whitespace-pre-wrap leading-relaxed">{renderCommentText(reply.content)}</p>
-                                </div>
-                                <div className="flex items-center gap-4 mt-2 px-2">
-                                  <span className="text-[10px] text-brand-muted cursor-pointer font-medium hover:text-brand" onClick={() => { setReplyingTo(c); setNewComment(`@${reply.profiles?.full_name} `); }}>השב</span>
-                                  <button onClick={() => toggleCommentLike(reply.id)} className={`ml-auto flex items-center gap-1 ${likedComments.has(reply.id) ? 'text-[#ff4757]' : 'text-brand-muted'}`}><Heart size={10} fill={likedComments.has(reply.id) ? 'currentColor' : 'none'} /></button>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="p-4 border-t border-white/[0.05] flex flex-col gap-2 bg-surface" onPointerDown={stopPropagation}>
-                    {replyingTo && !editingCommentId && <div className="text-[11px] text-accent-primary flex items-center justify-between px-3 py-1 bg-accent-primary/10 rounded-full w-fit mb-1"><span className="font-bold mr-1">משיב ל-@{replyingTo.profiles?.full_name}</span><X size={12} className="cursor-pointer" onClick={() => { setReplyingTo(null); setNewComment(''); }} /></div>}
-                    {editingCommentId && <div className="text-[10px] text-accent-primary flex justify-between px-2"><span>עורך תגובה...</span><span onClick={() => { setEditingCommentId(null); setNewComment(''); }} className="cursor-pointer font-bold">ביטול</span></div>}
-                    <div className="flex gap-2 items-center bg-surface-card rounded-full p-1 pl-2 border border-white/[0.05]">
-                      <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="הוסף תגובה..." className="flex-1 bg-transparent px-4 text-brand text-sm outline-none placeholder:text-brand-muted" />
-                      <button onClick={submitComment} disabled={!newComment.trim()} className="w-9 h-9 bg-accent-primary rounded-full flex items-center justify-center text-surface active:scale-95 disabled:opacity-50 transition-opacity"><Send size={16} className="rtl:-scale-x-100 -ml-0.5" /></button>
-                    </div>
-                  </div>
-                </motion.div>
-              </div>
-            )}
-
-            {optionsMenuPost && (
-              <div className="fixed inset-0 z-[100000] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-surface/80 backdrop-blur-sm" onClick={closeOverlay} />
-                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[40px] p-6 flex flex-col gap-2 pb-12 shadow-[0_-10px_50px_rgba(0,0,0,0.8)] border-t border-white/[0.05]">
-                  <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/[0.1] rounded-full" /></div>
-                  <button onClick={() => { closeOverlay(); setTimeout(() => handleShare(optionsMenuPost), 100); }} className="w-full p-4 bg-surface-card border border-white/[0.05] rounded-[20px] text-brand font-bold flex justify-between items-center text-lg hover:bg-white/[0.05] transition-colors"><span>שתף פוסט</span><Share2 size={20} className="text-brand-muted" /></button>
-                  {optionsMenuPost.media_url && <button onClick={() => handleDownloadMedia(optionsMenuPost.media_url)} className="w-full p-4 bg-surface-card border border-white/[0.05] rounded-[20px] text-brand font-bold flex justify-between items-center text-lg hover:bg-white/[0.05] transition-colors mt-2"><span>שמור למכשיר</span><Download size={20} className="text-brand-muted" /></button>}
-                  <button onClick={async () => { try { await supabase.from('saved_posts').insert({ user_id: currentUserId, post_id: optionsMenuPost.id }); toast.success('הפוסט נשמר במועדפים!'); } catch { toast.error('הפוסט כבר שמור אצלך'); } closeOverlay(); }} className="w-full p-4 bg-surface-card border border-white/[0.05] rounded-[20px] text-brand font-bold flex justify-between items-center text-lg hover:bg-white/[0.05] transition-colors mt-2"><span>שמור במועדפים</span><Bookmark size={20} className="text-brand-muted" /></button>
-                  <button onClick={() => handleCopyLink(optionsMenuPost)} className="w-full p-4 bg-surface-card border border-white/[0.05] rounded-[20px] text-brand font-bold flex justify-between items-center text-lg hover:bg-white/[0.05] transition-colors mt-2"><span>העתק קישור</span><LinkIcon size={20} className="text-brand-muted" /></button>
-                  {optionsMenuPost.user_id === currentUserId && (
-                    <>
-                      <button onClick={() => { closeOverlay(); setTimeout(() => { openOverlay(() => { setEditingPost(optionsMenuPost); setEditPostText(optionsMenuPost.content || ''); setShowCreatePost(true); }); }, 100); }} className="w-full p-4 bg-surface-card border border-white/[0.05] rounded-[20px] text-brand font-bold flex justify-between items-center text-lg hover:bg-white/[0.05] transition-colors mt-4"><span>ערוך פוסט</span><Edit2 size={20} className="text-brand-muted" /></button>
-                      <button onClick={() => { if (window.confirm('למחוק פוסט?')) deletePost(optionsMenuPost.id); }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-[20px] text-red-500 font-bold flex justify-between items-center text-lg mt-2 hover:bg-red-500/20 transition-colors"><span>מחק פוסט</span><Trash2 size={20} className="text-red-500" /></button>
-                    </>
-                  )}
-                </motion.div>
-              </div>
-            )}
-
-            {commentActionModal && (
-              <div className="fixed inset-0 z-[100000] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-surface/80 backdrop-blur-sm" onClick={closeOverlay} />
-                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[40px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-10px_50px_rgba(0,0,0,0.8)] border-t border-white/[0.05]">
-                  <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/[0.1] rounded-full" /></div>
-                  <button onClick={() => { closeOverlay(); setReplyingTo(commentActionModal.parent_id ? comments.find((c) => c?.id === commentActionModal.parent_id) : commentActionModal); setNewComment(`@${commentActionModal.profiles?.full_name} `); }} className="w-full p-4 bg-surface-card border border-white/[0.05] rounded-[20px] text-brand font-bold flex justify-between items-center text-lg hover:bg-white/[0.05] transition-colors"><span>השב לתגובה</span><Reply size={20} className="text-brand-muted" /></button>
-                  {commentActionModal.user_id === currentUserId && (
-                    <>
-                      <button onClick={() => { closeOverlay(); setEditingCommentId(commentActionModal.id); setNewComment(commentActionModal.content); }} className="w-full p-4 bg-surface-card border border-white/[0.05] rounded-[20px] text-brand font-bold flex justify-between items-center text-lg hover:bg-white/[0.05] transition-colors"><span>ערוך תגובה</span><Edit2 size={20} className="text-brand-muted" /></button>
-                      <button onClick={() => { if (window.confirm('למחוק תגובה?')) { closeOverlay(); deleteComment(commentActionModal.id); } }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-[20px] text-red-500 font-bold flex justify-between items-center text-lg mt-2 hover:bg-red-500/20 transition-colors"><span>מחק תגובה</span><Trash2 size={20} className="text-red-500" /></button>
-                    </>
-                  )}
-                </motion.div>
-              </div>
-            )}
-
-            {activeDescPost && (
-              <div className="fixed inset-0 z-[100000] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-surface/80 backdrop-blur-sm" onClick={closeOverlay} />
-                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[40px] flex flex-col overflow-hidden pb-10 max-h-[75vh] shadow-[0_-10px_50px_rgba(0,0,0,0.8)] border-t border-white/[0.05]">
-                  <div className="w-full py-6 flex justify-center cursor-grab active:cursor-grabbing border-b border-white/[0.05]"><div className="w-16 h-1.5 bg-white/[0.1] rounded-full" /></div>
-                  <div className="px-6 py-4 border-b border-white/[0.05]"><h2 className="text-brand font-black text-lg text-center">תיאור מלא</h2></div>
-                  <div className="p-6 overflow-y-auto" onPointerDown={stopPropagation} onTouchStart={stopPropagation}><p className="text-brand-muted text-[15px] leading-relaxed text-right whitespace-pre-wrap">{activeDescPost.content}</p></div>
-                </motion.div>
-              </div>
-            )}
-
+            {/* מודאל חברים בלבן נקי */}
             {(showFollowersList || showFollowingList) && (
-              <div className="fixed inset-0 z-[100000] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-surface/80 backdrop-blur-sm" onClick={closeOverlay} />
-                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[40px] p-6 pb-10 max-h-[75vh] border-t border-white/[0.05] shadow-[0_-10px_50px_rgba(0,0,0,0.8)]">
-                  <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing" onPointerDown={(e) => (showFollowersList ? followersDragControls.start(e) : followingDragControls.start(e))} style={{ touchAction: 'none' }}><div className="w-16 h-1.5 bg-white/[0.1] rounded-full" /></div>
-                  <h3 className="text-brand text-lg font-black text-center mb-5">{showFollowersList ? 'עוקבים' : 'נעקבים'}</h3>
-                  <div className="overflow-y-auto max-h-[58vh] flex flex-col gap-3">
-                    {loadingUsersList ? <Loader2 className="animate-spin mx-auto text-accent-primary mt-6" /> : usersListData.length === 0 ? <div className="text-center text-brand-muted text-sm py-10">אין נתונים להצגה</div> : usersListData.map((item: any) => (
-                      <button key={item.id} onClick={() => { closeOverlay(); setTimeout(() => navigate(`/profile/${item.username || item.id}`), 50); }} className="w-full flex items-center gap-4 bg-surface-card border border-white/[0.05] rounded-[20px] p-3 active:scale-[0.99] transition-transform">
-                        <div className="w-12 h-12 rounded-full overflow-hidden bg-surface border border-white/[0.05] shrink-0">{item.avatar_url ? <img src={item.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-2 text-brand-muted" />}</div>
-                        <div className="flex-1 text-right"><div className="text-brand font-black text-[15px]">{item.full_name || 'משתמש'}</div><div className="text-brand-muted text-[12px]" dir="ltr">@{item.username || 'user'}</div></div>
-                      </button>
+              <div className="fixed inset-0 z-[100000] flex flex-col justify-end" dir="rtl" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
+                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="relative z-10 bg-white rounded-t-[40px] h-[75vh] flex flex-col overflow-hidden pb-10 shadow-[0_-20px_50px_rgba(0,0,0,0.15)] border-t border-black/[0.05]">
+                  <div className="w-full py-5 flex justify-center cursor-grab active:cursor-grabbing border-b border-black/[0.05]" onPointerDown={(e) => (showFollowersList ? followersDragControls.start(e) : followingDragControls.start(e))} style={{ touchAction: 'none' }}><div className="w-16 h-1.5 bg-black/10 rounded-full" /></div>
+                  <div className="text-center py-2 border-b border-black/[0.05]"><h3 className="text-black font-black text-lg">{showFollowersList ? 'עוקבים' : 'נעקבים'}</h3></div>
+                  <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 scrollbar-hide">
+                    {loadingUsersList ? <Loader2 className="animate-spin mx-auto text-accent-primary mt-10" /> : usersListData.length === 0 ? <div className="text-center text-neutral-500 mt-10 text-sm">אין נתונים להצגה</div> : usersListData.map((item) => (
+                      <div key={item.id} onClick={() => { closeOverlay(); setTimeout(() => navigate(`/profile/${item.username || item.id}`), 50); }} className="flex items-center gap-3 bg-neutral-50 p-3 rounded-[20px] border border-neutral-200 cursor-pointer active:scale-95 transition-transform">
+                        <div className="w-12 h-12 rounded-full overflow-hidden bg-white border border-neutral-200 shrink-0">{item.avatar_url ? <img src={item.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full p-2 text-neutral-400" />}</div>
+                        <div className="flex flex-col flex-1">
+                          <span className="text-black font-bold text-[14px] flex items-center gap-1.5">{item.full_name || 'אנונימי'}</span>
+                          <span className="text-neutral-500 text-[11px]" dir="ltr">@{item.username || 'user'}</span>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </motion.div>
               </div>
             )}
 
+            {/* מודאל תגובות בלבן נקי */}
+            {activeCommentsPostId && (
+              <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
+                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="relative z-10 bg-white rounded-t-[40px] h-[85vh] flex flex-col overflow-hidden pb-10 shadow-[0_-20px_50px_rgba(0,0,0,0.15)] border-t border-black/[0.05]">
+                  <div className="w-full py-5 flex justify-center cursor-grab active:cursor-grabbing border-b border-black/[0.05]" onPointerDown={(e) => commentsDragControls.start(e)} style={{ touchAction: 'none' }}><div className="w-16 h-1.5 bg-black/10 rounded-full" /></div>
+                  <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 scrollbar-hide">
+                    {loadingComments ? <Loader2 className="animate-spin mx-auto text-accent-primary mt-10" /> : comments.filter((c) => c && !c.parent_id).map((c) => {
+                      const replies = comments.filter((r) => r && r.parent_id === c.id);
+                      return (
+                        <div key={c.id} className="flex flex-col gap-2">
+                          <div className="flex gap-3">
+                            <div className="w-10 h-10 min-w-[40px] rounded-full bg-neutral-100 shrink-0 overflow-hidden cursor-pointer border border-neutral-200 flex items-center justify-center" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${c.user_id}`), 50); }}>
+                              {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover object-center" /> : <UserCircle className="w-full h-full p-2 text-neutral-400" />}
+                            </div>
+                            <div className="flex flex-col flex-1">
+                              <div className="bg-neutral-100 p-3 rounded-[24px] rounded-tr-sm cursor-pointer" onClick={() => openOverlay(() => setCommentActionModal(c))}>
+                                <span className="text-black font-bold text-xs mb-1 inline-block" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${c.user_id}`), 50); }}>{c.profiles?.full_name || 'אנונימי'}</span>
+                                <p className="text-neutral-700 text-sm whitespace-pre-wrap leading-relaxed">{c.content}</p>
+                              </div>
+                            </div>
+                          </div>
+                          {replies.length > 0 && (
+                            <div className="pr-10 flex flex-col gap-2">
+                              {replies.map((reply) => (
+                                <div key={reply.id} className="bg-neutral-50 rounded-[20px] p-3 border border-neutral-200">
+                                  <div className="text-black text-xs font-bold mb-1">{reply.profiles?.full_name || 'אנונימי'}</div>
+                                  <div className="text-neutral-600 text-sm">{reply.content}</div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="p-4 bg-white border-t border-neutral-200 flex gap-2 pb-8">
+                    <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="הוסף תגובה..." className="flex-1 bg-neutral-100 border border-neutral-200 text-black rounded-full px-5 outline-none text-[15px] placeholder:text-neutral-400" />
+                    <Button onClick={submitComment} disabled={!newComment.trim()} className="w-14 h-14 p-0 rounded-full shrink-0 bg-accent-primary text-white shadow-md hover:bg-accent-primary/90"><Send size={20} className="rtl:-scale-x-100 -ml-1" /></Button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+
+            {/* מודאל אפשרויות פוסט בלבן נקי */}
+            {optionsMenuPost && (
+              <div className="fixed inset-0 z-[99999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
+                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-white rounded-t-[40px] p-6 flex flex-col gap-2 pb-12 shadow-[0_-10px_50px_rgba(0,0,0,0.15)] border-t border-black/[0.05]">
+                  <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-black/10 rounded-full" /></div>
+                  <button onClick={() => { closeOverlay(); setTimeout(() => handleShare(optionsMenuPost), 100); }} className="w-full p-4 bg-neutral-100 rounded-full text-black font-bold flex justify-between items-center text-lg active:bg-neutral-200 transition-colors border border-neutral-200/50"><span>שתף פוסט</span><Share2 size={20} className="text-neutral-500" /></button>
+                  {optionsMenuPost.media_url && <button onClick={() => handleDownloadMedia(optionsMenuPost.media_url)} className="w-full p-4 bg-neutral-100 rounded-full text-black font-bold flex justify-between items-center text-lg active:bg-neutral-200 transition-colors mt-2 border border-neutral-200/50"><span>שמור למכשיר</span><Download size={20} className="text-neutral-500" /></button>}
+                  <button onClick={async () => { try { await supabase.from('saved_posts').insert({ user_id: currentUserId, post_id: optionsMenuPost.id }); toast.success('הפוסט נשמר במועדפים!'); } catch { toast.error('הפוסט כבר שמור אצלך'); } closeOverlay(); }} className="w-full p-4 bg-neutral-100 rounded-full text-black font-bold flex justify-between items-center text-lg active:bg-neutral-200 transition-colors mt-2 border border-neutral-200/50"><span>שמור במועדפים</span><Bookmark size={20} className="text-neutral-500" /></button>
+                  <button onClick={() => handleCopyLink(optionsMenuPost)} className="w-full p-4 bg-neutral-100 rounded-full text-black font-bold flex justify-between items-center text-lg active:bg-neutral-200 transition-colors mt-2 border border-neutral-200/50"><span>העתק קישור</span><LinkIcon size={20} className="text-neutral-500" /></button>
+                  {optionsMenuPost.user_id === currentUserId && (
+                    <>
+                      <button onClick={() => { closeOverlay(); setTimeout(() => { openOverlay(() => { setEditingPost(optionsMenuPost); setEditPostText(optionsMenuPost.content || ''); setShowCreatePost(true); }); }, 100); }} className="w-full p-4 bg-neutral-100 rounded-full text-black font-bold flex justify-between items-center text-lg active:bg-neutral-200 transition-colors mt-4 border border-neutral-200/50"><span>ערוך פוסט</span><Edit2 size={20} className="text-neutral-500" /></button>
+                      <button onClick={() => { if (window.confirm('למחוק פוסט?')) { deletePost(optionsMenuPost.id); } }} className="w-full p-4 bg-red-50 border border-red-100 rounded-full text-red-500 font-bold flex justify-between items-center text-lg mt-2 active:bg-red-100 transition-colors"><span>מחק פוסט</span><Trash2 size={20} className="text-red-500" /></button>
+                    </>
+                  )}
+                </motion.div>
+              </div>
+            )}
+
+            {/* מודאל פעולות לתגובה בלבן נקי */}
+            {commentActionModal && (
+              <div className="fixed inset-0 z-[100000] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
+                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-white rounded-t-[40px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-10px_50px_rgba(0,0,0,0.15)] border-t border-black/[0.05]">
+                  <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-black/10 rounded-full" /></div>
+                  <button onClick={() => { closeOverlay(); setReplyingTo(commentActionModal.parent_id ? comments.find((c) => c?.id === commentActionModal.parent_id) : commentActionModal); setNewComment(`@${commentActionModal.profiles?.full_name} `); }} className="w-full p-4 bg-neutral-100 rounded-full text-black font-bold flex justify-between items-center text-lg hover:bg-neutral-200 transition-colors border border-neutral-200/50"><span>השב לתגובה</span><Reply size={20} className="text-neutral-500" /></button>
+                  {commentActionModal.user_id === currentUserId && (
+                    <>
+                      <button onClick={() => { closeOverlay(); setEditingCommentId(commentActionModal.id); setNewComment(commentActionModal.content); }} className="w-full p-4 bg-neutral-100 rounded-full text-black font-bold flex justify-between items-center text-lg hover:bg-neutral-200 transition-colors border border-neutral-200/50"><span>ערוך תגובה</span><Edit2 size={20} className="text-neutral-500" /></button>
+                      <button onClick={() => { if (window.confirm('למחוק תגובה?')) { closeOverlay(); deleteComment(commentActionModal.id); } }} className="w-full p-4 bg-red-50 border border-red-100 rounded-full text-red-500 font-bold flex justify-between items-center text-lg mt-2 hover:bg-red-100 transition-colors"><span>מחק תגובה</span><Trash2 size={20} className="text-red-500" /></button>
+                    </>
+                  )}
+                </motion.div>
+              </div>
+            )}
+
+            {/* מודאל תיאור פוסט מלא בלבן נקי */}
+            {activeDescPost && (
+              <div className="fixed inset-0 z-[99999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
+                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-white rounded-t-[40px] flex flex-col overflow-hidden pb-10 max-h-[75vh] shadow-[0_-10px_50px_rgba(0,0,0,0.15)] border-t border-black/[0.05]">
+                  <div className="w-full py-6 flex justify-center cursor-grab active:cursor-grabbing border-b border-neutral-200/50"><div className="w-16 h-1.5 bg-black/10 rounded-full" /></div>
+                  <div className="px-6 py-4 border-b border-neutral-200/50"><h2 className="text-black font-black text-lg text-center">תיאור מלא</h2></div>
+                  <div className="p-6 overflow-y-auto" onPointerDown={stopPropagation} onTouchStart={stopPropagation}><p className="text-neutral-700 text-[15px] leading-relaxed text-right whitespace-pre-wrap">{activeDescPost.content}</p></div>
+                </motion.div>
+              </div>
+            )}
+
+            {/* ACTION GRID (EDIT/DELETE) */}
+            {gridActionModal && (
+              <div className="fixed inset-0 z-[100000] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
+                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-white rounded-t-[40px] p-6 flex flex-col gap-2 pb-12 shadow-[0_-10px_50px_rgba(0,0,0,0.15)] border-t border-black/[0.05]" onPointerDown={(e) => gridActionDragControls.start(e)} style={{ touchAction: 'none' }}>
+                  <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-black/10 rounded-full" /></div>
+                  
+                  {gridActionModal.type === 'post' && (
+                    <>
+                      <button onClick={() => { closeOverlay(); setTimeout(() => { openOverlay(() => { setEditingPost(gridActionModal.item); setEditPostText(gridActionModal.item.content || ''); setShowCreatePost(true); }); }, 100); }} className="w-full p-4 bg-neutral-100 rounded-full text-black font-bold flex justify-between items-center text-lg hover:bg-neutral-200 transition-colors border border-neutral-200/50"><span>ערוך פוסט</span><Edit2 size={20} className="text-neutral-500" /></button>
+                      <button onClick={() => { if (window.confirm('למחוק פוסט?')) deletePost(gridActionModal.item.id); }} className="w-full p-4 bg-red-50 border border-red-100 rounded-full text-red-500 font-bold flex justify-between items-center text-lg mt-2 hover:bg-red-100 transition-colors"><span>מחק פוסט</span><Trash2 size={20} className="text-red-500" /></button>
+                    </>
+                  )}
+
+                  {gridActionModal.type === 'saved' && (
+                    <button onClick={() => removeFromSaved(gridActionModal.item.id)} className="w-full p-4 bg-neutral-100 rounded-full text-black font-bold flex justify-between items-center text-lg hover:bg-neutral-200 transition-colors border border-neutral-200/50"><span>הסר משמורים</span><Bookmark size={20} className="text-neutral-500" /></button>
+                  )}
+
+                  {gridActionModal.type === 'circle' && (
+                    <>
+                      <button onClick={() => { closeOverlay(); setTimeout(() => { navigate(`/circle/${gridActionModal.item.slug}`); }, 100); }} className="w-full p-4 bg-neutral-100 rounded-full text-black font-bold flex justify-between items-center text-lg hover:bg-neutral-200 transition-colors border border-neutral-200/50"><span>כנס למועדון</span><LinkIcon size={20} className="text-neutral-500" /></button>
+                      <button onClick={() => { if (window.confirm('לעזוב את המועדון?')) leaveCircle(gridActionModal.item.id); }} className="w-full p-4 bg-red-50 border border-red-100 rounded-full text-red-500 font-bold flex justify-between items-center text-lg mt-2 hover:bg-red-100 transition-colors"><span>עזוב מועדון</span><LogOut size={20} className="text-red-500" /></button>
+                    </>
+                  )}
+                </motion.div>
+              </div>
+            )}
+
+            {/* CREATE POST MODAL */}
             {showCreatePost && (
               <div className="fixed inset-0 z-[100000] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-surface/80 backdrop-blur-sm" onClick={closeOverlay} />
-                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[40px] p-6 flex flex-col gap-4 pb-12 border-t border-white/[0.05] shadow-[0_-10px_50px_rgba(0,0,0,0.8)]">
-                  <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/[0.1] rounded-full" /></div>
-                  <div className="flex justify-between items-center"><h3 className="text-brand font-black text-lg">עריכת פוסט</h3><button onClick={closeOverlay} className="text-brand-muted hover:text-brand"><X size={20} /></button></div>
-                  <textarea value={editPostText} onChange={(e) => setEditPostText(e.target.value)} placeholder="כתוב משהו..." className="h-36 bg-surface-card rounded-[20px] p-5 text-brand text-[16px] outline-none resize-none border border-white/[0.05] placeholder:text-brand-muted shadow-inner" />
-                  <Button onClick={saveEditedPost} disabled={!editPostText.trim()} className="h-14 bg-accent-primary text-surface font-black rounded-[20px] mt-2 shadow-lg">שמור עריכה</Button>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeOverlay} />
+                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-white rounded-t-[40px] p-6 flex flex-col gap-4 pb-12 border-t border-black/[0.05] shadow-[0_-10px_50px_rgba(0,0,0,0.15)]">
+                  <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-black/10 rounded-full" /></div>
+                  <div className="flex justify-between items-center"><h3 className="text-black font-black text-lg">עריכת פוסט</h3><button onClick={closeOverlay} className="text-neutral-500 hover:text-black"><X size={20} /></button></div>
+                  <textarea value={editPostText} onChange={(e) => setEditPostText(e.target.value)} placeholder="כתוב משהו..." className="h-36 bg-neutral-100 rounded-[20px] p-5 text-black text-[16px] outline-none resize-none border border-neutral-200 placeholder:text-neutral-400 shadow-inner" />
+                  <Button onClick={saveEditedPost} disabled={!editPostText.trim()} className="h-14 bg-accent-primary text-white font-black rounded-full mt-2 shadow-lg">שמור עריכה</Button>
                 </motion.div>
               </div>
             )}
           </AnimatePresence>
         </>,
-        document.body
+        portalNode
       )}
     </div>
   );
