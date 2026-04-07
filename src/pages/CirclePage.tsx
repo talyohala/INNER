@@ -6,14 +6,13 @@ import { supabase } from '../lib/supabase';
 import { apiFetch } from '../lib/api';
 import { FadeIn, Button } from '../components/ui';
 import {
-  Loader2, MessageSquare, Heart, Crown, Send, Lock, UserCircle, Trash2, Edit2, MoreVertical, Paperclip, Share2, Download, Link as LinkIcon, Bookmark, ShieldAlert, Gift, Flame, Eye
+  Loader2, MessageSquare, Heart, Crown, Send, Lock, UserCircle, Trash2, Edit2, MoreVertical, Paperclip, Share2, Download, Link as LinkIcon, Bookmark, ShieldAlert, Gift, Flame, Eye, ChevronDown, ChevronUp, Reply, X
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 import { Share } from '@capacitor/share';
 import { useAuth } from '../context/AuthContext';
 
-// להבת אש פועמת
 const RealFlame: React.FC = () => (
   <motion.span animate={{ scale: [1, 1.15, 1], rotate: [0, -5, 5, 0] }} transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }} className="text-[12px] inline-block">🔥</motion.span>
 );
@@ -37,9 +36,6 @@ export const CirclePage: React.FC = () => {
   const { profile: myProfile } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const commentsDragControls = useDragControls();
-  const membersDragControls = useDragControls();
-
   const [mounted, setMounted] = useState(false);
   const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
   const [data, setData] = useState<any>(null);
@@ -48,27 +44,23 @@ export const CirclePage: React.FC = () => {
   // Tabs
   const [activeTab, setActiveTab] = useState<'chat' | 'drops' | 'members'>('chat');
 
-  // Posts / Chat
+  // Posts & Chat feed
   const [page, setPage] = useState(0);
   const [hasMorePosts, setHasMorePosts] = useState(true);
   const POSTS_PER_PAGE = 20;
   const [loadingMore, setLoadingMore] = useState(false);
+  
+  // Input State
   const [newPost, setNewPost] = useState('');
   const [posting, setPosting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [editingPost, setEditingPost] = useState<any | null>(null);
-  const [showCreatePost, setShowCreatePost] = useState(false);
+  const [replyingToPost, setReplyingToPost] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
 
-  // Comments
-  const [activePost, setActivePost] = useState<any>(null);
-  const [activeCommentsPostId, setActiveCommentsPostId] = useState<string | null>(null);
-  const [comments, setComments] = useState<any[]>([]);
-  const [newComment, setNewComment] = useState('');
-  const [loadingComments, setLoadingComments] = useState(false);
-  const [replyingTo, setReplyingTo] = useState<any | null>(null);
-  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [commentActionModal, setCommentActionModal] = useState<any | null>(null);
+  // Threads / Comments
+  const [postComments, setPostComments] = useState<Record<string, any[]>>({});
+  const [expandedThreads, setExpandedThreads] = useState<Record<string, boolean>>({});
 
   // Overlays
   const [optionsMenuPost, setOptionsMenuPost] = useState<any>(null);
@@ -83,33 +75,24 @@ export const CirclePage: React.FC = () => {
   const [membersList, setMembersList] = useState<any[]>([]);
   const [liveStats, setLiveStats] = useState({ active: 0, typing: 0, giftsSent: 0 });
 
-  const stateRef = useRef({ comments: false, options: false, desc: false, fullscreen: false, commentAction: false, create: false });
-
   useEffect(() => { 
     setMounted(true); 
     setPortalNode(document.getElementById('root') || document.body);
   }, []);
 
-  useEffect(() => {
-    stateRef.current = { comments: !!activeCommentsPostId, options: !!optionsMenuPost, desc: !!activeDescPost, fullscreen: !!fullScreenMedia, commentAction: !!commentActionModal, create: showCreatePost };
-  }, [activeCommentsPostId, optionsMenuPost, activeDescPost, fullScreenMedia, commentActionModal, showCreatePost]);
+  const openOverlay = (action: () => void) => { window.history.pushState({ overlay: true }, ''); action(); };
+  const closeOverlay = () => { window.history.back(); };
 
   useEffect(() => {
     const handlePopState = () => {
-      const s = stateRef.current;
-      if (s.commentAction) setCommentActionModal(null);
-      else if (s.comments) { setActiveCommentsPostId(null); setActivePost(null); setReplyingTo(null); }
-      else if (s.options) setOptionsMenuPost(null);
-      else if (s.desc) setActiveDescPost(null);
-      else if (s.fullscreen) setFullScreenMedia(null);
-      else if (s.create) { setShowCreatePost(false); setEditingPost(null); }
+      if (optionsMenuPost) setOptionsMenuPost(null);
+      else if (activeDescPost) setActiveDescPost(null);
+      else if (fullScreenMedia) setFullScreenMedia(null);
+      else if (editingPost) setEditingPost(null);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-
-  const openOverlay = (action: () => void) => { window.history.pushState({ overlay: true }, ''); action(); };
-  const closeOverlay = () => { window.history.back(); };
+  }, [optionsMenuPost, activeDescPost, fullScreenMedia, editingPost]);
 
   useEffect(() => {
     fetchCircleData();
@@ -243,10 +226,29 @@ export const CirclePage: React.FC = () => {
         triggerFeedback('coin');
       }
 
+      // Reply to Thread (Creates a Comment)
+      if (replyingToPost && !isGift) {
+        const { data: inserted, error } = await supabase.from('comments').insert({ post_id: replyingToPost, user_id: currentUserId, content: newPost.trim() }).select('*, profiles(*)').single();
+        if (error) throw error;
+        if (inserted) {
+          setPostComments((prev) => ({ ...prev, [replyingToPost]: [...(prev[replyingToPost] || []), inserted] }));
+          const update = (list: any[]) => list.map((p) => p.id === replyingToPost ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p);
+          setData((curr: any) => ({ ...curr, posts: update(curr.posts) }));
+          setExpandedThreads((prev) => ({ ...prev, [replyingToPost]: true }));
+          triggerFeedback('pop');
+        }
+        setReplyingToPost(null);
+        setNewPost('');
+        setPosting(false);
+        return;
+      }
+
+      // Edit Main Post
       if (editingPost) {
         await supabase.from('posts').update({ content: newPost.trim() }).eq('id', editingPost.id);
         toast.success('עודכן בהצלחה'); closeOverlay();
       } else {
+        // Create Main Post
         let media_url: string | null = null;
         let media_type = 'text';
         if (selectedFile) {
@@ -260,12 +262,12 @@ export const CirclePage: React.FC = () => {
         }
 
         const { data: insertedPost, error } = await supabase.from('posts').insert({
-          circle_id: data.circle.id, user_id: currentUserId, content: newPost.trim() || (isGift ? `שלח מתנה בשווי ${giftAmount} CRD 🎁` : ''), media_url, media_type,
+          circle_id: data.circle.id, user_id: currentUserId, content: newPost.trim() || (isGift ? `שלח מתנה בשווי ${giftAmount} CRD 🎁` : ''), media_url, media_type, gift_amount: giftAmount
         }).select('*, profiles!user_id(*), likes(user_id), comments(id)').single();
 
         if (error) throw error;
         if (insertedPost) {
-          const newMsg = { ...insertedPost, likes_count: 0, comments_count: 0, is_liked: false, gift_amount: giftAmount };
+          const newMsg = { ...insertedPost, likes_count: 0, comments_count: 0, is_liked: false };
           setData((curr: any) => ({ ...curr, posts: [newMsg, ...curr.posts] }));
         }
       }
@@ -285,37 +287,15 @@ export const CirclePage: React.FC = () => {
     } catch {}
   };
 
-  const submitComment = async () => {
-    if (!newComment.trim() || !activePost || !currentUserId) return;
-    try {
-      if (editingCommentId) {
-        await supabase.from('comments').update({ content: newComment.trim() }).eq('id', editingCommentId);
-        setComments((prev) => prev.map((c) => (c.id === editingCommentId ? { ...c, content: newComment.trim() } : c)));
-        setEditingCommentId(null);
-      } else {
-        const payload: any = { post_id: activePost.id, user_id: currentUserId, content: newComment.trim() };
-        if (replyingTo) payload.parent_id = replyingTo.id;
-        const { data: inserted, error } = await supabase.from('comments').insert(payload).select('*, profiles(*)').single();
-        if (error) throw error;
-        if (inserted) {
-          setComments((prev) => [...prev, inserted]);
-          const update = (list: any[]) => list.map((p) => p.id === activePost.id ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p);
-          setData((curr: any) => ({ ...curr, posts: update(curr.posts) }));
-          if (fullScreenMedia) setFullScreenMedia(update(fullScreenMedia));
-          triggerFeedback('coin');
-        }
-      }
-      setNewComment(''); setReplyingTo(null);
-    } catch { toast.error('שגיאה בשרת'); }
-  };
-
-  const deleteComment = async (commentId: string) => {
-    triggerFeedback('error');
-    setComments((curr) => curr.filter((c) => c && c.id !== commentId && c.parent_id !== commentId));
-    const update = (list: any[]) => list.map((p) => p.id === activePost?.id ? { ...p, comments_count: Math.max(0, (p.comments_count || 0) - 1) } : p);
-    setData((curr: any) => ({ ...curr, posts: update(curr.posts) }));
-    if (fullScreenMedia) setFullScreenMedia(update(fullScreenMedia));
-    try { await supabase.from('comments').delete().eq('id', commentId); } catch {}
+  const toggleThread = async (postId: string) => {
+    triggerFeedback('pop');
+    const isExpanded = expandedThreads[postId];
+    setExpandedThreads(prev => ({...prev, [postId]: !isExpanded}));
+    
+    if (!isExpanded && !postComments[postId]) {
+      const { data } = await supabase.from('comments').select('*, profiles!user_id(*)').eq('post_id', postId).order('created_at', { ascending: true });
+      setPostComments(prev => ({ ...prev, [postId]: data || [] }));
+    }
   };
 
   const deletePost = async (postId: string) => {
@@ -373,7 +353,7 @@ export const CirclePage: React.FC = () => {
 
   const stopPropagation = (e: any) => e.stopPropagation();
 
-  if (loading || !data) return <div className="min-h-screen bg-surface flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" /></div>;
+  if (loading || !data) return <div className="min-h-[100dvh] bg-surface flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" /></div>;
 
   const { circle, isMember, membership, posts } = data;
   const requiredLevel = circle.min_level || 1;
@@ -384,51 +364,45 @@ export const CirclePage: React.FC = () => {
     <>
       <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*" />
       
-      <FadeIn className="bg-surface min-h-screen font-sans flex flex-col relative overflow-x-hidden pb-0" dir="rtl">
+      {/* MAIN LAYOUT: 100dvh, flex-col, overflow-hidden */}
+      <FadeIn className="bg-surface h-[100dvh] font-sans flex flex-col relative overflow-hidden" dir="rtl">
         
-        {/* 🔝 HERO SECTION */}
-        <div className="relative w-full h-64 bg-black overflow-hidden shrink-0">
+        {/* 🔝 HERO SECTION & STATS (Fixed Top) */}
+        <div className="relative w-full h-[180px] shrink-0 bg-black overflow-hidden flex flex-col justify-end pb-4">
           {circle.cover_url ? (
-            <img src={circle.cover_url} className="w-full h-full object-cover opacity-60 mix-blend-luminosity" />
+            <img src={circle.cover_url} className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-luminosity" />
           ) : (
             <div className="absolute inset-0 bg-gradient-to-br from-surface-card to-surface"></div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/80 to-transparent"></div>
           
-          <div className="absolute bottom-0 left-0 right-0 p-5 flex flex-col items-center text-center pb-8">
-            <h1 className="text-3xl font-black text-brand drop-shadow-md tracking-tight mb-2">{circle.name}</h1>
-            <p className="text-brand-muted text-[13px] font-medium max-w-[280px] line-clamp-2 leading-relaxed">{circle.description}</p>
+          <div className="relative z-10 px-5 text-center flex flex-col items-center">
+            <h1 className="text-2xl font-black text-brand drop-shadow-md tracking-tight mb-1">{circle.name}</h1>
+            <p className="text-brand-muted text-[11px] font-medium max-w-[280px] line-clamp-1 leading-relaxed mb-3">{circle.description}</p>
             
-            {isMember && (
-              <div className="mt-4 bg-surface/50 backdrop-blur-md border border-surface-border px-4 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
-                <Crown size={14} className={membership?.tier === 'CORE' ? 'text-accent-primary' : 'text-brand-muted'} />
-                <span className="text-[11px] font-black text-brand uppercase tracking-widest">{membership?.tier || 'INNER'} MEMBER</span>
+            {/* Inline Live Stats replacing INNER MEMBER block */}
+            <div className="flex items-center justify-center gap-4 bg-surface/50 backdrop-blur-md border border-surface-border px-5 py-1.5 rounded-full shadow-sm">
+              <div className="flex items-center gap-1.5">
+                <Eye size={12} className="text-brand-muted" />
+                <span className="text-[10px] font-black text-brand">{liveStats.active}</span>
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* 🎯 STATS LIVE */}
-        <div className="flex justify-center items-center gap-3 py-4 border-b border-surface-border shrink-0 bg-surface -mt-4 relative z-10 rounded-t-[32px] shadow-[0_-10px_30px_rgba(0,0,0,0.2)]">
-          <div className="flex items-center gap-1.5 px-3 py-1.5">
-            <Eye size={14} className="text-brand-muted" />
-            <span className="text-[11px] font-black text-brand">{liveStats.active} בפנים</span>
-          </div>
-          <div className="w-px h-4 bg-surface-border" />
-          <div className="flex items-center gap-1.5 px-3 py-1.5">
-            {liveStats.typing > 0 ? <RealFlame /> : <MessageSquare size={14} className="text-brand-muted" />}
-            <span className="text-[11px] font-black text-brand">{liveStats.typing} מדברים</span>
-          </div>
-          <div className="w-px h-4 bg-surface-border" />
-          <div className="flex items-center gap-1.5 px-3 py-1.5">
-            <span className="text-[11px] font-black text-accent-primary tabular-nums">{liveStats.giftsSent}</span>
-            <span className="text-[11px] font-black text-brand-muted">CRD היום</span>
+              <div className="w-px h-3 bg-surface-border" />
+              <div className="flex items-center gap-1.5">
+                {liveStats.typing > 0 ? <RealFlame /> : <MessageSquare size={12} className="text-brand-muted" />}
+                <span className="text-[10px] font-black text-brand">{liveStats.typing}</span>
+              </div>
+              <div className="w-px h-3 bg-surface-border" />
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-black text-accent-primary tabular-nums">{liveStats.giftsSent}</span>
+                <span className="text-[9px] font-black text-brand-muted">CRD</span>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* 💎 JOIN AREA (If not member) */}
         {!isMember ? (
-          <div className="flex-1 flex flex-col items-center p-6 gap-6 mt-2">
+          <div className="flex-1 flex flex-col items-center p-6 gap-6 mt-2 overflow-y-auto">
             <div className="w-24 h-24 rounded-[32px] bg-surface-card border border-surface-border flex items-center justify-center mb-2 shadow-md">
               {levelTooLow ? <ShieldAlert size={36} className="text-red-500" /> : <Lock size={36} className="text-brand-muted" />}
             </div>
@@ -441,7 +415,7 @@ export const CirclePage: React.FC = () => {
             </div>
 
             {!levelTooLow && (
-              <div className="w-full flex flex-col gap-3 mt-4">
+              <div className="w-full flex flex-col gap-3 mt-4 pb-10">
                 <Button onClick={() => handleJoin('INNER')} disabled={joining} className="w-full h-14 bg-surface border border-surface-border text-brand font-black rounded-2xl shadow-sm active:scale-95 transition-all uppercase tracking-widest text-[13px]">
                   {joining ? <Loader2 size={18} className="animate-spin" /> : `כניסה רגילה - ${circle.join_price} CRD`}
                 </Button>
@@ -454,9 +428,12 @@ export const CirclePage: React.FC = () => {
             )}
           </div>
         ) : (
-          /* 📱 TABS AREA */
-          <div className="flex flex-col flex-1 pb-20">
-            <div className="flex border-b border-surface-border shrink-0 px-4 mt-2 gap-4">
+          
+          /* 📱 LOGGED IN MEMBER VIEW */
+          <div className="flex flex-col flex-1 overflow-hidden">
+            
+            {/* TABS (Fixed) */}
+            <div className="flex border-b border-surface-border shrink-0 px-4 mt-1 gap-4">
               {['chat', 'drops', 'members'].map((tab) => (
                 <button
                   key={tab}
@@ -469,10 +446,21 @@ export const CirclePage: React.FC = () => {
               ))}
             </div>
 
-            {/* 💬 LIVE CHAT / POSTS */}
+            {/* 💬 LIVE CHAT / POSTS (Scrollable Area) */}
             {activeTab === 'chat' && (
-              <div className="flex flex-col flex-1 bg-surface relative min-h-[50vh]">
-                <div className="flex-1 p-4 flex flex-col gap-6">
+              <div className="flex-1 flex flex-col overflow-hidden bg-surface relative">
+                
+                {/* Chat Feed (flex-col-reverse = WhatsApp style, scrolls from bottom) */}
+                <div className="flex-1 p-4 flex flex-col-reverse gap-6 overflow-y-auto scrollbar-hide">
+                  
+                  {hasMorePosts && posts.length > 0 && (
+                    <div className="flex justify-center mt-2 mb-4">
+                      <button onClick={loadMorePosts} disabled={loadingMore} className="bg-surface-card border border-surface-border rounded-full px-6 py-2.5 text-brand font-bold text-[12px] tracking-widest uppercase flex items-center gap-2 shadow-sm active:scale-95 transition-transform">
+                        {loadingMore ? <Loader2 size={16} className="animate-spin text-brand-muted" /> : 'טען הודעות קודמות'}
+                      </button>
+                    </div>
+                  )}
+
                   {posts?.map((post: any) => {
                     const hasMedia = !!post.media_url;
                     const isVideo = post.media_url?.match(/\.(mp4|webm|mov)$/i);
@@ -481,109 +469,170 @@ export const CirclePage: React.FC = () => {
 
                     if (!hasMedia) {
                       return (
-                        <div key={post.id} className={`flex gap-3 w-full ${isMine ? 'flex-row-reverse' : ''}`}>
-                          <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-surface-border bg-surface-card cursor-pointer flex items-center justify-center" onClick={() => navigate(`/profile/${post.user_id}`)}>
-                            {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <span className="text-brand-muted font-black">{(post.profiles?.full_name || 'א')[0]}</span>}
-                          </div>
-                          
-                          <div className={`flex flex-col max-w-[80%] ${isMine ? 'items-end' : 'items-start'}`}>
-                            <div className="flex items-center gap-1.5 mb-1 px-1">
-                              <span className="text-[11px] font-bold text-brand-muted">{post.profiles?.full_name || 'אנונימי'}</span>
-                              {isCore && <span className="text-accent-primary text-[9px] font-black uppercase">CORE</span>}
+                        <div key={post.id} className="flex flex-col gap-1 w-full">
+                          <div className={`flex gap-3 w-full ${isMine ? 'flex-row-reverse' : ''}`}>
+                            <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-surface-border bg-surface-card cursor-pointer flex items-center justify-center" onClick={() => navigate(`/profile/${post.user_id}`)}>
+                              {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <span className="text-brand-muted font-black">{(post.profiles?.full_name || 'א')[0]}</span>}
                             </div>
                             
-                            <div className={`p-4 rounded-[24px] shadow-sm ${
-                              post.gift_amount 
-                                ? 'bg-surface-card border border-accent-primary/50' 
-                                : isMine ? 'bg-surface-card border border-surface-border rounded-tr-sm' : 'bg-surface border border-surface-border rounded-tl-sm'
-                            }`}>
-                              {post.gift_amount > 0 && (
-                                <div className="flex items-center gap-1.5 text-accent-primary text-[10px] font-black mb-2 uppercase tracking-widest">
-                                  <Gift size={12} /> נשלח {post.gift_amount} CRD
-                                </div>
-                              )}
-                              <p className={`text-[14px] leading-relaxed whitespace-pre-wrap ${post.gift_amount ? 'text-brand font-medium' : 'text-brand'}`}>{post.content}</p>
-                            </div>
-                            
-                            <div className={`flex items-center gap-4 mt-2 px-2 ${isMine ? 'flex-row-reverse' : ''}`}>
-                              <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-1.5 active:scale-90 transition-transform ${post.is_liked ? 'text-red-500' : 'text-brand-muted'}`}>
-                                <Heart size={14} fill={post.is_liked ? 'currentColor' : 'none'} />
-                                <span className="text-[11px] font-bold">{post.likes_count}</span>
-                              </button>
-                              <button onClick={() => openOverlay(() => { setActivePost(post); setActiveCommentsPostId(post.id); setLoadingComments(true); supabase.from('comments').select('*, profiles!user_id(*)').eq('post_id', post.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); })} className="flex items-center gap-1.5 text-brand-muted active:scale-90 transition-transform">
-                                <MessageSquare size={14} />
-                                <span className="text-[11px] font-bold">{post.comments_count}</span>
-                              </button>
+                            <div className={`flex flex-col max-w-[80%] ${isMine ? 'items-end' : 'items-start'}`}>
+                              <div className="flex items-center gap-1.5 mb-1 px-1">
+                                <span className="text-[11px] font-bold text-brand-muted">{post.profiles?.full_name || 'אנונימי'}</span>
+                                {isCore && <span className="text-accent-primary text-[9px] font-black uppercase">CORE</span>}
+                              </div>
+                              
+                              <div className={`p-3.5 rounded-[22px] shadow-sm ${
+                                post.gift_amount 
+                                  ? 'bg-surface-card border border-accent-primary/50' 
+                                  : isMine ? 'bg-surface-card border border-surface-border rounded-tr-sm' : 'bg-surface border border-surface-border rounded-tl-sm'
+                              }`}>
+                                {post.gift_amount > 0 && (
+                                  <div className="flex items-center gap-1.5 text-accent-primary text-[10px] font-black mb-1.5 uppercase tracking-widest">
+                                    <Gift size={12} /> נשלח {post.gift_amount} CRD
+                                  </div>
+                                )}
+                                <p className={`text-[14px] leading-relaxed whitespace-pre-wrap ${post.gift_amount ? 'text-brand font-medium' : 'text-brand'}`}>{post.content}</p>
+                              </div>
+                              
+                              <div className={`flex items-center gap-4 mt-1.5 px-2 ${isMine ? 'flex-row-reverse' : ''}`}>
+                                <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-1 active:scale-90 transition-transform ${post.is_liked ? 'text-red-500' : 'text-brand-muted'}`}>
+                                  <Heart size={12} fill={post.is_liked ? 'currentColor' : 'none'} />
+                                  <span className="text-[10px] font-bold">{post.likes_count}</span>
+                                </button>
+                                <button onClick={() => { setReplyingToPost(post.id); document.getElementById('chat-input')?.focus(); }} className="flex items-center gap-1 text-brand-muted hover:text-brand active:scale-90 transition-transform">
+                                  <Reply size={12} className="rtl:-scale-x-100" />
+                                </button>
+                              </div>
                             </div>
                           </div>
+
+                          {/* INLINE THREADS (תגובות שרשור ישירות מתחת להודעה) */}
+                          {post.comments_count > 0 && (
+                            <button onClick={() => toggleThread(post.id)} className={`flex items-center gap-1 text-[10px] font-black text-brand-muted hover:text-brand transition-colors mt-1 ${isMine ? 'mr-12 self-end' : 'ml-12 self-start'}`}>
+                              {expandedThreads[post.id] ? <ChevronUp size={12}/> : <ChevronDown size={12}/>}
+                              {post.comments_count} תגובות בשרשור
+                            </button>
+                          )}
+
+                          <AnimatePresence>
+                            {expandedThreads[post.id] && (
+                              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className={`flex flex-col gap-3 mt-2 overflow-hidden ${isMine ? 'mr-12' : 'ml-12'}`}>
+                                {postComments[post.id]?.map(comment => (
+                                  <div key={comment.id} className={`flex gap-2 w-full ${comment.user_id === currentUserId ? 'flex-row-reverse' : ''}`}>
+                                    <div className="w-6 h-6 rounded-full bg-surface border border-surface-border overflow-hidden shrink-0 flex items-center justify-center">
+                                      {comment.profiles?.avatar_url ? <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" /> : <span className="text-brand-muted font-black text-[8px]">{(comment.profiles?.full_name || 'א')[0]}</span>}
+                                    </div>
+                                    <div className="bg-surface-card border border-surface-border p-2.5 rounded-[18px] text-[12px] text-brand shadow-sm">
+                                      <span className="font-black block mb-0.5 text-[10px] text-brand-muted">{comment.profiles?.full_name}</span>
+                                      <p className="whitespace-pre-wrap">{comment.content}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                                <button onClick={() => { setReplyingToPost(post.id); document.getElementById('chat-input')?.focus(); }} className="text-[10px] font-black text-accent-primary flex items-center gap-1 mt-1">
+                                  <Reply size={10} className="rtl:-scale-x-100" /> הוסף תגובה לשרשור...
+                                </button>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
                       );
                     }
 
                     // Media Posts
                     return (
-                      <div key={post.id} className="flex flex-col bg-surface-card border border-surface-border overflow-hidden shadow-sm rounded-[28px] w-full relative">
-                        <div className="w-full relative cursor-pointer overflow-hidden flex flex-col" onClick={() => openOverlay(() => { const vids = posts.filter((p: any) => p.media_url); setFullScreenMedia([post, ...vids.filter((v: any) => v.id !== post.id).sort(() => Math.random() - 0.5)]); setCurrentMediaIndex(0); })}>
-                          {isVideo ? (
-                            <FeedVideo src={post.media_url} className="w-full max-h-[400px] aspect-[4/5] object-cover opacity-90" />
-                          ) : (
-                            <img src={post.media_url} loading="lazy" className="w-full max-h-[400px] aspect-[4/5] object-cover opacity-90" />
-                          )}
-                          <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-surface-card via-surface-card/50 to-transparent pointer-events-none"></div>
-                          
-                          {post.content && (
-                            <div className="absolute bottom-0 left-0 right-0 p-4 pt-32 flex items-end pointer-events-none z-10">
-                              <p onClick={(e) => { e.stopPropagation(); openOverlay(() => setActiveDescPost(post)); }} className="text-brand text-[13px] font-medium leading-relaxed text-right line-clamp-2 w-full pr-1 cursor-pointer active:opacity-70 pointer-events-auto">
-                                {post.content}
-                              </p>
-                            </div>
-                          )}
-                        </div>
+                      <div key={post.id} className="flex flex-col gap-1 w-full">
+                        <div className="flex flex-col bg-surface-card border border-surface-border overflow-hidden shadow-sm rounded-[28px] w-full relative">
+                          <div className="w-full relative cursor-pointer overflow-hidden flex flex-col" onClick={() => openOverlay(() => { const vids = posts.filter((p: any) => p.media_url); setFullScreenMedia([post, ...vids.filter((v: any) => v.id !== post.id).sort(() => Math.random() - 0.5)]); setCurrentMediaIndex(0); })}>
+                            {isVideo ? (
+                              <FeedVideo src={post.media_url} className="w-full max-h-[400px] aspect-[4/5] object-cover opacity-90" />
+                            ) : (
+                              <img src={post.media_url} loading="lazy" className="w-full max-h-[400px] aspect-[4/5] object-cover opacity-90" />
+                            )}
+                            <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-surface-card via-surface-card/50 to-transparent pointer-events-none"></div>
+                            
+                            {post.content && (
+                              <div className="absolute bottom-0 left-0 right-0 p-4 pt-32 flex items-end pointer-events-none z-10">
+                                <p onClick={(e) => { e.stopPropagation(); openOverlay(() => setActiveDescPost(post)); }} className="text-brand text-[13px] font-medium leading-relaxed text-right line-clamp-2 w-full pr-1 cursor-pointer active:opacity-70 pointer-events-auto">
+                                  {post.content}
+                                </p>
+                              </div>
+                            )}
+                          </div>
 
-                        <div className="flex items-center justify-between px-4 py-3 bg-surface-card border-t border-surface-border/50">
-                          <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate(`/profile/${post.user_id}`)}>
-                            <div className="w-10 h-10 rounded-full bg-surface border border-surface-border overflow-hidden shrink-0 flex items-center justify-center">
-                              {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <span className="text-brand-muted font-black text-sm">{(post.profiles?.full_name || 'א')[0]}</span>}
-                            </div>
-                            <div className="flex flex-col text-right">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-brand font-black text-[14px] leading-tight">{post.profiles?.full_name || 'אנונימי'}</span>
-                                {isCore && <span className="text-accent-primary text-[8px] font-black uppercase">CORE</span>}
+                          <div className="flex items-center justify-between px-4 py-3 bg-surface-card border-t border-surface-border/50">
+                            <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate(`/profile/${post.user_id}`)}>
+                              <div className="w-10 h-10 rounded-full bg-surface border border-surface-border overflow-hidden shrink-0 flex items-center justify-center">
+                                {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <span className="text-brand-muted font-black text-sm">{(post.profiles?.full_name || 'א')[0]}</span>}
+                              </div>
+                              <div className="flex flex-col text-right">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-brand font-black text-[14px] leading-tight">{post.profiles?.full_name || 'אנונימי'}</span>
+                                  {isCore && <span className="text-accent-primary text-[8px] font-black uppercase">CORE</span>}
+                                </div>
                               </div>
                             </div>
-                          </div>
 
-                          <div className="flex items-center gap-4">
-                            <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-1.5 active:scale-90 transition-transform ${post.is_liked ? 'text-red-500' : 'text-brand-muted'}`}>
-                              <Heart size={16} fill={post.is_liked ? 'currentColor' : 'none'} />
-                              <span className="text-[13px] font-black">{post.likes_count}</span>
-                            </button>
-                            <button onClick={() => openOverlay(() => { setActivePost(post); setActiveCommentsPostId(post.id); setLoadingComments(true); supabase.from('comments').select('*, profiles!user_id(*)').eq('post_id', post.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); })} className="flex items-center gap-1.5 text-brand-muted active:scale-90 transition-transform">
-                              <MessageSquare size={16} />
-                              <span className="text-[13px] font-black">{post.comments_count}</span>
-                            </button>
-                            <button onClick={() => openOverlay(() => setOptionsMenuPost(post))} className="text-brand-muted active:scale-90 transition-transform ml-1">
-                              <MoreVertical size={18} />
-                            </button>
+                            <div className="flex items-center gap-4">
+                              <button onClick={() => handleLike(post.id, post.is_liked)} className={`flex items-center gap-1.5 active:scale-90 transition-transform ${post.is_liked ? 'text-red-500' : 'text-brand-muted'}`}>
+                                <Heart size={16} fill={post.is_liked ? 'currentColor' : 'none'} />
+                                <span className="text-[13px] font-black">{post.likes_count}</span>
+                              </button>
+                              <button onClick={() => toggleThread(post.id)} className="flex items-center gap-1.5 text-brand-muted active:scale-90 transition-transform">
+                                <MessageSquare size={16} />
+                                <span className="text-[13px] font-black">{post.comments_count}</span>
+                              </button>
+                              <button onClick={() => openOverlay(() => setOptionsMenuPost(post))} className="text-brand-muted active:scale-90 transition-transform ml-1">
+                                <MoreVertical size={18} />
+                              </button>
+                            </div>
                           </div>
                         </div>
+
+                        {/* INLINE THREADS FOR MEDIA POSTS */}
+                        <AnimatePresence>
+                          {expandedThreads[post.id] && (
+                            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className={`flex flex-col gap-3 mt-2 overflow-hidden px-2`}>
+                              {postComments[post.id]?.map(comment => (
+                                <div key={comment.id} className={`flex gap-2 w-full ${comment.user_id === currentUserId ? 'flex-row-reverse' : ''}`}>
+                                  <div className="w-8 h-8 rounded-full bg-surface border border-surface-border overflow-hidden shrink-0 flex items-center justify-center">
+                                    {comment.profiles?.avatar_url ? <img src={comment.profiles.avatar_url} className="w-full h-full object-cover" /> : <span className="text-brand-muted font-black text-[10px]">{(comment.profiles?.full_name || 'א')[0]}</span>}
+                                  </div>
+                                  <div className="bg-surface-card border border-surface-border p-3 rounded-[20px] text-[13px] text-brand shadow-sm">
+                                    <span className="font-black block mb-1 text-[11px] text-brand-muted">{comment.profiles?.full_name}</span>
+                                    <p className="whitespace-pre-wrap">{comment.content}</p>
+                                  </div>
+                                </div>
+                              ))}
+                              <button onClick={() => { setReplyingToPost(post.id); document.getElementById('chat-input')?.focus(); }} className="text-[11px] font-black text-accent-primary flex items-center gap-1 mt-1 justify-center w-full py-2 bg-surface-card border border-surface-border rounded-xl">
+                                <Reply size={12} className="rtl:-scale-x-100" /> תגובה חדשה...
+                              </button>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
                     );
                   })}
 
-                  {hasMorePosts && posts.length > 0 && (
-                    <div className="flex justify-center mt-2 mb-4">
-                      <button onClick={loadMorePosts} disabled={loadingMore} className="bg-surface-card border border-surface-border rounded-full px-6 py-2.5 text-brand font-bold text-[12px] tracking-widest uppercase flex items-center gap-2 shadow-sm active:scale-95 transition-transform">
-                        {loadingMore ? <Loader2 size={16} className="animate-spin text-brand-muted" /> : 'טען עוד'}
-                      </button>
-                    </div>
-                  )}
                 </div>
 
-                {/* Chat Input */}
-                <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+70px)] left-0 right-0 p-3 bg-surface/90 backdrop-blur-xl border-t border-surface-border flex flex-col gap-2 z-40">
+                {/* 💡 SMART CHAT INPUT (Fixed Bottom) */}
+                <div className="shrink-0 bg-surface border-t border-surface-border px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+12px)] flex flex-col gap-2 z-40 shadow-[0_-10px_20px_rgba(0,0,0,0.2)]">
+                  
+                  {/* Thread Reply Indicator */}
+                  <AnimatePresence>
+                    {replyingToPost && (
+                      <motion.div initial={{opacity: 0, y: 10}} animate={{opacity: 1, y: 0}} exit={{opacity: 0, y: 10}} className="flex items-center justify-between bg-surface-card border border-surface-border px-3 py-1.5 rounded-lg">
+                        <div className="flex items-center gap-1.5">
+                          <Reply size={12} className="text-brand-muted rtl:-scale-x-100" />
+                          <span className="text-[11px] text-brand font-bold">מגיב לשרשור...</span>
+                        </div>
+                        <button onClick={() => setReplyingToPost(null)} className="p-1 active:scale-95"><X size={14} className="text-brand-muted" /></button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
                   {selectedFile && (
-                    <div className="relative w-16 h-16 rounded-xl overflow-hidden mb-1 border border-surface-border">
+                    <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-surface-border">
                       {selectedFile.type.startsWith('video/') ? (
                         <video src={URL.createObjectURL(selectedFile)} className="w-full h-full object-cover" />
                       ) : (
@@ -593,33 +642,36 @@ export const CirclePage: React.FC = () => {
                     </div>
                   )}
                   
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => handlePost(true, 50)} className="w-12 h-12 rounded-full bg-surface-card border border-accent-primary/50 flex items-center justify-center text-accent-primary shrink-0 shadow-inner active:scale-90 transition-transform">
-                      <Gift size={20} />
+                  {/* Combined Input Bar */}
+                  <div className="w-full bg-surface-card border border-surface-border rounded-full flex items-center pr-1 pl-2 h-12 shadow-inner overflow-hidden">
+                    <button onClick={() => fileInputRef.current?.click()} className="p-2.5 text-brand-muted hover:text-brand transition-colors active:scale-95 shrink-0">
+                      <Paperclip size={18} />
                     </button>
-                    <button onClick={() => fileInputRef.current?.click()} className="w-12 h-12 rounded-full bg-surface-card border border-surface-border flex items-center justify-center text-brand-muted shrink-0 shadow-inner active:scale-90 transition-transform">
-                      <Paperclip size={20} />
-                    </button>
-                    <div className="flex-1 bg-surface-card border border-surface-border rounded-full flex items-center px-4 h-12 shadow-inner">
-                      <input
-                        type="text"
-                        value={newPost}
-                        onChange={(e) => setNewPost(e.target.value)}
-                        placeholder="כתוב הודעה..."
-                        className="flex-1 bg-transparent border-none outline-none text-brand text-[15px] placeholder:text-brand-muted"
-                      />
-                      <button onClick={() => handlePost(false)} disabled={posting || (!newPost.trim() && !selectedFile)} className="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center disabled:opacity-50 active:scale-90 transition-transform">
-                        {posting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} className="rtl:-scale-x-100 -ml-0.5" />}
+                    {!replyingToPost && (
+                      <button onClick={() => handlePost(true, 50)} className="p-2.5 text-accent-primary hover:text-yellow-400 transition-colors active:scale-95 shrink-0">
+                        <Gift size={18} />
                       </button>
-                    </div>
+                    )}
+                    <input
+                      id="chat-input"
+                      type="text"
+                      value={newPost}
+                      onChange={(e) => setNewPost(e.target.value)}
+                      placeholder="הודעה..."
+                      className="flex-1 bg-transparent border-none outline-none text-brand text-[14px] px-2 placeholder:text-brand-muted"
+                    />
+                    <button onClick={() => handlePost(false)} disabled={posting || (!newPost.trim() && !selectedFile)} className="w-9 h-9 shrink-0 rounded-full bg-white text-black flex items-center justify-center disabled:opacity-50 active:scale-95 transition-transform">
+                      {posting ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} className="rtl:-scale-x-100 -ml-0.5" />}
+                    </button>
                   </div>
                 </div>
+
               </div>
             )}
 
             {/* 📦 DROPS */}
             {activeTab === 'drops' && (
-              <div className="flex-1 p-4 grid grid-cols-2 gap-4 bg-surface min-h-[50vh]">
+              <div className="flex-1 p-4 grid grid-cols-2 gap-4 bg-surface overflow-y-auto">
                 {[1, 2, 3, 4].map((drop) => (
                   <div key={drop} className="aspect-[3/4] bg-surface-card rounded-[24px] border border-surface-border overflow-hidden relative group cursor-pointer shadow-md">
                     <img src={`https://images.unsplash.com/photo-${drop === 1 ? '1600880292203-757bb62b4baf' : drop === 2 ? '1571171637578-41bc2dd41cd2' : drop === 3 ? '1551028719-0c1bb9643c70' : '1564648351416-3eaf9a8eb5fc'}?auto=format&fit=crop&q=80&w=400`} className="w-full h-full object-cover blur-md opacity-40 scale-110" />
@@ -638,7 +690,7 @@ export const CirclePage: React.FC = () => {
 
             {/* 👥 MEMBERS */}
             {activeTab === 'members' && (
-              <div className="flex-1 p-4 flex flex-col gap-3 bg-surface min-h-[50vh]">
+              <div className="flex-1 p-4 flex flex-col gap-3 bg-surface overflow-y-auto">
                 {membersList.length === 0 ? (
                   <div className="text-center text-brand-muted text-[13px] mt-10 font-bold">אין חברים במועדון</div>
                 ) : (
@@ -683,7 +735,7 @@ export const CirclePage: React.FC = () => {
                         
                         <div className="absolute bottom-48 left-4 flex flex-col gap-6 items-center z-50">
                           <button onClick={(e) => { e.stopPropagation(); handleLike(vid.id, vid.is_liked); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform"><Heart size={30} className={vid.is_liked ? 'text-red-500' : 'text-brand'} fill={vid.is_liked ? 'currentColor' : 'none'} strokeWidth={1.5} /><span className="text-brand text-[13px] font-black drop-shadow-md">{vid.likes_count}</span></button>
-                          <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(vid); setActiveCommentsPostId(vid.id); setLoadingComments(true); supabase.from('comments').select('*, profiles!user_id(*)').eq('post_id', vid.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); }); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform"><MessageSquare size={30} className="text-brand" strokeWidth={1.5} /><span className="text-brand text-[13px] font-black drop-shadow-md">{vid.comments_count}</span></button>
+                          <button onClick={(e) => { e.stopPropagation(); toggleThread(vid.id); closeOverlay(); document.getElementById('chat-input')?.focus(); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform"><MessageSquare size={30} className="text-brand" strokeWidth={1.5} /><span className="text-brand text-[13px] font-black drop-shadow-md">{vid.comments_count}</span></button>
                           <button onClick={(e) => { e.stopPropagation(); handleShare(vid); }} className="active:scale-90 transition-transform"><Share2 size={30} className="text-brand" strokeWidth={1.5} /></button>
                         </div>
                         
@@ -699,44 +751,6 @@ export const CirclePage: React.FC = () => {
                   })}
                 </div>
               </motion.div>
-            )}
-
-            {/* COMMENTS BOTTOM SHEET */}
-            {activeCommentsPostId && (
-              <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
-                
-                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="relative z-10 bg-surface rounded-t-[40px] h-[85vh] flex flex-col overflow-hidden pb-10 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border">
-                  <div className="w-full py-5 flex justify-center cursor-grab active:cursor-grabbing border-b border-surface-border" onPointerDown={(e) => commentsDragControls.start(e)} style={{ touchAction: 'none' }}><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>
-                  
-                  <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-6 scrollbar-hide">
-                    {loadingComments ? <Loader2 className="animate-spin mx-auto text-brand-muted mt-10" /> : comments.filter((c) => c && !c.parent_id).length === 0 ? (
-                      <div className="text-center text-brand-muted text-[13px] font-bold mt-10">אין תגובות עדיין</div>
-                    ) : comments.filter((c) => c && !c.parent_id).map((c) => {
-                      return (
-                        <div key={c.id} className="flex flex-col gap-2">
-                          <div className="flex gap-3">
-                            <div className="w-10 h-10 min-w-[40px] rounded-full bg-surface-card shrink-0 overflow-hidden cursor-pointer border border-surface-border flex items-center justify-center" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${c.user_id}`), 50); }}>
-                              {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover object-center" /> : <span className="text-brand-muted font-black text-sm">{(c.profiles?.full_name || 'א')[0]}</span>}
-                            </div>
-                            <div className="flex flex-col flex-1">
-                              <div className="bg-surface-card border border-surface-border p-4 rounded-[24px] rounded-tr-sm cursor-pointer shadow-sm" onClick={() => openOverlay(() => setCommentActionModal(c))}>
-                                <span className="text-brand font-black text-[13px] mb-1.5 inline-block" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${c.user_id}`), 50); }}>{c.profiles?.full_name || 'אנונימי'}</span>
-                                <p className="text-brand text-[13px] whitespace-pre-wrap leading-relaxed">{c.content}</p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="p-4 bg-surface border-t border-surface-border flex gap-2 pb-8">
-                    <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="הוסף תגובה..." className="flex-1 bg-surface-card border border-surface-border text-brand rounded-full px-5 outline-none text-[14px] placeholder:text-brand-muted shadow-inner" />
-                    <Button onClick={submitComment} disabled={!newComment.trim()} className="w-12 h-12 p-0 rounded-full shrink-0 bg-white text-black shadow-md active:scale-95 transition-transform disabled:opacity-50 flex items-center justify-center"><Send size={18} className="rtl:-scale-x-100 -ml-1" /></Button>
-                  </div>
-                </motion.div>
-              </div>
             )}
 
             {/* OPTIONS MENU */}
@@ -757,7 +771,7 @@ export const CirclePage: React.FC = () => {
 
                   {optionsMenuPost.user_id === currentUserId && (
                     <>
-                      <button onClick={() => { closeOverlay(); setTimeout(() => { openOverlay(() => { setEditingPost(optionsMenuPost); setNewPost(optionsMenuPost.content || ''); setShowCreatePost(true); }); }, 100); }} className="w-full p-4 bg-surface-card rounded-2xl text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm mt-2"><span>ערוך פוסט</span><Edit2 size={20} className="text-brand-muted" /></button>
+                      <button onClick={() => { closeOverlay(); setTimeout(() => { setEditingPost(optionsMenuPost); setNewPost(optionsMenuPost.content || ''); document.getElementById('chat-input')?.focus(); }, 100); }} className="w-full p-4 bg-surface-card rounded-2xl text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm mt-2"><span>ערוך פוסט</span><Edit2 size={20} className="text-brand-muted" /></button>
                       <button onClick={() => { if (window.confirm('למחוק פוסט?')) { deletePost(optionsMenuPost.id); } }} className="w-full p-4 bg-surface-card border border-red-500/30 rounded-2xl text-red-500 font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all mt-2"><span>מחק פוסט</span><Trash2 size={20} className="text-red-500" /></button>
                     </>
                   )}
