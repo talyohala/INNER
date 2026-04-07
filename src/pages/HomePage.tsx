@@ -437,7 +437,6 @@ export const HomePage: React.FC = () => {
         toast.error('שגיאה בשמירה');
       }
     }
-    closeOverlay();
   };
 
   const handleLike = async (postId: string, isLiked: boolean) => {
@@ -871,42 +870,53 @@ export const HomePage: React.FC = () => {
                       ) : (
                         <img src={vid.media_url} className="w-full h-full object-contain full-media-item" onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Media+Unavailable'; }} loading="lazy" />
                       )}
-                      
-                      <button onClick={(e) => { e.stopPropagation(); closeOverlay(); }} className="absolute top-6 left-4 z-[60] active:scale-90 transition-transform bg-surface-card border border-surface-border rounded-full p-2 shadow-md">
-                        <X size={20} className="text-brand" />
-                      </button>
 
+                      {/* Action Buttons: Left side column */}
+                      <div className="absolute bottom-32 left-4 flex flex-col gap-6 items-center z-50 pointer-events-auto">
+                        <button onClick={(e) => { e.stopPropagation(); handleLike(vid.id, vid.is_liked); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform">
+                          <Heart size={30} className={vid.is_liked ? 'text-red-500' : 'text-white'} fill={vid.is_liked ? 'currentColor' : 'none'} strokeWidth={1.5} />
+                          <span className="text-white text-[13px] font-black drop-shadow-md">{vid.likes_count}</span>
+                        </button>
+                        
+                        <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(vid); setActiveCommentsPostId(vid.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', vid.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); }); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform">
+                          <MessageSquare size={30} className="text-white" strokeWidth={1.5} />
+                          <span className="text-white text-[13px] font-black drop-shadow-md">{vid.comments_count}</span>
+                        </button>
+                        
+                        <button onClick={(e) => { e.stopPropagation(); handleShare(vid); }} className="active:scale-90 transition-transform">
+                          <Share2 size={30} className="text-white" strokeWidth={1.5} />
+                        </button>
+
+                        <button onClick={(e) => { e.stopPropagation(); handleSavePost(vid); }} className="active:scale-90 transition-transform">
+                          <Bookmark size={30} className="text-white" strokeWidth={1.5} />
+                        </button>
+
+                        <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }} className="active:scale-90 transition-transform">
+                          <MoreVertical size={30} className="text-white" strokeWidth={1.5} />
+                        </button>
+                      </div>
+
+                      {/* Profile and Content Info: Bottom area */}
                       <div className="absolute bottom-0 left-0 right-0 px-5 pb-8 pt-44 bg-gradient-to-t from-surface via-surface/80 to-transparent flex flex-col pointer-events-none">
                         {vid.content && (
-                          <p className="text-brand text-[14px] font-medium text-right max-w-[85%] line-clamp-3 pointer-events-auto cursor-pointer mb-4 drop-shadow-md" onClick={(e) => { e.stopPropagation(); openOverlay(() => setActiveDescPost(vid)); }}>
+                          <p className="text-white text-[14px] font-medium text-right max-w-[85%] line-clamp-3 pointer-events-auto cursor-pointer mb-4 drop-shadow-md" onClick={(e) => { e.stopPropagation(); openOverlay(() => setActiveDescPost(vid)); }}>
                             {vid.content}
                           </p>
                         )}
                         
-                        <div className="flex items-center justify-between pointer-events-auto">
+                        <div className="flex items-center justify-start pointer-events-auto">
                           <div className="flex items-center gap-3 cursor-pointer" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${vid.user_id}`), 50); }}>
                             <div className="w-12 h-12 rounded-full overflow-hidden bg-surface border border-surface-border shrink-0 shadow-sm flex items-center justify-center">
                               {vid.profiles?.avatar_url ? <img src={vid.profiles.avatar_url} className="w-full h-full object-cover" loading="lazy" /> : <span className="text-brand-muted font-black text-lg">{(vid.profiles?.full_name || 'א')[0]}</span>}
                             </div>
                             <div className="flex flex-col text-right">
-                              <span className="text-brand font-black text-[16px] drop-shadow-md">{vid.profiles?.full_name || 'אנונימי'}</span>
-                              <span className="text-brand-muted text-[11px]">{new Date(vid.created_at).toLocaleDateString('he-IL')}</span>
+                              <span className="text-white font-black text-[16px] drop-shadow-md">{vid.profiles?.full_name || 'אנונימי'}</span>
+                              <span className="text-white/70 text-[11px]">{new Date(vid.created_at).toLocaleDateString('he-IL')}</span>
                             </div>
-                          </div>
-                          
-                          <div className="flex items-center gap-5">
-                            <button onClick={(e) => { e.stopPropagation(); handleLike(vid.id, vid.is_liked); }} className={`flex flex-col items-center gap-1 active:scale-90 transition-transform ${vid.is_liked ? 'text-red-500' : 'text-brand'}`}>
-                              <Heart size={26} fill={vid.is_liked ? 'currentColor' : 'none'} />
-                              <span className="text-[12px] font-black drop-shadow-md">{vid.likes_count}</span>
-                            </button>
-                            <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(vid); setActiveCommentsPostId(vid.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', vid.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); }); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform text-brand">
-                              <MessageSquare size={26} />
-                              <span className="text-[12px] font-black drop-shadow-md">{vid.comments_count}</span>
-                            </button>
-                            <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }} className="active:scale-90 transition-transform text-brand"><MoreVertical size={26} /></button>
                           </div>
                         </div>
                       </div>
+
                     </div>
                   );
                 })}
