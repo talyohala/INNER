@@ -122,9 +122,13 @@ export const EditProfilePage: React.FC = () => {
     triggerFeedback('pop');
     const tid = toast.loading('שומר שינויים...');
     try {
-      const updates = { ...formData, birth_date: formData.birth_date === '' ? null : formData.birth_date };
+      // ⚠️ מסננים את השכלה ועיסוק כדי למנוע קריסה בגלל שהם לא קיימים במסד הנתונים
+      const { education, job_title, ...safeData } = formData;
+      const updates = { ...safeData, birth_date: safeData.birth_date === '' ? null : safeData.birth_date };
+      
       const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
       if (error) throw error;
+      
       if (reloadProfile) reloadProfile();
       toast.success('הפרטים עודכנו!', { id: tid });
     } catch (err: any) { toast.error(`שגיאה: ${err.message}`, { id: tid }); } finally { setSavingDetails(false); }
@@ -240,7 +244,6 @@ export const EditProfilePage: React.FC = () => {
                     <SelectField label="מצב משפחתי" icon={HeartHandshake} value={selectedRelationship ? selectedRelationship.name : ''} placeholder="בחר מצב..." onClick={() => setShowRelationshipPicker(true)} />
                   </div>
 
-                  {/* Restored Fields */}
                   <InputField label="עיסוק / מקצוע" icon={Briefcase} value={formData.job_title} onChange={v => setFormData(p=>({...p, job_title: v}))} placeholder="מעצב מוצר, מפתח..." />
                   <InputField label="השכלה" icon={GraduationCap} value={formData.education} onChange={v => setFormData(p=>({...p, education: v}))} placeholder="סטודנט, תואר ראשון..." />
                 </div>
