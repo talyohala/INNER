@@ -343,12 +343,20 @@ export const HomePage: React.FC = () => {
       let media_type = 'text';
 
       if (selectedFile) {
-        const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}_${selectedFile.name}`;
-        const uploadRes = await supabase.storage.from('feed_images').upload(fileName, selectedFile);
-        if (uploadRes.error) throw uploadRes.error;
-        media_url = supabase.storage.from('feed_images').getPublicUrl(uploadRes.data.path).data.publicUrl;
+        // Create safe filename
+        const safeName = selectedFile.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+        const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}_${safeName}`;
+        
+        const { data: uploadData, error: uploadError } = await supabase.storage.from('feed_images').upload(fileName, selectedFile);
+        if (uploadError) throw uploadError;
+        
+        const { data: { publicUrl } } = supabase.storage.from('feed_images').getPublicUrl(uploadData.path);
+        if (!publicUrl) throw new Error("Failed to get public URL");
+        
+        media_url = publicUrl;
         media_type = selectedFile.type.startsWith('video/') ? 'video' : 'image';
       }
+      
       const insertRes = await supabase.from('posts').insert({
         user_id: currentUserId,
         content: newPost.trim(),
@@ -357,12 +365,13 @@ export const HomePage: React.FC = () => {
         circle_id: null,
       });
       if (insertRes.error) throw insertRes.error;
+      
       setNewPost('');
       setSelectedFile(null);
       setEditingPost(null);
       await fetchData(true);
-    } catch {
-      toast.error('שגיאה בשמירה');
+    } catch (e: any) {
+      toast.error(e.message || 'שגיאה בשמירה');
     } finally {
       setPosting(false);
     }
@@ -1004,9 +1013,20 @@ export const HomePage: React.FC = () => {
                   )}
                   <div className="flex gap-2 items-center bg-surface-card rounded-full p-1 pl-2 border border-surface-border shadow-inner">
                     <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="הוסף תגובה..." className="flex-1 bg-transparent px-4 text-brand text-[14px] outline-none placeholder:text-brand-muted" />
-                    <button onClick={submitComment} disabled={!newComment.trim()} className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-black active:scale-95 disabled:opacity-50 transition-all shadow-md">
+                    
+                    {/* Send Button Fixed */}
+                    <button 
+                      onClick={submitComment} 
+                      disabled={!newComment.trim()} 
+                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md active:scale-95 ${
+                        newComment.trim() 
+                        ? 'bg-accent-primary text-white opacity-100' 
+                        : 'bg-surface-border text-brand-muted opacity-30'
+                      }`}
+                    >
                       <Send size={16} className="rtl:-scale-x-100 -ml-0.5" />
                     </button>
+                    
                   </div>
                 </div>
               </motion.div>
