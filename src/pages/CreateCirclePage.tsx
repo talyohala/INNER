@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion'; 
 import toast from 'react-hot-toast';                     
 import {                                                   
-  Loader2, Image as ImageIcon, ShieldCheck, Lock, Unlock, Shield, X, ArrowRight, Camera                                                
+  Loader2, Image as ImageIcon, ShieldCheck, Lock, Unlock, Shield, Camera                                                
 } from 'lucide-react';                                   
 import { supabase } from '../lib/supabase';              
 import { FadeIn, Button } from '../components/ui';
@@ -85,7 +85,8 @@ export const CreateCirclePage: React.FC = () => {
           slug: slug,
           owner_id: userId                                             
         })                                                       
-        .select()                                                .single();                                                                                                      
+        .select()                                                
+        .single();                                                                                                      
         
       if (circleError) throw circleError;                                                                               
       
@@ -109,16 +110,12 @@ export const CreateCirclePage: React.FC = () => {
   return (                                                   
     <FadeIn className="bg-surface min-h-[100dvh] font-sans relative overflow-x-hidden flex flex-col" dir="rtl">                                                          
       
-      {/* 🔝 HEADER */}
-      <div className="sticky top-0 z-50 bg-surface/90 backdrop-blur-xl border-b border-surface-border pt-[env(safe-area-inset-top)] pb-3 px-4 shadow-sm flex items-center justify-between">
-        <button onClick={() => navigate(-1)} className="p-2 active:scale-90 transition-transform">
-          <ArrowRight size={24} className="text-brand" />
-        </button>
-        <h1 className="text-lg font-black text-brand tracking-widest uppercase">הקמת מועדון</h1>
-        <div className="w-10" />
+      {/* 🔝 HEADER (ללא פסים וצלליות) */}
+      <div className="sticky top-0 z-50 bg-surface/90 backdrop-blur-xl pt-[env(safe-area-inset-top)] pb-3 px-4 flex items-center justify-center">
+        <h1 className="text-lg font-black text-brand tracking-widest uppercase">צור מועדון</h1>
       </div>
 
-      <div className="flex-1 px-4 pt-6 pb-32 flex flex-col gap-6">
+      <div className="flex-1 px-4 pt-6 pb-8 flex flex-col gap-6">
 
         <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*" className="hidden" />                                                                                                                
         
@@ -159,7 +156,7 @@ export const CreateCirclePage: React.FC = () => {
           
           <div className="flex flex-col gap-1.5">                      
             <label className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-2">תיאור קצר</label>                                                 
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="על מה הולכים לדבר במועדון? מה הווייב?" className="w-full bg-surface border border-surface-border rounded-[24px] p-5 text-brand text-right font-medium transition-all h-28 resize-none shadow-inner text-[15px] placeholder:text-brand-muted outline-none focus:border-accent-primary/50 leading-relaxed" />                                                     
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="על מה הולכים לדבר פה? מה הווייב?" className="w-full bg-surface border border-surface-border rounded-[24px] p-5 text-brand text-right font-medium transition-all h-28 resize-none shadow-inner text-[15px] placeholder:text-brand-muted outline-none focus:border-accent-primary/50 leading-relaxed" />                                                     
           </div>                                                                                                            
           
           {/* Access Settings */}
@@ -213,13 +210,13 @@ export const CreateCirclePage: React.FC = () => {
           </div>                                                   
           <p className="text-brand-muted text-[13px] font-medium leading-relaxed pt-1">                                            
             עם הקמת המועדון, תוגדר אוטומטית כ<strong className="text-brand font-black mx-1">מנהל הראשי</strong>. 
-            תוכל לנהל את השיח, להעלות דרופים ולקבל קרדיטים ישירות מהחברים.                                                  
+            תוכל לנהל את השיח, להעלות דרופים ולהוביל את הקהילה שלך.                                                  
           </p>                                                   
         </div>                                                                                                            
         
         {/* Action Button */}
-        <Button onClick={handleSave} disabled={saving || uploading || !name.trim()} className="w-full h-14 mt-4 rounded-full bg-white text-black font-black text-[14px] uppercase tracking-widest shadow-[0_5px_20px_rgba(255,255,255,0.15)] active:scale-95 transition-all flex items-center justify-center">                                                          
-          {saving ? <Loader2 size={24} className="animate-spin text-black" /> : 'הקם מועדון עכשיו'}                                  
+        <Button onClick={handleSave} disabled={saving || uploading || !name.trim()} className="w-full h-14 mt-2 rounded-full bg-white text-black font-black text-[14px] uppercase tracking-widest shadow-[0_5px_20px_rgba(255,255,255,0.15)] active:scale-95 transition-all flex items-center justify-center">                                                          
+          {saving ? <Loader2 size={24} className="animate-spin text-black" /> : 'צור מועדון'}                                  
         </Button>                                              
       
       </div>                                                 
