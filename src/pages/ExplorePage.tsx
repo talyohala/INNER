@@ -1,365 +1,456 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ChevronLeft, Loader2, UserCircle, X } from 'lucide-react';
-import { apiFetch } from '../lib/api';
+import { motion, AnimatePresence } from 'framer-motion'; 
+import { Search, ChevronLeft, Loader2, UserCircle, X, Lock, Unlock, Gift, TrendingUp, Timer } from 'lucide-react';
+import { apiFetch } from '../lib/api';                   
 import { supabase } from '../lib/supabase';
-import { FadeIn } from '../components/ui';
+import { FadeIn } from '../components/ui';               
 import { triggerFeedback } from '../lib/sound';
+import { useAuth } from '../context/AuthContext';
 
-// להבת אש פועמת וטבעית
-const RealFlame: React.FC = () => {
-  return (
-    <motion.span
-      animate={{ scale: [1, 1.15, 1], rotate: [0, -5, 5, 0] }}
-      transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
-      className="text-[16px] drop-shadow-md inline-block"
-    >
-      🔥
-    </motion.span>
-  );
-};
+// עץ הקטגוריות החדש - מחובר לדאטה-בייס, בלי אייקונים נלווים
+const CATEGORY_TREE = [
+  { id: 'all', name: 'הכל' },
+  { id: 'venture_capital', name: 'הון סיכון', sub: ['Crypto', 'Real Estate', 'Startups'] },
+  { id: 'lifestyle', name: 'לייף סטייל', sub: ['Nightlife', 'Fashion', 'Travel'] },
+  { id: 'tech_alpha', name: 'טק', sub: ['AI & Data', 'Dev', 'Cyber'] },
+  { id: 'creators', name: 'יוצרים', sub: ['Media', 'Podcasts', 'Art'] },
+  { id: 'sanctum', name: 'The Sanctum', sub: ['Elite Only'] }
+];
 
-const VIBES = ['הכל', 'דרמה', 'סודות', 'כסף', 'ידע', 'זוגיות'];
-
-export const ExplorePage: React.FC = () => {
+export const ExplorePage: React.FC = () => {               
   const navigate = useNavigate();
-
-  const [search, setSearch] = useState('');
-  const [activeVibe, setActiveVibe] = useState('הכל');
+  const { profile } = useAuth();
   
-  const [circles, setCircles] = useState<any[]>([]);
-  const [usersListData, setUsersListData] = useState<any[]>([]);
-  const [suggestedUsers, setSuggestedUsers] = useState<any[]>([]);
+  const [search, setSearch] = useState('');                
+  const [activeCategory, setActiveCategory] = useState('all');
+  const [activeSub, setActiveSub] = useState('');
   
+  const [circles, setCircles] = useState<any[]>([]);       
+  const [usersListData, setUsersListData] = useState<any[]>([]);                                                    
+  const [suggestedUsers, setSuggestedUsers] = useState<any[]>([]);                                                                                                           
   const [recentSearches, setRecentSearches] = useState<string[]>(
     JSON.parse(localStorage.getItem('inner_recent_searches') || '[]')
   );
   
-  const [loadingCircles, setLoadingCircles] = useState(true);
-  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [loadingCircles, setLoadingCircles] = useState(true);                                                       
+  const [loadingUsers, setLoadingUsers] = useState(false);                                                          
   const [loadingSuggestions, setLoadingSuggestions] = useState(true);
 
-  const saveRecentSearch = (term: string) => {
-    if (!term.trim()) return;
-    const updated = [term, ...recentSearches.filter((t) => t !== term)].slice(0, 5);
-    setRecentSearches(updated);
-    localStorage.setItem('inner_recent_searches', JSON.stringify(updated));
+  const myLevel = profile?.level || 1;
+
+  const saveRecentSearch = (term: string) => {               
+    if (!term.trim()) return;                                
+    const updated = [term, ...recentSearches.filter((t) => t !== term)].slice(0, 5);                                  
+    setRecentSearches(updated);                              
+    localStorage.setItem('inner_recent_searches', JSON.stringify(updated));                                         
   };
 
-  const removeRecentSearch = (term: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const removeRecentSearch = (term: string, e: React.MouseEvent) => {                                                 
+    e.stopPropagation();                                     
     const updated = recentSearches.filter((t) => t !== term);
-    setRecentSearches(updated);
-    localStorage.setItem('inner_recent_searches', JSON.stringify(updated));
+    setRecentSearches(updated);                              
+    localStorage.setItem('inner_recent_searches', JSON.stringify(updated));                                         
   };
 
-  // 1. שליפת מועדונים למסך הראשי
-  useEffect(() => {
-    const fetchCircles = async () => {
-      try {
+  useEffect(() => {                                          
+    const fetchCircles = async () => {                         
+      try {                                                      
         setLoadingCircles(true);
-        const data = await apiFetch<any[]>('/api/circles');
+        let query = supabase.from('circles').select('*').order('created_at', { ascending: false });
         
-        const formatted = (Array.isArray(data) ? data : []).map((c: any) => ({
-          ...c,
-          active_now: Math.max(1, Math.ceil((c.members_count || 5) * 0.2 + Math.random() * 4)),
-          is_trending: Math.random() > 0.5 // סימולציה של טרנד
-        }));
+        if (activeCategory !== 'all') {
+          query = query.eq('category', activeCategory);
+        }
+        if (activeSub) {
+          query = query.eq('sub_category', activeSub);
+        }
+
+        const { data, error } = await query;                                                              
+        if (error) throw error;
         
-        setCircles(formatted);
-      } catch {
-      } finally {
-        setLoadingCircles(false);
-      }
-    };
-    fetchCircles();
+        const formatted = (Array.isArray(data) ? data : []).map((c: any) => ({                                              
+          ...c,                                                    
+          active_now: Math.max(1, Math.ceil((c.members_count || 5) * 0.2 + Math.random() * 4)),                             
+          is_trending: Math.random() > 0.5 // סימולציה של טרנד חם                                                         
+        }));                                                                                                              
+        setCircles(formatted);                                 
+      } catch {                                                
+      } finally {                                                
+        setLoadingCircles(false);                              
+      }                                                      
+    };                                                       
+    fetchCircles();                                        
+  }, [activeCategory, activeSub]);
+
+  useEffect(() => {                                          
+    const fetchSuggested = async () => {                       
+      try {                                                      
+        const { data, error } = await supabase                     
+          .from('profiles')                                        
+          .select('id, full_name, username, avatar_url, bio, role_label')                                                   
+          .limit(5);                                             
+        if (!error && data) setSuggestedUsers(data);           
+      } catch (err) {                                          
+      } finally {                                                
+        setLoadingSuggestions(false);                          
+      }                                                      
+    };                                                       
+    fetchSuggested();                                      
   }, []);
 
-  // 2. שליפת משתמשים מומלצים למסך הראשי
-  useEffect(() => {
-    const fetchSuggested = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('id, full_name, username, avatar_url, bio')
-          .limit(5);
-        if (!error && data) setSuggestedUsers(data);
-      } catch (err) {
-      } finally {
-        setLoadingSuggestions(false);
-      }
-    };
-    fetchSuggested();
-  }, []);
-
-  // 3. חיפוש חכם (Debounced) - שולף משתמשים כשהחיפוש משתנה
-  useEffect(() => {
-    const fetchUsers = async () => {
-      if (!search.trim()) {
-        setUsersListData([]);
-        return;
-      }
-      setLoadingUsers(true);
-      try {
-        const query = supabase
-          .from('profiles')
-          .select('id, full_name, username, avatar_url, bio')
-          .or(`full_name.ilike.%${search}%,username.ilike.%${search}%`)
-          .limit(15);
-
-        const { data, error } = await query;
-        if (data) setUsersListData(data);
-      } catch (err) {
-      } finally {
-        setLoadingUsers(false);
-      }
-    };
-    const timeoutId = setTimeout(fetchUsers, 300);
-    return () => clearTimeout(timeoutId);
+  useEffect(() => {                                          
+    const fetchUsers = async () => {                           
+      if (!search.trim()) {                                      
+        setUsersListData([]);                                    
+        return;                                                
+      }                                                        
+      setLoadingUsers(true);                                   
+      try {                                                      
+        const query = supabase                                     
+          .from('profiles')                                        
+          .select('id, full_name, username, avatar_url, bio')                                                               
+          .or(`full_name.ilike.%${search}%,username.ilike.%${search}%`)                                                     
+          .limit(15);                                    
+        const { data, error } = await query;                     
+        if (data) setUsersListData(data);                      
+      } catch (err) {                                          
+      } finally {                                                
+        setLoadingUsers(false);                                
+      }                                                      
+    };                                                       
+    const timeoutId = setTimeout(fetchUsers, 300);           
+    return () => clearTimeout(timeoutId);                  
   }, [search]);
 
-  // סינון מקומי של מועדונים לפי החיפוש וה-Vibe
-  const filteredCircles = circles.filter((c) => {
+  // סינון מקומי לפי חיפוש טקסט
+  const filteredCircles = circles.filter((c) => {            
     const searchLower = search.trim().toLowerCase();
-    const nameMatch = c.name?.toLowerCase().includes(searchLower);
-    const descMatch = c.description?.toLowerCase().includes(searchLower);
-    const matchesSearch = searchLower === '' || nameMatch || descMatch;
-
-    let matchesVibe = true;
-    if (activeVibe !== 'הכל' && !search.trim()) {
-      matchesVibe = c.name?.includes(activeVibe) || c.description?.includes(activeVibe) || Math.random() > 0.5;
-    }
-    
-    return matchesSearch && matchesVibe;
+    const nameMatch = c.name?.toLowerCase().includes(searchLower);                                                    
+    const descMatch = c.description?.toLowerCase().includes(searchLower);                                             
+    return searchLower === '' || nameMatch || descMatch;
   });
 
-  return (
-    <FadeIn className="pt-[calc(env(safe-area-inset-top)+12px)] pb-28 bg-surface min-h-screen font-sans flex flex-col gap-6 overflow-x-hidden" dir="rtl">
+  const currentCatObj = CATEGORY_TREE.find(c => c.id === activeCategory);
+
+  return (                                                   
+    <FadeIn className="pt-[calc(env(safe-area-inset-top)+12px)] pb-32 bg-surface min-h-screen font-sans flex flex-col overflow-x-hidden" dir="rtl">                                                                                       
       
-      {/* שורת חיפוש חכמה ומרכזית */}
-      <div className="relative z-20 px-4 sticky top-0 bg-surface/90 backdrop-blur-xl py-2 shadow-sm border-b border-surface-border">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="חפש מועדונים ואנשים..."
-          className="w-full bg-transparent border border-surface-border rounded-full py-4 pr-12 pl-12 text-brand text-[16px] font-bold placeholder:text-brand-muted outline-none transition-all focus:border-accent-primary"
-        />
-        <Search size={20} className="absolute right-8 top-1/2 -translate-y-1/2 text-brand-muted pointer-events-none" />
-        {search && (
-          <button onClick={() => { triggerFeedback('pop'); setSearch(''); }} className="absolute left-7 top-1/2 -translate-y-1/2 text-brand-muted hover:text-brand transition-colors p-1">
-            <X size={18} />
-          </button>
-        )}
+      {/* Header & Sticky Search Bar */}                       
+      <div className="relative z-20 px-4 sticky top-0 bg-surface/90 backdrop-blur-2xl py-3 shadow-sm border-b border-surface-border">                                              
+        <div className="relative">                                 
+          <input                                                     
+            type="text"                                              
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}              
+            placeholder="חפש מועדונים, יוצרים ודרופים..."            
+            className="w-full bg-surface-card border border-surface-border rounded-full h-[52px] pr-12 pl-12 text-brand text-[15px] font-bold placeholder:text-brand-muted/50 outline-none transition-all focus:border-accent-primary/50 shadow-inner"                                                 
+          />                                                       
+          <Search size={20} className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-muted pointer-events-none" />                                                            
+          {search && (                                               
+            <button onClick={() => { triggerFeedback('pop'); setSearch(''); }} className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-muted hover:text-brand transition-colors p-1 active:scale-90">                                      
+              <X size={18} />                                        
+            </button>                                              
+          )}                                                     
+        </div>                                                 
       </div>
 
-      <div className="flex-1 mt-2">
-        <AnimatePresence mode="wait">
-          {/* מצב 1: חיפוש פעיל (מציג תוצאות משולבות של מועדונים ומשתמשים) */}
-          {search.trim() ? (
-            <motion.div key="search-results" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col gap-6">
+      <div className="flex-1 mt-4">                              
+        <AnimatePresence mode="wait">                                                                                       
+          
+          {/* STATE 1: SEARCH ACTIVE */}                           
+          {search.trim() ? (                                         
+            <motion.div key="search-results" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col gap-6">                                                                                             
               
-              {/* תוצאות מועדונים */}
-              {filteredCircles.length > 0 && (
-                <div className="flex flex-col gap-2">
-                  <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-4">מועדונים</span>
-                  <div className="mx-2 bg-surface-card border border-surface-border rounded-[24px] overflow-hidden flex flex-col">
-                    {filteredCircles.map((circle, idx) => (
-                      <div 
-                        key={circle.id} 
-                        onClick={() => { saveRecentSearch(search.trim()); triggerFeedback('pop'); navigate(`/circle/${circle.slug}`); }} 
-                        className={`py-4 px-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors ${idx !== filteredCircles.length - 1 ? 'border-b border-surface-border' : ''}`}
-                      >
-                        <div className="flex items-center gap-4 text-right">
-                          {circle.cover_url ? (
-                            <img src={circle.cover_url} className="w-12 h-12 rounded-full object-cover border border-surface-border" />
-                          ) : (
-                            <div className="w-12 h-12 rounded-full bg-surface border border-surface-border flex items-center justify-center text-brand-muted font-black text-xl">
-                              {circle.name?.charAt(0)}
-                            </div>
-                          )}
-                          <div className="flex flex-col">
-                            <div className="flex items-center gap-2">
-                              <span className="text-brand font-black text-[16px]">{circle.name}</span>
-                              <span className="text-[9px] bg-accent-primary/10 text-accent-primary px-1.5 py-0.5 rounded font-black">מועדון</span>
-                            </div>
-                            <span className="text-brand-muted text-[12px] font-medium mt-0.5">{circle.members_count || 0} חברים</span>
-                          </div>
-                        </div>
-                        <ChevronLeft size={18} className="text-brand-muted" />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* תוצאות משתמשים */}
-              {loadingUsers ? (
-                <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-accent-primary" /></div>
-              ) : usersListData.length > 0 && (
-                <div className="flex flex-col gap-2">
-                  <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-4">משתמשים</span>
-                  <div className="mx-2 bg-surface-card border border-surface-border rounded-[24px] overflow-hidden flex flex-col">
+              {/* Circle Results */}                                   
+              {filteredCircles.length > 0 && (                           
+                <div className="flex flex-col gap-2">                      
+                  <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-6">מועדונים</span>                                                                   
+                  <div className="mx-4 bg-surface-card border border-surface-border rounded-[28px] overflow-hidden flex flex-col shadow-sm">                                                   
+                    {filteredCircles.map((circle, idx) => (                                                                             
+                      <div                                                       
+                        key={circle.id}                                          
+                        onClick={() => { saveRecentSearch(search.trim()); triggerFeedback('pop'); navigate(`/circle/${circle.slug || circle.id}`); }}                                                           
+                        className={`py-4 px-5 flex items-center justify-between cursor-pointer hover:bg-white/5 active:scale-[0.98] transition-all ${idx !== filteredCircles.length - 1 ? 'border-b border-surface-border' : ''}`}                        
+                      >                                                          
+                        <div className="flex items-center gap-4 text-right">                                                                
+                          <div className="relative">                                 
+                            {circle.cover_url ? (                                      
+                              <img src={circle.cover_url} className="w-14 h-14 rounded-[18px] object-cover border border-surface-border shadow-sm" />
+                            ) : (                                                      
+                              <div className="w-14 h-14 rounded-[18px] bg-surface border border-surface-border flex items-center justify-center text-brand-muted font-black text-xl shadow-inner">                                                                  
+                                {circle.name?.charAt(0)}                               
+                              </div>                                                 
+                            )}                                                       
+                            {circle.is_private && (                                    
+                              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-surface-card border border-surface-border rounded-full flex items-center justify-center shadow-md">                                                                            
+                                <Lock size={10} className="text-accent-primary" />                                                              
+                              </div>                                                 
+                            )}                                                     
+                          </div>                                                   
+                          <div className="flex flex-col">                            
+                            <span className="text-brand font-black text-[16px]">{circle.name}</span>                                          
+                            <span className="text-brand-muted text-[12px] font-medium mt-0.5 flex items-center gap-1.5">                                                                                 
+                              {circle.members_count || 0} חברים                                                                                 
+                              {circle.join_price > 0 && <span className="text-accent-primary/70 font-black text-[10px] tracking-wider uppercase">• {circle.join_price} CRD</span>}                                                                              
+                            </span>                                                
+                          </div>                                                 
+                        </div>                                                   
+                        <ChevronLeft size={20} className="text-brand-muted" />                                                          
+                      </div>                                                 
+                    ))}                                                    
+                  </div>                                                 
+                </div>                                                 
+              )}                                                                                                                
+              
+              {/* User Results */}                                     
+              {loadingUsers ? (                                          
+                <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-accent-primary" /></div>                                                                
+              ) : usersListData.length > 0 && (                          
+                <div className="flex flex-col gap-2">                      
+                  <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-6">משתמשים</span>                                                                    
+                  <div className="mx-4 bg-surface-card border border-surface-border rounded-[28px] overflow-hidden flex flex-col shadow-sm">                                                   
                     {usersListData.map((u, idx) => (
-                      <div 
-                        key={u.id} 
-                        onClick={() => { saveRecentSearch(search.trim()); triggerFeedback('pop'); navigate(`/profile/${u.id}`); }} 
-                        className={`py-4 px-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors ${idx !== usersListData.length - 1 ? 'border-b border-surface-border' : ''}`}
-                      >
-                        <div className="flex items-center gap-4 text-right">
-                          {u.avatar_url ? (
-                            <img src={u.avatar_url} className="w-12 h-12 rounded-full object-cover border border-surface-border" />
-                          ) : (
-                            <UserCircle size={48} className="text-brand-muted" strokeWidth={1} />
-                          )}
-                          <div className="flex flex-col">
-                            <div className="flex items-center gap-2">
-                              <span className="text-brand text-[16px] font-black">{u.full_name || 'משתמש'}</span>
-                              <span className="text-[9px] bg-surface border border-surface-border text-brand-muted px-1.5 py-0.5 rounded font-black">משתמש</span>
-                            </div>
-                            <span className="text-brand-muted text-[12px] font-medium mt-0.5" dir="ltr">@{u.username || 'user'}</span>
-                          </div>
-                        </div>
-                        <ChevronLeft size={18} className="text-brand-muted" />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* הודעת "אין תוצאות" אם הכל ריק */}
-              {filteredCircles.length === 0 && usersListData.length === 0 && !loadingUsers && (
-                <div className="text-center py-16 flex flex-col items-center gap-4">
-                  <span className="text-brand-muted font-medium text-[16px]">לא נמצאו תוצאות לחיפוש הזה</span>
-                </div>
-              )}
-            </motion.div>
-          ) : (
-            
-            /* מצב 2: מסך הבית של הראדר (מועדונים ומשתמשים מומלצים) */
-            <motion.div key="explore-home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col gap-8">
+                      <div                                                       
+                        key={u.id}                                               
+                        onClick={() => { saveRecentSearch(search.trim()); triggerFeedback('pop'); navigate(`/profile/${u.id}`); }}                                                                 
+                        className={`py-4 px-5 flex items-center justify-between cursor-pointer hover:bg-white/5 active:scale-[0.98] transition-all ${idx !== usersListData.length - 1 ? 'border-b border-surface-border' : ''}`}                          
+                      >                                                          
+                        <div className="flex items-center gap-4 text-right">                                                                
+                          <div className="w-12 h-12 rounded-full border border-surface-border bg-surface overflow-hidden shrink-0 flex items-center justify-center shadow-sm">                                                                                  
+                            {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={28} className="text-brand-muted" strokeWidth={1.5} />}                                                                      
+                          </div>                                                   
+                          <div className="flex flex-col">                            
+                            <span className="text-brand font-black text-[15px]">{u.full_name || 'משתמש'}</span>
+                            <span className="text-brand-muted text-[12px] font-medium mt-0.5" dir="ltr">@{u.username || 'user'}</span>                                                               
+                          </div>                                                 
+                        </div>                                                   
+                        <ChevronLeft size={20} className="text-brand-muted" />                                                          
+                      </div>                                                 
+                    ))}                                                    
+                  </div>                                                 
+                </div>                                                 
+              )}                                         
               
-              {/* חיפושים אחרונים */}
-              {recentSearches.length > 0 && (
-                <div className="flex flex-col px-4 gap-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-brand-muted text-[11px] font-bold uppercase tracking-widest">חיפושים אחרונים</span>
-                    <button onClick={() => { triggerFeedback('pop'); setRecentSearches([]); localStorage.removeItem('inner_recent_searches'); }} className="text-accent-primary text-[11px] font-bold">נקה</button>
-                  </div>
-                  <div className="bg-surface-card border border-surface-border rounded-[20px] flex flex-col overflow-hidden">
-                    {recentSearches.map((term, i) => (
-                      <div key={i} className={`flex items-center justify-between py-3.5 px-4 cursor-pointer hover:bg-white/5 transition-colors ${i !== recentSearches.length -1 ? 'border-b border-surface-border' : ''}`} onClick={() => { triggerFeedback('pop'); setSearch(term); }}>
-                        <span className="text-brand font-medium text-[15px]">{term}</span>
-                        <button onClick={(e) => removeRecentSearch(term, e)} className="text-brand-muted hover:text-brand p-1"><X size={16} /></button>
-                      </div>
-                    ))}
-                  </div>
+              {/* No Results */}                                       
+              {filteredCircles.length === 0 && usersListData.length === 0 && !loadingUsers && (                                   
+                <div className="text-center py-20 flex flex-col items-center gap-4 opacity-50">
+                  <Search size={40} className="text-brand-muted" strokeWidth={1} />                                                 
+                  <span className="text-brand-muted font-black text-[12px] tracking-widest uppercase">אין תוצאות לחיפוש הזה</span>                                                         
+                </div>                                                 
+              )}                                                     
+            </motion.div>                                          
+          ) : (                                                                                                               
+            
+            /* STATE 2: EXPLORE HOME */                      
+            <motion.div key="explore-home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col gap-8 pb-10">                                                                                         
+              
+              {/* Sponsor Drop */}                  
+              <div className="mx-4 relative overflow-hidden rounded-[28px] cursor-pointer group active:scale-[0.98] transition-transform shadow-[0_10px_40px_rgba(0,0,0,0.2)]">                                                                     
+                <div className="absolute inset-0 bg-gradient-to-r from-accent-primary/40 via-purple-500/20 to-accent-primary/40 animate-pulse opacity-50" />                               
+                <div className="absolute inset-0 bg-surface-card/80 backdrop-blur-xl border border-surface-border rounded-[28px]" />                                                       
+                <div className="relative p-6 flex items-center justify-between z-10">                                               
+                  <div className="flex flex-col gap-1.5">                    
+                    <span className="text-accent-primary text-[10px] font-black tracking-widest uppercase flex items-center gap-1.5">                                                            
+                      <Gift size={12} /> דרופ ממומן • Nike                                                                            
+                    </span>                                                  
+                    <span className="text-brand font-black text-[18px] tracking-wide">קבל 50 CRD חינם</span>                          
+                    <span className="text-brand-muted text-[12px] font-medium leading-relaxed max-w-[180px]">צפה בתוכן VIP מהקמפיין החדש וקבל מטבעות לארנק.</span>                           
+                  </div>                                                   
+                  <button onClick={() => toast.success('הדרופ נפתח!')} className="h-12 w-12 rounded-full bg-white text-black flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">                                    
+                    <ChevronLeft size={24} strokeWidth={2.5} className="rtl:-scale-x-100" />                                        
+                  </button>                                              
+                </div>                                                 
+              </div>                                                                                                            
+              
+              {/* Recent Searches */}                                  
+              {recentSearches.length > 0 && (                            
+                <div className="flex flex-col px-4 gap-3">                                                                          
+                  <div className="flex items-center justify-between px-1">                                                            
+                    <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest">חיפושים אחרונים</span>                                                                 
+                    <button onClick={() => { triggerFeedback('pop'); setRecentSearches([]); localStorage.removeItem('inner_recent_searches'); }} className="text-accent-primary text-[11px] font-black uppercase tracking-widest">נקה</button>                                                                 
+                  </div>                                                   
+                  <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2">                                                    
+                    {recentSearches.map((term, i) => (                         
+                      <div key={i} onClick={() => { triggerFeedback('pop'); setSearch(term); }} className="flex items-center gap-2 bg-surface-card border border-surface-border rounded-full px-4 py-2 cursor-pointer active:scale-95 transition-transform shadow-sm whitespace-nowrap">                             
+                        <Search size={12} className="text-brand-muted" />
+                        <span className="text-brand font-bold text-[13px]">{term}</span>                                                
+                        <button onClick={(e) => removeRecentSearch(term, e)} className="p-0.5 ml-1 text-brand-muted hover:text-brand transition-colors"><X size={12} /></button>
+                      </div>                                                 
+                    ))}                                                    
+                  </div>                                                 
+                </div>                                                 
+              )}                                                                                                                
+              
+              {/* CATEGORIES (Vibes) - Dynamic from DB tree, No Icons */}                               
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2.5 overflow-x-auto pb-2 scrollbar-hide px-4">                                
+                  {CATEGORY_TREE.map((cat) => (                                     
+                    <button                                                    
+                      key={cat.id}                                               
+                      onClick={() => { triggerFeedback('pop'); setActiveCategory(cat.id); setActiveSub(''); }}                                                  
+                      className={`text-[13px] font-black tracking-wide whitespace-nowrap transition-all px-5 py-2.5 rounded-full border shadow-sm ${
+                        activeCategory === cat.id 
+                          ? 'bg-accent-primary/10 border-accent-primary/40 text-accent-primary' 
+                          : 'bg-surface-card border-surface-border text-brand-muted hover:text-brand'
+                      }`}                                              
+                    >                                                          
+                      {cat.name}                                                 
+                    </button>                                              
+                  ))}                                                    
                 </div>
-              )}
 
-              {/* תגיות Vibe (רק למסך הראשי) */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide px-4">
-                {VIBES.map((vibe) => (
-                  <button 
-                    key={vibe} 
-                    onClick={() => { triggerFeedback('pop'); setActiveVibe(vibe); }} 
-                    className={`text-[13px] font-bold whitespace-nowrap transition-all px-4 py-1.5 rounded-full border ${activeVibe === vibe ? 'bg-accent-primary/10 border-accent-primary text-accent-primary' : 'bg-transparent border-surface-border text-brand-muted hover:text-brand'}`}
-                  >
-                    {vibe}
-                  </button>
-                ))}
-              </div>
-
-              {/* מועדונים (מחולק לגריד) */}
-              <div className="flex flex-col gap-3">
-                <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-4">מועדונים פופולריים</span>
+                {/* Sub-categories */}
+                <AnimatePresence mode="wait">
+                  {currentCatObj && currentCatObj.sub && currentCatObj.sub.length > 0 && (
+                    <motion.div 
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="flex overflow-x-auto scrollbar-hide gap-2 px-4 mt-1"
+                    >
+                      {currentCatObj.sub.map((subName) => (
+                        <button
+                          key={subName}
+                          onClick={() => { triggerFeedback('pop'); setActiveSub(activeSub === subName ? '' : subName); }}
+                          className={`shrink-0 h-8 px-4 rounded-full font-bold text-[11px] transition-all border ${
+                            activeSub === subName 
+                              ? 'bg-white/10 border-white/20 text-white' 
+                              : 'bg-transparent border-surface-border text-brand-muted hover:bg-white/5'
+                          }`}
+                          dir="ltr"
+                        >
+                          {subName}
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>                                                                                                            
+              
+              {/* Popular Circles Grid */}                             
+              <div className="flex flex-col gap-4">                      
+                <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-6 flex items-center gap-1.5">                                                          
+                  טרקלינים חמים <TrendingUp size={14} className="text-accent-primary/80" />                                       
+                </span>                                                                                                           
                 
-                {loadingCircles ? (
-                  <div className="py-16 flex justify-center"><Loader2 className="animate-spin text-accent-primary" /></div>
-                ) : filteredCircles.length === 0 ? (
-                  <div className="text-center py-10"><span className="text-brand-muted font-medium text-[14px]">לא נמצאו מועדונים בתדר הזה</span></div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-3 px-4">
-                    {filteredCircles.map((circle, idx) => (
-                      <motion.div 
-                        key={circle.id} 
-                        layout 
-                        initial={{ opacity: 0, y: 10 }} 
-                        animate={{ opacity: 1, y: 0 }} 
-                        transition={{ duration: 0.2, delay: Math.min(idx * 0.05, 0.2) }}
-                        onClick={() => { triggerFeedback('pop'); navigate(`/circle/${circle.slug}`); }} 
-                        className="cursor-pointer active:scale-95 transition-transform duration-200"
-                      >
-                        <div className="h-[200px] rounded-[24px] bg-surface-card border border-surface-border shadow-md flex flex-col relative overflow-hidden">
-                          <div className="absolute inset-0 z-0 bg-surface">
-                            {circle.cover_url ? (
-                              <img src={circle.cover_url} className="w-full h-full object-cover opacity-80" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-brand-muted font-black text-5xl bg-surface">
-                                {circle.name?.charAt(0)}
-                              </div>
-                            )}
-                            <div className="absolute inset-0 bg-gradient-to-t from-surface-card via-surface-card/60 to-transparent" />
-                          </div>
+                {loadingCircles ? (                                        
+                  <div className="py-16 flex justify-center"><Loader2 className="animate-spin text-accent-primary" /></div>                                                                
+                ) : filteredCircles.length === 0 ? (                       
+                  <div className="text-center py-10 opacity-50"><span className="text-brand-muted font-black text-[12px] uppercase tracking-widest">אין מועדונים פעילים כרגע בקטגוריה זו</span></div>                                                           
+                ) : (                                                      
+                  <div className="grid grid-cols-2 gap-3 px-4">                                                                       
+                    {filteredCircles.map((circle, idx) => {
+                      const reqLevel = circle.min_level || 1;
+                      const isLocked = myLevel < reqLevel;
 
-                          <div className="relative z-10 p-3 flex justify-end">
-                            {circle.is_trending && <RealFlame />}
-                          </div>
-
-                          <div className="relative z-10 mt-auto p-3">
-                            <h3 className="text-white font-black text-[15px] leading-tight drop-shadow-md truncate">
-                              {circle.name}
-                            </h3>
-                            <p className="text-white/80 text-[11px] mt-0.5 mb-2 line-clamp-1 font-medium drop-shadow-md">
-                              {circle.description || 'היכנס כדי לגלות מה קורה בפנים...'}
-                            </p>
+                      return (                                                                             
+                        <motion.div                                                
+                          key={circle.id}                                          
+                          layout                                                   
+                          initial={{ opacity: 0, y: 15 }}                          
+                          animate={{ opacity: 1, y: 0 }}                           
+                          transition={{ duration: 0.3, delay: Math.min(idx * 0.05, 0.2) }}                                                  
+                          onClick={() => { 
+                            if (isLocked) { triggerFeedback('error'); return; }
+                            triggerFeedback('pop'); navigate(`/circle/${circle.slug || circle.id}`); 
+                          }}                                   
+                          className={`cursor-pointer active:scale-[0.97] transition-transform duration-200 ${isLocked ? 'opacity-70 grayscale-[30%]' : ''}`}                                
+                        >                                                          
+                          <div className="h-[220px] rounded-[28px] bg-surface-card border border-surface-border shadow-md flex flex-col relative overflow-hidden group">
+                            <div className="absolute inset-0 z-0 bg-surface">                                                                   
+                              {circle.cover_url ? (                                      
+                                <img src={circle.cover_url} className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-700" loading="lazy" />                                 
+                              ) : (                                                      
+                                <div className="w-full h-full flex items-center justify-center text-brand-muted font-black text-6xl bg-surface">                                                             
+                                  {circle.name?.charAt(0)}                               
+                                </div>                                                 
+                              )}                                                       
+                              <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface-card/60 to-transparent" />                                                                    
+                            </div>                                                                                                            
                             
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_5px_#22c55e]" />
-                              <span className="text-[11px] font-black text-white drop-shadow-md">{circle.active_now} אונליין</span>
-                            </div>
-                          </div>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* אנשים ששווה להכיר */}
-              <div className="flex flex-col gap-3 pb-8">
-                <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-4">אנשים ששווה להכיר</span>
+                            {/* VIP Price Tag / Timer Badge / Lock */}                                                                               
+                            <div className="relative z-10 p-3 flex justify-between items-start">                                                
+                              <div className="bg-black/50 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-white/10 flex items-center gap-1.5 shadow-sm">                                           
+                                {isLocked ? (
+                                  <>
+                                    <Lock size={10} className="text-rose-500" />
+                                    <span className="text-white text-[10px] font-black tracking-widest">רמה {reqLevel}</span>
+                                  </>
+                                ) : circle.is_private ? (                                     
+                                  <>                                                         
+                                    <Lock size={10} className="text-accent-primary" />                                                                
+                                    <span className="text-white text-[10px] font-black tracking-widest">{circle.join_price || 0} CRD</span>                                                                  
+                                  </>                                                    
+                                ) : (                                                      
+                                  <>
+                                    <Unlock size={10} className="text-green-400" />                                                                   
+                                    <span className="text-white text-[10px] font-black tracking-widest uppercase">חופשי</span>                                                                               
+                                  </>                                                    
+                                )}                                                     
+                              </div>                                                                                                            
+                              
+                              {/* Trending Badge */}                                
+                              {circle.is_trending && (                                   
+                                <div className="bg-red-500/20 backdrop-blur-md px-2 py-1 rounded-xl border border-red-500/30 flex items-center gap-1">                                                       
+                                  <Timer size={10} className="text-red-400" />                                                                      
+                                  <span className="text-red-400 text-[9px] font-black uppercase tracking-widest">HOT</span>                                                                                
+                                </div>                                                 
+                              )}                                                     
+                            </div>                                                                                                            
+                            
+                            {/* Title & Stats */}
+                            <div className="relative z-10 mt-auto p-4 pt-10 bg-gradient-to-t from-surface via-surface/90 to-transparent">                                                                
+                              <h3 className="text-white font-black text-[16px] leading-tight drop-shadow-md truncate">                                                                                     
+                                {circle.name}                                          
+                              </h3>                                                                                                             
+                              <div className="flex items-center gap-1.5 mt-2">                                                                    
+                                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_#22c55e]" />                                                                          
+                                <span className="text-[11px] font-black text-white/80 drop-shadow-md uppercase tracking-wider">{circle.active_now} אונליין</span>                                        
+                              </div>                                                 
+                            </div>                                                 
+                          </div>                                                 
+                        </motion.div>                                          
+                      );
+                    })}                                                    
+                  </div>                                                 
+                )}                                                     
+              </div>                                     
+              
+              {/* Recommended Users */}                         
+              <div className="flex flex-col gap-4 pt-4">                 
+                <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-6">אנשים ששווה להכיר</span>                                                          
                 {loadingSuggestions ? (
-                  <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-accent-primary" /></div>
-                ) : (
-                  <div className="mx-4 bg-surface-card border border-surface-border rounded-[24px] overflow-hidden flex flex-col shadow-sm">
-                    {suggestedUsers.map((u, i) => (
-                      <div 
-                        key={u.id} 
-                        className={`py-4 px-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors ${i !== suggestedUsers.length -1 ? 'border-b border-surface-border' : ''}`} 
-                        onClick={() => { triggerFeedback('pop'); navigate(`/profile/${u.id}`); }}
-                      >
-                        <div className="flex items-center gap-4 text-right">
-                          <div className="w-12 h-12 rounded-full border border-surface-border bg-surface overflow-hidden shrink-0 flex items-center justify-center">
-                            {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={48} className="text-brand-muted" strokeWidth={1} />}
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-brand font-black text-[16px]">{u.full_name || 'משתמש'}</span>
-                            <span className="text-brand-muted text-[12px] font-medium mt-0.5" dir="ltr">@{u.username || 'user'}</span>
-                          </div>
-                        </div>
-                        <ChevronLeft size={18} className="text-brand-muted" />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-            </motion.div>
-          )}
-        </AnimatePresence>
+                  <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-accent-primary" /></div>                                                                
+                ) : (                                                      
+                  <div className="mx-4 bg-surface-card border border-surface-border rounded-[28px] overflow-hidden flex flex-col shadow-sm">                                                   
+                    {suggestedUsers.map((u, i) => (                            
+                      <div                                                       
+                        key={u.id}                                               
+                        className={`py-4 px-5 flex items-center justify-between cursor-pointer hover:bg-white/5 active:scale-[0.98] transition-all ${i !== suggestedUsers.length -1 ? 'border-b border-surface-border' : ''}`}                              
+                        onClick={() => { triggerFeedback('pop'); navigate(`/profile/${u.id}`); }}                                       
+                      >                                                          
+                        <div className="flex items-center gap-4 text-right">                                                                
+                          <div className="w-12 h-12 rounded-full border border-surface-border bg-surface overflow-hidden shrink-0 flex items-center justify-center shadow-sm">                                                                                  
+                            {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={28} className="text-brand-muted" strokeWidth={1.5} />}                                                                      
+                          </div>                                                   
+                          <div className="flex flex-col">                            
+                            <span className="text-brand font-black text-[15px]">{u.full_name || 'משתמש'}</span>                               
+                            <span className="text-brand-muted text-[12px] font-medium mt-0.5" dir="ltr">@{u.username || 'user'}</span>                                                               
+                          </div>                                                 
+                        </div>                                                   
+                        <div className="w-8 h-8 rounded-full bg-surface border border-surface-border flex items-center justify-center shadow-inner">                                                  
+                          <ChevronLeft size={16} className="text-brand-muted" />                                                         
+                        </div>                                                 
+                      </div>                                                 
+                    ))}                                                    
+                  </div>                                                 
+                )}                                                     
+              </div>                                                                                                          
+            </motion.div>                                          
+          )}                                                     
+        </AnimatePresence>                                     
       </div>
-    </FadeIn>
-  );
+    </FadeIn>                                              
+  );                                                     
 };
