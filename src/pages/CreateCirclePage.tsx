@@ -50,11 +50,12 @@ export const CreateCirclePage: React.FC = () => {
     const tid = toast.loading('מקים מועדון...');
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("משתמש לא מחובר");
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) throw new Error("משתמש לא מחובר או פג תוקף");
 
       const slug = `${name.trim().toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Math.random().toString(36).substring(2, 6)}`;
 
+      // 1. שמירת המועדון בטבלת circles
       const { data: newCircle, error: circleError } = await supabase
         .from('circles')
         .insert({
@@ -70,20 +71,36 @@ export const CreateCirclePage: React.FC = () => {
         .select()
         .single();
 
-      if (circleError) throw new Error(circleError.message);
+      if (circleError) {
+        console.error("Supabase Database Error:", circleError);
+        throw new Error(circleError.message);
+      }
 
-      await supabase.from('circle_members').insert({
-        circle_id: newCircle.id,
-        user_id: user.id,
-        role: 'admin'
-      });
+      // 2. שמירת המשתמש כמנהל בטבלת circle_members
+      const { error: memberError } = await supabase
+        .from('circle_members')
+        .insert({
+          circle_id: newCircle.id,
+          user_id: user.id,
+          role: 'admin'
+        });
+
+      if (memberError) {
+        console.error("Supabase Member Error:", memberError);
+        throw new Error("המועדון נוצר, אך קרתה שגיאה בהגדרת המנהל");
+      }
 
       triggerFeedback('success');
       toast.success('המועדון הוקם!', { id: tid });
       navigate(`/circle/${newCircle.slug}`);
+      
     } catch (err: any) {
+      console.error("Create Flow Error:", err);
       triggerFeedback('error');
+      // מקפיץ למסך את השגיאה המדויקת מהשרת
       toast.error(`שגיאה: ${err.message}`, { id: tid });
+    } finally {
+      // לא משנה מה קרה - מצליח או נכשל, הטעינה עוצרת כאן!
       setSaving(false);
     }
   };
