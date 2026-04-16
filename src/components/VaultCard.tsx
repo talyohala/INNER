@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, Unlock, Clock, Users, Coins, Shield, Crown, Loader2, Play } from 'lucide-react';
-import { apiFetch } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 import { Vault } from '../types';
+import { Button } from './ui';
 
 export const VaultCard = ({ vault, onUnlockSuccess }: { vault: Vault, onUnlockSuccess: () => void }) => {
   const [isUnlocking, setIsUnlocking] = useState(false);
@@ -15,12 +16,32 @@ export const VaultCard = ({ vault, onUnlockSuccess }: { vault: Vault, onUnlockSu
     const tid = toast.loading('פותח את הכספת...');
 
     try {
-      const res = await apiFetch(`/api/vaults/${vault.id}/unlock`, { method: 'POST' });
-      if (res.unlocked) {
-        triggerFeedback('success');
-        toast.success('הכספת נפתחה בהצלחה!', { id: tid });
-        onUnlockSuccess(); 
+      const { data: authData } = await supabase.auth.getUser();
+      const user = authData.user;
+      if (!user) throw new Error('משתמש לא מחובר');
+
+      // אם זו כספת בתשלום - נוריד CRD מהארנק
+      if (vault.unlock_type === 'gift' && vault.unlock_gift_crd) {
+        const { data: profile } = await supabase.from('profiles').select('crd_balance').eq('id', user.id).single();
+        if (!profile || profile.crd_balance < vault.unlock_gift_crd) {
+          throw new Error('אין מספיק CRD בארנק');
+        }
+        await supabase.from('profiles').update({ crd_balance: profile.crd_balance - vault.unlock_gift_crd }).eq('id', user.id);
       }
+
+      // הוספת רישום פתיחה
+      const { error } = await supabase.from('vault_unlocks').insert({
+        vault_id: vault.id,
+        user_id: user.id,
+        unlock_type: vault.unlock_type,
+        crd_paid: vault.unlock_type === 'gift' ? vault.unlock_gift_crd : 0
+      });
+
+      if (error && error.code !== '23505') throw error; // מתעלם משגיאת "כבר קיים"
+
+      triggerFeedback('success');
+      toast.success('הכספת נפתחה בהצלחה!', { id: tid });
+      onUnlockSuccess(); 
     } catch (err: any) {
       triggerFeedback('error');
       toast.error(err.message || 'שגיאה בפתיחת הכספת', { id: tid });
