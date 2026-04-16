@@ -44,7 +44,7 @@ app.use('/api/payments', paymentsRoutes);
 app.use('/api/creator', creatorRoutes);
 app.use('/api/account', accountRoutes);
 
-// נתיבים גלובליים (חיפוש ודיווח)
+// נתיבים גלובליים
 app.get('/api/discover', async (req, res) => {
   const q = String(req.query.q || '').trim();
   let query = supabase.from('circles').select('*').eq('is_active', true);
@@ -54,13 +54,14 @@ app.get('/api/discover', async (req, res) => {
 });
 
 app.post('/api/report', async (req, res) => {
-  // בגרסת ייצור שומרים בטבלת reports
   res.json({ success: true, message: 'Report submitted' });
 });
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', port: 8080 }));
 
-const PORT = process.env.PORT || 8080;
+// התיקון: ממירים את הפורט למספר שלם
+const PORT = Number(process.env.PORT) || 8080;
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 INNER API Server is running on port ${PORT}`);
 });
