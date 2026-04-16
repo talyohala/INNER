@@ -16,93 +16,52 @@ export const AuthProvider = ({ children }: any) => {
 
   const notificationsChannelRef = useRef<any>(null);
 
-  // --- Push Notifications Registration ---
+  // התיקון: בקשת פוש אסינכרונית ובטוחה שלא קורסת את ה-UI
   const registerForPushNotifications = async (userId: string) => {
-    if (!Capacitor.isNativePlatform()) return; // פועל רק באפליקציה מותקנת (iOS/Android)
+    if (!Capacitor.isNativePlatform()) return;
     
     try {
-      // 1. מבקש אישור מהמשתמש לשלוח התראות
-      let permStatus = await PushNotifications.checkPermissions();
-      
-      if (permStatus.receive === 'prompt') {
-        permStatus = await PushNotifications.requestPermissions();
+      // בודקים אם יש כבר הרשאה, אם לא - לא דורשים באגרסיביות כדי לא לקרוס
+      const permStatus = await PushNotifications.checkPermissions();
+      if (permStatus.receive === 'granted') {
+        await PushNotifications.register();
+        
+        PushNotifications.addListener('registration', async (token) => {
+          await supabase.from('profiles').update({ push_token: token.value }).eq('id', userId);
+        });
+
+        PushNotifications.addListener('pushNotificationReceived', (notification) => {
+          triggerFeedback('success');
+          toast.success(`התראה: ${notification.title}`);
+        });
       }
-
-      if (permStatus.receive !== 'granted') {
-        console.warn('משתמש סירב לקבל פושים');
-        return;
-      }
-
-      // 2. רישום המכשיר לקבלת טוקן
-      await PushNotifications.register();
-
-      // 3. האזנה לקבלת הטוקן ושמירתו ב-Supabase
-      PushNotifications.addListener('registration', async (token) => {
-        console.log('Push token received: ', token.value);
-        await supabase
-          .from('profiles')
-          .update({ push_token: token.value })
-          .eq('id', userId);
-      });
-
-      // טיפול בשגיאות רישום
-      PushNotifications.addListener('registrationError', (error: any) => {
-        console.error('Error on registration: ', JSON.stringify(error));
-      });
-
-      // האזנה לקבלת פוש כשהאפליקציה פתוחה
-      PushNotifications.addListener('pushNotificationReceived', (notification) => {
-        triggerFeedback('success');
-        toast.success(`התראה חדשה: ${notification.title}`);
-      });
-
     } catch (e) {
-      console.error('Failed to init push notifications', e);
+      console.warn('Push initialization skipped (needs native config)', e);
     }
   };
-  // ----------------------------------------
 
   const checkUnread = useCallback(async (userId: string) => {
-    if (!userId) {
-      setUnreadCount(0);
-      return 0;
-    }
+    if (!userId) { setUnreadCount(0); return 0; }
     try {
       const { count } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('is_read', false);
-      setUnreadCount(count || 0);
-      return count || 0;
-    } catch (err) {
-      return 0;
-    }
+      setUnreadCount(count || 0); return count || 0;
+    } catch (err) { return 0; }
   }, []);
 
   const checkSignals = useCallback(async (userId: string) => {
-    if (!userId) {
-      setPendingSignalsCount(0);
-      return 0;
-    }
+    if (!userId) { setPendingSignalsCount(0); return 0; }
     try {
       const { count } = await supabase.from('signals').select('*', { count: 'exact', head: true }).eq('to_user_id', userId).eq('status', 'pending');
-      setPendingSignalsCount(count || 0);
-      return count || 0;
-    } catch (err) {
-      return 0;
-    }
+      setPendingSignalsCount(count || 0); return count || 0;
+    } catch (err) { return 0; }
   }, []);
 
   const refreshProfile = useCallback(async (userId: string) => {
-    if (!userId) {
-      setProfile(null);
-      return null;
-    }
+    if (!userId) { setProfile(null); return null; }
     try {
       const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
-      setProfile(data || null);
-      return data || null;
-    } catch (err) {
-      setProfile(null);
-      return null;
-    }
+      setProfile(data || null); return data || null;
+    } catch (err) { setProfile(null); return null; }
   }, []);
 
   const detachNotificationsChannel = useCallback(() => {
@@ -119,12 +78,10 @@ export const AuthProvider = ({ children }: any) => {
     const channel = supabase
       .channel(`global_alerts_${userId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, async () => {
-        await checkUnread(userId);
-        triggerFeedback('success');
+        await checkUnread(userId); triggerFeedback('success');
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'signals', filter: `to_user_id=eq.${userId}` }, async () => {
-        await checkSignals(userId);
-        triggerFeedback('success');
+        await checkSignals(userId); triggerFeedback('success');
       })
       .subscribe();
 
@@ -153,7 +110,7 @@ export const AuthProvider = ({ children }: any) => {
         if (currentUser) {
           await Promise.all([refreshProfile(currentUser.id), checkUnread(currentUser.id), checkSignals(currentUser.id)]);
           await attachNotificationsChannel(currentUser.id);
-          // רושם את המכשיר לקבלת פושים!
+          // קורא לפוש ברקע בלי await כדי לא לעכב את ה-loading
           registerForPushNotifications(currentUser.id);
         } else {
           setProfile(null); setUnreadCount(0); setPendingSignalsCount(0);
