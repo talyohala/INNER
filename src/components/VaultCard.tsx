@@ -1,50 +1,61 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Lock, Unlock, Clock, Users, Coins, Shield, Crown, Loader2, Play } from 'lucide-react';
+import { Lock, Unlock, Clock, Users, Coins, Shield, Crown, Loader2, Play, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 import { Vault } from '../types';
 import { Button } from './ui';
 
-// נגן וידאו פרימיום שמונע תקיעות בגלילה ומטפל בלחיצות כמו שצריך
+// נגן וידאו פרימיום בטכנולוגיית "גובה נעול" למניעת תקיעות ופס שחור
 const VaultVideoPlayer = ({ src }: { src: string }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const togglePlay = (e: React.MouseEvent) => {
-    e.stopPropagation();
+    e.stopPropagation(); // מונע מהלחיצה לעבור לאלמנטים שמתחת
     if (videoRef.current) {
       if (isPlaying) {
         videoRef.current.pause();
       } else {
-        videoRef.current.play().catch(() => toast.error('שגיאה בניגון הוידאו'));
+        triggerFeedback('pop');
+        videoRef.current.play().catch(() => {
+          toast.error('לא ניתן לנגן וידאו זה במכשירך');
+        });
       }
     }
   };
 
   return (
-    <div className="relative w-full bg-black rounded-xl overflow-hidden border border-surface-border mt-2 shadow-inner">
+    // יחס גובה-רוחב סינמטי נעול. זה מונע מהוידאו להתכווץ לפס שחור!
+    <div className="relative w-full aspect-video bg-black rounded-3xl overflow-hidden border border-surface-border group shadow-[inset_0_4px_30px_rgba(0,0,0,0.5)] mt-4">
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-surface/50 backdrop-blur-sm z-20">
+          <Loader2 className="animate-spin text-accent-primary" size={24} />
+        </div>
+      )}
       <video 
         ref={videoRef}
         src={src} 
         playsInline 
-        preload="metadata"
-        controls={isPlaying} // מציג פקדים מקוריים רק אחרי שהתחיל לנגן כדי לא לתקוע את המסך
-        className="w-full max-h-[350px] object-contain"
+        preload="metadata" // טוען את הפריים הראשון מראש
+        controls={isPlaying} // מציג פקדים מקוריים של המכשיר רק אחרי שהתחיל לנגן
+        className="w-full h-full object-cover z-0"
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         onEnded={() => setIsPlaying(false)}
+        onLoadedMetadata={() => setLoading(false)} // מסיר את הטעינה כשהוידאו מוכן
       />
       
-      {/* שכבת הפליי המעוצבת שמגנה על המגע */}
-      {!isPlaying && (
+      {/* שכבת זכוכית (Glassmorphism) שמגנה על הגלילה */}
+      {!isPlaying && !loading && (
         <div 
-          className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 cursor-pointer hover:bg-black/40 transition-colors"
+          className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[2px] cursor-pointer active:scale-95 transition-transform"
           onClick={togglePlay}
         >
-          <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center shadow-2xl active:scale-90 transition-transform">
-            <Play size={32} className="text-white fill-white ml-1.5" />
+          <div className="w-20 h-20 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center shadow-2xl transition-all duration-300 group-hover:bg-white/15">
+            <Play size={40} className="text-white fill-white ml-2" />
           </div>
         </div>
       )}
@@ -54,6 +65,7 @@ const VaultVideoPlayer = ({ src }: { src: string }) => {
 
 export const VaultCard = ({ vault, onUnlockSuccess }: { vault: Vault, onUnlockSuccess: () => void }) => {
   const [isUnlocking, setIsUnlocking] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false); // לניהול תצוגת התוכן הפתוח
 
   const handleUnlock = async () => {
     triggerFeedback('pop');
@@ -63,12 +75,12 @@ export const VaultCard = ({ vault, onUnlockSuccess }: { vault: Vault, onUnlockSu
     try {
       const { data: authData } = await supabase.auth.getUser();
       const user = authData.user;
-      if (!user) throw new Error('משתמש לא מחובר');
+      if (!user) throw new Error('יש להתחבר תחילה');
 
       if (vault.unlock_type === 'gift' && vault.unlock_gift_crd) {
         const { data: profile } = await supabase.from('profiles').select('crd_balance').eq('id', user.id).single();
         if (!profile || profile.crd_balance < vault.unlock_gift_crd) {
-          throw new Error('אין מספיק CRD בארנק');
+          throw new Error('אין לך מספיק CRD בארנק');
         }
         await supabase.from('profiles').update({ crd_balance: profile.crd_balance - vault.unlock_gift_crd }).eq('id', user.id);
       }
@@ -97,9 +109,9 @@ export const VaultCard = ({ vault, onUnlockSuccess }: { vault: Vault, onUnlockSu
     switch (vault.unlock_type) {
       case 'gift':
         return (
-          <div className="flex flex-col items-center gap-1">
-            <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">מחיר פתיחה</span>
-            <div className="flex items-center gap-1.5 bg-amber-400/10 px-4 py-1.5 rounded-full border border-amber-400/20">
+          <div className="flex flex-col items-center gap-1.5">
+            <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest opacity-80">מחיר פתיחה</span>
+            <div className="flex items-center gap-1.5 bg-amber-400/10 px-5 py-2 rounded-full border border-amber-400/20 shadow-inner">
               <Coins size={14} className="text-amber-400" />
               <span className="font-black text-amber-400">{vault.unlock_gift_crd} CRD</span>
             </div>
@@ -107,36 +119,11 @@ export const VaultCard = ({ vault, onUnlockSuccess }: { vault: Vault, onUnlockSu
         );
       case 'tier':
         return (
-          <div className="flex flex-col items-center gap-1">
-            <span className="text-[10px] font-bold text-accent-primary uppercase tracking-widest">דרושה גישת CORE</span>
-            <div className="flex items-center gap-1.5 bg-accent-primary/10 px-4 py-1.5 rounded-full border border-accent-primary/20">
+          <div className="flex flex-col items-center gap-1.5">
+            <span className="text-[10px] font-bold text-accent-primary uppercase tracking-widest opacity-80">דרושה גישת CORE</span>
+            <div className="flex items-center gap-1.5 bg-accent-primary/10 px-5 py-2 rounded-full border border-accent-primary/20 shadow-inner">
               <Crown size={14} className="text-accent-primary" />
               <span className="font-black text-accent-primary">בלעדי לחברי ליבה</span>
-            </div>
-          </div>
-        );
-      case 'time':
-        if(!vault.unlock_at) return null;
-        const unlockDate = new Date(vault.unlock_at);
-        const isTimePassed = unlockDate <= new Date();
-        return (
-          <div className="flex flex-col items-center gap-1">
-            <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">זמן פתיחה</span>
-            <div className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full border ${isTimePassed ? 'bg-emerald-400/10 border-emerald-400/20 text-emerald-400' : 'bg-blue-400/10 border-blue-400/20 text-blue-400'}`}>
-              <Clock size={14} />
-              <span className="font-black text-[12px]" dir="ltr">
-                {isTimePassed ? 'פתוח כעת' : unlockDate.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-              </span>
-            </div>
-          </div>
-        );
-      case 'members':
-        return (
-          <div className="flex flex-col items-center gap-1">
-            <span className="text-[10px] font-bold text-fuchsia-400 uppercase tracking-widest">יעד קהילה</span>
-            <div className="flex items-center gap-1.5 bg-fuchsia-400/10 px-4 py-1.5 rounded-full border border-fuchsia-400/20">
-              <Users size={14} className="text-fuchsia-400" />
-              <span className="font-black text-fuchsia-400">ייפתח ב-{vault.unlock_members} חברים</span>
             </div>
           </div>
         );
@@ -146,45 +133,45 @@ export const VaultCard = ({ vault, onUnlockSuccess }: { vault: Vault, onUnlockSu
   };
 
   return (
-    <div className="relative w-full rounded-[32px] overflow-hidden bg-surface-card border border-surface-border shadow-lg" dir="rtl">
+    <div className="relative w-full rounded-[36px] overflow-hidden bg-surface-card border border-surface-border shadow-xl mb-4" dir="rtl">
       
-      {/* Teaser Background / Blur */}
-      <div className="relative h-[250px] w-full flex items-center justify-center overflow-hidden bg-neutral-900">
+      {/* 🔝 TEASER GRADIENT & IMAGE */}
+      <div className="relative h-[220px] w-full flex items-center justify-center overflow-hidden bg-neutral-900">
         {vault.teaser_blur_url ? (
           <>
-            <img src={vault.teaser_blur_url} className="absolute inset-0 w-full h-full object-cover blur-xl opacity-50 scale-110" alt="Teaser" />
-            <div className="absolute inset-0 bg-gradient-to-t from-surface-card via-transparent to-surface-card/80" />
+            <img src={vault.teaser_blur_url} className="absolute inset-0 w-full h-full object-cover blur-3xl opacity-60 scale-125" alt="Teaser" />
+            <div className="absolute inset-0 bg-gradient-to-t from-surface-card via-transparent to-surface-card/90" />
           </>
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-brand/5 to-accent-primary/10" />
+          <div className="absolute inset-0 bg-gradient-to-br from-brand/5 to-accent-primary/15" />
         )}
 
         {/* Status Badge */}
-        <div className="absolute top-4 right-4 bg-black/40 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full flex items-center gap-2">
+        <div className="absolute top-5 left-5 bg-black/40 backdrop-blur-md border border-white/10 px-4 py-2 rounded-full flex items-center gap-2 shadow-lg">
           <Shield size={14} className="text-white/70" />
-          <span className="text-[10px] font-black text-white uppercase tracking-widest">תוכן נעול</span>
+          <span className="text-[11px] font-black text-white uppercase tracking-widest">תוכן נעול</span>
         </div>
 
         {/* Central Lock Icon & Condition */}
-        <div className="relative z-10 flex flex-col items-center gap-4 p-6 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-surface/80 backdrop-blur-xl border border-white/10 flex items-center justify-center shadow-2xl">
-            {vault.is_unlocked ? <Unlock size={28} className="text-emerald-400" /> : <Lock size={28} className="text-brand-muted" />}
+        <div className="relative z-10 flex flex-col items-center gap-5 p-6 text-center">
+          <div className="w-18 h-18 rounded-[24px] bg-surface/80 backdrop-blur-2xl border border-white/10 flex items-center justify-center shadow-2xl">
+            {vault.is_unlocked ? <Unlock size={32} className="text-emerald-400" /> : <Lock size={32} className="text-brand-muted" />}
           </div>
           
-          <div className="space-y-1">
-            <h3 className="text-lg font-black text-white drop-shadow-md">{vault.title}</h3>
-            {vault.teaser && <p className="text-xs text-white/70 font-medium max-w-[240px] leading-relaxed mx-auto">{vault.teaser}</p>}
+          <div className="space-y-1.5">
+            <h3 className="text-xl font-black text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]">{vault.title || 'כספת נעולה'}</h3>
+            {vault.teaser && <p className="text-[13px] text-white/70 font-medium max-w-[260px] leading-relaxed mx-auto">{vault.teaser}</p>}
           </div>
 
           {!vault.is_unlocked && renderUnlockCondition()}
         </div>
       </div>
 
-      {/* Action Area */}
-      <div className="p-5 bg-surface-card flex items-center justify-between border-t border-surface-border">
+      {/* 🕹️ ACTION BAR */}
+      <div className="p-6 bg-surface-card flex items-center justify-between border-t border-surface-border gap-4">
         <div className="flex flex-col text-right">
-          <span className="text-[10px] font-bold text-brand-muted uppercase tracking-widest">סטטוס כספת</span>
-          <span className={`text-[13px] font-black ${vault.is_unlocked ? 'text-emerald-400' : 'text-brand'}`}>
+          <span className="text-[10px] font-bold text-brand-muted uppercase tracking-widest opacity-80">סטטוס כספת</span>
+          <span className={`text-[15px] font-black ${vault.is_unlocked ? 'text-emerald-400' : 'text-brand'}`}>
             {vault.is_unlocked ? 'זמין עבורך' : 'ממתין לפתיחה'}
           </span>
         </div>
@@ -192,30 +179,36 @@ export const VaultCard = ({ vault, onUnlockSuccess }: { vault: Vault, onUnlockSu
         {!vault.is_unlocked ? (
           <Button 
             onClick={handleUnlock} 
-            disabled={isUnlocking || (vault.unlock_type === 'time' && vault.unlock_at && new Date(vault.unlock_at) > new Date())}
-            className="h-12 px-6 rounded-full bg-white text-black font-black text-[11px] uppercase tracking-widest active:scale-95 shadow-md flex items-center gap-2"
+            disabled={isUnlocking}
+            className="h-14 px-8 rounded-full bg-white text-black font-black text-[13px] uppercase tracking-widest active:scale-95 shadow-lg flex items-center gap-2 transition-transform"
           >
-            {isUnlocking ? <Loader2 size={16} className="animate-spin text-black" /> : <><Unlock size={16} /> פתח עכשיו</>}
+            {isUnlocking ? <Loader2 size={18} className="animate-spin text-black" /> : <><Unlock size={18} /> פתח עכשיו</>}
           </Button>
         ) : (
-          <div className="h-12 px-6 rounded-full bg-emerald-400/10 text-emerald-400 border border-emerald-400/20 font-black text-[11px] uppercase tracking-widest flex items-center gap-2">
-            <Play size={16} className="fill-emerald-400" /> נפתח!
-          </div>
+          <button 
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="h-14 px-6 rounded-full bg-surface text-brand border border-surface-border font-black text-[13px] uppercase tracking-widest flex items-center gap-2 active:scale-95 shadow-md"
+          >
+            {isExpanded ? <ChevronUp size={18} className="text-accent-primary"/> : <ChevronDown size={18}/>}
+            צפה בתוכן
+          </button>
         )}
       </div>
 
-      {/* Actual Content (Shown only if unlocked) */}
+      {/* 📄 UNLOCKED CONTENT */}
       <AnimatePresence>
-        {vault.is_unlocked && (
+        {vault.is_unlocked && isExpanded && (
           <motion.div 
             initial={{ opacity: 0, height: 0 }} 
             animate={{ opacity: 1, height: 'auto' }} 
-            className="p-6 border-t border-surface-border bg-surface text-brand font-medium leading-relaxed text-sm"
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="p-6 border-t border-surface-border bg-surface text-brand font-medium leading-relaxed text-sm overflow-hidden"
           >
-            {vault.content_text && <p className="mb-4 whitespace-pre-wrap">{vault.content_text}</p>}
+            {vault.content_text && <p className="mb-4 whitespace-pre-wrap leading-relaxed">{vault.content_text}</p>}
             
             {vault.content_media_urls?.length > 0 && (
-              <div className={`grid gap-3 ${vault.content_media_urls.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              <div className="flex flex-col gap-3">
                 {vault.content_media_urls.map((url: string, i: number) => {
                   const isVideo = vault.content_type === 'video' || url.match(/\.(mp4|webm|mov)$/i);
                   return isVideo ? (
@@ -224,7 +217,7 @@ export const VaultCard = ({ vault, onUnlockSuccess }: { vault: Vault, onUnlockSu
                     <img 
                       key={i} 
                       src={url} 
-                      className="rounded-xl w-full max-h-[300px] object-cover border border-surface-border mt-2 shadow-inner" 
+                      className="rounded-3xl w-full max-h-[350px] object-cover border border-surface-border mt-3 shadow-inner" 
                       alt="Vault Content" 
                     />
                   );
@@ -233,7 +226,7 @@ export const VaultCard = ({ vault, onUnlockSuccess }: { vault: Vault, onUnlockSu
             )}
 
             {vault.content_link && (
-               <a href={vault.content_link} target="_blank" rel="noreferrer" className="mt-4 block text-center bg-accent-primary/10 text-accent-primary py-3 rounded-xl border border-accent-primary/20 font-black text-xs uppercase tracking-widest active:scale-95 transition-transform">
+               <a href={vault.content_link} target="_blank" rel="noreferrer" className="mt-5 block text-center bg-accent-primary/10 text-accent-primary py-4 rounded-full border border-accent-primary/20 font-black text-[13px] uppercase tracking-widest active:scale-95 transition-all shadow-md">
                  מעבר לקישור מצורף
                </a>
             )}
