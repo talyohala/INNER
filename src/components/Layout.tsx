@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';                                                      
 import { motion, AnimatePresence } from 'framer-motion'; 
 import {                                                   
-  PlusCircle, Wallet, Bell, ShoppingBag, Settings, LogOut, ChevronLeft, Radar, MessageSquare                                           
+  PlusCircle, Wallet, Bell, ShoppingBag, Settings, LogOut, Radar, MessageSquare                                           
 } from 'lucide-react';                                   
 import { useAuth } from '../context/AuthContext';        
 import { triggerFeedback } from '../lib/sound';          
@@ -26,15 +26,14 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
   
   if (location.pathname === '/auth') return <>{children}</>;                                                                                                                 
   
-  // הוספנו כאן את הרדאר ותיבת ההודעות לתפריט הראשי
-  const sidebarItems = [
-    { path: '/radar', icon: Radar, label: 'רדאר סיגנלים', colorClass: 'text-indigo-400' },                                                       
-    { path: '/inbox', icon: MessageSquare, label: 'תיבת הודעות', colorClass: 'text-pink-400' },                                                       
-    { path: '/create-circle', icon: PlusCircle, label: 'צור מועדון', colorClass: 'text-emerald-400' },                                                       
-    { path: '/wallet', icon: Wallet, label: 'ארנק CRD', colorClass: 'text-amber-400' },                                                       
-    { path: '/notifications', icon: Bell, label: 'התראות', badge: unreadCount > 0, colorClass: 'text-blue-400' },                                                       
-    { path: '/store', icon: ShoppingBag, label: 'חנות בוסטים', colorClass: 'text-fuchsia-400' },                                                       
-    { path: '/settings', icon: Settings, label: 'הגדרות', colorClass: 'text-slate-400' },                                                     
+  // גריד המודולים המרכזי
+  const gridItems = [
+    { path: '/radar', icon: Radar, label: 'רדאר', colorClass: 'text-indigo-400', bgClass: 'bg-indigo-400/10' },                                                       
+    { path: '/inbox', icon: MessageSquare, label: 'הודעות', colorClass: 'text-pink-400', bgClass: 'bg-pink-400/10' },                                                       
+    { path: '/wallet', icon: Wallet, label: 'ארנק', colorClass: 'text-amber-400', bgClass: 'bg-amber-400/10' },                                                       
+    { path: '/store', icon: ShoppingBag, label: 'חנות', colorClass: 'text-fuchsia-400', bgClass: 'bg-fuchsia-400/10' },                                                       
+    { path: '/notifications', icon: Bell, label: 'התראות', badge: unreadCount > 0, colorClass: 'text-blue-400', bgClass: 'bg-blue-400/10' },                                                       
+    { path: '/create-circle', icon: PlusCircle, label: 'מועדון', colorClass: 'text-emerald-400', bgClass: 'bg-emerald-400/10' },                                                     
   ];                                                                                                                
   
   const closeSidebar = () => setIsSidebarOpen(false);                                                               
@@ -67,7 +66,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
                 onClick={closeSidebar}                                 
               />                                                                                                                
               
-              {/* Bottom Sheet - Premium Dark Glass */}                       
+              {/* Bottom Sheet - Premium Control Center Style */}                       
               <motion.div                                                
                 initial={{ y: '100%' }}                                  
                 animate={{ y: 0 }}                                       
@@ -79,14 +78,15 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
                   if (info.offset.y > 100 || info.velocity.y > 500) closeSidebar();                                               
                 }}                                                       
                 transition={{ type: "spring", damping: 30, stiffness: 300 }}                                                      
-                className="relative z-10 bg-surface rounded-t-[40px] p-6 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border touch-none"                                                                  
+                className="relative z-10 bg-surface rounded-t-[40px] p-6 pb-[calc(env(safe-area-inset-bottom)+24px)] shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border touch-none"                                                                  
               >                                                          
                 
                 {/* Handle Bar */}                                       
-                <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-8" />                                                                                                       
+                <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-6" />                                                                                                       
                 
-                <div className="flex flex-col gap-3">                      
-                  {sidebarItems.map((item, idx) => (                         
+                {/* Grid Navigation */}
+                <div className="grid grid-cols-3 gap-3 mb-4">                      
+                  {gridItems.map((item, idx) => (                         
                     <button                                                    
                       key={idx}                                                
                       onClick={() => {                                           
@@ -94,43 +94,42 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
                         navigate(item.path);                                     
                         closeSidebar();                                        
                       }}                                                       
-                      className="flex items-center gap-4 p-4 rounded-[24px] bg-surface-card border border-surface-border hover:bg-white/5 active:scale-[0.98] transition-all w-full text-right group shadow-sm"                                        
+                      className="flex flex-col items-center justify-center gap-3 p-4 rounded-[28px] bg-surface-card border border-surface-border hover:bg-white/5 active:scale-[0.95] transition-all shadow-sm relative group"                                        
                     >                                                          
-                      
-                      {/* Icon Container */}                                                          
-                      <div className="w-12 h-12 rounded-[18px] bg-surface border border-surface-border flex items-center justify-center shrink-0 relative shadow-inner group-hover:scale-105 transition-transform">                                                          
-                        <item.icon size={22} className={item.colorClass} strokeWidth={2.5} />                                           
+                      <div className={`w-12 h-12 rounded-[20px] ${item.bgClass} border border-white/5 flex items-center justify-center relative shadow-inner group-hover:scale-110 transition-transform`}>                                                          
+                        <item.icon size={22} className={item.colorClass} strokeWidth={2} />                                           
                         {item.badge && (                                           
                           <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-surface-card shadow-sm" />                                                            
                         )}                                                     
                       </div>                                                                                                            
-                      
-                      <div className="flex-1 text-right">                        
-                        <span className="font-black text-[16px] text-brand">{item.label}</span>                                      
-                      </div>                                                                                                            
-                      
-                      <ChevronLeft size={18} className="text-brand-muted" />                                                             
+                      <span className="font-black text-[13px] text-brand tracking-wide">{item.label}</span>                                      
                     </button>                                              
                   ))}                                                                                                               
-                  
-                  {/* Logout Button */}
-                  <div className="mt-2 pt-2 border-t border-surface-border">                                                                 
-                    <button                                                    
-                      onClick={async () => {                                     
-                        triggerFeedback('pop');                                  
-                        closeSidebar();                                          
-                        try { await signOut?.(); } catch {}                                             
-                      }}                                                       
-                      className="w-full flex items-center gap-4 p-4 rounded-[24px] bg-surface-card border border-red-500/30 hover:bg-red-500/10 active:scale-[0.98] transition-all group shadow-sm"                                                     
-                    >                                                          
-                      <div className="w-12 h-12 rounded-[18px] bg-surface border border-red-500/30 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">                                                
-                        <LogOut size={22} className="text-red-500" strokeWidth={2.5} />                                                 
-                      </div>                                                   
-                      <div className="flex-1 text-right">                        
-                        <div className="text-red-500 text-[16px] font-black">התנתק</div>                                                
-                      </div>                                                 
-                    </button>                                              
-                  </div>                                                 
+                </div>
+
+                {/* Secondary Actions (List) */}
+                <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-surface-border/50">
+                  <button                                                    
+                    onClick={() => { triggerFeedback('pop'); navigate('/settings'); closeSidebar(); }}                                                       
+                    className="w-full flex items-center justify-between p-4 rounded-[24px] bg-surface-card border border-surface-border hover:bg-white/5 active:scale-[0.98] transition-all shadow-sm"                                                     
+                  >                                                          
+                    <div className="flex items-center gap-3">
+                      <Settings size={20} className="text-slate-400" />
+                      <span className="text-brand text-[15px] font-black">הגדרות חשבון</span>
+                    </div>
+                  </button> 
+
+                  <button                                                    
+                    onClick={async () => {                                     
+                      triggerFeedback('pop');                                  
+                      closeSidebar();                                          
+                      try { await signOut?.(); } catch {}                                             
+                    }}                                                       
+                    className="w-full flex items-center justify-center gap-2 p-4 rounded-[24px] bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 active:scale-[0.98] transition-all shadow-sm mt-1"                                                     
+                  >                                                          
+                    <LogOut size={18} className="text-red-500" strokeWidth={2.5} />                                                 
+                    <span className="text-red-500 text-[14px] font-black uppercase tracking-widest">התנתק מהמערכת</span>                                                
+                  </button>                                              
                 </div>                                                 
               </motion.div>                                          
             </div>                                                 

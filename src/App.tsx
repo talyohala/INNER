@@ -6,6 +6,7 @@ import { Layout } from './components/Layout';
 import { AuthPage } from './pages/AuthPage';             
 import { HomePage } from './pages/HomePage';             
 import { ExplorePage } from './pages/ExplorePage';       
+import { RadarPage } from './pages/RadarPage';
 import { ProfilePage } from './pages/ProfilePage';       
 import { EditProfilePage } from './pages/EditProfilePage';                                                        
 import { CirclePage } from './pages/CirclePage';         
@@ -15,7 +16,8 @@ import { WalletPage } from './pages/WalletPage';
 import { NotificationsPage } from './pages/NotificationsPage';                                                    
 import { BoostStorePage } from './pages/BoostStorePage'; 
 import { SettingsPage } from './pages/SettingsPage';     
-import { ChatPage } from './pages/ChatPage';                                                                      
+import { ChatPage } from './pages/ChatPage';
+import { InboxPage } from './pages/InboxPage';
 
 class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: any}> {         
   constructor(props: any) { super(props); this.state = { hasError: false, error: null }; }                          
@@ -44,23 +46,22 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
 
 export const App = () => {                                 
   useEffect(() => {                                          
-    // נועלים את הרקע של הדפדפן והמכשיר לפחם כדי שלא יצוצו פסים לבנים בגלילה                                          
-    document.body.style.backgroundColor = '#1E1F22';         
-    document.documentElement.style.backgroundColor = '#1E1F22';                                                     
+    document.body.style.backgroundColor = '#030303';         
+    document.documentElement.style.backgroundColor = '#030303';                                                     
   }, []);                                                                                                           
   
   return (                                                   
     <ErrorBoundary>                                            
       <AuthProvider>                                             
         <Router>                                                   
-          {/* עוטפים את הכל בצבעי הפחם והטקסט החדשים */}           
           <div className="bg-surface min-h-screen text-brand font-sans selection:bg-accent-primary/20 relative" dir="rtl">                                                             
-            <Toaster position="top-center" toastOptions={{ style: { background: '#2B2D31', color: '#F2F3F5', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '100px', fontSize: '13px', fontWeight: 'bold' } }} />                    
+            <Toaster position="top-center" toastOptions={{ style: { background: '#111', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '100px', fontSize: '13px', fontWeight: 'bold' } }} />                    
             <Layout>                                                   
               <Routes>                                                   
                 <Route path="/auth" element={<AuthPage />} />                                                                     
                 <Route path="/" element={<PrivateRoute><HomePage /></PrivateRoute>} />                                            
                 <Route path="/explore" element={<PrivateRoute><ExplorePage /></PrivateRoute>} />                                  
+                <Route path="/radar" element={<PrivateRoute><RadarPage /></PrivateRoute>} />                                  
                 <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />                                  
                 <Route path="/profile/:username" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />                        
                 <Route path="/edit-profile" element={<PrivateRoute><EditProfilePage /></PrivateRoute>} />                         
@@ -71,6 +72,7 @@ export const App = () => {
                 <Route path="/notifications" element={<PrivateRoute><NotificationsPage /></PrivateRoute>} />                      
                 <Route path="/store" element={<PrivateRoute><BoostStorePage /></PrivateRoute>} />                                 
                 <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />                                
+                <Route path="/inbox" element={<PrivateRoute><InboxPage /></PrivateRoute>} />                                
                 <Route path="/chat/:userId" element={<PrivateRoute><ChatPage /></PrivateRoute>} />                                
                 <Route path="*" element={<Navigate to="/" />} />                                                                
               </Routes>                                              
