@@ -205,7 +205,7 @@ export const WalletPage: React.FC = () => {
   const selectRecipient = (user: SearchUser) => {            
     triggerFeedback('pop');                                  
     setSelectedRecipient(user);                              
-    setTransferUsername(user.username ? `@${user.username}` : user.full_name || 'משתמש');                             
+    setTransferUsername(user.full_name || user.username || 'משתמש');                             
     setShowUserDropdown(false);                              
     setTransferSearchResults([]);                          
   };                                                                                                                
@@ -221,7 +221,9 @@ export const WalletPage: React.FC = () => {
   
   const handleTransfer = async () => {                       
     const amountNum = Number(transferAmount);                                                                         
-    if (!selectedRecipient?.id || !selectedRecipient?.username) return toast.error('בחר משתמש מהרשימה לפני שליחה');                                   
+    
+    // כאן התיקון! בודקים רק את ה-ID (אידי) ולא את השם משתמש. 
+    if (!selectedRecipient?.id) return toast.error('בחר משתמש מהרשימה לפני שליחה');                                   
     if (isNaN(amountNum) || amountNum <= 0) return toast.error('אנא הזן סכום תקין');                                  
     if (amountNum > balance) return toast.error('אין לך מספיק יתרה בארנק');                                                                                                    
     
@@ -231,11 +233,10 @@ export const WalletPage: React.FC = () => {
     try {                                                      
       if (!profile?.id) throw new Error('משתמש לא מחובר');                                                                                                                     
       
-      // שימוש בראוטר הנקי שלנו שהכנו מראש בשרת!
       const result = await apiFetch('/api/wallet/transfer', {
         method: 'POST',
         body: JSON.stringify({ 
-          toUsername: selectedRecipient.username, 
+          receiverId: selectedRecipient.id, 
           amount: amountNum 
         })
       });                                                                                                             

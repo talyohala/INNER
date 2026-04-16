@@ -11,7 +11,7 @@ router.get('/', async (req, res) => {
   res.json({ credits: profile?.crd_balance || 0 });
 });
 
-// טעינת CRD (סימולציה לפי ה-UI הנוכחי)
+// טעינת CRD (סימולציה)
 router.post('/topup', async (req, res) => {
   const userId = req.headers['x-user-id'] as string;
   const { amount, price } = req.body;
@@ -30,20 +30,20 @@ router.post('/topup', async (req, res) => {
   }
 });
 
+// העברה מאובטחת באמצעות ID מזהה חסין תקלות!
 router.post('/transfer', async (req, res) => {
   const senderId = req.headers['x-user-id'] as string;
-  const { toUsername, amount } = req.body;
+  const { receiverId, amount } = req.body;
   
-  if (!senderId || !toUsername || !amount || amount <= 0) return res.status(400).json({ error: 'נתונים לא תקינים' });
+  if (!senderId || !receiverId || !amount || amount <= 0) return res.status(400).json({ error: 'נתונים לא תקינים' });
 
   try {
-    const { data: receiver } = await supabase.from('profiles').select('id').eq('username', toUsername).single();
-    if (!receiver) return res.status(404).json({ error: 'משתמש לא נמצא' });
+    if (receiverId === senderId) return res.status(400).json({ error: 'לא ניתן להעביר לעצמך' });
 
-    // קריאה ל-RPC המאובטח שיצרנו ב-SQL!
+    // קריאה ל-RPC המאובטח שלנו
     const { data: newBalance, error } = await supabase.rpc('transfer_credits', {
       sender_id: senderId,
-      receiver_id: receiver.id,
+      receiver_id: receiverId,
       transfer_amount: amount
     });
 
