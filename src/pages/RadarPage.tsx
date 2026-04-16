@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { FadeIn, Button } from '../components/ui';
 import { triggerFeedback } from '../lib/sound';
+import { apiFetch } from '../lib/api'; // הוספנו את החיבור לשרת שלנו
 import toast from 'react-hot-toast';
 
 export const RadarPage: React.FC = () => {
@@ -15,7 +16,6 @@ export const RadarPage: React.FC = () => {
   
   const [activeTab, setActiveTab] = useState<'scanner' | 'queue'>('scanner');
   
-  // Scanner State
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(true);
@@ -23,7 +23,6 @@ export const RadarPage: React.FC = () => {
   const [signalMessage, setSignalMessage] = useState('');
   const [sending, setSending] = useState(false);
 
-  // Queue State (Incoming Signals)
   const [incomingSignals, setIncomingSignals] = useState<any[]>([]);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
@@ -95,7 +94,6 @@ export const RadarPage: React.FC = () => {
     const tid = toast.loading('מעביר תשלום לנאמנות ומשדר...');
 
     try {
-      // ניכוי מהארנק (נשמר בנאמנות עד אישור)
       const newBalance = (profile!.crd_balance || 0) - costNum;
       await supabase.from('profiles').update({ crd_balance: newBalance }).eq('id', profile!.id);
       await supabase.from('transactions').insert({
@@ -103,7 +101,7 @@ export const RadarPage: React.FC = () => {
       });
 
       const expiresAt = new Date();
-      expiresAt.setHours(expiresAt.getHours() + 48); // תוקף 48 שעות
+      expiresAt.setHours(expiresAt.getHours() + 48); 
 
       await supabase.from('signals').insert({
         from_user_id: profile!.id,
@@ -117,6 +115,19 @@ export const RadarPage: React.FC = () => {
         user_id: selectedUser.id, actor_id: profile!.id, type: 'signal',
         title: 'סיגנל חדש ממתין ברדאר! 📡', content: `קיבלת בקשת חיבור בשווי ${costNum} CRD.`, action_url: '/radar'
       });
+
+      // === פה הקסם החדש: שיגור פוש נוטיפיקציה דרך השרת שלנו ===
+      try {
+        await apiFetch('/notifications/send-push', 'POST', {
+          targetUserId: selectedUser.id,
+          title: 'סיגנל יוקרתי ברדאר! 📡',
+          body: `${profile?.full_name || 'מישהו'} שם ${costNum} CRD כדי לדבר איתך.`,
+          data: { url: '/radar' }
+        });
+      } catch (pushErr) {
+        console.error('Push failed, but signal sent', pushErr);
+      }
+      // ========================================================
 
       if (reloadProfile) reloadProfile();
       triggerFeedback('success');
@@ -133,7 +144,7 @@ export const RadarPage: React.FC = () => {
     }
   };
 
-  const handleProcessSignal = async (signalId: string, action: 'accept' | 'decline') => {
+  const handleProcessSignal = async (signalId: string, senderId: string, action: 'accept' | 'decline') => {
     setProcessingId(signalId);
     triggerFeedback('pop');
     try {
@@ -145,7 +156,8 @@ export const RadarPage: React.FC = () => {
       if (reloadProfile) reloadProfile();
       
       if (action === 'accept') {
-        toast.success('הסיגנל אושר! הצ\'אט פתוח עכשיו.', { icon: '🎉' });
+        toast.success('הסיגנל אושר! הצ\'אט נפתח.', { icon: '🎉' });
+        navigate(`/chat/${senderId}`);
       } else {
         toast.success('הסיגנל נדחה והכסף הוחזר לשולח.');
       }
@@ -178,7 +190,6 @@ export const RadarPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Custom Tabs */}
         <div className="flex gap-2 bg-black/40 p-1.5 rounded-full border border-white/5">
           <button onClick={() => { triggerFeedback('pop'); setActiveTab('scanner'); }} className={`flex-1 py-2.5 rounded-full text-[12px] font-black uppercase tracking-widest transition-all ${activeTab === 'scanner' ? 'bg-white text-black shadow-md' : 'text-brand-muted'}`}>
             סריקת תדרים
@@ -238,7 +249,7 @@ export const RadarPage: React.FC = () => {
                     <div className="w-12 h-12 rounded-full border-2 border-white/20 bg-surface overflow-hidden shadow-lg group-hover:border-accent-primary transition-colors group-hover:scale-110 duration-300">
                       {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full text-brand-muted p-1" />}
                     </div>
-                    {/* Badge showing their price */}
+                    {/* המחיר המדויק שמוגדר בפרופיל שלו */}
                     <div className="absolute -bottom-2 -right-2 bg-black/80 border border-white/20 px-1.5 py-0.5 rounded-md text-[8px] font-black text-amber-400 backdrop-blur-md">
                       {u.signal_price || 50} ⚡
                     </div>
@@ -292,10 +303,10 @@ export const RadarPage: React.FC = () => {
                     </p>
 
                     <div className="flex gap-2 pt-2">
-                      <Button onClick={() => handleProcessSignal(signal.id, 'decline')} disabled={processingId === signal.id} className="flex-1 h-12 bg-surface border border-surface-border text-brand-muted hover:text-rose-500 hover:border-rose-500/50 rounded-xl text-[12px] font-black uppercase tracking-widest transition-all">
-                        {processingId === signal.id ? <Loader2 size={16} className="animate-spin mx-auto" /> : <><X size={16}/> דחה והחזר כסף</>}
+                      <Button onClick={() => handleProcessSignal(signal.id, signal.sender?.id, 'decline')} disabled={processingId === signal.id} className="flex-1 h-12 bg-surface border border-surface-border text-brand-muted hover:text-rose-500 hover:border-rose-500/50 rounded-xl text-[12px] font-black uppercase tracking-widest transition-all">
+                        {processingId === signal.id ? <Loader2 size={16} className="animate-spin mx-auto" /> : <><X size={16}/> דחה</>}
                       </Button>
-                      <Button onClick={() => handleProcessSignal(signal.id, 'accept')} disabled={processingId === signal.id} className="flex-1 h-12 bg-white text-black rounded-xl text-[12px] font-black uppercase tracking-widest shadow-md active:scale-95 transition-all">
+                      <Button onClick={() => handleProcessSignal(signal.id, signal.sender?.id, 'accept')} disabled={processingId === signal.id} className="flex-1 h-12 bg-white text-black rounded-xl text-[12px] font-black uppercase tracking-widest shadow-md active:scale-95 transition-all">
                         {processingId === signal.id ? <Loader2 size={16} className="animate-spin mx-auto" /> : <><Check size={16}/> אשר ופתח צ'אט</>}
                       </Button>
                     </div>
