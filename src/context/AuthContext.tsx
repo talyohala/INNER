@@ -16,27 +16,36 @@ export const AuthProvider = ({ children }: any) => {
 
   const notificationsChannelRef = useRef<any>(null);
 
-  // התיקון: בקשת פוש אסינכרונית ובטוחה שלא קורסת את ה-UI
+  // התיקון: החזרנו את קפיצת האישור! עכשיו זה בטוח כי יש google-services.json
   const registerForPushNotifications = async (userId: string) => {
     if (!Capacitor.isNativePlatform()) return;
     
     try {
-      // בודקים אם יש כבר הרשאה, אם לא - לא דורשים באגרסיביות כדי לא לקרוס
-      const permStatus = await PushNotifications.checkPermissions();
-      if (permStatus.receive === 'granted') {
-        await PushNotifications.register();
-        
-        PushNotifications.addListener('registration', async (token) => {
-          await supabase.from('profiles').update({ push_token: token.value }).eq('id', userId);
-        });
-
-        PushNotifications.addListener('pushNotificationReceived', (notification) => {
-          triggerFeedback('success');
-          toast.success(`התראה: ${notification.title}`);
-        });
+      let permStatus = await PushNotifications.checkPermissions();
+      
+      if (permStatus.receive === 'prompt') {
+        // עכשיו זה יקפיץ את החלון של אנדרואיד בלי לקרוס!
+        permStatus = await PushNotifications.requestPermissions();
       }
+
+      if (permStatus.receive !== 'granted') {
+        console.warn('User denied push permissions');
+        return;
+      }
+
+      await PushNotifications.register();
+      
+      PushNotifications.addListener('registration', async (token) => {
+        console.log('Push token:', token.value);
+        await supabase.from('profiles').update({ push_token: token.value }).eq('id', userId);
+      });
+
+      PushNotifications.addListener('pushNotificationReceived', (notification) => {
+        triggerFeedback('success');
+        toast.success(`התראה: ${notification.title}`);
+      });
     } catch (e) {
-      console.warn('Push initialization skipped (needs native config)', e);
+      console.error('Push error', e);
     }
   };
 
@@ -110,7 +119,7 @@ export const AuthProvider = ({ children }: any) => {
         if (currentUser) {
           await Promise.all([refreshProfile(currentUser.id), checkUnread(currentUser.id), checkSignals(currentUser.id)]);
           await attachNotificationsChannel(currentUser.id);
-          // קורא לפוש ברקע בלי await כדי לא לעכב את ה-loading
+          // קורא לפוש אחרי שהכל מוכן
           registerForPushNotifications(currentUser.id);
         } else {
           setProfile(null); setUnreadCount(0); setPendingSignalsCount(0);
