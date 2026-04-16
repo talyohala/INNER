@@ -188,6 +188,7 @@ export const HomePage: React.FC = () => {
   const handleQuickRefresh = async () => {
     if (refreshing) return;
     setRefreshing(true);
+    setPullY(0); // מעלים את אינדיקטור הגרירה, נציג קפסולת ריענון במרכז
     triggerFeedback('pop');
     scrollToTop();
     await Promise.all([fetchData(true), checkUnreadNotifications()]);
@@ -230,20 +231,22 @@ export const HomePage: React.FC = () => {
   }, [fullScreenMedia, currentMediaIndex]);                                                                         
   
   const handleTouchStart = (e: React.TouchEvent) => {        
-    if (isAnyModalOpen()) return;                            
-    if (window.scrollY <= 0) pullStartY.current = e.touches[0].clientY;                                             
+    if (isAnyModalOpen() || refreshing) return;                            
+    if (window.scrollY <= 5) pullStartY.current = e.touches[0].clientY;                                             
   };                                                                                                                
   
   const handleTouchMove = (e: React.TouchEvent) => {         
-    if (isAnyModalOpen()) return;                            
+    if (isAnyModalOpen() || refreshing) return;                            
     if (pullStartY.current > 0 && window.scrollY <= 0) {       
       const y = e.touches[0].clientY - pullStartY.current;                                                              
-      if (y > 0) setPullY(Math.min(y, 120));                 
+      if (y > 0) {
+        setPullY(Math.min(Math.pow(y, 0.85), 100)); // ריכוך תנועה יוקרתי
+      }
     }                                                      
   };                                                                                                                
   
   const handleTouchEnd = async () => {                       
-    if (isAnyModalOpen()) return;                            
+    if (isAnyModalOpen() || refreshing) return;                            
     if (pullY > 60) {                                          
       handleQuickRefresh();                                   
     } else {                                                   
@@ -515,14 +518,36 @@ export const HomePage: React.FC = () => {
         )}                                                     
       </AnimatePresence>                                                                                                
       
+      {/* CAPSULE LOADING OVERLAY (CENTERED) */}
+      <AnimatePresence>
+        {refreshing && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, y: -20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: -20 }}
+            className="fixed top-24 left-0 right-0 flex justify-center z-[999] pointer-events-none"
+          >
+            <div className="bg-surface-card/95 backdrop-blur-2xl border border-surface-border px-5 py-3 rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.5)] flex items-center gap-3">
+              <Loader2 size={16} className="animate-spin text-accent-primary" />
+              <span className="text-[12px] font-black tracking-widest uppercase text-brand">מרענן נתונים...</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <FadeIn className="pt-[env(safe-area-inset-top)] pb-32 bg-surface min-h-screen relative overflow-x-hidden touch-pan-y" dir="rtl" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>                                                                    
         
-        {/* Pull to refresh UI */}                                  
-        <div className="fixed top-0 left-0 right-0 flex justify-center z-50 pointer-events-none transition-transform duration-200" style={{ transform: `translateY(${Math.max(pullY - 40, -40)}px)`, opacity: pullY / 60 }}>                  
-          <div className="bg-surface-card p-3 rounded-full shadow-lg border border-surface-border mt-10">                     
-            <RefreshCw size={22} className={`text-accent-primary ${refreshing ? 'animate-spin' : ''}`} />                   
-          </div>                                                 
-        </div>                                                                                                            
+        {/* Pull to refresh drag indicator */}                                  
+        {!refreshing && pullY > 0 && (
+          <div 
+            className="fixed top-0 left-0 right-0 flex justify-center z-[100] pointer-events-none"
+            style={{ transform: `translateY(${pullY - 50}px)`, opacity: pullY / 60 }}
+          >                  
+            <div className="bg-surface-card p-3 rounded-full shadow-lg border border-surface-border mt-10">                     
+              <RefreshCw size={20} className="text-brand-muted" style={{ transform: `rotate(${pullY * 3}deg)` }} />                   
+            </div>                                                 
+          </div>
+        )}                                                                                                            
         
         <div className="relative z-10 px-4">                                                                                
           
