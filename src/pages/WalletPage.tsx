@@ -109,6 +109,32 @@ export const WalletPage: React.FC = () => {
     setMounted(true);                                        
     fetchWallet();                                         
   }, [profile?.id]);                                                                                                           
+
+  // האזנה לשינויים בתיק בזמן אמת (Live Updates!)
+  useEffect(() => {
+    if (!profile?.id) return;
+    
+    const channel = supabase.channel(`public:profiles:eq.${profile.id}`)
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'profiles', 
+        filter: `id=eq.${profile.id}` 
+      }, (payload) => {
+        const newBal = payload.new.crd_balance;
+        if (newBal !== balance) {
+          if (newBal > balance) {
+            triggerFeedback('coin'); // השמעת צליל למקבל
+            toast.success('קיבלת העברה חדשה!', { icon: '💰' });
+          }
+          setBalance(newBal);
+          fetchWallet(); // רענון היסטוריה כדי לראות את השורה החדשה
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [profile?.id, balance]);
   
   const fetchWallet = async () => {                          
     if (!profile?.id) return;
@@ -232,9 +258,8 @@ export const WalletPage: React.FC = () => {
     try {                                                      
       if (!profile?.id) throw new Error('משתמש לא מחובר');                                                                                                                     
       
-      // עוקפים את השרת של Render ופונים ישירות לפונקציה המאובטחת ב-Supabase!
+      // פנייה ל-RPC. שים לב: אנחנו כבר לא שולחים את ה-ID שלנו! הפונקציה שואבת אותו בעצמה.
       const { data: newBalance, error } = await supabase.rpc('transfer_credits', {
-        sender_id: profile.id,
         receiver_id: selectedRecipient.id,
         transfer_amount: amountNum
       });
