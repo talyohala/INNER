@@ -15,12 +15,11 @@ import { useAuth } from '../context/AuthContext';
 
 type WalletTx = {                                          
   id: string | number;                                     
-  tx_type: 'deposit' | 'withdrawal' | 'transfer_in' | 'transfer_out' | 'purchase' | 'top_up' | 'drop_revenue' | 'platform_tax' | 'dm_fee' | string;                            
+  type: 'deposit' | 'withdrawal' | 'transfer' | 'purchase' | 'top_up' | 'drop_revenue' | 'platform_tax' | 'dm_fee' | string;                            
   amount: number;                                          
   description?: string;                                     
   created_at: string;                                    
-  receiver_id?: string;
-  sender_id?: string;
+  user_id: string;
 };                                                                                                                
 
 type SearchUser = {                                        
@@ -121,12 +120,12 @@ export const WalletPage: React.FC = () => {
       const { data, error } = await supabase
         .from('transactions')
         .select('*')
-        .or(`sender_id.eq.${profile.id},receiver_id.eq.${profile.id}`)
+        .eq('user_id', profile.id)
         .order('created_at', { ascending: false })
         .limit(20);                                                                                                               
       
       if (!error && data) {
-        setTransactions(data);
+        setTransactions(data as WalletTx[]);
       }
     } catch {                                                  
       toast.error('שגיאה בטעינת היסטוריית ארנק');                     
@@ -182,10 +181,11 @@ export const WalletPage: React.FC = () => {
         if (error) throw error;
 
         await supabase.from('transactions').insert({
-          receiver_id: profile.id,
+          user_id: profile.id,
           amount: selectedPackage.amount,
-          tx_type: 'top_up',
-        }).catch(() => {}); // Catch if table incomplete
+          type: 'deposit',
+          description: `טעינת ${selectedPackage.amount} CRD באשראי`
+        });
         
         if (reloadProfile) reloadProfile();
         setBalance(newBalance);                                                   
@@ -221,7 +221,7 @@ export const WalletPage: React.FC = () => {
   
   const handleTransfer = async () => {                       
     const amountNum = Number(transferAmount);                                                                         
-    if (!selectedRecipient?.id) return toast.error('בחר משתמש מהרשימה לפני שליחה');                                   
+    if (!selectedRecipient?.id || !selectedRecipient?.username) return toast.error('בחר משתמש מהרשימה לפני שליחה');                                   
     if (isNaN(amountNum) || amountNum <= 0) return toast.error('אנא הזן סכום תקין');                                  
     if (amountNum > balance) return toast.error('אין לך מספיק יתרה בארנק');                                                                                                    
     
@@ -231,25 +231,25 @@ export const WalletPage: React.FC = () => {
     try {                                                      
       if (!profile?.id) throw new Error('משתמש לא מחובר');                                                                                                                     
       
-      const { data, error } = await supabase.rpc('transfer_credits', {                                                    
-        sender_id: profile.id,                             
-        receiver_id: selectedRecipient.id,                       
-        transfer_amount: amountNum,                            
-      });                                                                                                               
+      // שימוש בראוטר הנקי שלנו שהכנו מראש בשרת!
+      const result = await apiFetch('/api/wallet/transfer', {
+        method: 'POST',
+        body: JSON.stringify({ 
+          toUsername: selectedRecipient.username, 
+          amount: amountNum 
+        })
+      });                                                                                                             
       
-      if (error) throw error;                            
-      
-      const newBal = typeof data === 'number' ? data : Number(data?.new_balance ?? data?.newBalance ?? balance - amountNum);
       if (reloadProfile) reloadProfile();
-      setBalance(newBal);                                                                                                                
+      setBalance(result.newBalance);                                                                                                                
       await fetchWallet();                                     
       
       triggerFeedback('success');                              
       toast.success('ההעברה בוצעה בהצלחה', { id: tid });       
       resetTransferState();                                  
-    } catch {                                                  
+    } catch (err: any) {                                                  
       triggerFeedback('error');                                
-      toast.error('ההעברה נכשלה', { id: tid });              
+      toast.error(err.message || 'ההעברה נכשלה', { id: tid });              
     } finally {                                                
       setTransferring(false);                                
     }                                                      
@@ -286,22 +286,16 @@ export const WalletPage: React.FC = () => {
   const visibleTransactions = useMemo(() => transactions.slice(0, 3), [transactions]);                                                                                       
   
   const getTxVisuals = (tx: WalletTx) => {                   
-    const isReceiver = tx.receiver_id === profile?.id;
-    const isPositive = tx.tx_type === 'top_up' || tx.tx_type === 'drop_revenue' || (tx.tx_type === 'transfer' && isReceiver);                                            
-    const isNegative = tx.tx_type === 'withdrawal' || tx.tx_type === 'platform_tax' || tx.tx_type === 'dm_fee' || (tx.tx_type === 'transfer' && !isReceiver);                                                                       
+    const isPositive = tx.amount > 0;                                            
+    const isNegative = tx.amount < 0;                                                                       
     
-    let description = tx.description || 'פעולה';
-    if (tx.tx_type === 'top_up') description = 'הפקדת מטבעות';
-    if (tx.tx_type === 'drop_revenue') description = 'הכנסה מדרופ';
-    if (tx.tx_type === 'platform_tax') description = 'עמלת רשת';
-    if (tx.tx_type === 'dm_fee') description = 'דמי רצינות (DM)';
-    if (tx.tx_type === 'transfer') description = isReceiver ? 'העברה נכנסת' : 'העברה יוצאת';
+    let description = tx.description || 'פעולה בחשבון';
     
     if (isPositive) {                                          
       return { sign: '+', color: 'text-emerald-400', icon: <ArrowDownLeft size={16} className="text-emerald-400" />, desc: description };                                                     
     }                                                                                                                 
     if (isNegative) {                                          
-      return { sign: '-', color: 'text-rose-400', icon: <ArrowUpRight size={16} className="text-rose-400" />, desc: description };                                                     
+      return { sign: '', color: 'text-rose-400', icon: <ArrowUpRight size={16} className="text-rose-400" />, desc: description };                                                     
     }                                                                                                                 
     return { sign: '', color: 'text-brand', icon: <CreditCard size={16} className="text-brand-muted" />, desc: description };                                                     
   };                                                                                                                
