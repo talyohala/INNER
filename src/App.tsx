@@ -18,6 +18,7 @@ import { BoostStorePage } from './pages/BoostStorePage';
 import { SettingsPage } from './pages/SettingsPage';     
 import { ChatPage } from './pages/ChatPage';
 import { InboxPage } from './pages/InboxPage';
+import { StudioPage } from './pages/StudioPage'; // <-- הוספנו את הסטודיו!
 
 class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: any}> {         
   constructor(props: any) { super(props); this.state = { hasError: false, error: null }; }                          
@@ -74,6 +75,7 @@ export const App = () => {
                 <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />                                
                 <Route path="/inbox" element={<PrivateRoute><InboxPage /></PrivateRoute>} />                                
                 <Route path="/chat/:userId" element={<PrivateRoute><ChatPage /></PrivateRoute>} />                                
+                <Route path="/studio" element={<PrivateRoute><StudioPage /></PrivateRoute>} /> {/* <-- נתיב הסטודיו */}
                 <Route path="*" element={<Navigate to="/" />} />                                                                
               </Routes>                                              
             </Layout>                                              

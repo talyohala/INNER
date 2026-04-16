@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';                                                      
 import { motion, AnimatePresence } from 'framer-motion'; 
 import {                                                   
-  PlusCircle, Wallet, Bell, ShoppingBag, Settings, LogOut, Radar, MessageSquare                                           
+  PlusCircle, Wallet, Bell, ShoppingBag, Settings, LogOut, Radar, MessageSquare, TrendingUp                                           
 } from 'lucide-react';                                   
 import { useAuth } from '../context/AuthContext';        
 import { triggerFeedback } from '../lib/sound';          
@@ -52,7 +52,6 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
               <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.3} onDragEnd={(_, info) => { if (info.offset.y > 100 || info.velocity.y > 500) closeSidebar(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: "spring", damping: 30, stiffness: 300 }} className="relative z-10 bg-surface rounded-t-[40px] p-6 pb-[calc(env(safe-area-inset-bottom)+24px)] shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border touch-none">                                                          
                 <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-8" />                                                                                                       
                 
-                {/* אייקונים גדולים ונקיים בלי רקע */}
                 <div className="grid grid-cols-3 gap-6 mb-8 px-2">                      
                   {gridItems.map((item, idx) => (                         
                     <button key={idx} onClick={() => { triggerFeedback('pop'); navigate(item.path); closeSidebar(); }} className="flex flex-col items-center justify-center gap-2 active:scale-[0.95] transition-transform relative group">                                                          
@@ -66,13 +65,18 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
                 </div>
 
                 <div className="flex flex-col gap-3 mt-2 pt-4 border-t border-surface-border/50">
-                  {/* הגדרות חשבון - ממורכז */}
+                  
+                  {/* סטודיו יוצרים */}
+                  <button onClick={() => { triggerFeedback('pop'); navigate('/studio'); closeSidebar(); }} className="w-full flex items-center justify-center gap-2 p-4 rounded-[24px] bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 active:scale-[0.98] transition-all shadow-sm">                                                          
+                    <TrendingUp size={20} className="text-emerald-400" />
+                    <span className="text-emerald-400 text-[15px] font-black uppercase tracking-widest">סטודיו יוצרים</span>
+                  </button> 
+
                   <button onClick={() => { triggerFeedback('pop'); navigate('/settings'); closeSidebar(); }} className="w-full flex items-center justify-center gap-2 p-4 rounded-[24px] bg-surface-card border border-surface-border hover:bg-white/5 active:scale-[0.98] transition-all shadow-sm">                                                          
                     <Settings size={20} className="text-slate-400" />
                     <span className="text-brand text-[15px] font-black">הגדרות חשבון</span>
                   </button> 
                   
-                  {/* התנתקות - ממורכז */}
                   <button onClick={async () => { triggerFeedback('pop'); closeSidebar(); try { await signOut?.(); } catch {} }} className="w-full flex items-center justify-center gap-2 p-4 rounded-[24px] bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 active:scale-[0.98] transition-all shadow-sm">                                                          
                     <LogOut size={18} className="text-red-500" strokeWidth={2.5} />
                     <span className="text-red-500 text-[14px] font-black uppercase tracking-widest">התנתק מהמערכת</span>                                                
