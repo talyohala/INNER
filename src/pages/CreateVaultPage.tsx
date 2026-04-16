@@ -3,9 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronRight, Lock, EyeOff, Image as ImageIcon, 
-  Video, Coins, Crown, Users, Loader2, ShieldCheck, Zap
+  Video, Coins, Crown, Users, Loader2, ShieldCheck 
 } from 'lucide-react';
-import { apiFetch } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { FadeIn, Button } from '../components/ui';
 import { triggerFeedback } from '../lib/sound';
@@ -28,7 +27,7 @@ export const CreateVaultPage: React.FC = () => {
     contentText: '',
     contentFile: null as File | null,
     unlockType: 'gift' as 'gift' | 'tier' | 'members',
-    unlockValue: 50, // CRD amount or Members count
+    unlockValue: 50,
   });
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>, type: 'teaser' | 'content') => {
@@ -39,9 +38,10 @@ export const CreateVaultPage: React.FC = () => {
 
   const uploadFile = async (file: File) => {
     const fileName = `vault_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-    const { data, error } = await supabase.storage.from('feed_images').upload(fileName, file);
-    if (error) throw error;
-    return supabase.storage.from('feed_images').getPublicUrl(data.path).data.publicUrl;
+    // שימוש בבאקט של avatars כי אנחנו יודעים שהוא בטוח קיים ועובד
+    const { data, error } = await supabase.storage.from('avatars').upload(fileName, file);
+    if (error) throw new Error('שגיאה בהעלאת קובץ למערכת');
+    return supabase.storage.from('avatars').getPublicUrl(data.path).data.publicUrl;
   };
 
   const handleCreate = async () => {
@@ -53,6 +53,16 @@ export const CreateVaultPage: React.FC = () => {
     const tid = toast.loading('מייצר כספת מאובטחת...');
 
     try {
+      // 1. קבלת המשתמש הנוכחי
+      const { data: userData } = await supabase.auth.getUser();
+      const uid = userData.user?.id;
+      if (!uid) throw new Error('משתמש לא מחובר');
+
+      // 2. מציאת מזהה המועדון (circle_id) לפי ה-slug מהכתובת
+      const { data: circle, error: circleError } = await supabase.from('circles').select('id').eq('slug', slug).single();
+      if (circleError || !circle) throw new Error('לא הצלחנו לאתר את המועדון במסד הנתונים');
+
+      // 3. העלאת מדיה אם יש
       let teaserUrl = null;
       let contentUrls = [];
 
@@ -61,7 +71,10 @@ export const CreateVaultPage: React.FC = () => {
       if (formData.contentFile) contentUrls.push(await uploadFile(formData.contentFile));
       setUploading(false);
 
+      // 4. כתיבת הנתונים ישירות לטבלת vaults ב-Supabase
       const payload = {
+        circle_id: circle.id,
+        creator_id: uid,
         title: formData.title,
         teaser: formData.teaser,
         teaser_blur_url: teaserUrl,
@@ -74,15 +87,17 @@ export const CreateVaultPage: React.FC = () => {
         unlock_tier: formData.unlockType === 'tier' ? 'CORE' : 'INNER'
       };
 
-      await apiFetch(`/api/circles/${slug}/vaults`, {
-        method: 'POST',
-        body: JSON.stringify(payload)
-      });
+      const { error: vaultError } = await supabase.from('vaults').insert(payload);
+      if (vaultError) {
+        console.error("Vault Insert Error:", vaultError);
+        throw new Error(vaultError.message);
+      }
 
       triggerFeedback('success');
       toast.success('הכספת ננעלה ופורסמה בהצלחה!', { id: tid });
       navigate(`/circle/${slug}`);
     } catch (err: any) {
+      console.error(err);
       triggerFeedback('error');
       toast.error(err.message || 'שגיאה ביצירת הכספת', { id: tid });
     } finally {
@@ -116,7 +131,7 @@ export const CreateVaultPage: React.FC = () => {
           <div className="bg-surface-card border border-surface-border rounded-[32px] p-5 shadow-sm space-y-4">
             <input 
               value={formData.title} onChange={e => setFormData(p => ({...p, title: e.target.value}))} 
-              placeholder="כותרת מושכת (למשל: אסטרטגיית ההשקעה שלי ל-2026)" 
+              placeholder="כותרת מושכת (למשל: טיפ ההשקעה שלי ל-2026)" 
               className="w-full h-14 bg-surface border border-surface-border rounded-[20px] px-5 text-brand font-black outline-none focus:border-accent-primary/50 transition-all shadow-inner" 
             />
             <textarea 
@@ -125,7 +140,6 @@ export const CreateVaultPage: React.FC = () => {
               className="w-full h-24 bg-surface border border-surface-border rounded-[20px] p-5 text-brand font-medium outline-none focus:border-accent-primary/50 transition-all resize-none shadow-inner" 
             />
             
-            {/* Teaser Media */}
             <div 
               onClick={() => teaserInputRef.current?.click()} 
               className="w-full h-32 border-2 border-dashed border-surface-border rounded-[24px] flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-white/5 active:scale-[0.99] transition-all relative overflow-hidden"
