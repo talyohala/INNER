@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';                                                      
 import { motion, AnimatePresence } from 'framer-motion'; 
 import {                                                   
-  PlusCircle, Wallet, Bell, ShoppingBag, Settings, LogOut, ChevronLeft                                           
+  PlusCircle, Wallet, Bell, ShoppingBag, Settings, LogOut, ChevronLeft, Radar, MessageSquare                                           
 } from 'lucide-react';                                   
 import { useAuth } from '../context/AuthContext';        
 import { triggerFeedback } from '../lib/sound';          
@@ -26,11 +26,14 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
   
   if (location.pathname === '/auth') return <>{children}</>;                                                                                                                 
   
-  const sidebarItems = [                                     
+  // הוספנו כאן את הרדאר ותיבת ההודעות לתפריט הראשי
+  const sidebarItems = [
+    { path: '/radar', icon: Radar, label: 'רדאר סיגנלים', colorClass: 'text-indigo-400' },                                                       
+    { path: '/inbox', icon: MessageSquare, label: 'תיבת הודעות', colorClass: 'text-pink-400' },                                                       
     { path: '/create-circle', icon: PlusCircle, label: 'צור מועדון', colorClass: 'text-emerald-400' },                                                       
     { path: '/wallet', icon: Wallet, label: 'ארנק CRD', colorClass: 'text-amber-400' },                                                       
     { path: '/notifications', icon: Bell, label: 'התראות', badge: unreadCount > 0, colorClass: 'text-blue-400' },                                                       
-    { path: '/store', icon: ShoppingBag, label: 'חנות', colorClass: 'text-fuchsia-400' },                                                       
+    { path: '/store', icon: ShoppingBag, label: 'חנות בוסטים', colorClass: 'text-fuchsia-400' },                                                       
     { path: '/settings', icon: Settings, label: 'הגדרות', colorClass: 'text-slate-400' },                                                     
   ];                                                                                                                
   
@@ -111,7 +114,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
                   ))}                                                                                                               
                   
                   {/* Logout Button */}
-                  <div className="mt-2 pt-2">                                                                 
+                  <div className="mt-2 pt-2 border-t border-surface-border">                                                                 
                     <button                                                    
                       onClick={async () => {                                     
                         triggerFeedback('pop');                                  
