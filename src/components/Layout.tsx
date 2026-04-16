@@ -50,24 +50,32 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
             <div className="fixed inset-0 z-[999999] flex flex-col justify-end" dir="rtl">                                      
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeSidebar} />                                                                                                                
               <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.3} onDragEnd={(_, info) => { if (info.offset.y > 100 || info.velocity.y > 500) closeSidebar(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: "spring", damping: 30, stiffness: 300 }} className="relative z-10 bg-surface rounded-t-[40px] p-6 pb-[calc(env(safe-area-inset-bottom)+24px)] shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border touch-none">                                                          
-                <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-6" />                                                                                                       
-                <div className="grid grid-cols-3 gap-3 mb-4">                      
+                <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-8" />                                                                                                       
+                
+                {/* אייקונים גדולים ונקיים בלי רקע */}
+                <div className="grid grid-cols-3 gap-6 mb-8 px-2">                      
                   {gridItems.map((item, idx) => (                         
-                    <button key={idx} onClick={() => { triggerFeedback('pop'); navigate(item.path); closeSidebar(); }} className="flex flex-col items-center justify-center gap-3 p-4 rounded-[28px] bg-surface-card border border-surface-border hover:bg-white/5 active:scale-[0.95] transition-all shadow-sm relative group">                                                          
+                    <button key={idx} onClick={() => { triggerFeedback('pop'); navigate(item.path); closeSidebar(); }} className="flex flex-col items-center justify-center gap-2 active:scale-[0.95] transition-transform relative group">                                                          
                       <div className="flex items-center justify-center relative group-hover:scale-110 transition-transform">                                                          
-                        <item.icon size={32} className={item.colorClass} strokeWidth={1.5} />                                           
-                        {item.badge && <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-surface-card shadow-sm" />}                                                     
+                        <item.icon size={38} className={item.colorClass} strokeWidth={1.5} />                                           
+                        {item.badge && <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-surface shadow-sm" />}                                                     
                       </div>                                                                                                            
                       <span className="font-black text-[13px] text-brand tracking-wide">{item.label}</span>                                      
                     </button>                                              
                   ))}                                                                                                               
                 </div>
-                <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-surface-border/50">
-                  <button onClick={() => { triggerFeedback('pop'); navigate('/settings'); closeSidebar(); }} className="w-full flex items-center justify-between p-4 rounded-[24px] bg-surface-card border border-surface-border hover:bg-white/5 active:scale-[0.98] transition-all shadow-sm">                                                          
-                    <div className="flex items-center gap-3"><Settings size={20} className="text-slate-400" /><span className="text-brand text-[15px] font-black">הגדרות חשבון</span></div>
+
+                <div className="flex flex-col gap-3 mt-2 pt-4 border-t border-surface-border/50">
+                  {/* הגדרות חשבון - ממורכז */}
+                  <button onClick={() => { triggerFeedback('pop'); navigate('/settings'); closeSidebar(); }} className="w-full flex items-center justify-center gap-2 p-4 rounded-[24px] bg-surface-card border border-surface-border hover:bg-white/5 active:scale-[0.98] transition-all shadow-sm">                                                          
+                    <Settings size={20} className="text-slate-400" />
+                    <span className="text-brand text-[15px] font-black">הגדרות חשבון</span>
                   </button> 
-                  <button onClick={async () => { triggerFeedback('pop'); closeSidebar(); try { await signOut?.(); } catch {} }} className="w-full flex items-center justify-center gap-2 p-4 rounded-[24px] bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 active:scale-[0.98] transition-all shadow-sm mt-1">                                                          
-                    <LogOut size={18} className="text-red-500" strokeWidth={2.5} /><span className="text-red-500 text-[14px] font-black uppercase tracking-widest">התנתק מהמערכת</span>                                                
+                  
+                  {/* התנתקות - ממורכז */}
+                  <button onClick={async () => { triggerFeedback('pop'); closeSidebar(); try { await signOut?.(); } catch {} }} className="w-full flex items-center justify-center gap-2 p-4 rounded-[24px] bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 active:scale-[0.98] transition-all shadow-sm">                                                          
+                    <LogOut size={18} className="text-red-500" strokeWidth={2.5} />
+                    <span className="text-red-500 text-[14px] font-black uppercase tracking-widest">התנתק מהמערכת</span>                                                
                   </button>                                              
                 </div>                                                 
               </motion.div>                                          
