@@ -3,33 +3,26 @@ import { supabase } from '../lib/supabase';
 
 const router = Router();
 
-// שליפת יתרה והיסטוריית פעולות
 router.get('/', async (req, res) => {
   const userId = req.headers['x-user-id'] as string;
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-  try {
-    const { data: profile } = await supabase.from('profiles').select('credits').eq('id', userId).single();
-    const { data: transactions } = await supabase.from('transactions').select('*').eq('user_id', userId).order('created_at', { ascending: false });
-    
-    res.json({ credits: profile?.credits || 0, transactions: transactions || [] });
-  } catch (err) {
-    res.status(500).json({ error: 'Server error' });
-  }
+  const { data: profile } = await supabase.from('profiles').select('crd_balance').eq('id', userId).single();
+  res.json({ credits: profile?.crd_balance || 0 });
 });
 
-// הוספת קרדיטים (רכישה)
-router.post('/add', async (req, res) => {
+// טעינת CRD (סימולציה לפי ה-UI הנוכחי)
+router.post('/topup', async (req, res) => {
   const userId = req.headers['x-user-id'] as string;
-  const { amount } = req.body;
+  const { amount, price } = req.body;
   if (!userId || !amount) return res.status(400).json({ error: 'Invalid data' });
 
   try {
-    const { data: profile } = await supabase.from('profiles').select('credits').eq('id', userId).single();
-    const newBalance = (profile?.credits || 0) + amount;
+    const { data: profile } = await supabase.from('profiles').select('crd_balance').eq('id', userId).single();
+    const newBalance = (profile?.crd_balance || 0) + amount;
     
-    await supabase.from('profiles').update({ credits: newBalance }).eq('id', userId);
-    await supabase.from('transactions').insert([{ user_id: userId, type: 'deposit', amount, description: 'רכישת קרדיטים בחנות' }]);
+    await supabase.from('profiles').update({ crd_balance: newBalance }).eq('id', userId);
+    await supabase.from('transactions').insert([{ user_id: userId, type: 'top_up', amount, description: `טעינת ${amount} CRD (₪${price})` }]);
     
     res.json({ success: true, newBalance });
   } catch (err) {
@@ -37,7 +30,6 @@ router.post('/add', async (req, res) => {
   }
 });
 
-// העברה לחבר - הדבר האמיתי!
 router.post('/transfer', async (req, res) => {
   const senderId = req.headers['x-user-id'] as string;
   const { toUsername, amount } = req.body;
@@ -45,33 +37,20 @@ router.post('/transfer', async (req, res) => {
   if (!senderId || !toUsername || !amount || amount <= 0) return res.status(400).json({ error: 'נתונים לא תקינים' });
 
   try {
-    // 1. מוצאים את המקבל
-    const { data: receiver } = await supabase.from('profiles').select('id, credits').eq('username', toUsername).single();
-    if (!receiver) return res.status(404).json({ error: 'שם המשתמש לא נמצא במערכת' });
-    if (receiver.id === senderId) return res.status(400).json({ error: 'לא ניתן להעביר לעצמך' });
+    const { data: receiver } = await supabase.from('profiles').select('id').eq('username', toUsername).single();
+    if (!receiver) return res.status(404).json({ error: 'משתמש לא נמצא' });
 
-    // 2. מוצאים את השולח ומוודאים יתרה
-    const { data: sender } = await supabase.from('profiles').select('credits, username').eq('id', senderId).single();
-    if (!sender || sender.credits < amount) return res.status(400).json({ error: 'אין לך מספיק יתרה' });
+    // קריאה ל-RPC המאובטח שיצרנו ב-SQL!
+    const { data: newBalance, error } = await supabase.rpc('transfer_credits', {
+      sender_id: senderId,
+      receiver_id: receiver.id,
+      transfer_amount: amount
+    });
 
-    // 3. חותכים יתרה לשולח
-    const newSenderBalance = sender.credits - amount;
-    await supabase.from('profiles').update({ credits: newSenderBalance }).eq('id', senderId);
-
-    // 4. מוסיפים יתרה למקבל
-    const newReceiverBalance = (receiver.credits || 0) + amount;
-    await supabase.from('profiles').update({ credits: newReceiverBalance }).eq('id', receiver.id);
-
-    // 5. מתעדים עסקאות לשניהם
-    await supabase.from('transactions').insert([
-      { user_id: senderId, type: 'withdrawal', amount, description: `העברה ל-@${toUsername}` },
-      { user_id: receiver.id, type: 'deposit', amount, description: `העברה מ-@${sender.username}` }
-    ]);
-
-    res.json({ success: true, newBalance: newSenderBalance });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'שגיאת שרת בביצוע ההעברה' });
+    if (error) throw error;
+    res.json({ success: true, newBalance });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'שגיאת שרת' });
   }
 });
 
