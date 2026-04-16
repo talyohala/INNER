@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, Unlock, Clock, Users, Coins, Shield, Crown, Loader2, Play } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -6,6 +6,51 @@ import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 import { Vault } from '../types';
 import { Button } from './ui';
+
+// נגן וידאו פרימיום שמונע תקיעות בגלילה ומטפל בלחיצות כמו שצריך
+const VaultVideoPlayer = ({ src }: { src: string }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const togglePlay = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.play().catch(() => toast.error('שגיאה בניגון הוידאו'));
+      }
+    }
+  };
+
+  return (
+    <div className="relative w-full bg-black rounded-xl overflow-hidden border border-surface-border mt-2 shadow-inner">
+      <video 
+        ref={videoRef}
+        src={src} 
+        playsInline 
+        preload="metadata"
+        controls={isPlaying} // מציג פקדים מקוריים רק אחרי שהתחיל לנגן כדי לא לתקוע את המסך
+        className="w-full max-h-[350px] object-contain"
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => setIsPlaying(false)}
+      />
+      
+      {/* שכבת הפליי המעוצבת שמגנה על המגע */}
+      {!isPlaying && (
+        <div 
+          className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 cursor-pointer hover:bg-black/40 transition-colors"
+          onClick={togglePlay}
+        >
+          <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center shadow-2xl active:scale-90 transition-transform">
+            <Play size={32} className="text-white fill-white ml-1.5" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const VaultCard = ({ vault, onUnlockSuccess }: { vault: Vault, onUnlockSuccess: () => void }) => {
   const [isUnlocking, setIsUnlocking] = useState(false);
@@ -154,7 +199,7 @@ export const VaultCard = ({ vault, onUnlockSuccess }: { vault: Vault, onUnlockSu
           </Button>
         ) : (
           <div className="h-12 px-6 rounded-full bg-emerald-400/10 text-emerald-400 border border-emerald-400/20 font-black text-[11px] uppercase tracking-widest flex items-center gap-2">
-            <Play size={16} className="fill-emerald-400" /> צפה בתוכן
+            <Play size={16} className="fill-emerald-400" /> נפתח!
           </div>
         )}
       </div>
@@ -170,22 +215,16 @@ export const VaultCard = ({ vault, onUnlockSuccess }: { vault: Vault, onUnlockSu
             {vault.content_text && <p className="mb-4 whitespace-pre-wrap">{vault.content_text}</p>}
             
             {vault.content_media_urls?.length > 0 && (
-              <div className={`grid gap-2 ${vault.content_media_urls.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              <div className={`grid gap-3 ${vault.content_media_urls.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {vault.content_media_urls.map((url: string, i: number) => {
                   const isVideo = vault.content_type === 'video' || url.match(/\.(mp4|webm|mov)$/i);
                   return isVideo ? (
-                    <video 
-                      key={i} 
-                      src={url} 
-                      controls 
-                      playsInline 
-                      className="rounded-xl w-full max-h-[300px] object-contain bg-black border border-surface-border" 
-                    />
+                    <VaultVideoPlayer key={i} src={url} />
                   ) : (
                     <img 
                       key={i} 
                       src={url} 
-                      className="rounded-xl w-full max-h-[300px] object-cover border border-surface-border" 
+                      className="rounded-xl w-full max-h-[300px] object-cover border border-surface-border mt-2 shadow-inner" 
                       alt="Vault Content" 
                     />
                   );
