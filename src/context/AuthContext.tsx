@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { triggerFeedback } from '../lib/sound';
+import { PushNotifications } from '@capacitor/push-notifications';
+import { Capacitor } from '@capacitor/core';
+import toast from 'react-hot-toast';
 
 const AuthContext = createContext<any>(null);
 
@@ -12,6 +15,52 @@ export const AuthProvider = ({ children }: any) => {
   const [pendingSignalsCount, setPendingSignalsCount] = useState(0);
 
   const notificationsChannelRef = useRef<any>(null);
+
+  // --- Push Notifications Registration ---
+  const registerForPushNotifications = async (userId: string) => {
+    if (!Capacitor.isNativePlatform()) return; // פועל רק באפליקציה מותקנת (iOS/Android)
+    
+    try {
+      // 1. מבקש אישור מהמשתמש לשלוח התראות
+      let permStatus = await PushNotifications.checkPermissions();
+      
+      if (permStatus.receive === 'prompt') {
+        permStatus = await PushNotifications.requestPermissions();
+      }
+
+      if (permStatus.receive !== 'granted') {
+        console.warn('משתמש סירב לקבל פושים');
+        return;
+      }
+
+      // 2. רישום המכשיר לקבלת טוקן
+      await PushNotifications.register();
+
+      // 3. האזנה לקבלת הטוקן ושמירתו ב-Supabase
+      PushNotifications.addListener('registration', async (token) => {
+        console.log('Push token received: ', token.value);
+        await supabase
+          .from('profiles')
+          .update({ push_token: token.value })
+          .eq('id', userId);
+      });
+
+      // טיפול בשגיאות רישום
+      PushNotifications.addListener('registrationError', (error: any) => {
+        console.error('Error on registration: ', JSON.stringify(error));
+      });
+
+      // האזנה לקבלת פוש כשהאפליקציה פתוחה
+      PushNotifications.addListener('pushNotificationReceived', (notification) => {
+        triggerFeedback('success');
+        toast.success(`התראה חדשה: ${notification.title}`);
+      });
+
+    } catch (e) {
+      console.error('Failed to init push notifications', e);
+    }
+  };
+  // ----------------------------------------
 
   const checkUnread = useCallback(async (userId: string) => {
     if (!userId) {
@@ -104,6 +153,8 @@ export const AuthProvider = ({ children }: any) => {
         if (currentUser) {
           await Promise.all([refreshProfile(currentUser.id), checkUnread(currentUser.id), checkSignals(currentUser.id)]);
           await attachNotificationsChannel(currentUser.id);
+          // רושם את המכשיר לקבלת פושים!
+          registerForPushNotifications(currentUser.id);
         } else {
           setProfile(null); setUnreadCount(0); setPendingSignalsCount(0);
         }
@@ -121,6 +172,7 @@ export const AuthProvider = ({ children }: any) => {
       if (nextUser) {
         await Promise.all([refreshProfile(nextUser.id), checkUnread(nextUser.id), checkSignals(nextUser.id)]);
         await attachNotificationsChannel(nextUser.id);
+        registerForPushNotifications(nextUser.id);
       } else {
         detachNotificationsChannel();
         setProfile(null); setUnreadCount(0); setPendingSignalsCount(0);
