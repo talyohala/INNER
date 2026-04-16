@@ -22,12 +22,12 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
   if (location.pathname === '/auth') return <>{children}</>;                                                                                                                 
   
   const gridItems = [
-    { path: '/radar', icon: Radar, label: 'רדאר', badge: pendingSignalsCount > 0, colorClass: 'text-indigo-400', bgClass: 'bg-indigo-400/10' },                                                       
-    { path: '/inbox', icon: MessageSquare, label: 'הודעות', colorClass: 'text-pink-400', bgClass: 'bg-pink-400/10' },                                                       
-    { path: '/wallet', icon: Wallet, label: 'ארנק', colorClass: 'text-amber-400', bgClass: 'bg-amber-400/10' },                                                       
-    { path: '/store', icon: ShoppingBag, label: 'חנות', colorClass: 'text-fuchsia-400', bgClass: 'bg-fuchsia-400/10' },                                                       
-    { path: '/notifications', icon: Bell, label: 'התראות', badge: unreadCount > 0, colorClass: 'text-blue-400', bgClass: 'bg-blue-400/10' },                                                       
-    { path: '/create-circle', icon: PlusCircle, label: 'מועדון', colorClass: 'text-emerald-400', bgClass: 'bg-emerald-400/10' },                                                     
+    { path: '/radar', icon: Radar, label: 'רדאר', badge: pendingSignalsCount > 0, colorClass: 'text-indigo-400' },                                                       
+    { path: '/inbox', icon: MessageSquare, label: 'הודעות', colorClass: 'text-pink-400' },                                                       
+    { path: '/wallet', icon: Wallet, label: 'ארנק', colorClass: 'text-amber-400' },                                                       
+    { path: '/store', icon: ShoppingBag, label: 'חנות', colorClass: 'text-fuchsia-400' },                                                       
+    { path: '/notifications', icon: Bell, label: 'התראות', badge: unreadCount > 0, colorClass: 'text-blue-400' },                                                       
+    { path: '/create-circle', icon: PlusCircle, label: 'מועדון', colorClass: 'text-emerald-400' },                                                     
   ];                                                                                                                
   
   const closeSidebar = () => setIsSidebarOpen(false);                                                               
@@ -54,8 +54,8 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
                 <div className="grid grid-cols-3 gap-3 mb-4">                      
                   {gridItems.map((item, idx) => (                         
                     <button key={idx} onClick={() => { triggerFeedback('pop'); navigate(item.path); closeSidebar(); }} className="flex flex-col items-center justify-center gap-3 p-4 rounded-[28px] bg-surface-card border border-surface-border hover:bg-white/5 active:scale-[0.95] transition-all shadow-sm relative group">                                                          
-                      <div className={`w-12 h-12 rounded-[20px] ${item.bgClass} border border-white/5 flex items-center justify-center relative shadow-inner group-hover:scale-110 transition-transform`}>                                                          
-                        <item.icon size={22} className={item.colorClass} strokeWidth={2} />                                           
+                      <div className="flex items-center justify-center relative group-hover:scale-110 transition-transform">                                                          
+                        <item.icon size={32} className={item.colorClass} strokeWidth={1.5} />                                           
                         {item.badge && <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-surface-card shadow-sm" />}                                                     
                       </div>                                                                                                            
                       <span className="font-black text-[13px] text-brand tracking-wide">{item.label}</span>                                      
