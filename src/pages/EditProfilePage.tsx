@@ -5,7 +5,7 @@ import {
   UserCircle, Edit2, Loader2, Users, MessageSquare,                                           
   Link as LinkIcon, UserCheck, MapPin, Calendar, GraduationCap,                                           
   HeartHandshake, Shield, Camera, Key, Crown, Briefcase,                                               
-  Sparkles, ChevronDown, Wallet, Bell, ShieldAlert, LogOut, Zap, ChevronRight, ChevronLeft                                            
+  Sparkles, ChevronDown, Wallet, Zap, ChevronRight                                            
 } from 'lucide-react';                                   
 import { createPortal } from 'react-dom';                
 import { useAuth } from '../context/AuthContext';        
@@ -45,7 +45,7 @@ export const EditProfilePage: React.FC = () => {
   
   const [formData, setFormData] = useState({                 
     full_name: '', username: '', bio: '', social_link: '', zodiac: '', location: '', 
-    birth_date: '', relationship_status: '', education: '', job_title: '',                  
+    birth_date: '', relationship_status: '', education: '', job_title: '', signal_price: 50                 
   });                                                                                                               
   
   const [passwordData, setPasswordData] = useState({ current_password: '', new_password: '', confirm_password: '' });                                                       
@@ -77,6 +77,7 @@ export const EditProfilePage: React.FC = () => {
             relationship_status: profileData.relationship_status || '', 
             education: profileData.education || '', 
             job_title: profileData.job_title || '',             
+            signal_price: profileData.signal_price || 50,             
           });                                                    
         }                                                      
       } catch (err: any) {                                       
@@ -120,8 +121,7 @@ export const EditProfilePage: React.FC = () => {
     triggerFeedback('pop');                                  
     const tid = toast.loading('שומר שינויים...');            
     try {                                                      
-      const { education, job_title, ...safeData } = formData;                                                           
-      const updates = { ...safeData, birth_date: safeData.birth_date === '' ? null : safeData.birth_date };                                                                      
+      const updates = { ...formData, birth_date: formData.birth_date === '' ? null : formData.birth_date };                                                                      
       const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);                              
       
       if (error) throw error;                                                                                           
@@ -154,12 +154,6 @@ export const EditProfilePage: React.FC = () => {
     }
   };
 
-  const handleLogout = async () => {
-    triggerFeedback('error');
-    await supabase.auth.signOut();
-    navigate('/');
-  };
-  
   if (authLoading || loadingData) {                          
     return <div className="min-h-screen bg-surface flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div>;                         
   }                                                                                                                 
@@ -173,7 +167,7 @@ export const EditProfilePage: React.FC = () => {
     <div className="bg-surface min-h-screen relative font-sans overflow-x-hidden" dir="rtl">                                                                                     
       <FadeIn className="relative w-full flex flex-col pb-32">                                                                                                                     
         
-        {/* 📸 COVER SECTION (Absolute to scroll natively) */}                                                            
+        {/* 📸 COVER SECTION */}                                                            
         <div className="absolute top-0 left-0 w-full h-[240px] bg-surface-card z-0 overflow-hidden">                                                                                 
           <div className="absolute top-6 left-0 right-0 flex justify-center items-center z-30 pointer-events-none">                                                                    
             <span className="text-white font-black text-[13px] tracking-[0.2em] uppercase drop-shadow-md">עריכת פרופיל</span>                                                        
@@ -186,12 +180,10 @@ export const EditProfilePage: React.FC = () => {
             <div className="absolute inset-0 bg-gradient-to-b from-accent-primary/10 to-transparent" />                     
           )}                                                                                                                
           
-          {/* Back Button */}
           <button onClick={() => navigate(-1)} className="absolute top-5 right-5 w-10 h-10 bg-surface-card/80 backdrop-blur-xl text-brand rounded-full flex items-center justify-center shadow-lg border border-surface-border active:scale-90 transition-all z-20 pointer-events-auto">
             <ChevronRight size={24} className="mr-0.5" />
           </button>
 
-          {/* Camera Button in Top Left Corner */}                 
           <button                                                    
             onClick={() => coverInputRef.current?.click()}                                                                    
             disabled={uploadingCover}                                
@@ -201,12 +193,9 @@ export const EditProfilePage: React.FC = () => {
           </button>                                              
         </div>                                                                                                            
         
-        {/* 👤 CONTENT WRAPPER */}                               
         <div className="relative z-10 w-full pt-[200px] px-2">                                                              
-          {/* Main Card (Rounded top, edge to edge) */}            
           <div className="bg-surface rounded-t-[40px] w-full min-h-screen flex flex-col items-center shadow-[0_-20px_40px_rgba(0,0,0,0.7)] border-t border-surface-border">                                                                     
             
-            {/* Avatar */}                                           
             <motion.div whileHover={{ scale: 1.05 }} className="w-[110px] h-[110px] rounded-full bg-surface shadow-xl p-1.5 relative -mt-[55px] z-20 mb-8">                              
               <div className="w-full h-full rounded-full overflow-hidden bg-surface-card border border-surface-border relative flex items-center justify-center">                                                           
                 {data.profile?.avatar_url ? (
@@ -227,7 +216,6 @@ export const EditProfilePage: React.FC = () => {
             
             <div className="w-full flex flex-col gap-6 px-1">                                                                                                                            
               
-              {/* 🏆 GAMIFICATION STATS */}
               <div className="w-full px-1">
                 <div className="bg-surface-card border border-surface-border rounded-[32px] p-6 shadow-sm flex flex-col gap-4 relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-accent-primary/5 blur-[40px] rounded-full pointer-events-none" />
@@ -272,6 +260,19 @@ export const EditProfilePage: React.FC = () => {
                 </div>                                                                                                            
                 
                 <div className="grid grid-cols-1 gap-6 relative z-10 px-1">                                                                                                                  
+                  
+                  {/* השדה החדש לתמחור סיגנל! */}
+                  <div className="bg-surface border border-surface-border rounded-[24px] p-4 flex items-center justify-between shadow-inner mb-2">
+                    <div className="flex flex-col">
+                      <span className="text-brand font-black text-[14px]">מחיר סיגנל (DMs)</span>
+                      <span className="text-brand-muted text-[10px] font-bold">כמה CRD עולה לפנות אליך?</span>
+                    </div>
+                    <div className="flex items-center gap-2 bg-surface-card border border-surface-border px-3 py-1.5 rounded-xl">
+                       <input type="number" value={formData.signal_price} onChange={(e) => setFormData(p => ({...p, signal_price: Number(e.target.value)}))} className="w-12 bg-transparent text-accent-primary font-black text-[15px] outline-none text-center" dir="ltr" />
+                       <Zap size={14} className="text-amber-400" />
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-4">                                                                            
                     <InputField label="שם מלא" icon={UserCheck} value={formData.full_name} onChange={v => setFormData(p=>({...p, full_name: v}))} placeholder="ישראל ישראלי" />                                                                         
                     <InputField label="שם משתמש" icon={Edit2} value={formData.username} onChange={v => setFormData(p=>({...p, username: v}))} placeholder="user123" dir="ltr" />                                                                      
@@ -298,14 +299,6 @@ export const EditProfilePage: React.FC = () => {
                   <InputField label="השכלה" icon={GraduationCap} value={formData.education} onChange={v => setFormData(p=>({...p, education: v}))} placeholder="סטודנט, תואר ראשון..." />                                                           
                 </div>                                                                                                            
                 
-                <div className="flex justify-between items-center mt-4 bg-surface border border-surface-border rounded-[20px] px-5 py-4 relative z-10 shadow-inner">                         
-                  <div className="text-right">                               
-                    <div className="text-brand text-[13px] font-black">תצוגת אודות בפרופיל</div>                                      
-                    <div className="text-brand-muted text-[11px] mt-0.5">הפרטים יוצגו בצורה מסודרת בפרופיל שלך.</div>                                                                        
-                  </div>                                                   
-                  <Sparkles size={20} className="text-accent-primary" />                                                          
-                </div>                                                                                                            
-                
                 <div className="flex justify-end mt-2 relative z-10">                                                               
                   <Button onClick={handleSaveDetails} disabled={savingDetails} className="w-full bg-white text-black rounded-[20px] font-black text-[14px] uppercase tracking-widest h-14 shadow-lg active:scale-[0.98] transition-all">                                                                         
                     {savingDetails ? <Loader2 size={20} className="animate-spin text-black" /> : 'שמור שינויים'}                    
@@ -314,7 +307,7 @@ export const EditProfilePage: React.FC = () => {
               </div>                                                                                                            
               
               {/* SECURITY CARD */}                                    
-              <div className="bg-surface-card backdrop-blur-xl border border-surface-border flex flex-col gap-6 rounded-[32px] p-7 shadow-sm relative overflow-hidden">
+              <div className="bg-surface-card backdrop-blur-xl border border-surface-border flex flex-col gap-6 rounded-[32px] p-7 shadow-sm relative overflow-hidden mb-6">
                 <div className="flex justify-between items-center border-b border-surface-border pb-4 relative z-10">                                                                        
                   <div className="flex flex-col text-right"><span className="text-brand font-black text-[16px] tracking-wide">אבטחה וסיסמה</span></div>                                      
                   <Key size={20} className="text-accent-primary" />                                                               
@@ -333,63 +326,22 @@ export const EditProfilePage: React.FC = () => {
                 </div>                                                 
               </div>
 
-              {/* ⚙️ SETTINGS & LOGOUT MENU */}
-              <div className="w-full px-1 mb-6 flex flex-col gap-2">
-                <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-4 mb-1">הגדרות חשבון</span>
-                
-                <div className="bg-surface-card border border-surface-border rounded-[32px] overflow-hidden shadow-sm flex flex-col">
-                  <div onClick={() => navigate('/wallet')} className="flex items-center justify-between p-4 px-5 cursor-pointer hover:bg-white/5 active:scale-[0.98] transition-all border-b border-surface-border">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-surface flex items-center justify-center border border-surface-border shadow-inner"><Wallet size={18} className="text-brand" /></div>
-                      <span className="text-brand font-black text-[15px]">ארנק דיגיטלי</span>
-                    </div>
-                    <ChevronLeft size={20} className="text-brand-muted" />
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 px-5 cursor-pointer hover:bg-white/5 active:scale-[0.98] transition-all border-b border-surface-border">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-surface flex items-center justify-center border border-surface-border shadow-inner"><Bell size={18} className="text-brand" /></div>
-                      <span className="text-brand font-black text-[15px]">התראות</span>
-                    </div>
-                    <ChevronLeft size={20} className="text-brand-muted" />
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 px-5 cursor-pointer hover:bg-white/5 active:scale-[0.98] transition-all">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-surface flex items-center justify-center border border-surface-border shadow-inner"><ShieldAlert size={18} className="text-brand" /></div>
-                      <span className="text-brand font-black text-[15px]">פרטיות ואבטחה</span>
-                    </div>
-                    <ChevronLeft size={20} className="text-brand-muted" />
-                  </div>
-                </div>
-
-                <button onClick={handleLogout} className="mt-4 bg-surface-card border border-rose-500/30 rounded-[28px] p-4 px-5 flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-sm">
-                  <LogOut size={20} className="text-rose-500" />
-                  <span className="text-rose-500 font-black text-[15px] uppercase tracking-widest">התנתק מהמערכת</span>
-                </button>
-              </div>
-
             </div>                                                                                                          
           </div>                                                 
         </div>                                                 
       </FadeIn>                                                                                                         
       
-      {/* OVERLAYS USING PORTAL (Covers Bottom Nav completely) */}                                                      
+      {/* OVERLAYS */}                                                      
       {mounted && portalNode && createPortal(                    
         <>                                                         
-          {/* 🔮 ZODIAC PICKER BOTTOM SHEET */}                    
           <AnimatePresence>                                          
             {showZodiacPicker && (                                     
               <div className="fixed inset-0 z-[999999] flex flex-col justify-end" dir="rtl">                                      
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowZodiacPicker(false)} />                                         
                 <motion.div                                                
-                  drag="y"                                                 
-                  dragConstraints={{ top: 0, bottom: 0 }}
-                  dragElastic={0.2}                                        
+                  drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2}                                        
                   onDragEnd={(e, info) => { if (info.offset.y > 100 || info.velocity.y > 500) setShowZodiacPicker(false); }}                                                                 
-                  initial={{ y: '100%' }}                                  
-                  animate={{ y: 0 }}                                       
-                  exit={{ y: '100%' }}                                     
+                  initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}                                     
                   transition={{ type: 'spring', damping: 25, stiffness: 400 }}                                                      
                   className="relative z-10 bg-surface rounded-t-[40px] p-6 pb-12 border-t border-surface-border max-h-[85vh] flex flex-col"                                                
                 >                                                          
@@ -410,19 +362,14 @@ export const EditProfilePage: React.FC = () => {
             )}                                                     
           </AnimatePresence>
                                                                    
-          {/* 💍 RELATIONSHIP STATUS BOTTOM SHEET */}              
           <AnimatePresence>                                          
             {showRelationshipPicker && (                               
               <div className="fixed inset-0 z-[999999] flex flex-col justify-end" dir="rtl">                                      
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowRelationshipPicker(false)} />                                   
                 <motion.div                                                
-                  drag="y"                                                 
-                  dragConstraints={{ top: 0, bottom: 0 }}                                                                           
-                  dragElastic={0.2}                                        
+                  drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2}                                        
                   onDragEnd={(e, info) => { if (info.offset.y > 100 || info.velocity.y > 500) setShowRelationshipPicker(false); }}                                                           
-                  initial={{ y: '100%' }}                                  
-                  animate={{ y: 0 }}                                       
-                  exit={{ y: '100%' }}                                     
+                  initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}                                     
                   transition={{ type: 'spring', damping: 25, stiffness: 400 }}                                                      
                   className="relative z-10 bg-surface rounded-t-[40px] p-6 pb-12 border-t border-surface-border max-h-[85vh] flex flex-col"                                                
                 >                                                          
@@ -448,7 +395,6 @@ export const EditProfilePage: React.FC = () => {
   );                                                     
 };                                                                                                                
 
-// CLEAN INPUT COMPONENTS                                
 interface InputFieldProps { label: string; icon: React.ElementType; value: string; onChange: (value: string) => void; placeholder: string; type?: string; dir?: string;}   
 const InputField: React.FC<InputFieldProps> = ({ label, icon: Icon, value, onChange, placeholder, type = 'text', dir = 'rtl' }) => (                                         
   <div className="flex flex-col gap-1.5 text-right border-b border-surface-border pb-2.5">                            

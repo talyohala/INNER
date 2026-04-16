@@ -9,6 +9,7 @@ export const AuthProvider = ({ children }: any) => {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [pendingSignalsCount, setPendingSignalsCount] = useState(0);
 
   const notificationsChannelRef = useRef<any>(null);
 
@@ -17,21 +18,25 @@ export const AuthProvider = ({ children }: any) => {
       setUnreadCount(0);
       return 0;
     }
-
     try {
-      const { count, error } = await supabase
-        .from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .eq('is_read', false);
-
-      if (error) throw error;
-
-      const nextCount = count || 0;
-      setUnreadCount(nextCount);
-      return nextCount;
+      const { count } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('is_read', false);
+      setUnreadCount(count || 0);
+      return count || 0;
     } catch (err) {
-      console.error('checkUnread error:', err);
+      return 0;
+    }
+  }, []);
+
+  const checkSignals = useCallback(async (userId: string) => {
+    if (!userId) {
+      setPendingSignalsCount(0);
+      return 0;
+    }
+    try {
+      const { count } = await supabase.from('signals').select('*', { count: 'exact', head: true }).eq('to_user_id', userId).eq('status', 'pending');
+      setPendingSignalsCount(count || 0);
+      return count || 0;
+    } catch (err) {
       return 0;
     }
   }, []);
@@ -41,20 +46,11 @@ export const AuthProvider = ({ children }: any) => {
       setProfile(null);
       return null;
     }
-
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (error) throw error;
-
+      const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
       setProfile(data || null);
       return data || null;
     } catch (err) {
-      console.error('refreshProfile error:', err);
       setProfile(null);
       return null;
     }
@@ -69,76 +65,29 @@ export const AuthProvider = ({ children }: any) => {
 
   const attachNotificationsChannel = useCallback(async (userId: string) => {
     if (!userId) return;
-
     detachNotificationsChannel();
 
     const channel = supabase
-      .channel(`global_notifications_${userId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${userId}`,
-        },
-        async () => {
-          setUnreadCount((prev: number) => prev + 1);
-          triggerFeedback('success');
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${userId}`,
-        },
-        async () => {
-          await checkUnread(userId);
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${userId}`,
-        },
-        async () => {
-          await checkUnread(userId);
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('Notifications realtime connected:', userId);
-        }
-      });
+      .channel(`global_alerts_${userId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, async () => {
+        await checkUnread(userId);
+        triggerFeedback('success');
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'signals', filter: `to_user_id=eq.${userId}` }, async () => {
+        await checkSignals(userId);
+        triggerFeedback('success');
+      })
+      .subscribe();
 
     notificationsChannelRef.current = channel;
-  }, [checkUnread, detachNotificationsChannel]);
+  }, [checkUnread, checkSignals, detachNotificationsChannel]);
 
   const markNotificationsRead = useCallback(async () => {
-    if (!user?.id) {
-      setUnreadCount(0);
-      return;
-    }
-
+    if (!user?.id) return;
     try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('user_id', user.id)
-        .eq('is_read', false);
-
-      if (error) throw error;
-
+      await supabase.from('notifications').update({ is_read: true }).eq('user_id', user.id).eq('is_read', false);
       setUnreadCount(0);
-    } catch (err) {
-      console.error('markNotificationsRead error:', err);
-    }
+    } catch (err) {}
   }, [user?.id]);
 
   useEffect(() => {
@@ -146,65 +95,41 @@ export const AuthProvider = ({ children }: any) => {
 
     const initAuth = async () => {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
+        const { data: { session } } = await supabase.auth.getSession();
         const currentUser = session?.user || null;
 
         if (!mounted) return;
-
         setUser(currentUser);
 
         if (currentUser) {
-          await Promise.all([
-            refreshProfile(currentUser.id),
-            checkUnread(currentUser.id),
-          ]);
-
+          await Promise.all([refreshProfile(currentUser.id), checkUnread(currentUser.id), checkSignals(currentUser.id)]);
           await attachNotificationsChannel(currentUser.id);
         } else {
-          setProfile(null);
-          setUnreadCount(0);
+          setProfile(null); setUnreadCount(0); setPendingSignalsCount(0);
         }
-      } catch (err) {
-        console.error('initAuth error:', err);
-      } finally {
+      } catch (err) {} finally {
         if (mounted) setLoading(false);
       }
     };
 
     initAuth();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const nextUser = session?.user || null;
-
       setUser(nextUser);
 
       if (nextUser) {
-        await Promise.all([
-          refreshProfile(nextUser.id),
-          checkUnread(nextUser.id),
-        ]);
-
+        await Promise.all([refreshProfile(nextUser.id), checkUnread(nextUser.id), checkSignals(nextUser.id)]);
         await attachNotificationsChannel(nextUser.id);
       } else {
         detachNotificationsChannel();
-        setProfile(null);
-        setUnreadCount(0);
+        setProfile(null); setUnreadCount(0); setPendingSignalsCount(0);
       }
-
       setLoading(false);
     });
 
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-      detachNotificationsChannel();
-    };
-  }, [attachNotificationsChannel, checkUnread, detachNotificationsChannel, refreshProfile]);
+    return () => { mounted = false; subscription.unsubscribe(); detachNotificationsChannel(); };
+  }, [attachNotificationsChannel, checkUnread, checkSignals, detachNotificationsChannel, refreshProfile]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -212,37 +137,18 @@ export const AuthProvider = ({ children }: any) => {
   };
 
   const signUp = async (email: string, password: string, metadata: any) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: metadata },
-    });
+    const { error } = await supabase.auth.signUp({ email, password, options: { data: metadata } });
     if (error) throw error;
   };
 
   const signOut = async () => {
     detachNotificationsChannel();
-    setUnreadCount(0);
-    setProfile(null);
-    setUser(null);
+    setUnreadCount(0); setPendingSignalsCount(0); setProfile(null); setUser(null);
     await supabase.auth.signOut();
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        profile,
-        loading,
-        unreadCount,
-        checkUnread,
-        markNotificationsRead,
-        signIn,
-        signUp,
-        signOut,
-        refreshProfile,
-      }}
-    >
+    <AuthContext.Provider value={{ user, profile, loading, unreadCount, pendingSignalsCount, checkUnread, checkSignals, markNotificationsRead, signIn, signUp, signOut, refreshProfile }}>
       {!loading && children}
     </AuthContext.Provider>
   );
