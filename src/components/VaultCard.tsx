@@ -20,7 +20,6 @@ export const VaultCard = ({ vault, onUnlockSuccess }: { vault: Vault, onUnlockSu
       const user = authData.user;
       if (!user) throw new Error('משתמש לא מחובר');
 
-      // אם זו כספת בתשלום - נוריד CRD מהארנק
       if (vault.unlock_type === 'gift' && vault.unlock_gift_crd) {
         const { data: profile } = await supabase.from('profiles').select('crd_balance').eq('id', user.id).single();
         if (!profile || profile.crd_balance < vault.unlock_gift_crd) {
@@ -29,7 +28,6 @@ export const VaultCard = ({ vault, onUnlockSuccess }: { vault: Vault, onUnlockSu
         await supabase.from('profiles').update({ crd_balance: profile.crd_balance - vault.unlock_gift_crd }).eq('id', user.id);
       }
 
-      // הוספת רישום פתיחה
       const { error } = await supabase.from('vault_unlocks').insert({
         vault_id: vault.id,
         user_id: user.id,
@@ -37,7 +35,7 @@ export const VaultCard = ({ vault, onUnlockSuccess }: { vault: Vault, onUnlockSu
         crd_paid: vault.unlock_type === 'gift' ? vault.unlock_gift_crd : 0
       });
 
-      if (error && error.code !== '23505') throw error; // מתעלם משגיאת "כבר קיים"
+      if (error && error.code !== '23505') throw error; 
 
       triggerFeedback('success');
       toast.success('הכספת נפתחה בהצלחה!', { id: tid });
@@ -155,9 +153,9 @@ export const VaultCard = ({ vault, onUnlockSuccess }: { vault: Vault, onUnlockSu
             {isUnlocking ? <Loader2 size={16} className="animate-spin text-black" /> : <><Unlock size={16} /> פתח עכשיו</>}
           </Button>
         ) : (
-          <Button className="h-12 px-6 rounded-full bg-emerald-400/10 text-emerald-400 border border-emerald-400/20 font-black text-[11px] uppercase tracking-widest flex items-center gap-2 pointer-events-none">
+          <div className="h-12 px-6 rounded-full bg-emerald-400/10 text-emerald-400 border border-emerald-400/20 font-black text-[11px] uppercase tracking-widest flex items-center gap-2">
             <Play size={16} className="fill-emerald-400" /> צפה בתוכן
-          </Button>
+          </div>
         )}
       </div>
 
@@ -173,9 +171,25 @@ export const VaultCard = ({ vault, onUnlockSuccess }: { vault: Vault, onUnlockSu
             
             {vault.content_media_urls?.length > 0 && (
               <div className={`grid gap-2 ${vault.content_media_urls.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                {vault.content_media_urls.map((url: string, i: number) => (
-                  <img key={i} src={url} className="rounded-xl w-full h-40 object-cover border border-surface-border" alt="Vault Content" />
-                ))}
+                {vault.content_media_urls.map((url: string, i: number) => {
+                  const isVideo = vault.content_type === 'video' || url.match(/\.(mp4|webm|mov)$/i);
+                  return isVideo ? (
+                    <video 
+                      key={i} 
+                      src={url} 
+                      controls 
+                      playsInline 
+                      className="rounded-xl w-full max-h-[300px] object-contain bg-black border border-surface-border" 
+                    />
+                  ) : (
+                    <img 
+                      key={i} 
+                      src={url} 
+                      className="rounded-xl w-full max-h-[300px] object-cover border border-surface-border" 
+                      alt="Vault Content" 
+                    />
+                  );
+                })}
               </div>
             )}
 
