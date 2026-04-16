@@ -5,7 +5,7 @@ import {
   UserCircle, Edit2, Loader2, Users, MessageSquare,                                           
   Link as LinkIcon, UserCheck, MapPin, Calendar, GraduationCap,                                           
   HeartHandshake, Shield, Camera, Key, Crown, Briefcase,                                               
-  Sparkles, ChevronDown, Wallet, Zap, ChevronRight                                            
+  Sparkles, ChevronDown, Zap, ChevronRight                                            
 } from 'lucide-react';                                   
 import { createPortal } from 'react-dom';                
 import { useAuth } from '../context/AuthContext';        
@@ -121,6 +121,7 @@ export const EditProfilePage: React.FC = () => {
     triggerFeedback('pop');                                  
     const tid = toast.loading('שומר שינויים...');            
     try {                                                      
+      // התיקון כאן: אנחנו שולחים את ה-formData כמו שהוא בלי לסנן עמודות
       const updates = { ...formData, birth_date: formData.birth_date === '' ? null : formData.birth_date };                                                                      
       const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);                              
       
@@ -167,7 +168,6 @@ export const EditProfilePage: React.FC = () => {
     <div className="bg-surface min-h-screen relative font-sans overflow-x-hidden" dir="rtl">                                                                                     
       <FadeIn className="relative w-full flex flex-col pb-32">                                                                                                                     
         
-        {/* 📸 COVER SECTION */}                                                            
         <div className="absolute top-0 left-0 w-full h-[240px] bg-surface-card z-0 overflow-hidden">                                                                                 
           <div className="absolute top-6 left-0 right-0 flex justify-center items-center z-30 pointer-events-none">                                                                    
             <span className="text-white font-black text-[13px] tracking-[0.2em] uppercase drop-shadow-md">עריכת פרופיל</span>                                                        
@@ -250,7 +250,6 @@ export const EditProfilePage: React.FC = () => {
                 </div>
               </div>
 
-              {/* PERSONAL DETAILS CARD */}                            
               <div className="bg-surface-card border border-surface-border flex flex-col gap-6 rounded-[32px] p-6 shadow-sm relative overflow-hidden">                                     
                 <div className="absolute top-0 left-0 w-40 h-40 bg-accent-primary/5 blur-[50px] rounded-full pointer-events-none" />                                                                                                                
                 
@@ -261,7 +260,6 @@ export const EditProfilePage: React.FC = () => {
                 
                 <div className="grid grid-cols-1 gap-6 relative z-10 px-1">                                                                                                                  
                   
-                  {/* השדה החדש לתמחור סיגנל! */}
                   <div className="bg-surface border border-surface-border rounded-[24px] p-4 flex items-center justify-between shadow-inner mb-2">
                     <div className="flex flex-col">
                       <span className="text-brand font-black text-[14px]">מחיר סיגנל (DMs)</span>
@@ -306,7 +304,6 @@ export const EditProfilePage: React.FC = () => {
                 </div>                                                 
               </div>                                                                                                            
               
-              {/* SECURITY CARD */}                                    
               <div className="bg-surface-card backdrop-blur-xl border border-surface-border flex flex-col gap-6 rounded-[32px] p-7 shadow-sm relative overflow-hidden mb-6">
                 <div className="flex justify-between items-center border-b border-surface-border pb-4 relative z-10">                                                                        
                   <div className="flex flex-col text-right"><span className="text-brand font-black text-[16px] tracking-wide">אבטחה וסיסמה</span></div>                                      
@@ -331,7 +328,6 @@ export const EditProfilePage: React.FC = () => {
         </div>                                                 
       </FadeIn>                                                                                                         
       
-      {/* OVERLAYS */}                                                      
       {mounted && portalNode && createPortal(                    
         <>                                                         
           <AnimatePresence>                                          
@@ -395,7 +391,7 @@ export const EditProfilePage: React.FC = () => {
   );                                                     
 };                                                                                                                
 
-interface InputFieldProps { label: string; icon: React.ElementType; value: string; onChange: (value: string) => void; placeholder: string; type?: string; dir?: string;}   
+interface InputFieldProps { label: string; icon: React.ElementType; value: string | number; onChange: (value: string) => void; placeholder: string; type?: string; dir?: string;}   
 const InputField: React.FC<InputFieldProps> = ({ label, icon: Icon, value, onChange, placeholder, type = 'text', dir = 'rtl' }) => (                                         
   <div className="flex flex-col gap-1.5 text-right border-b border-surface-border pb-2.5">                            
     <label className="text-brand-muted text-[11px] font-black tracking-widest uppercase flex items-center justify-start gap-2"><Icon size={14} /><span>{label}</span></label>                                                           
