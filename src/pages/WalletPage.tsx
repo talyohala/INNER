@@ -222,7 +222,6 @@ export const WalletPage: React.FC = () => {
   const handleTransfer = async () => {                       
     const amountNum = Number(transferAmount);                                                                         
     
-    // כאן התיקון! בודקים רק את ה-ID (אידי) ולא את השם משתמש. 
     if (!selectedRecipient?.id) return toast.error('בחר משתמש מהרשימה לפני שליחה');                                   
     if (isNaN(amountNum) || amountNum <= 0) return toast.error('אנא הזן סכום תקין');                                  
     if (amountNum > balance) return toast.error('אין לך מספיק יתרה בארנק');                                                                                                    
@@ -233,16 +232,17 @@ export const WalletPage: React.FC = () => {
     try {                                                      
       if (!profile?.id) throw new Error('משתמש לא מחובר');                                                                                                                     
       
-      const result = await apiFetch('/api/wallet/transfer', {
-        method: 'POST',
-        body: JSON.stringify({ 
-          receiverId: selectedRecipient.id, 
-          amount: amountNum 
-        })
-      });                                                                                                             
+      // עוקפים את השרת של Render ופונים ישירות לפונקציה המאובטחת ב-Supabase!
+      const { data: newBalance, error } = await supabase.rpc('transfer_credits', {
+        sender_id: profile.id,
+        receiver_id: selectedRecipient.id,
+        transfer_amount: amountNum
+      });
+      
+      if (error) throw new Error(error.message);                                                                                                             
       
       if (reloadProfile) reloadProfile();
-      setBalance(result.newBalance);                                                                                                                
+      setBalance(Number(newBalance));                                                                                                                
       await fetchWallet();                                     
       
       triggerFeedback('success');                              
