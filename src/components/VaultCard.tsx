@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Lock, Unlock, Coins, Shield, Crown, Loader2, 
-  Play, X, Info, ChevronDown
+  Play, X, Info
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { triggerFeedback } from '../lib/sound';
@@ -11,26 +11,39 @@ import toast from 'react-hot-toast';
 import { Vault } from '../types';
 import { Button } from './ui';
 
-// 📝 רכיב בוטום שיט (Bottom Sheet) לתיאור המלא
+// 📝 בוטום שיט (Bottom Sheet) - סגירה בהחלקה או בלחיצה על הרקע
 const DescriptionSheet = ({ title, text, onClose }: { title: string, text: string, onClose: () => void }) => (
-  <motion.div 
-    initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-    transition={{ type: "spring", damping: 25, stiffness: 200 }}
-    className="fixed inset-x-0 bottom-0 z-[1000000] bg-[#1a1a1a] rounded-t-[40px] p-8 pb-12 border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.5)]"
-    dir="rtl"
-  >
-    <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-6" />
-    <h3 className="text-xl font-black text-white mb-4">{title}</h3>
-    <div className="max-h-[60vh] overflow-y-auto pr-2">
-      <p className="text-white/80 text-base leading-relaxed whitespace-pre-wrap font-medium">
-        {text}
-      </p>
-    </div>
-    <Button onClick={onClose} className="w-full h-14 bg-white text-black font-black rounded-2xl mt-8">סגור</Button>
-  </motion.div>
+  <div className="fixed inset-0 z-[1000000] flex flex-col justify-end">
+    {/* רקע שקוף שסוגר בלחיצה */}
+    <motion.div 
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={() => { triggerFeedback('pop'); onClose(); }}
+      className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+    />
+    
+    {/* המגירה עצמה - גרירה למטה לסגירה */}
+    <motion.div 
+      drag="y"
+      dragConstraints={{ top: 0 }}
+      dragElastic={0.2}
+      onDragEnd={(_, info) => { if (info.offset.y > 100) { triggerFeedback('pop'); onClose(); } }}
+      initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+      transition={{ type: "spring", damping: 25, stiffness: 200 }}
+      className="relative z-10 bg-[#1a1a1a] rounded-t-[40px] p-8 pb-16 border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.5)] cursor-grab active:cursor-grabbing"
+      dir="rtl"
+    >
+      <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-8" />
+      <h3 className="text-2xl font-black text-white mb-6 px-2">{title}</h3>
+      <div className="max-h-[50vh] overflow-y-auto px-2 custom-scrollbar">
+        <p className="text-white/80 text-lg leading-relaxed whitespace-pre-wrap font-medium pb-4">
+          {text}
+        </p>
+      </div>
+    </motion.div>
+  </div>
 );
 
-// 🎬 נגן קולנוע - נקי, מהיר ופרקטי
+// 🎬 נגן קולנוע - נקי ומהיר
 const FullscreenVaultViewer = ({ vault, onClose }: { vault: Vault, onClose: () => void }) => {
   const [showSheet, setShowSheet] = useState(false);
   const isVideo = vault.content_type === 'video' || vault.content_media_urls?.[0]?.match(/\.(mp4|webm|mov)$/i);
@@ -38,12 +51,12 @@ const FullscreenVaultViewer = ({ vault, onClose }: { vault: Vault, onClose: () =
 
   return createPortal(
     <div className="fixed inset-0 z-[99999] bg-black overflow-hidden flex flex-col" dir="rtl">
-      {/* כפתור איקס - שטח פגיעה ענק לדיוק מקסימלי */}
+      {/* כפתור איקס משופר */}
       <div 
         onClick={(e) => { e.stopPropagation(); triggerFeedback('pop'); onClose(); }}
         className="fixed top-[env(safe-area-inset-top,24px)] left-4 z-[999999] p-4 cursor-pointer group"
       >
-        <X size={32} className="text-white/70 group-hover:text-white transition-colors drop-shadow-lg" />
+        <X size={36} className="text-white/80 group-hover:text-white transition-colors drop-shadow-2xl" />
       </div>
 
       <div className="relative w-full h-full flex items-center justify-center bg-black">
@@ -54,18 +67,21 @@ const FullscreenVaultViewer = ({ vault, onClose }: { vault: Vault, onClose: () =
             <img src={mediaUrl} className="w-full h-full object-contain" alt="" />
           )
         ) : (
-          <div className="text-center p-10"><Shield size={48} className="text-white/20 mx-auto mb-4" /><h2 className="text-white/40 font-black">טקסט בלבד</h2></div>
+          <div className="text-center p-10">
+            <Shield size={64} className="text-white/10 mx-auto mb-4" />
+            <h2 className="text-white/30 font-black text-xl">תוכן טקסטואלי</h2>
+          </div>
         )}
 
         {/* בר מידע תחתון */}
-        <div className="absolute bottom-0 left-0 right-0 p-8 pt-20 bg-gradient-to-t from-black via-black/70 to-transparent pointer-events-none">
+        <div className="absolute bottom-0 left-0 right-0 p-8 pt-32 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none">
           <div className="flex items-end justify-between pointer-events-auto">
-            <div className="flex flex-col gap-1 cursor-pointer" onClick={() => vault.content_text && setShowSheet(true)}>
-              <span className="text-accent-primary text-[10px] font-black uppercase tracking-[0.2em] mb-1">כספת מאובטחת</span>
-              <h2 className="text-white font-black text-2xl drop-shadow-md line-clamp-1">{vault.title}</h2>
+            <div className="flex flex-col gap-1 cursor-pointer group" onClick={() => vault.content_text && setShowSheet(true)}>
+              <span className="text-accent-primary text-[10px] font-black uppercase tracking-[0.3em] mb-2 opacity-80">INNER VAULT</span>
+              <h2 className="text-white font-black text-3xl drop-shadow-2xl line-clamp-1 group-active:opacity-70 transition-opacity">{vault.title}</h2>
               {vault.content_text && (
-                <div className="flex items-center gap-2 text-white/50 text-xs mt-1 font-bold">
-                  <Info size={14} /> לחץ לתיאור המלא
+                <div className="flex items-center gap-2 text-white/50 text-[13px] mt-2 font-bold bg-white/5 w-fit px-3 py-1 rounded-full border border-white/5">
+                  <Info size={14} /> לחץ לפרטים נוספים
                 </div>
               )}
             </div>
@@ -73,13 +89,9 @@ const FullscreenVaultViewer = ({ vault, onClose }: { vault: Vault, onClose: () =
         </div>
       </div>
 
-      {/* בוטום שיט לתיאור */}
       <AnimatePresence>
         {showSheet && vault.content_text && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowSheet(false)} className="fixed inset-0 z-[999999] bg-black/60 backdrop-blur-sm" />
-            <DescriptionSheet title={vault.title} text={vault.content_text} onClose={() => setShowSheet(false)} />
-          </>
+          <DescriptionSheet title={vault.title} text={vault.content_text} onClose={() => setShowSheet(false)} />
         )}
       </AnimatePresence>
     </div>,
@@ -110,7 +122,7 @@ export const VaultCard = ({ vault, onUnlockSuccess }: { vault: Vault, onUnlockSu
       await supabase.from('vault_unlocks').insert({ vault_id: vault.id, user_id: user.id, unlock_type: vault.unlock_type });
 
       triggerFeedback('success');
-      toast.success('נפתח!', { id: tid });
+      toast.success('הכספת נפתחה!', { id: tid });
       onUnlockSuccess(); 
     } catch (err: any) {
       triggerFeedback('error');
@@ -124,7 +136,7 @@ export const VaultCard = ({ vault, onUnlockSuccess }: { vault: Vault, onUnlockSu
 
   return (
     <div 
-      className={`relative w-full h-[280px] rounded-[32px] overflow-hidden bg-surface-card border border-surface-border mb-4 shadow-xl ${vault.is_unlocked ? 'cursor-pointer active:scale-[0.98] transition-transform' : ''}`} 
+      className={`relative w-full h-[280px] rounded-[40px] overflow-hidden bg-surface-card border border-surface-border mb-6 shadow-2xl transition-all ${vault.is_unlocked ? 'cursor-pointer active:scale-[0.97]' : ''}`} 
       onClick={() => { if (vault.is_unlocked) { triggerFeedback('pop'); setShowFullscreen(true); } }}
     >
       <div className="absolute inset-0 bg-neutral-900 pointer-events-none">
@@ -133,29 +145,33 @@ export const VaultCard = ({ vault, onUnlockSuccess }: { vault: Vault, onUnlockSu
         ) : (
           <img src={vault.teaser_blur_url || ''} className={`w-full h-full object-cover ${!vault.is_unlocked ? 'blur-2xl scale-125 opacity-40' : 'opacity-60'}`} alt="" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
       </div>
 
-      <div className="absolute top-4 right-4 bg-black/40 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full flex items-center gap-2 z-10">
-        {vault.is_unlocked ? <Unlock size={12} className="text-emerald-400" /> : <Shield size={12} className="text-white/70" />}
-        <span className={`text-[10px] font-black uppercase tracking-widest ${vault.is_unlocked ? 'text-emerald-400' : 'text-white'}`}>
-          {vault.is_unlocked ? 'פתוח עבורך' : 'תוכן נעול'}
+      <div className="absolute top-5 right-5 bg-black/40 backdrop-blur-md border border-white/10 px-4 py-2 rounded-full flex items-center gap-2 z-10 shadow-lg">
+        {vault.is_unlocked ? <Unlock size={14} className="text-emerald-400" /> : <Shield size={14} className="text-white/70" />}
+        <span className={`text-[11px] font-black uppercase tracking-widest ${vault.is_unlocked ? 'text-emerald-400' : 'text-white'}`}>
+          {vault.is_unlocked ? 'גישה פתוחה' : 'תוכן נעול'}
         </span>
       </div>
 
       <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center z-10 pointer-events-none">
         {vault.is_unlocked ? (
-          <div className="w-16 h-16 rounded-full bg-accent-primary/90 flex items-center justify-center shadow-[0_0_30px_rgba(var(--color-accent-primary),0.6)] mb-4"><Play size={24} fill="black" className="ml-1" /></div>
+          <div className="w-20 h-20 rounded-full bg-accent-primary flex items-center justify-center shadow-[0_0_40px_rgba(var(--color-accent-primary),0.5)] mb-4">
+            <Play size={28} fill="white" className="text-white ml-1.5" />
+          </div>
         ) : (
-          <div className="w-16 h-16 rounded-2xl bg-surface/80 backdrop-blur-xl border border-white/10 flex items-center justify-center mb-4"><Lock size={28} className="text-brand-muted" /></div>
+          <div className="w-20 h-20 rounded-[32px] bg-surface/80 backdrop-blur-xl border border-white/10 flex items-center justify-center mb-4 shadow-2xl">
+            <Lock size={32} className="text-brand-muted" />
+          </div>
         )}
-        <h3 className="text-xl font-black text-white drop-shadow-lg line-clamp-1">{vault.title}</h3>
+        <h3 className="text-2xl font-black text-white drop-shadow-2xl line-clamp-1 px-4">{vault.title}</h3>
       </div>
 
       {!vault.is_unlocked && (
-        <div className="absolute bottom-0 left-0 right-0 p-4 z-20">
-          <Button onClick={handleUnlock} disabled={isUnlocking} className="w-full h-14 rounded-[20px] bg-white text-black font-black text-[13px] uppercase shadow-xl flex items-center justify-center gap-2">
-            {isUnlocking ? <Loader2 size={18} className="animate-spin" /> : <><Unlock size={18} /> שחרר כספת</>}
+        <div className="absolute bottom-0 left-0 right-0 p-5 z-20">
+          <Button onClick={handleUnlock} disabled={isUnlocking} className="w-full h-16 rounded-[24px] bg-white text-black font-black text-[14px] uppercase tracking-widest shadow-2xl flex items-center justify-center gap-2 active:scale-95 transition-transform">
+            {isUnlocking ? <Loader2 size={20} className="animate-spin" /> : <><Unlock size={20} /> שחרר כספת</>}
           </Button>
         </div>
       )}
