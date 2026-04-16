@@ -11,7 +11,7 @@ import toast from 'react-hot-toast';
 import { Vault } from '../types';
 import { Button } from './ui';
 
-// 🎬 נגן קולנוע פרימיום - תומך בגרירה לסגירה ועיצוב Native
+// 🎬 נגן קולנוע פרימיום - ללא חסימת מגע, מותאם גודל וגלילה חופשית
 const FullscreenMediaViewer = ({ url, type, title, onClose }: { url: string, type: string, title: string, onClose: () => void }) => {
   const isVideo = type === 'video' || url.match(/\.(mp4|webm|mov)$/i);
   
@@ -21,55 +21,44 @@ const FullscreenMediaViewer = ({ url, type, title, onClose }: { url: string, typ
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[99999] bg-black/95 backdrop-blur-3xl flex flex-col"
+        className="fixed inset-0 z-[99999] bg-black/95 backdrop-blur-2xl overflow-y-auto overflow-x-hidden"
         dir="rtl"
       >
-        {/* בר עליון סינמטי */}
-        <div className="flex items-center justify-between p-6 pt-[env(safe-area-inset-top,32px)] shrink-0 z-50 bg-gradient-to-b from-black/80 to-transparent">
-          <div className="flex flex-col">
+        {/* כפתור איקס נקי לחלוטין (בלי מסגרת/רקע) בצד שמאל למעלה */}
+        <button 
+          onClick={() => { triggerFeedback('pop'); onClose(); }}
+          className="fixed top-[env(safe-area-inset-top,24px)] left-4 z-[999999] p-2 text-white/80 hover:text-white active:scale-90 transition-transform"
+        >
+          <X size={32} />
+        </button>
+
+        {/* בר עליון (כותרת) - עכשיו לא מפריע לאיקס */}
+        <div className="fixed top-0 left-0 right-0 p-6 pt-[env(safe-area-inset-top,32px)] z-50 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
+          <div className="flex flex-col pr-2">
             <span className="text-accent-primary text-[10px] font-black uppercase tracking-widest mb-1 flex items-center gap-1.5">
               <Shield size={12} /> כספת מאובטחת
             </span>
-            <h2 className="text-white font-black text-lg drop-shadow-md leading-tight max-w-[250px] truncate">{title || 'תוכן סודי'}</h2>
+            <h2 className="text-white font-black text-lg drop-shadow-md leading-tight max-w-[70%] truncate">{title || 'תוכן סודי'}</h2>
           </div>
-          <button 
-            onClick={() => { triggerFeedback('pop'); onClose(); }}
-            className="w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white border border-white/10 backdrop-blur-md active:scale-90 transition-all"
-          >
-            <X size={24} />
-          </button>
         </div>
 
-        {/* אזור המדיה עם מחוות גרירה (Swipe down to close) */}
-        <motion.div 
-          drag="y"
-          dragConstraints={{ top: 0, bottom: 0 }}
-          onDragEnd={(e, info) => { if (Math.abs(info.offset.y) > 100) { triggerFeedback('pop'); onClose(); } }}
-          className="flex-1 w-full flex items-center justify-center relative px-2 overflow-hidden cursor-grab active:cursor-grabbing"
-        >
+        {/* אזור המדיה המרכזי - מתאים את עצמו לגודל התוכן ומאפשר גלילה אם צריך */}
+        <div className="min-h-screen w-full flex items-center justify-center p-4 py-24">
           {isVideo ? (
             <video 
               src={url} 
               controls 
               autoPlay 
               playsInline
-              className="w-full max-h-[75vh] rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/10 bg-black"
+              className="w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
             />
           ) : (
             <img 
               src={url} 
-              className="w-full max-h-[75vh] object-contain rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.5)]" 
+              className="w-full h-auto object-contain rounded-xl shadow-2xl" 
               alt="Vault Content" 
-              draggable="false"
             />
           )}
-        </motion.div>
-
-        {/* אינדיקטור גרירה תחתון */}
-        <div className="p-6 shrink-0 flex justify-center pb-[env(safe-area-inset-bottom,32px)] opacity-50">
-          <span className="text-white/60 text-[11px] font-bold tracking-widest flex items-center gap-2">
-            <ChevronDown size={14} className="animate-bounce" /> החלק למטה לסגירה
-          </span>
         </div>
       </motion.div>
     </AnimatePresence>,
@@ -194,7 +183,7 @@ export const VaultCard = ({ vault, onUnlockSuccess }: { vault: Vault, onUnlockSu
         </div>
       </div>
 
-      {/* 📄 טקסט סודי (אם יש) - מופיע יפה בתוך הכרטיס */}
+      {/* 📄 טקסט סודי (אם יש) */}
       {vault.is_unlocked && vault.content_text && (
         <div className="px-6 pb-2 pt-2 bg-surface-card">
           <div className="bg-surface/50 p-5 rounded-[28px] border border-white/5 shadow-inner">
@@ -232,7 +221,7 @@ export const VaultCard = ({ vault, onUnlockSuccess }: { vault: Vault, onUnlockSu
               }
             }}
             disabled={!vault.content_media_urls?.[0]}
-            className="w-full h-16 rounded-full bg-gradient-to-r from-accent-primary to-emerald-400 text-black font-black text-[14px] uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 shadow-[0_10px_30px_rgba(var(--color-accent-primary),0.4)] transition-all disabled:opacity-50 disabled:grayscale"
+            className="w-full h-16 rounded-full bg-accent-primary text-black font-black text-[14px] uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 shadow-[0_10px_30px_rgba(var(--color-accent-primary),0.4)] transition-all disabled:opacity-50 disabled:grayscale"
           >
             <Play size={20} fill="black" /> 
             {vault.content_media_urls?.[0] ? 'צפה במדיה מלאה' : 'טקסט בלבד'}
