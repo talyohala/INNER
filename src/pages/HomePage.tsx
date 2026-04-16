@@ -185,7 +185,6 @@ export const HomePage: React.FC = () => {
     }                                                      
   };                                                                                                                
   
-  // פונקציית ריענון מהיר
   const handleQuickRefresh = async () => {
     if (refreshing) return;
     setRefreshing(true);
@@ -529,11 +528,7 @@ export const HomePage: React.FC = () => {
           
           {/* STICKY HEADER */}                                    
           <div className="sticky top-0 z-[60] bg-surface/80 backdrop-blur-xl border-b border-surface-border pt-4 pb-3 flex justify-between items-center -mx-4 px-6 mb-6 shadow-sm">                                                             
-            <div className="w-10">
-              <button onClick={handleQuickRefresh} className="w-10 h-10 flex justify-center items-center bg-surface-card border border-surface-border rounded-full active:scale-90 shadow-sm transition-transform">
-                <RefreshCw size={18} className={`text-brand ${refreshing ? 'animate-spin' : ''}`} />
-              </button>
-            </div>                                 
+            <div className="w-10" />
             <div className="flex flex-col items-center absolute left-1/2 -translate-x-1/2">                                     
               <h1 className="text-2xl font-black text-brand tracking-widest uppercase drop-shadow-sm">INNER</h1>                
               <div className="flex items-center gap-1.5 mt-0.5 bg-surface-card border border-surface-border px-3 py-0.5 rounded-full shadow-inner">                                        
