@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence, useDragControls } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { apiFetch } from '../lib/api';
 import { FadeIn, Button } from '../components/ui';
@@ -16,29 +16,21 @@ import toast from 'react-hot-toast';
 import { Share } from '@capacitor/share';
 import { useAuth } from '../context/AuthContext';
 
-const SEAL_TYPES = [
-  { id: 'fire', icon: <Flame size={24} />, label: 'אש', color: 'text-orange-500', xp: 15 },
-  { id: 'diamond', icon: <Diamond size={24} />, label: 'יהלום', color: 'text-blue-400', xp: 50 },
-  { id: 'alliance', icon: <Handshake size={24} />, label: 'ברית', color: 'text-emerald-400', xp: 100 }
-];
-
 export const CirclePage: React.FC = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
   const { profile: myProfile } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const channelRef = useRef<any>(null);
 
   const [mounted, setMounted] = useState(false);
-  const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   const [activeTab, setActiveTab] = useState<'chat' | 'vaults' | 'members'>('chat');
   const [page, setPage] = useState(0);
-  const [hasMorePosts, setHasMorePosts] = useState(true);
   const POSTS_PER_PAGE = 20;
 
-  const [loadingMore, setLoadingMore] = useState(false);
   const [vaults, setVaults] = useState<any[]>([]);
   const [loadingVaults, setLoadingVaults] = useState(false);
 
@@ -50,19 +42,60 @@ export const CirclePage: React.FC = () => {
   const [currentUserId, setCurrentUserId] = useState<string>('');
 
   const [membersList, setMembersList] = useState<any[]>([]);
-  const [liveStats, setLiveStats] = useState({ active: 0, typing: 0, giftsSent: 0 });
+  
+  // Realtime Presence States
+  const [onlineCount, setOnlineCount] = useState(1);
+  const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setMounted(true);
-    setPortalNode(document.getElementById('root') || document.body);
   }, []);
 
+  // --- Realtime Connection & Data Fetching ---
   useEffect(() => {
-    fetchCircleData();
-    const channel = supabase.channel(`circle_${slug}`).on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => {
-      if (page === 0) fetchCircleData();
-    }).subscribe();
-    return () => { supabase.removeChannel(channel); };
+    let ch: any;
+    
+    const initCircle = async () => {
+      const { data: authData } = await supabase.auth.getUser();
+      const uid = authData.user?.id || `guest_${Date.now()}`;
+      setCurrentUserId(uid);
+
+      await fetchCircleData(uid);
+
+      // Connect to real-time channel with Presence
+      ch = supabase.channel(`circle_${slug}`, {
+        config: { presence: { key: uid } }
+      });
+      channelRef.current = ch;
+
+      ch.on('presence', { event: 'sync' }, () => {
+        const state = ch.presenceState();
+        let count = 0;
+        const typing = new Set<string>();
+        
+        for (const id in state) {
+          count += state[id].length;
+          for (const presence of state[id] as any[]) {
+            if (presence.isTyping && id !== uid) typing.add(id);
+          }
+        }
+        
+        setOnlineCount(Math.max(1, count));
+        setTypingUsers(typing);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => {
+        fetchCircleData(uid);
+      })
+      .subscribe(async (status: string) => {
+        if (status === 'SUBSCRIBED') {
+          await ch.track({ isTyping: false });
+        }
+      });
+    };
+
+    initCircle();
+
+    return () => { if (ch) supabase.removeChannel(ch); };
   }, [slug]);
 
   useEffect(() => {
@@ -71,12 +104,8 @@ export const CirclePage: React.FC = () => {
     }
   }, [activeTab, data?.circle?.id]);
 
-  const fetchCircleData = async () => {
+  const fetchCircleData = async (uid: string) => {
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      const uid = authData.user?.id;
-      if (uid) setCurrentUserId(uid);
-
       let circle: any = null;
       const { data: circleBySlug } = await supabase.from('circles').select('*').eq('slug', slug).maybeSingle();
       circle = circleBySlug;
@@ -89,39 +118,20 @@ export const CirclePage: React.FC = () => {
 
       let isMember = false;
       let membership = null;
-      if (uid) {
+      if (uid && !uid.startsWith('guest_')) {
         const { data: memberData } = await supabase.from('circle_members').select('*').eq('circle_id', circle.id).eq('user_id', uid).maybeSingle();
         if (memberData) { isMember = true; membership = memberData; }
       }
 
       const { data: pData } = await supabase.from('posts')
-        .select('*, profiles!user_id(*), seals:post_seals(id, seal_type, user_id), comments(id)')
+        .select('*, profiles!user_id(*)')
         .eq('circle_id', circle.id)
         .is('parent_id', null)
         .order('created_at', { ascending: false })
         .limit(POSTS_PER_PAGE);
 
-      let formattedPosts: any[] = [];
-      if (pData) {
-        formattedPosts = pData.map((p: any) => ({
-          ...p,
-          seals_count: p.seals?.length || 0,
-          comments_count: p.comments?.length || 0,
-          has_sealed: !!uid && p.seals?.some((s: any) => s.user_id === uid),
-        }));
-      }
-
       fetchMembersList(circle.id);
-      
-      setLiveStats({
-        active: Math.max(1, Math.floor((circle.members_count || 10) * 0.2 + Math.random() * 5)),
-        typing: Math.floor(Math.random() * 4),
-        giftsSent: Math.floor(Math.random() * 200) * 10
-      });
-
-      setPage(0);
-      setHasMorePosts(pData?.length === POSTS_PER_PAGE);
-      setData({ circle, isMember, membership, posts: formattedPosts });
+      setData({ circle, isMember, membership, posts: pData || [] });
       
     } catch (err) { 
       navigate('/'); 
@@ -141,39 +151,25 @@ export const CirclePage: React.FC = () => {
     if(!data?.circle?.id) return;
     setLoadingVaults(true);
     try {
-      const { data: vaultData, error } = await supabase
-        .from('vaults')
-        .select('*')
-        .eq('circle_id', data.circle.id)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
+      const { data: vaultData } = await supabase.from('vaults').select('*').eq('circle_id', data.circle.id).eq('is_active', true).order('created_at', { ascending: false });
       let unlockedIds: string[] = [];
-      if (currentUserId) {
+      if (currentUserId && !currentUserId.startsWith('guest_')) {
         const { data: unlocks } = await supabase.from('vault_unlocks').select('vault_id').eq('user_id', currentUserId);
         unlockedIds = (unlocks || []).map((u: any) => u.vault_id);
       }
-
       const enrichedVaults = (vaultData || []).map((v: any) => ({
         ...v,
         is_unlocked: unlockedIds.includes(v.id) || v.creator_id === currentUserId
       }));
-
       setVaults(enrichedVaults);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoadingVaults(false);
-    }
+    } catch (err) {} finally { setLoadingVaults(false); }
   };
 
   const handleJoin = async (tier: 'INNER' | 'CORE') => {
-    if (!currentUserId) return toast.error('יש להתחבר תחילה');
+    if (!currentUserId || currentUserId.startsWith('guest_')) return toast.error('יש להתחבר תחילה');
     const reqLevel = data.circle.min_level || 1;
     const curLevel = myProfile?.level || 1;
-    if (curLevel < reqLevel) { triggerFeedback('error'); return toast.error(`הסלקטור חסם אותך. דרושה רמה ${reqLevel}.`); }
+    if (curLevel < reqLevel) { triggerFeedback('error'); return toast.error(`דרושה רמה ${reqLevel} להצטרפות.`); }
     
     setJoining(true); triggerFeedback('pop');
     try {
@@ -184,8 +180,16 @@ export const CirclePage: React.FC = () => {
         await apiFetch(`/api/circles/${data.circle.slug}/join`, { method: 'POST' });
         triggerFeedback('success'); toast.success('ברוך הבא למועדון! 🎉');
       }
-      fetchCircleData();
-    } catch (err: any) { toast.error(err?.message || 'שגיאה בהצטרפות/שדרוג'); } finally { setJoining(false); }
+      fetchCircleData(currentUserId);
+    } catch (err: any) { toast.error(err?.message || 'שגיאה בהצטרפות'); } finally { setJoining(false); }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setNewPost(val);
+    if (channelRef.current) {
+      channelRef.current.track({ isTyping: val.length > 0 });
+    }
   };
 
   const handlePost = async () => {
@@ -201,18 +205,17 @@ export const CirclePage: React.FC = () => {
         tier_required: 'INNER'
       };
 
-      const { data: insertedPost, error } = await supabase.from('posts').insert(postData).select('*, profiles!user_id(*), seals:post_seals(id, seal_type, user_id), comments(id)').single();
+      const { error } = await supabase.from('posts').insert(postData);
       if (error) throw error;
       
-      if (insertedPost) {
-        const newMsg = { ...insertedPost, seals_count: 0, comments_count: 0, has_sealed: false };
-        setData((curr: any) => ({ ...curr, posts: [newMsg, ...curr.posts] }));
-      }
-      setNewPost(''); setSelectedFile(null); triggerFeedback('pop');
+      setNewPost(''); 
+      setSelectedFile(null); 
+      if (channelRef.current) channelRef.current.track({ isTyping: false });
+      triggerFeedback('pop');
     } catch (err: any) { toast.error(err.message); } finally { setPosting(false); }
   };
 
-  if (loading || !data) return <div className="min-h-[100dvh] bg-surface flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div>;
+  if (loading || !data) return <div className="min-h-[100dvh] bg-surface flex items-center justify-center"><Loader2 className="animate-spin text-brand" size={32} /></div>;
 
   const { circle, isMember, membership, posts } = data;
   const isOwner = circle.creator_id === currentUserId || membership?.role === 'admin';
@@ -226,11 +229,15 @@ export const CirclePage: React.FC = () => {
           <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/60 to-transparent"></div>
           
           <div className="relative z-10 px-5 text-center flex flex-col items-center">
-            <h1 className="text-2xl font-black text-white mb-3">{circle.name}</h1>
+            <h1 className="text-2xl font-black text-white mb-3 drop-shadow-sm">{circle.name}</h1>
             <div className="flex items-center justify-center gap-4 bg-surface-card/60 backdrop-blur-md border border-white/10 px-5 py-2 rounded-full shadow-lg">
-              <div className="flex items-center gap-1.5"><Eye size={14} className="text-brand-muted" /><span className="text-[11px] font-black text-white">{liveStats.active}</span></div>
-              <div className="w-px h-3 bg-white/20" />
-              <div className="flex items-center gap-1.5"><MessageSquare size={14} className="text-brand-muted" /><span className="text-[11px] font-black text-white">{liveStats.typing}</span></div>
+              <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_#22c55e]" /><span className="text-[11px] font-black text-white">{onlineCount} מחוברים</span></div>
+              {isMember && typingUsers.size > 0 && (
+                <>
+                  <div className="w-px h-3 bg-white/20" />
+                  <div className="flex items-center gap-1.5"><MessageSquare size={14} className="text-brand-muted" /><span className="text-[11px] font-bold text-white/80">{typingUsers.size} מקלידים...</span></div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -243,69 +250,91 @@ export const CirclePage: React.FC = () => {
           </div>
         ) : (
           <div className="flex flex-col flex-1 overflow-hidden relative">
-            <div className="flex justify-between border-b border-surface-border shrink-0 px-6 bg-surface z-10 relative">
+            
+            {/* TABS (Clean & Centered) */}
+            <div className="flex justify-center gap-8 shrink-0 px-6 bg-surface z-10 relative pt-2">
               {['chat', 'vaults', 'members'].map((tab) => (
-                <button key={tab} onClick={() => setActiveTab(tab as any)} className={`py-4 text-[13px] font-black uppercase tracking-widest transition-colors relative ${activeTab === tab ? 'text-brand' : 'text-brand-muted'}`}>
+                <button key={tab} onClick={() => { triggerFeedback('pop'); setActiveTab(tab as any); }} className={`pb-3 text-[13px] font-black uppercase tracking-widest transition-colors relative ${activeTab === tab ? 'text-brand' : 'text-brand-muted hover:text-brand'}`}>
                   {tab === 'chat' ? 'לייב צ׳אט' : tab === 'vaults' ? 'כספות' : 'חברים'}
                   {activeTab === tab && <motion.div layoutId="circleTab" className="absolute bottom-0 left-0 right-0 h-[3px] bg-brand rounded-t-full" />}
                 </button>
               ))}
             </div>
 
+            {/* TAB: CHAT (Fixed layout so input doesn't scroll) */}
             {activeTab === 'chat' && (
-              <div className="flex-1 flex flex-col overflow-hidden bg-surface relative">
-                <div className="flex-1 p-4 flex flex-col-reverse gap-6 overflow-y-auto pb-[160px]">
+              <div className="flex-1 flex flex-col overflow-hidden bg-surface">
+                
+                {/* Scrollable Messages Area */}
+                <div className="flex-1 p-4 flex flex-col-reverse gap-6 overflow-y-auto scrollbar-hide pb-2">
                   {posts?.map((post: any) => (
                     <div key={post.id} className="flex flex-col gap-1 w-full">
                       <div className={`flex gap-3 w-full ${post.user_id === currentUserId ? 'flex-row-reverse' : ''}`}>
-                        <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-surface-border bg-surface-card flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-surface-border bg-surface-card flex items-center justify-center shadow-sm cursor-pointer" onClick={() => navigate(`/profile/${post.user_id}`)}>
                           {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <span className="text-brand-muted font-black text-[12px]">{(post.profiles?.full_name || 'א')[0]}</span>}
                         </div>
-                        <div className={`bg-surface-card border border-surface-border p-3 rounded-[20px] max-w-[80%] text-brand text-sm ${post.user_id === currentUserId ? 'rounded-tr-sm' : 'rounded-tl-sm'}`}>
+                        <div className={`bg-surface-card border border-surface-border p-3.5 rounded-[20px] max-w-[80%] text-brand text-sm shadow-sm ${post.user_id === currentUserId ? 'rounded-tr-sm' : 'rounded-tl-sm'}`}>
                           {post.content}
                         </div>
                       </div>
                     </div>
                   ))}
+                  {posts?.length === 0 && (
+                    <div className="text-center py-20 opacity-50 flex flex-col items-center gap-3 my-auto">
+                      <MessageSquare size={40} className="text-brand-muted" strokeWidth={1} />
+                      <span className="text-brand-muted font-black text-[13px] tracking-widest uppercase">אין הודעות עדיין.<br/>תהיה הראשון לכתוב!</span>
+                    </div>
+                  )}
                 </div>
-                <div className="absolute bottom-[85px] left-0 right-0 px-4 z-40">
-                  <div className="w-full bg-surface-card/90 backdrop-blur-xl border border-surface-border rounded-[28px] flex items-center px-4 h-14 shadow-2xl">
-                    <input type="text" value={newPost} onChange={(e) => setNewPost(e.target.value)} placeholder="הודעה..." className="flex-1 bg-transparent border-none outline-none text-brand font-medium" />
-                    <button onClick={() => handlePost()} className="w-10 h-10 shrink-0 rounded-full bg-white text-black flex items-center justify-center active:scale-95"><Send size={18} className="rtl:-scale-x-100" /></button>
+
+                {/* Fixed Input Area at the bottom of the flex container */}
+                <div className="p-4 pb-[calc(env(safe-area-inset-bottom)+95px)] shrink-0 bg-surface z-40">
+                  <div className="w-full bg-surface-card border border-surface-border rounded-[28px] flex items-center px-2 py-1 h-14 shadow-sm">
+                    <input 
+                      type="text" 
+                      value={newPost} 
+                      onChange={handleInputChange} 
+                      onKeyDown={(e) => e.key === 'Enter' && handlePost()}
+                      placeholder="הודעה..." 
+                      className="flex-1 bg-transparent px-3 border-none outline-none text-brand font-medium text-[15px]" 
+                    />
+                    <button onClick={handlePost} disabled={posting || !newPost.trim()} className="w-10 h-10 shrink-0 rounded-full bg-white text-black flex items-center justify-center active:scale-95 disabled:opacity-30 transition-opacity shadow-md">
+                      {posting ? <Loader2 size={16} className="animate-spin text-black" /> : <Send size={16} className="rtl:-scale-x-100 -ml-0.5" />}
+                    </button>
                   </div>
                 </div>
+
               </div>
             )}
 
+            {/* TAB: VAULTS */}
             {activeTab === 'vaults' && (
               <div className="flex-1 p-4 flex flex-col gap-6 bg-surface overflow-y-auto pb-[120px] relative">
-                {loadingVaults ? <Loader2 className="animate-spin text-accent-primary mx-auto my-20" /> : vaults.length === 0 ? (
+                {loadingVaults ? <Loader2 className="animate-spin text-brand mx-auto my-20" /> : vaults.length === 0 ? (
                   <div className="text-center py-20 opacity-50"><Lock size={48} className="mx-auto mb-4" /><h3 className="text-lg font-black">אין כספות זמינות</h3></div>
                 ) : vaults.map(vault => <VaultCard key={vault.id} vault={vault} onUnlockSuccess={fetchVaults} />)}
                 
-                {/* FAB: CREATE VAULT (Admin Only) */}
                 {isOwner && (
-                  <button
-                    onClick={() => navigate(`/circle/${slug}/vaults/create`)}
-                    className="fixed bottom-[110px] left-6 w-14 h-14 bg-accent-primary text-white rounded-full flex items-center justify-center shadow-[0_8px_30px_rgba(var(--color-accent-primary),0.4)] active:scale-90 transition-transform z-50"
-                  >
+                  <button onClick={() => navigate(`/circle/${slug}/vaults/create`)} className="fixed bottom-[110px] left-6 w-14 h-14 bg-white text-black rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform z-50">
                     <Plus size={28} />
                   </button>
                 )}
               </div>
             )}
 
+            {/* TAB: MEMBERS */}
             {activeTab === 'members' && (
               <div className="flex-1 p-4 flex flex-col gap-3 bg-surface overflow-y-auto pb-[120px]">
                 {membersList.map((m) => (
-                  <div key={m.profiles?.id} className="flex items-center gap-4 bg-surface-card p-4 rounded-[28px] border border-surface-border">
+                  <div key={m.profiles?.id} onClick={() => navigate(`/profile/${m.profiles?.id}`)} className="flex items-center gap-4 bg-surface-card p-4 rounded-[28px] border border-surface-border cursor-pointer active:scale-95 transition-transform">
                     <div className="w-12 h-12 rounded-full overflow-hidden bg-surface flex items-center justify-center border border-surface-border">
                       {m.profiles?.avatar_url ? <img src={m.profiles.avatar_url} className="w-full h-full object-cover" /> : <span className="text-brand-muted font-black text-[14px]">{(m.profiles?.full_name || 'א')[0]}</span>}
                     </div>
                     <div className="flex flex-col text-right">
                       <span className="text-brand font-black text-[15px]">{m.profiles?.full_name || 'אנונימי'}</span>
-                      <span className="text-brand-muted text-[11px]">@{m.profiles?.username}</span>
+                      <span className="text-brand-muted text-[11px]" dir="ltr">@{m.profiles?.username}</span>
                     </div>
+                    {m.role === 'admin' && <ShieldAlert size={16} className="text-brand mr-auto" />}
                   </div>
                 ))}
               </div>
