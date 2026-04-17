@@ -1,16 +1,56 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { 
   ShieldCheck, CheckCircle, XCircle, Loader2, Users, DollarSign, 
-  Search, Gift, Ban, MessageSquare, PlusCircle, Trash2, Activity
+  Search, Gift, Ban, MessageSquare, PlusCircle, Trash2, Activity,
+  UserCircle
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { FadeIn, Button } from '../components/ui';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
+
+type BottomSheetProps = {                                  
+  open: boolean;                                           
+  onClose: () => void;                                     
+  children: React.ReactNode;                               
+};                                                                                                                
+
+const BottomSheet: React.FC<BottomSheetProps> = ({ open, onClose, children }) => {                                                    
+  const dragControls = useDragControls();                                                                           
+  const startSheetDrag = (e: React.PointerEvent<HTMLElement>) => {                                                    
+    const target = e.target as HTMLElement | null;           
+    if (!target) return;                                                                                              
+    if (target.closest('input, button, a, [data-no-drag="true"]')) return;                                                                                          
+    dragControls.start(e);                                 
+  };                                                                                                                
+  
+  return (                                                   
+    <AnimatePresence>                                          
+      {open && (                                                 
+        <div className="fixed inset-0 z-[9900] flex flex-col justify-end" dir="rtl">                                        
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />                                                                                                                
+          <motion.div                                                
+            drag="y" dragControls={dragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.1} dragMomentum={false}                                     
+            onDragEnd={(_, info) => { if (info.offset.y > 90 || info.velocity.y > 450) onClose(); }}                                                       
+            initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 28, stiffness: 520 }}                                           
+            className="bg-surface rounded-t-[40px] h-auto min-h-[50vh] max-h-[85vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden border-t border-surface-border"                                                                
+          >                                                          
+            <div className="w-full py-5 flex justify-center shrink-0 cursor-grab active:cursor-grabbing border-b border-surface-border" onPointerDown={startSheetDrag} style={{ touchAction: 'none' }}>                                                          
+              <div className="w-16 h-1.5 bg-white/10 rounded-full pointer-events-none" />                                     
+            </div>                                                                                                            
+            <div className="flex-1 overflow-y-auto scrollbar-hide p-6" onPointerDown={startSheetDrag}>                                                          
+              {children}                                             
+            </div>                                                 
+          </motion.div>                                          
+        </div>                                                 
+      )}                                                     
+    </AnimatePresence>                                     
+  );                                                     
+};
 
 export const AdminPage: React.FC = () => {
   const navigate = useNavigate();
@@ -40,7 +80,7 @@ export const AdminPage: React.FC = () => {
       const { data, error } = await supabase.rpc('get_admin_data');
       if (error) throw error;
       setAdminData(data as any);
-    } catch (err: any) {
+    } catch (err) {
       toast.error('שגיאה בטעינת נתונים');
     } finally {
       setLoading(false);
@@ -53,11 +93,11 @@ export const AdminPage: React.FC = () => {
     try {
       const { error } = await supabase.rpc('admin_resolve_cashout', { p_tx_id: txId, p_action: action });
       if (error) throw error;
-      toast.success(action === 'approve' ? 'הבקשה אושרה!' : 'הבקשה נדחתה והכסף הוחזר.', { id: tid });
+      toast.success(action === 'approve' ? 'הבקשה אושרה והכסף ירד!' : 'הבקשה נדחתה והכסף הוחזר.', { id: tid });
       triggerFeedback('success');
       await fetchAdminData();
     } catch (err: any) {
-      toast.error('שגיאה בעדכון הבקשה', { id: tid });
+      toast.error(err.message || 'שגיאה', { id: tid });
     }
   };
 
@@ -73,7 +113,7 @@ export const AdminPage: React.FC = () => {
       setGrantAmount('');
       setSelectedUser(null);
       await fetchAdminData();
-    } catch (err: any) {
+    } catch (err) {
       toast.error('שגיאה בהעברת CRD');
     } finally {
       setActionLoading(false);
@@ -91,7 +131,7 @@ export const AdminPage: React.FC = () => {
       toast.success(newStatus ? 'המשתמש נחסם' : 'החסימה שוחררה');
       setSelectedUser(null);
       await fetchAdminData();
-    } catch (err: any) {
+    } catch (err) {
       toast.error('שגיאה בעדכון חסימה');
     } finally {
       setActionLoading(false);
@@ -104,7 +144,7 @@ export const AdminPage: React.FC = () => {
     try {
       const { error } = await supabase.rpc('admin_delete_post', { p_post_id: postId });
       if (error) throw error;
-      toast.success('הפוסט הוסר');
+      toast.success('הפוסט הוסר בהצלחה');
       await fetchAdminData();
     } catch (err) {
       toast.error('שגיאה במחיקת פוסט');
@@ -126,23 +166,20 @@ export const AdminPage: React.FC = () => {
       {/* HEADER */}
       <div className="pt-[calc(env(safe-area-inset-top)+20px)] px-6 pb-6 flex justify-between items-end relative z-10">
         <div className="flex flex-col">
-          <span className="text-cyan-400 text-[11px] font-black tracking-[0.2em] uppercase mb-1">מערכת הליבה</span>
-          <h1 className="text-3xl font-black text-white tracking-widest flex items-center gap-2">INNER <ShieldCheck size={28} className="text-cyan-400" /></h1>
-        </div>
-        <div className="w-12 h-12 bg-surface-card border border-cyan-500/20 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(34,211,238,0.2)] overflow-hidden">
-          {profile?.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" /> : <ShieldCheck className="text-cyan-400" />}
+          <span className="text-cyan-400 text-[11px] font-black tracking-[0.2em] uppercase mb-1 drop-shadow-md">מערכת הליבה</span>
+          <h1 className="text-3xl font-black text-brand tracking-widest flex items-center gap-2 drop-shadow-lg">INNER <ShieldCheck size={28} className="text-cyan-400" /></h1>
         </div>
       </div>
 
       {/* TABS */}
       <div className="px-4 mb-6 relative z-10">
         <div className="flex bg-surface-card p-1.5 rounded-2xl border border-surface-border shadow-inner">
-          <button onClick={() => { triggerFeedback('pop'); setActiveTab('dashboard'); }} className={`flex-1 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === 'dashboard' ? 'bg-cyan-500 text-black shadow-lg' : 'text-brand-muted hover:text-brand'}`}>סקירה</button>
-          <button onClick={() => { triggerFeedback('pop'); setActiveTab('cashouts'); }} className={`flex-1 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all relative ${activeTab === 'cashouts' ? 'bg-cyan-500 text-black shadow-lg' : 'text-brand-muted hover:text-brand'}`}>
-            משיכות {adminData.pending_cashouts.length > 0 && <span className="absolute top-1 right-2 w-2.5 h-2.5 bg-red-500 border border-surface rounded-full animate-pulse" />}
+          <button onClick={() => { triggerFeedback('pop'); setActiveTab('dashboard'); }} className={`flex-1 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === 'dashboard' ? 'bg-cyan-400 text-black shadow-[0_0_15px_rgba(34,211,238,0.4)]' : 'text-brand-muted hover:text-brand'}`}>סקירה</button>
+          <button onClick={() => { triggerFeedback('pop'); setActiveTab('cashouts'); }} className={`flex-1 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all relative ${activeTab === 'cashouts' ? 'bg-cyan-400 text-black shadow-[0_0_15px_rgba(34,211,238,0.4)]' : 'text-brand-muted hover:text-brand'}`}>
+            משיכות {adminData.pending_cashouts.length > 0 && <span className="absolute top-1 right-2 w-2.5 h-2.5 bg-rose-500 border border-surface rounded-full animate-pulse" />}
           </button>
-          <button onClick={() => { triggerFeedback('pop'); setActiveTab('users'); }} className={`flex-1 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === 'users' ? 'bg-cyan-500 text-black shadow-lg' : 'text-brand-muted hover:text-brand'}`}>משתמשים</button>
-          <button onClick={() => { triggerFeedback('pop'); setActiveTab('content'); }} className={`flex-1 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === 'content' ? 'bg-cyan-500 text-black shadow-lg' : 'text-brand-muted hover:text-brand'}`}>תוכן</button>
+          <button onClick={() => { triggerFeedback('pop'); setActiveTab('users'); }} className={`flex-1 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === 'users' ? 'bg-cyan-400 text-black shadow-[0_0_15px_rgba(34,211,238,0.4)]' : 'text-brand-muted hover:text-brand'}`}>משתמשים</button>
+          <button onClick={() => { triggerFeedback('pop'); setActiveTab('content'); }} className={`flex-1 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === 'content' ? 'bg-cyan-400 text-black shadow-[0_0_15px_rgba(34,211,238,0.4)]' : 'text-brand-muted hover:text-brand'}`}>תוכן</button>
         </div>
       </div>
 
@@ -151,27 +188,34 @@ export const AdminPage: React.FC = () => {
           
           {/* TAB: DASHBOARD */}
           {activeTab === 'dashboard' && (
-            <motion.div key="dash" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="grid grid-cols-2 gap-4">
+            <motion.div key="dash" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
               
-              <div className="col-span-2 bg-gradient-to-br from-cyan-500/20 to-surface-card border border-cyan-500/30 rounded-[32px] p-6 shadow-[0_10px_30px_rgba(34,211,238,0.1)] relative overflow-hidden">
-                <div className="absolute -top-10 -right-10 w-32 h-32 bg-cyan-500/20 blur-[40px] rounded-full pointer-events-none" />
-                <span className="text-cyan-300 text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5 mb-2"><DollarSign size={14} /> כלכלת CRD באפליקציה</span>
-                <span className="text-white font-black text-5xl tracking-tight">{adminData.total_crd.toLocaleString()}</span>
+              {/* Premium Total Economy Card (Wallet Style) */}
+              <div className="bg-surface-card border border-surface-border pt-10 pb-8 rounded-[40px] flex flex-col items-center text-center shadow-[0_20px_50px_rgba(0,0,0,0.4)] relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-transparent opacity-60" />
+                <div className="absolute -top-20 -right-20 w-40 h-40 bg-cyan-500/20 blur-[60px] rounded-full pointer-events-none" />
+                <span className="text-brand-muted text-[11px] font-black uppercase tracking-[0.2em] mb-1 z-10 drop-shadow-md flex items-center gap-1.5"><DollarSign size={14}/> כלכלת CRD באפליקציה</span>
+                
+                <div className="flex flex-col items-center justify-center mt-2 z-10 relative">                                 
+                  <span className="text-[56px] font-black text-brand tracking-tighter leading-none drop-shadow-lg">{adminData.total_crd.toLocaleString()}</span>                                                  
+                  <span className="text-[11px] font-black text-cyan-400 uppercase tracking-[0.4em] mt-3 drop-shadow-md">TOTAL CIRCULATION</span>                                                
+                </div>
               </div>
               
-              <div className="bg-surface-card border border-surface-border rounded-[28px] p-5 shadow-sm">
-                <span className="text-brand-muted text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 mb-1"><Users size={12} /> משתמשים</span>
-                <span className="text-brand font-black text-2xl">{adminData.total_users.toLocaleString()}</span>
-              </div>
-              
-              <div className="bg-surface-card border border-surface-border rounded-[28px] p-5 shadow-sm">
-                <span className="text-brand-muted text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 mb-1"><MessageSquare size={12} /> פוסטים באוויר</span>
-                <span className="text-brand font-black text-2xl">{adminData.total_posts.toLocaleString()}</span>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-surface-card border border-surface-border rounded-[28px] p-5 shadow-sm flex flex-col items-center text-center">
+                  <span className="text-brand-muted text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 mb-2"><Users size={14} className="text-cyan-400"/> משתמשים</span>
+                  <span className="text-brand font-black text-2xl">{adminData.total_users.toLocaleString()}</span>
+                </div>
+                <div className="bg-surface-card border border-surface-border rounded-[28px] p-5 shadow-sm flex flex-col items-center text-center">
+                  <span className="text-brand-muted text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 mb-2"><MessageSquare size={14} className="text-cyan-400"/> פוסטים באוויר</span>
+                  <span className="text-brand font-black text-2xl">{adminData.total_posts.toLocaleString()}</span>
+                </div>
               </div>
 
               {/* GRAPH SECTION */}
-              <div className="col-span-2 bg-surface-card border border-surface-border rounded-[32px] p-6 shadow-sm">
-                <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5 mb-6"><Activity size={14} /> הרשמות השבוע</span>
+              <div className="bg-surface-card border border-surface-border rounded-[32px] p-6 shadow-sm">
+                <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5 mb-6"><Activity size={14} className="text-cyan-400"/> הרשמות השבוע</span>
                 <div className="flex items-end justify-between h-32 gap-2">
                   {adminData.chart_data.length === 0 ? (
                     <div className="w-full h-full flex items-center justify-center text-brand-muted text-[12px] font-bold">אין נתונים מספיקים</div>
@@ -181,7 +225,7 @@ export const AdminPage: React.FC = () => {
                       return (
                         <div key={i} className="flex flex-col items-center gap-2 flex-1">
                           <div className="w-full bg-surface rounded-t-md flex flex-col justify-end h-full relative group">
-                            <motion.div initial={{ height: 0 }} animate={{ height: `${heightPercent}%` }} className="bg-cyan-500 rounded-t-md w-full opacity-80 group-hover:opacity-100 transition-opacity" />
+                            <motion.div initial={{ height: 0 }} animate={{ height: `${heightPercent}%` }} className="bg-cyan-400 rounded-t-md w-full opacity-80 group-hover:opacity-100 transition-opacity shadow-[0_0_10px_rgba(34,211,238,0.2)]" />
                             <span className="absolute -top-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 text-[10px] text-white font-black">{data.count}</span>
                           </div>
                           <span className="text-[9px] font-black text-brand-muted">{data.date}</span>
@@ -189,16 +233,6 @@ export const AdminPage: React.FC = () => {
                       )
                     })
                   )}
-                </div>
-              </div>
-
-              <div className="col-span-2 bg-surface-card border border-surface-border rounded-[28px] p-5 shadow-sm flex items-center justify-between cursor-pointer active:scale-95 transition-transform" onClick={() => navigate('/create-circle')}>
-                <div className="flex flex-col">
-                  <span className="text-brand-muted text-[10px] font-black uppercase tracking-widest mb-1">מועדונים פעילים</span>
-                  <span className="text-brand font-black text-2xl">{adminData.total_circles.toLocaleString()}</span>
-                </div>
-                <div className="w-12 h-12 bg-cyan-500/10 rounded-full flex items-center justify-center border border-cyan-500/20">
-                  <PlusCircle size={20} className="text-cyan-400" />
                 </div>
               </div>
             </motion.div>
@@ -209,7 +243,7 @@ export const AdminPage: React.FC = () => {
             <motion.div key="cashouts" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-3">
               {adminData.pending_cashouts.length === 0 ? (
                 <div className="py-20 flex flex-col items-center text-center opacity-50 bg-surface-card border border-surface-border rounded-[32px]">
-                  <CheckCircle size={48} className="text-brand-muted mb-4" strokeWidth={1} />
+                  <CheckCircle size={48} className="text-cyan-400 mb-4" strokeWidth={1} />
                   <span className="text-brand font-black text-[15px]">אין בקשות משיכה כרגע</span>
                 </div>
               ) : (
@@ -218,7 +252,7 @@ export const AdminPage: React.FC = () => {
                     <div className="flex items-center justify-between border-b border-surface-border pb-4 mb-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full overflow-hidden bg-surface border border-surface-border">
-                          {tx.avatar_url ? <img src={tx.avatar_url} className="w-full h-full object-cover" /> : <Users className="text-brand-muted w-full h-full" />}
+                          {tx.avatar_url ? <img src={tx.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="text-brand-muted w-full h-full" />}
                         </div>
                         <div className="flex flex-col">
                           <span className="text-brand font-black text-[14px]">{tx.full_name}</span>
@@ -246,14 +280,14 @@ export const AdminPage: React.FC = () => {
             <motion.div key="users" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-4">
               <div className="relative">
                 <Search size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-muted" />
-                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="חיפוש משתמשים..." className="w-full bg-surface-card border border-surface-border text-brand font-black h-14 rounded-full pl-4 pr-12 outline-none focus:border-cyan-500/50 transition-colors shadow-inner text-[14px]" />
+                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="חיפוש משתמשים..." className="w-full bg-surface-card border border-surface-border text-brand font-black h-14 rounded-full pl-4 pr-12 outline-none focus:border-cyan-400/50 transition-colors shadow-inner text-[14px]" />
               </div>
               <div className="flex flex-col gap-2">
                 {filteredUsers.map((u: any) => (
                   <div key={u.id} onClick={() => { triggerFeedback('pop'); setSelectedUser(u); }} className={`flex items-center justify-between p-3 px-4 bg-surface-card border ${u.is_banned ? 'border-rose-500/30 bg-rose-500/5' : 'border-surface-border'} rounded-[24px] cursor-pointer active:scale-[0.98] transition-transform`}>
                     <div className="flex items-center gap-3">
-                      <div className={`w-12 h-12 rounded-full overflow-hidden bg-surface ${u.is_banned ? 'grayscale opacity-50' : ''}`}>
-                        {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-surface-border" />}
+                      <div className={`w-12 h-12 rounded-full overflow-hidden bg-surface border border-surface-border ${u.is_banned ? 'grayscale opacity-50' : ''}`}>
+                        {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full text-brand-muted p-1" />}
                       </div>
                       <div className="flex flex-col">
                         <span className={`font-black text-[14px] flex items-center gap-1.5 ${u.is_banned ? 'text-rose-500 line-through' : 'text-brand'}`}>
@@ -276,11 +310,11 @@ export const AdminPage: React.FC = () => {
           {activeTab === 'content' && (
             <motion.div key="content" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-4">
               {adminData.recent_posts.map((p: any) => (
-                <div key={p.id} className="bg-surface-card border border-surface-border rounded-[24px] p-4 flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
+                <div key={p.id} className="bg-surface-card border border-surface-border rounded-[24px] p-4 flex flex-col gap-3 shadow-sm">
+                  <div className="flex items-center justify-between border-b border-surface-border pb-3">
                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full overflow-hidden bg-surface">
-                           {p.avatar_url ? <img src={p.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-surface-border" />}
+                        <div className="w-8 h-8 rounded-full overflow-hidden bg-surface border border-surface-border">
+                           {p.avatar_url ? <img src={p.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full text-brand-muted" />}
                         </div>
                         <span className="text-brand font-black text-[12px]">{p.full_name}</span>
                      </div>
@@ -289,7 +323,7 @@ export const AdminPage: React.FC = () => {
                      </button>
                   </div>
                   {p.media_url && <img src={p.media_url} className="w-full h-32 object-cover rounded-xl" />}
-                  <p className="text-brand text-[13px] line-clamp-2">{p.content}</p>
+                  <p className="text-brand text-[13px] leading-relaxed whitespace-pre-wrap">{p.content}</p>
                 </div>
               ))}
             </motion.div>
@@ -298,42 +332,42 @@ export const AdminPage: React.FC = () => {
         </AnimatePresence>
       </div>
 
-      {/* USER MANAGEMENT MODAL */}
+      {/* USER MANAGEMENT MODAL (Wallet BottomSheet Style) */}
       {typeof document !== 'undefined' && createPortal(
-        <AnimatePresence>
+        <BottomSheet open={!!selectedUser} onClose={() => setSelectedUser(null)}>
           {selectedUser && (
-            <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" dir="rtl">
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedUser(null)} />
-              <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 400 }} className="relative z-10 bg-surface rounded-t-[40px] p-6 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border flex flex-col">
-                <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-6" />
-                <div className="flex items-center gap-4 mb-8 bg-surface-card border border-surface-border p-4 rounded-3xl">
-                   <div className="w-16 h-16 rounded-full overflow-hidden bg-surface shrink-0">
-                      {selectedUser.avatar_url ? <img src={selectedUser.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-surface-border" />}
-                   </div>
-                   <div className="flex flex-col flex-1">
-                      <span className="text-brand font-black text-lg">{selectedUser.full_name}</span>
-                      <span className="text-brand-muted text-[12px]">@{selectedUser.username}</span>
-                   </div>
-                   <div className="flex flex-col items-end">
-                      <span className="text-[10px] text-brand-muted font-black uppercase tracking-widest mb-0.5">יתרה נוכחית</span>
-                      <span className="text-cyan-400 font-black text-lg">{selectedUser.crd_balance} CRD</span>
-                   </div>
+            <div className="flex flex-col gap-6 text-center items-center">
+              <div className="w-20 h-20 rounded-full overflow-hidden bg-surface shrink-0 border-2 border-surface-border shadow-lg">
+                {selectedUser.avatar_url ? <img src={selectedUser.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full text-brand-muted p-2" />}
+              </div>
+              <div className="flex flex-col items-center">
+                <h2 className="text-brand font-black text-2xl flex items-center gap-2">{selectedUser.full_name} {selectedUser.role_label === 'CORE' && <ShieldCheck size={18} className="text-cyan-400" />}</h2>
+                <span className="text-brand-muted text-[13px] tracking-widest mt-1" dir="ltr">@{selectedUser.username}</span>
+              </div>
+              
+              <div className="w-full bg-surface-card border border-surface-border rounded-[24px] p-5 flex flex-col items-center gap-1 shadow-inner">
+                <span className="text-[10px] text-brand-muted font-black uppercase tracking-[0.2em]">יתרה זמינה למשתמש</span>
+                <span className="text-cyan-400 font-black text-3xl flex items-center gap-2">{selectedUser.crd_balance} <DollarSign size={20} /></span>
+              </div>
+
+              <div className="w-full flex flex-col gap-3 mt-2">
+                <h4 className="text-brand-muted text-[11px] font-black uppercase tracking-widest text-right px-2">ניהול משתמש</h4>
+                
+                {/* Grant CRD */}
+                <div className="flex items-center gap-2 bg-surface-card border border-surface-border p-2 pr-4 rounded-2xl">
+                  <Gift size={20} className="text-cyan-400 shrink-0" />
+                  <input type="number" value={grantAmount} onChange={(e) => setGrantAmount(Number(e.target.value))} placeholder="הזן בונוס (CRD)" className="flex-1 bg-transparent border-none text-brand font-black outline-none h-10 px-2" data-no-drag="true" />
+                  <Button onClick={handleGrantCrd} disabled={actionLoading || !grantAmount} className="h-10 bg-cyan-400 text-black rounded-xl px-4 text-[12px] font-black shadow-md active:scale-95 disabled:opacity-50">שלח לחשבון</Button>
                 </div>
-                <div className="flex flex-col gap-3 mb-6">
-                   <h4 className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-2">פעולות הנהלה</h4>
-                   <div className="flex items-center gap-2 bg-surface-card border border-surface-border p-2 pr-4 rounded-2xl">
-                      <Gift size={20} className="text-cyan-400 shrink-0" />
-                      <input type="number" value={grantAmount} onChange={(e) => setGrantAmount(Number(e.target.value))} placeholder="סכום להעברה..." className="flex-1 bg-transparent border-none text-brand font-black outline-none h-10 px-2" />
-                      <Button onClick={handleGrantCrd} disabled={actionLoading || !grantAmount} className="h-10 bg-cyan-500 text-black rounded-xl px-4 text-[12px] font-black shadow-md active:scale-95 disabled:opacity-50">שלח בונוס</Button>
-                   </div>
-                   <button onClick={() => handleToggleBan(selectedUser)} disabled={actionLoading} className={`w-full h-14 rounded-2xl flex items-center justify-center gap-2 font-black text-[13px] tracking-widest uppercase transition-all shadow-sm active:scale-95 ${selectedUser.is_banned ? 'bg-surface-card text-brand border border-surface-border' : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'}`}>
-                      <Ban size={18} /> {selectedUser.is_banned ? 'שחרר חסימה למשתמש' : 'חסום משתמש מהאפליקציה'}
-                   </button>
-                </div>
-              </motion.div>
+
+                {/* Ban Toggle */}
+                <button onClick={() => handleToggleBan(selectedUser)} disabled={actionLoading} className={`w-full h-14 rounded-2xl flex items-center justify-center gap-2 font-black text-[13px] tracking-widest uppercase transition-all shadow-sm active:scale-95 ${selectedUser.is_banned ? 'bg-surface-card text-brand border border-surface-border' : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'}`}>
+                  <Ban size={18} /> {selectedUser.is_banned ? 'שחרר חסימה למשתמש' : 'חסום משתמש מהאפליקציה'}
+                </button>
+              </div>
             </div>
           )}
-        </AnimatePresence>, document.body
+        </BottomSheet>, document.body
       )}
 
     </FadeIn>
