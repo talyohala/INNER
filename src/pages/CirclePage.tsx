@@ -202,7 +202,6 @@ export const CirclePage: React.FC = () => {
     if (!newPost.trim() && !selectedFile) return;
     setPosting(true);
     try {
-      // תוקנה שגיאת ה-tier_required שהקריסה את השליחה
       const postData = {
         circle_id: data.circle.id,
         user_id: currentUserId,
@@ -211,8 +210,22 @@ export const CirclePage: React.FC = () => {
         media_type: 'text'
       };
 
-      const { error } = await supabase.from('posts').insert(postData);
+      // מחזירים את התשובה כדי לדחוף מיד למסך המשתמש
+      const { data: insertedPost, error } = await supabase
+        .from('posts')
+        .insert(postData)
+        .select('*, profiles!user_id(*)')
+        .single();
+        
       if (error) throw error;
+      
+      // מעדכן את המסך באותו רגע
+      if (insertedPost) {
+        setData((curr: any) => ({ 
+          ...curr, 
+          posts: [insertedPost, ...curr.posts] 
+        }));
+      }
       
       setNewPost(''); 
       setSelectedFile(null); 
@@ -229,8 +242,8 @@ export const CirclePage: React.FC = () => {
   return (
     <>
       <FadeIn className="bg-surface h-[100dvh] font-sans flex flex-col relative overflow-hidden" dir="rtl">
-        {/* HERO SECTION - הוסר הקו התחתון לחלוטין */}
-        <div className="relative w-full h-[180px] shrink-0 bg-surface overflow-hidden flex flex-col justify-end pb-4">
+        {/* HERO SECTION */}
+        <div className="relative w-full h-[180px] shrink-0 bg-surface overflow-hidden flex flex-col justify-end pb-4 border-b border-surface-border">
           {circle.cover_url ? <img src={circle.cover_url} className="absolute inset-0 w-full h-full object-cover opacity-50" /> : <div className="absolute inset-0 bg-gradient-to-br from-surface-card to-surface"></div>}
           <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/60 to-transparent"></div>
           
@@ -257,7 +270,7 @@ export const CirclePage: React.FC = () => {
         ) : (
           <div className="flex flex-col flex-1 overflow-hidden relative">
             
-            {/* TABS (Clean Outline Style - קווים הוסרו) */}
+            {/* TABS */}
             <div className="flex justify-center gap-3 px-4 py-3 bg-surface z-10 relative shrink-0">
               {['chat', 'vaults', 'members'].map((tab) => (
                 <button
