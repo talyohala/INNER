@@ -202,12 +202,13 @@ export const CirclePage: React.FC = () => {
     if (!newPost.trim() && !selectedFile) return;
     setPosting(true);
     try {
+      // כאן תוקנה השגיאה: הסרנו את התגיות media_types ברבים
       const postData = {
         circle_id: data.circle.id,
         user_id: currentUserId,
         content: newPost.trim(),
-        media_urls: [],
-        media_types: [],
+        media_url: null,
+        media_type: 'text',
         tier_required: 'INNER'
       };
 
@@ -221,7 +222,7 @@ export const CirclePage: React.FC = () => {
     } catch (err: any) { toast.error(err.message); } finally { setPosting(false); }
   };
 
-  if (loading || !data) return <div className="min-h-[100dvh] bg-surface flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div>;
+  if (loading || !data) return <div className="min-h-[100dvh] bg-surface flex items-center justify-center"><Loader2 className="animate-spin text-brand" size={32} /></div>;
 
   const { circle, isMember, membership, posts } = data;
   const isOwner = circle.creator_id === currentUserId || membership?.role === 'admin';
@@ -230,7 +231,7 @@ export const CirclePage: React.FC = () => {
     <>
       <FadeIn className="bg-surface h-[100dvh] font-sans flex flex-col relative overflow-hidden" dir="rtl">
         {/* HERO SECTION */}
-        <div className="relative w-full h-[180px] shrink-0 bg-surface overflow-hidden flex flex-col justify-end pb-4">
+        <div className="relative w-full h-[180px] shrink-0 bg-surface overflow-hidden flex flex-col justify-end pb-4 border-b border-surface-border">
           {circle.cover_url ? <img src={circle.cover_url} className="absolute inset-0 w-full h-full object-cover opacity-50" /> : <div className="absolute inset-0 bg-gradient-to-br from-surface-card to-surface"></div>}
           <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/60 to-transparent"></div>
           
@@ -257,7 +258,7 @@ export const CirclePage: React.FC = () => {
         ) : (
           <div className="flex flex-col flex-1 overflow-hidden relative">
             
-            {/* TABS (Clean Outline Style - no full width borders) */}
+            {/* TABS (Clean Outline Style) */}
             <div className="flex justify-center gap-3 px-4 py-3 bg-surface z-10 relative shrink-0">
               {['chat', 'vaults', 'members'].map((tab) => (
                 <button
@@ -300,7 +301,7 @@ export const CirclePage: React.FC = () => {
                   )}
                 </div>
 
-                {/* Fixed Input Area (Static at bottom, slightly lower, no top line) */}
+                {/* Fixed Input Area */}
                 <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+60px)] left-0 right-0 px-4 py-2 bg-surface/95 backdrop-blur-xl z-50">
                   <div className="w-full bg-surface-card border border-surface-border rounded-[28px] flex items-center px-2 py-1 h-14 shadow-sm">
                     <input 
