@@ -129,10 +129,10 @@ export const CirclePage: React.FC = () => {
         if (memberData) { isMember = true; membership = memberData; }
       }
 
+      // הוסר ה-parent_id המיותר מהשאילתה כדי למנוע קריסות
       const { data: pData } = await supabase.from('posts')
         .select('*, profiles!user_id(*)')
         .eq('circle_id', circle.id)
-        .is('parent_id', null)
         .order('created_at', { ascending: false })
         .limit(POSTS_PER_PAGE);
 
@@ -202,13 +202,13 @@ export const CirclePage: React.FC = () => {
     if (!newPost.trim() && !selectedFile) return;
     setPosting(true);
     try {
+      // הוסר ה-parent_id המיותר שגרם לקריסה
       const postData = {
         circle_id: data.circle.id,
         user_id: currentUserId,
         content: newPost.trim(),
         media_url: null,
         media_type: 'text',
-        parent_id: null,
         is_reveal_drop: false,
         reveal_status: 'revealed',
         required_crd: 0
