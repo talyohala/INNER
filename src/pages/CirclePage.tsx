@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { apiFetch } from '../lib/api';
 import { FadeIn, Button } from '../components/ui';
@@ -15,6 +15,12 @@ import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 import { Share } from '@capacitor/share';
 import { useAuth } from '../context/AuthContext';
+
+const SEAL_TYPES = [
+  { id: 'fire', icon: <Flame size={24} />, label: 'אש', color: 'text-orange-500', xp: 15 },
+  { id: 'diamond', icon: <Diamond size={24} />, label: 'יהלום', color: 'text-blue-400', xp: 50 },
+  { id: 'alliance', icon: <Handshake size={24} />, label: 'ברית', color: 'text-emerald-400', xp: 100 }
+];
 
 export const CirclePage: React.FC = () => {
   const { slug } = useParams();
@@ -223,8 +229,8 @@ export const CirclePage: React.FC = () => {
   return (
     <>
       <FadeIn className="bg-surface h-[100dvh] font-sans flex flex-col relative overflow-hidden" dir="rtl">
-        {/* HERO SECTION */}
-        <div className="relative w-full h-[180px] shrink-0 bg-surface overflow-hidden flex flex-col justify-end pb-4 border-b border-surface-border">
+        {/* HERO SECTION - Removed bottom border */}
+        <div className="relative w-full h-[180px] shrink-0 bg-surface overflow-hidden flex flex-col justify-end pb-4">
           {circle.cover_url ? <img src={circle.cover_url} className="absolute inset-0 w-full h-full object-cover opacity-50" /> : <div className="absolute inset-0 bg-gradient-to-br from-surface-card to-surface"></div>}
           <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/60 to-transparent"></div>
           
@@ -266,7 +272,7 @@ export const CirclePage: React.FC = () => {
               <div className="flex-1 flex flex-col overflow-hidden bg-surface">
                 
                 {/* Scrollable Messages Area */}
-                <div className="flex-1 p-4 flex flex-col-reverse gap-6 overflow-y-auto scrollbar-hide pb-2">
+                <div className="flex-1 p-4 flex flex-col-reverse gap-6 overflow-y-auto scrollbar-hide">
                   {posts?.map((post: any) => (
                     <div key={post.id} className="flex flex-col gap-1 w-full">
                       <div className={`flex gap-3 w-full ${post.user_id === currentUserId ? 'flex-row-reverse' : ''}`}>
@@ -288,7 +294,7 @@ export const CirclePage: React.FC = () => {
                 </div>
 
                 {/* Fixed Input Area at the bottom of the flex container */}
-                <div className="p-4 pb-[calc(env(safe-area-inset-bottom)+95px)] shrink-0 bg-surface z-40">
+                <div className="px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+75px)] shrink-0 bg-surface z-40">
                   <div className="w-full bg-surface-card border border-surface-border rounded-[28px] flex items-center px-2 py-1 h-14 shadow-sm">
                     <input 
                       type="text" 
@@ -298,8 +304,8 @@ export const CirclePage: React.FC = () => {
                       placeholder="הודעה..." 
                       className="flex-1 bg-transparent px-3 border-none outline-none text-brand font-medium text-[15px]" 
                     />
-                    <button onClick={handlePost} disabled={posting || !newPost.trim()} className="w-10 h-10 shrink-0 rounded-full bg-white text-black flex items-center justify-center active:scale-95 disabled:opacity-30 transition-opacity shadow-md">
-                      {posting ? <Loader2 size={16} className="animate-spin text-black" /> : <Send size={16} className="rtl:-scale-x-100 -ml-0.5" />}
+                    <button onClick={handlePost} disabled={posting || !newPost.trim()} className="w-10 h-10 shrink-0 rounded-full bg-accent-primary text-white flex items-center justify-center active:scale-95 disabled:opacity-30 transition-opacity shadow-md">
+                      {posting ? <Loader2 size={16} className="animate-spin text-white" /> : <Send size={16} className="rtl:-scale-x-100 -ml-0.5" />}
                     </button>
                   </div>
                 </div>
