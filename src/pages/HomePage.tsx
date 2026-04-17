@@ -158,7 +158,13 @@ export const HomePage: React.FC = () => {
       
       // אלגוריתם הזרקת מועדונים (Clubs) לתוך הפיד
       const myCircleIds = new Set(rawMembers.filter((m: any) => m.user_id === uid).map((m: any) => m.circle_id));
-      const recommendedClubs = rawCircles.filter((c: any) => !myCircleIds.has(c.id));
+      
+      const recommendedClubs = rawCircles
+        .filter((c: any) => !myCircleIds.has(c.id))
+        .map((c: any) => ({
+          ...c,
+          memberCount: rawMembers.filter((m: any) => m.circle_id === c.id).length
+        }));
 
       const fetchedPosts = rawPosts.map((p: any) => {                                         
         const userCircles = rawCircles.filter((c: any) => rawMembers.some((m: any) => m.circle_id === c.id && m.user_id === p.user_id));                                           
@@ -341,19 +347,6 @@ export const HomePage: React.FC = () => {
       setPosting(false);                                     
     }                                                      
   };                                                                                                                
-  
-  const handleJoinCircle = async (circleId: string) => {
-    triggerFeedback('pop');
-    try {
-      const { error } = await supabase.from('circle_members').insert({ circle_id: circleId, user_id: currentUserId, role: 'member' });
-      if (error) throw error;
-      toast.success('הצטרפת למועדון! 🎉');
-      setPosts((prev) => prev.filter((item) => item.id !== circleId || item.type !== 'club_recommendation'));
-      triggerFeedback('success');
-    } catch (err) {
-      toast.error('שגיאה בהצטרפות למועדון');
-    }
-  };
 
   const handleSeal = async (postId: string, sealType: string) => {                                                    
     triggerFeedback('pop');                                  
@@ -661,30 +654,57 @@ export const HomePage: React.FC = () => {
           {/* 📰 FEED */}                                          
           <div className="flex flex-col gap-8 relative z-10 pb-10">                                                           
             {posts.map((post) => {   
-              // -- CLUB RECOMMENDATION CARD --
+
+              // -- SMART RENDER: CLUB RECOMMENDATION --
               if (post.type === 'club_recommendation') {
+                const isPremium = post.entry_crd_price > 0;
                 return (
-                  <div key={post._uid} className="relative bg-surface-card border border-surface-border rounded-[32px] overflow-hidden shadow-sm flex flex-col p-6 gap-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex flex-col">
-                        <span className="text-accent-primary text-[10px] font-black uppercase tracking-widest mb-1 flex items-center gap-1"><Users size={12}/> מועדון מומלץ עבורך</span>
-                        <h3 className="text-brand font-black text-[18px]">{post.name}</h3>
-                      </div>
-                      <div className="w-14 h-14 rounded-full overflow-hidden bg-surface border border-surface-border flex items-center justify-center shrink-0 shadow-inner">
-                        {post.cover_url ? <img src={post.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-6 h-6 text-brand-muted" />}
+                  <div key={post._uid} onClick={() => navigate(`/circle/${post.slug || post.id}`)} className="relative bg-surface-card border border-surface-border hover:border-accent-primary/30 rounded-[32px] overflow-hidden shadow-sm flex flex-col p-6 gap-4 cursor-pointer group active:scale-[0.98] transition-all">
+                    {/* Subtle glow effect */}
+                    <div className="absolute -top-10 -right-10 w-32 h-32 bg-accent-primary/5 blur-[50px] rounded-full pointer-events-none group-hover:bg-accent-primary/10 transition-colors" />
+                    
+                    <div className="flex items-center justify-between gap-3 relative z-10">
+                      <div className="flex items-center gap-3">
+                        <div className="w-14 h-14 rounded-[18px] overflow-hidden bg-surface border border-surface-border flex items-center justify-center shrink-0 shadow-inner">
+                          {post.cover_url ? <img src={post.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-6 h-6 text-brand-muted" />}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-accent-primary text-[10px] font-black uppercase tracking-widest mb-0.5 flex items-center gap-1">מועדון מומלץ עבורך</span>
+                          <h3 className="text-brand font-black text-[16px] leading-tight line-clamp-1">{post.name}</h3>
+                        </div>
                       </div>
                     </div>
+                    
                     {post.description && (
-                      <p className="text-brand-muted text-[13px] font-medium leading-relaxed line-clamp-2">{post.description}</p>
+                      <p className="text-brand-muted text-[13px] font-medium leading-relaxed line-clamp-2 relative z-10">{post.description}</p>
                     )}
-                    <button onClick={() => handleJoinCircle(post.id)} className="w-full mt-1 flex items-center justify-center gap-2 h-12 bg-white text-black rounded-full font-black text-[13px] tracking-widest uppercase active:scale-95 transition-all">
-                      <PlusCircle size={18} /> הצטרף למועדון
-                    </button>
+                    
+                    <div className="flex items-center justify-between mt-2 pt-4 border-t border-surface-border/50 relative z-10">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1.5 text-brand-muted">
+                          <Users size={14} />
+                          <span className="text-[12px] font-bold">{post.memberCount || 0} חברים</span>
+                        </div>
+                        <div className="w-1 h-1 rounded-full bg-surface-border" />
+                        {isPremium ? (
+                          <div className="flex items-center gap-1 text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-lg border border-amber-400/20 shadow-sm">
+                            <Coins size={12} />
+                            <span className="text-[11px] font-black tracking-widest">{post.entry_crd_price} CRD</span>
+                          </div>
+                        ) : (
+                          <div className="text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-lg border border-emerald-400/20 text-[11px] font-black tracking-widest shadow-sm">חינם</div>
+                        )}
+                      </div>
+                      
+                      <div className="text-brand text-[12px] font-black uppercase tracking-widest group-hover:text-accent-primary transition-colors flex items-center gap-1">
+                        הצץ במועדון <ChevronLeft size={14} className="rtl:rotate-180" />
+                      </div>
+                    </div>
                   </div>
                 );
               }
 
-              // -- REGULAR POST RENDER --                                  
+              // -- REGULAR POST --
               const hasMedia = !!post.media_url;                       
               const isVideo = post.media_url?.match(/\.(mp4|webm|mov)$/i);                                                      
               const isCore = post.profiles?.role_label === 'CORE';                                                              
