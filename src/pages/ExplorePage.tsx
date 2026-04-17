@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, ChevronLeft, Loader2, UserCircle, X, Lock, Unlock, Gift, TrendingUp, Timer, Flame, Crown, MessageSquare } from 'lucide-react';
+import { Search, ChevronLeft, Loader2, UserCircle, X, Lock, Unlock, Gift, TrendingUp, Timer, Flame, Crown, Hash } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { FadeIn } from '../components/ui';
 import { triggerFeedback } from '../lib/sound';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
-// עץ הקטגוריות מעודכן לעברית מלאה
 const CATEGORY_TREE = [
   { id: 'all', name: 'הכל' },
   { id: 'venture_capital', name: 'הון סיכון', sub: ['קריפטו', 'נדל"ן', 'סטארטאפים'] },
@@ -26,17 +25,22 @@ export const ExplorePage: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeSub, setActiveSub] = useState('');
   
+  // States for Explore Home
   const [circles, setCircles] = useState<any[]>([]);
-  const [usersListData, setUsersListData] = useState<any[]>([]);
   const [suggestedUsers, setSuggestedUsers] = useState<any[]>([]);
   const [trendingPosts, setTrendingPosts] = useState<any[]>([]);
+  
+  // States for Smart Search Results
+  const [searchCirclesResult, setSearchCirclesResult] = useState<any[]>([]);
+  const [searchUsersResult, setSearchUsersResult] = useState<any[]>([]);
+  const [searchPostsResult, setSearchPostsResult] = useState<any[]>([]);
   
   const [recentSearches, setRecentSearches] = useState<string[]>(
     JSON.parse(localStorage.getItem('inner_recent_searches') || '[]')
   );
   
   const [loadingCircles, setLoadingCircles] = useState(true);
-  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [loadingSearch, setLoadingSearch] = useState(false);
   const [loadingSuggestions, setLoadingSuggestions] = useState(true);
   const [loadingTrending, setLoadingTrending] = useState(true);
   
@@ -56,6 +60,7 @@ export const ExplorePage: React.FC = () => {
     localStorage.setItem('inner_recent_searches', JSON.stringify(updated));
   };
 
+  // --- Explore Home Fetchers ---
   useEffect(() => {
     const fetchCircles = async () => {
       try {
@@ -70,7 +75,7 @@ export const ExplorePage: React.FC = () => {
         const formatted = (Array.isArray(data) ? data : []).map((c: any) => ({
           ...c,
           active_now: Math.max(1, Math.ceil((c.members_count || 5) * 0.2 + Math.random() * 4)),
-          is_trending: Math.random() > 0.7 // סימולציה של טרנד חם
+          is_trending: Math.random() > 0.7
         }));
         
         setCircles(formatted);
@@ -102,29 +107,55 @@ export const ExplorePage: React.FC = () => {
     fetchTrending();
   }, []);
 
+  // --- SMART GLOBAL SEARCH ALGORITHM ---
   useEffect(() => {
-    const fetchUsers = async () => {
-      if (!search.trim()) { setUsersListData([]); return; }
-      setLoadingUsers(true);
+    const fetchSearchResults = async () => {
+      const term = search.trim();
+      if (!term) { 
+        setSearchUsersResult([]); 
+        setSearchCirclesResult([]);
+        setSearchPostsResult([]);
+        return; 
+      }
+      
+      setLoadingSearch(true);
       try {
-        const query = supabase.from('profiles').select('id, full_name, username, avatar_url, bio')
-          .or(`full_name.ilike.%${search}%,username.ilike.%${search}%`).limit(15);
-        const { data } = await query;
-        if (data) setUsersListData(data);
-      } catch {} finally { setLoadingUsers(false); }
+        const queryTerm = `%${term}%`;
+        
+        // שליפה מקבילה מ-3 טבלאות
+        const [usersRes, circlesRes, postsRes] = await Promise.all([
+          supabase.from('profiles')
+            .select('id, full_name, username, avatar_url, bio, role_label')
+            .or(`full_name.ilike.${queryTerm},username.ilike.${queryTerm},bio.ilike.${queryTerm}`)
+            .limit(5),
+          supabase.from('circles')
+            .select('*')
+            .or(`name.ilike.${queryTerm},description.ilike.${queryTerm},category.ilike.${queryTerm},sub_category.ilike.${queryTerm}`)
+            .limit(5),
+          supabase.from('posts')
+            .select('id, content, created_at, profiles(full_name, avatar_url, role_label)')
+            .ilike('content', queryTerm)
+            .limit(5)
+        ]);
+
+        if (usersRes.data) setSearchUsersResult(usersRes.data);
+        if (circlesRes.data) setSearchCirclesResult(circlesRes.data);
+        if (postsRes.data) setSearchPostsResult(postsRes.data);
+        
+      } catch (err) {
+        console.error("Search error:", err);
+      } finally { 
+        setLoadingSearch(false); 
+      }
     };
-    const timeoutId = setTimeout(fetchUsers, 300);
+    
+    // Debounce של 400ms כדי לא להעמיס על השרת בהקלדה מהירה
+    const timeoutId = setTimeout(fetchSearchResults, 400);
     return () => clearTimeout(timeoutId);
   }, [search]);
 
-  const filteredCircles = circles.filter((c) => {
-    const searchLower = search.trim().toLowerCase();
-    const nameMatch = c.name?.toLowerCase().includes(searchLower);
-    const descMatch = c.description?.toLowerCase().includes(searchLower);
-    return searchLower === '' || nameMatch || descMatch;
-  });
-
   const currentCatObj = CATEGORY_TREE.find(c => c.id === activeCategory);
+  const hasSearchResults = searchCirclesResult.length > 0 || searchUsersResult.length > 0 || searchPostsResult.length > 0;
 
   return (
     <FadeIn className="pt-[calc(env(safe-area-inset-top)+12px)] pb-32 bg-surface min-h-screen font-sans flex flex-col overflow-x-hidden" dir="rtl">
@@ -136,7 +167,7 @@ export const ExplorePage: React.FC = () => {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="חפש מועדונים, יוצרים ודרופים..."
+            placeholder="חפש נושאים, מועדונים, אנשים..."
             className="w-full bg-surface-card border border-surface-border rounded-full h-[52px] pr-12 pl-12 text-brand text-[15px] font-bold placeholder:text-brand-muted/50 outline-none transition-all focus:border-slate-400/50 shadow-inner"
           />
           <Search size={20} className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-muted pointer-events-none" />
@@ -151,86 +182,123 @@ export const ExplorePage: React.FC = () => {
       <div className="flex-1 mt-4">
         <AnimatePresence mode="wait">
           
-          {/* STATE 1: SEARCH ACTIVE */}
+          {/* STATE 1: SMART SEARCH ACTIVE */}
           {search.trim() ? (
             <motion.div key="search-results" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col gap-6">
               
-              {/* Circle Results */}
-              {filteredCircles.length > 0 && (
-                <div className="flex flex-col gap-2">
-                  <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-6">מועדונים</span>
-                  <div className="mx-4 bg-surface-card border border-surface-border rounded-[24px] overflow-hidden flex flex-col shadow-sm">
-                    {filteredCircles.map((circle, idx) => (
-                      <div
-                        key={circle.id}
-                        onClick={() => { saveRecentSearch(search.trim()); triggerFeedback('pop'); navigate(`/circle/${circle.slug || circle.id}`); }}
-                        className={`py-4 px-5 flex items-center justify-between cursor-pointer hover:bg-white/5 active:scale-[0.98] transition-all ${idx !== filteredCircles.length - 1 ? 'border-b border-surface-border' : ''}`}
-                      >
-                        <div className="flex items-center gap-4 text-right">
-                          <div className="relative">
-                            {circle.cover_url ? (
-                              <img src={circle.cover_url} className="w-14 h-14 rounded-[14px] object-cover border border-surface-border shadow-sm" />
-                            ) : (
-                              <div className="w-14 h-14 rounded-[14px] bg-surface border border-surface-border flex items-center justify-center text-brand-muted font-black text-xl shadow-inner">
-                                {circle.name?.charAt(0)}
+              {loadingSearch ? (
+                <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-slate-400" /></div>
+              ) : (
+                <>
+                  {/* Global Circle Results */}
+                  {searchCirclesResult.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                      <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-6">מועדונים</span>
+                      <div className="mx-4 bg-surface-card border border-surface-border rounded-[24px] overflow-hidden flex flex-col shadow-sm">
+                        {searchCirclesResult.map((circle, idx) => (
+                          <div
+                            key={circle.id}
+                            onClick={() => { saveRecentSearch(search.trim()); triggerFeedback('pop'); navigate(`/circle/${circle.slug || circle.id}`); }}
+                            className={`py-4 px-5 flex items-center justify-between cursor-pointer hover:bg-white/5 active:scale-[0.98] transition-all ${idx !== searchCirclesResult.length - 1 ? 'border-b border-surface-border' : ''}`}
+                          >
+                            <div className="flex items-center gap-4 text-right">
+                              <div className="relative">
+                                {circle.cover_url ? (
+                                  <img src={circle.cover_url} className="w-14 h-14 rounded-[14px] object-cover border border-surface-border shadow-sm" />
+                                ) : (
+                                  <div className="w-14 h-14 rounded-[14px] bg-surface border border-surface-border flex items-center justify-center text-brand-muted font-black text-xl shadow-inner">
+                                    {circle.name?.charAt(0)}
+                                  </div>
+                                )}
+                                {circle.is_private && (
+                                  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-surface-card border border-surface-border rounded-full flex items-center justify-center shadow-md">
+                                    <Lock size={10} className="text-slate-400" />
+                                  </div>
+                                )}
                               </div>
-                            )}
-                            {circle.is_private && (
-                              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-surface-card border border-surface-border rounded-full flex items-center justify-center shadow-md">
-                                <Lock size={10} className="text-slate-400" />
+                              <div className="flex flex-col">
+                                <span className="text-brand font-black text-[16px]">{circle.name}</span>
+                                <span className="text-brand-muted text-[12px] font-medium mt-0.5 flex items-center gap-1.5">
+                                  {circle.category === 'venture_capital' ? 'הון סיכון' : circle.category}
+                                  {circle.join_price > 0 && <span className="text-slate-400 font-black text-[10px] tracking-wider uppercase">• {circle.join_price} CRD</span>}
+                                </span>
                               </div>
-                            )}
+                            </div>
+                            <ChevronLeft size={20} className="text-brand-muted" />
                           </div>
-                          <div className="flex flex-col">
-                            <span className="text-brand font-black text-[16px]">{circle.name}</span>
-                            <span className="text-brand-muted text-[12px] font-medium mt-0.5 flex items-center gap-1.5">
-                              {circle.members_count || 0} חברים
-                              {circle.join_price > 0 && <span className="text-slate-400 font-black text-[10px] tracking-wider uppercase">• {circle.join_price} CRD</span>}
-                            </span>
-                          </div>
-                        </div>
-                        <ChevronLeft size={20} className="text-brand-muted" />
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              
-              {/* User Results */}
-              {loadingUsers ? (
-                <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-slate-400" /></div>
-              ) : usersListData.length > 0 && (
-                <div className="flex flex-col gap-2">
-                  <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-6">משתמשים</span>
-                  <div className="mx-4 bg-surface-card border border-surface-border rounded-[24px] overflow-hidden flex flex-col shadow-sm">
-                    {usersListData.map((u, idx) => (
-                      <div
-                        key={u.id}
-                        onClick={() => { saveRecentSearch(search.trim()); triggerFeedback('pop'); navigate(`/profile/${u.id}`); }}
-                        className={`py-4 px-5 flex items-center justify-between cursor-pointer hover:bg-white/5 active:scale-[0.98] transition-all ${idx !== usersListData.length - 1 ? 'border-b border-surface-border' : ''}`}
-                      >
-                        <div className="flex items-center gap-4 text-right">
-                          <div className="w-12 h-12 rounded-full border border-surface-border bg-surface overflow-hidden shrink-0 flex items-center justify-center shadow-sm">
-                            {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={28} className="text-brand-muted" strokeWidth={1.5} />}
+                    </div>
+                  )}
+                  
+                  {/* Global User Results */}
+                  {searchUsersResult.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                      <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-6">משתמשים</span>
+                      <div className="mx-4 bg-surface-card border border-surface-border rounded-[24px] overflow-hidden flex flex-col shadow-sm">
+                        {searchUsersResult.map((u, idx) => (
+                          <div
+                            key={u.id}
+                            onClick={() => { saveRecentSearch(search.trim()); triggerFeedback('pop'); navigate(`/profile/${u.id}`); }}
+                            className={`py-4 px-5 flex items-center justify-between cursor-pointer hover:bg-white/5 active:scale-[0.98] transition-all ${idx !== searchUsersResult.length - 1 ? 'border-b border-surface-border' : ''}`}
+                          >
+                            <div className="flex items-center gap-4 text-right">
+                              <div className="w-12 h-12 rounded-full border border-surface-border bg-surface overflow-hidden shrink-0 flex items-center justify-center shadow-sm">
+                                {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={28} className="text-brand-muted" strokeWidth={1.5} />}
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-brand font-black text-[15px] flex items-center gap-1">
+                                  {u.full_name || 'משתמש'}
+                                  {u.role_label === 'CORE' && <Crown size={12} className="text-slate-400" />}
+                                </span>
+                                <span className="text-brand-muted text-[12px] font-medium mt-0.5" dir="ltr">@{u.username || 'user'}</span>
+                              </div>
+                            </div>
+                            <ChevronLeft size={20} className="text-brand-muted" />
                           </div>
-                          <div className="flex flex-col">
-                            <span className="text-brand font-black text-[15px]">{u.full_name || 'משתמש'}</span>
-                            <span className="text-brand-muted text-[12px] font-medium mt-0.5" dir="ltr">@{u.username || 'user'}</span>
-                          </div>
-                        </div>
-                        <ChevronLeft size={20} className="text-brand-muted" />
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                    </div>
+                  )}
 
-              {/* No Results */}
-              {filteredCircles.length === 0 && usersListData.length === 0 && !loadingUsers && (
-                <div className="text-center py-20 flex flex-col items-center gap-4 opacity-50">
-                  <Search size={40} className="text-brand-muted" strokeWidth={1} />
-                  <span className="text-brand-muted font-black text-[12px] tracking-widest uppercase">אין תוצאות לחיפוש הזה</span>
-                </div>
+                  {/* Global Posts & Hashtags Results */}
+                  {searchPostsResult.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                      <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-6">פוסטים ודיונים</span>
+                      <div className="mx-4 bg-surface-card border border-surface-border rounded-[24px] overflow-hidden flex flex-col shadow-sm">
+                        {searchPostsResult.map((post, idx) => (
+                          <div
+                            key={post.id}
+                            onClick={() => { saveRecentSearch(search.trim()); triggerFeedback('pop'); navigate(`/post/${post.id}`); }}
+                            className={`py-4 px-5 flex flex-col gap-2 cursor-pointer hover:bg-white/5 active:scale-[0.98] transition-all ${idx !== searchPostsResult.length - 1 ? 'border-b border-surface-border' : ''}`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full overflow-hidden bg-surface border border-surface-border shrink-0">
+                                  {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full text-brand-muted" />}
+                                </div>
+                                <span className="text-brand-muted font-bold text-[11px]">{post.profiles?.full_name || 'אנונימי'}</span>
+                              </div>
+                              <Hash size={14} className="text-slate-400/50" />
+                            </div>
+                            <p className="text-brand text-[13px] leading-relaxed line-clamp-2 font-medium">
+                              {/* Highlight the search term visually if needed, but for now simple render */}
+                              {post.content}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* No Results at all */}
+                  {!hasSearchResults && (
+                    <div className="text-center py-20 flex flex-col items-center gap-4 opacity-50">
+                      <Search size={40} className="text-brand-muted" strokeWidth={1} />
+                      <span className="text-brand-muted font-black text-[12px] tracking-widest uppercase">אין תוצאות לחיפוש הזה</span>
+                    </div>
+                  )}
+                </划>
               )}
             </motion.div>
 
