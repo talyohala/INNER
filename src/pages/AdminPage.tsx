@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ShieldCheck, CheckCircle, XCircle, Loader2, Users, DollarSign, 
-  Search, BarChart3, Gift, Ban, MessageSquare, PlusCircle
+  Search, Gift, Ban, MessageSquare, PlusCircle, Trash2, Activity
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -17,11 +17,11 @@ export const AdminPage: React.FC = () => {
   const { profile } = useAuth();
   
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'cashouts' | 'users'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'cashouts' | 'users' | 'content'>('dashboard');
   
   const [adminData, setAdminData] = useState({
     total_users: 0, total_crd: 0, total_posts: 0, total_circles: 0,
-    pending_cashouts: [] as any[], recent_users: [] as any[]
+    pending_cashouts: [] as any[], recent_users: [] as any[], recent_posts: [] as any[], chart_data: [] as any[]
   });
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -57,7 +57,7 @@ export const AdminPage: React.FC = () => {
       triggerFeedback('success');
       await fetchAdminData();
     } catch (err: any) {
-      toast.error(err.message || 'שגיאה', { id: tid });
+      toast.error('שגיאה בעדכון הבקשה', { id: tid });
     }
   };
 
@@ -98,35 +98,51 @@ export const AdminPage: React.FC = () => {
     }
   };
 
+  const handleDeletePost = async (postId: string) => {
+    if (!window.confirm('למחוק פוסט זה לצמיתות מהמערכת?')) return;
+    triggerFeedback('pop');
+    try {
+      const { error } = await supabase.rpc('admin_delete_post', { p_post_id: postId });
+      if (error) throw error;
+      toast.success('הפוסט הוסר');
+      await fetchAdminData();
+    } catch (err) {
+      toast.error('שגיאה במחיקת פוסט');
+    }
+  };
+
   const filteredUsers = adminData.recent_users.filter(u => 
     u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
     u.username?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  if (loading) return <div className="min-h-screen bg-[#030303] flex items-center justify-center"><Loader2 className="animate-spin text-indigo-500" size={32} /></div>;
+  const maxChartValue = Math.max(...adminData.chart_data.map((d: any) => d.count), 1);
+
+  if (loading) return <div className="min-h-screen bg-[#030303] flex items-center justify-center"><Loader2 className="animate-spin text-cyan-400" size={32} /></div>;
 
   return (
     <FadeIn className="bg-[#030303] min-h-[100dvh] font-sans flex flex-col relative overflow-hidden pb-24" dir="rtl">
       
-      {/* HEADER (No Back Button) */}
+      {/* HEADER */}
       <div className="pt-[calc(env(safe-area-inset-top)+20px)] px-6 pb-6 flex justify-between items-end relative z-10">
         <div className="flex flex-col">
-          <span className="text-indigo-400 text-[11px] font-black tracking-[0.2em] uppercase mb-1">מערכת הליבה</span>
-          <h1 className="text-3xl font-black text-white tracking-widest flex items-center gap-2">INNER <ShieldCheck size={28} className="text-indigo-500" /></h1>
+          <span className="text-cyan-400 text-[11px] font-black tracking-[0.2em] uppercase mb-1">מערכת הליבה</span>
+          <h1 className="text-3xl font-black text-white tracking-widest flex items-center gap-2">INNER <ShieldCheck size={28} className="text-cyan-400" /></h1>
         </div>
-        <div className="w-12 h-12 bg-surface-card border border-surface-border rounded-full flex items-center justify-center shadow-inner overflow-hidden">
-          {profile?.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" /> : <ShieldCheck className="text-brand-muted" />}
+        <div className="w-12 h-12 bg-surface-card border border-cyan-500/20 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(34,211,238,0.2)] overflow-hidden">
+          {profile?.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" /> : <ShieldCheck className="text-cyan-400" />}
         </div>
       </div>
 
       {/* TABS */}
       <div className="px-4 mb-6 relative z-10">
         <div className="flex bg-surface-card p-1.5 rounded-2xl border border-surface-border shadow-inner">
-          <button onClick={() => { triggerFeedback('pop'); setActiveTab('dashboard'); }} className={`flex-1 py-2.5 rounded-xl text-[12px] font-black uppercase tracking-widest transition-all ${activeTab === 'dashboard' ? 'bg-indigo-500 text-white shadow-lg' : 'text-brand-muted hover:text-brand'}`}>סקירה</button>
-          <button onClick={() => { triggerFeedback('pop'); setActiveTab('cashouts'); }} className={`flex-1 py-2.5 rounded-xl text-[12px] font-black uppercase tracking-widest transition-all relative ${activeTab === 'cashouts' ? 'bg-indigo-500 text-white shadow-lg' : 'text-brand-muted hover:text-brand'}`}>
-            משיכות {adminData.pending_cashouts.length > 0 && <span className="absolute top-1 right-2 w-2.5 h-2.5 bg-emerald-400 border border-surface rounded-full animate-pulse" />}
+          <button onClick={() => { triggerFeedback('pop'); setActiveTab('dashboard'); }} className={`flex-1 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === 'dashboard' ? 'bg-cyan-500 text-black shadow-lg' : 'text-brand-muted hover:text-brand'}`}>סקירה</button>
+          <button onClick={() => { triggerFeedback('pop'); setActiveTab('cashouts'); }} className={`flex-1 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all relative ${activeTab === 'cashouts' ? 'bg-cyan-500 text-black shadow-lg' : 'text-brand-muted hover:text-brand'}`}>
+            משיכות {adminData.pending_cashouts.length > 0 && <span className="absolute top-1 right-2 w-2.5 h-2.5 bg-red-500 border border-surface rounded-full animate-pulse" />}
           </button>
-          <button onClick={() => { triggerFeedback('pop'); setActiveTab('users'); }} className={`flex-1 py-2.5 rounded-xl text-[12px] font-black uppercase tracking-widest transition-all ${activeTab === 'users' ? 'bg-indigo-500 text-white shadow-lg' : 'text-brand-muted hover:text-brand'}`}>משתמשים</button>
+          <button onClick={() => { triggerFeedback('pop'); setActiveTab('users'); }} className={`flex-1 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === 'users' ? 'bg-cyan-500 text-black shadow-lg' : 'text-brand-muted hover:text-brand'}`}>משתמשים</button>
+          <button onClick={() => { triggerFeedback('pop'); setActiveTab('content'); }} className={`flex-1 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === 'content' ? 'bg-cyan-500 text-black shadow-lg' : 'text-brand-muted hover:text-brand'}`}>תוכן</button>
         </div>
       </div>
 
@@ -136,9 +152,10 @@ export const AdminPage: React.FC = () => {
           {/* TAB: DASHBOARD */}
           {activeTab === 'dashboard' && (
             <motion.div key="dash" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="grid grid-cols-2 gap-4">
-              <div className="col-span-2 bg-gradient-to-br from-indigo-500/20 to-surface-card border border-indigo-500/30 rounded-[32px] p-6 shadow-lg relative overflow-hidden">
-                <div className="absolute -top-10 -right-10 w-32 h-32 bg-indigo-500/20 blur-[40px] rounded-full pointer-events-none" />
-                <span className="text-indigo-300 text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5 mb-2"><DollarSign size={14} /> סך הכל כלכלה בתוך האפליקציה</span>
+              
+              <div className="col-span-2 bg-gradient-to-br from-cyan-500/20 to-surface-card border border-cyan-500/30 rounded-[32px] p-6 shadow-[0_10px_30px_rgba(34,211,238,0.1)] relative overflow-hidden">
+                <div className="absolute -top-10 -right-10 w-32 h-32 bg-cyan-500/20 blur-[40px] rounded-full pointer-events-none" />
+                <span className="text-cyan-300 text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5 mb-2"><DollarSign size={14} /> כלכלת CRD באפליקציה</span>
                 <span className="text-white font-black text-5xl tracking-tight">{adminData.total_crd.toLocaleString()}</span>
               </div>
               
@@ -152,13 +169,36 @@ export const AdminPage: React.FC = () => {
                 <span className="text-brand font-black text-2xl">{adminData.total_posts.toLocaleString()}</span>
               </div>
 
-              <div className="col-span-2 bg-surface-card border border-surface-border rounded-[28px] p-5 shadow-sm flex items-center justify-between">
+              {/* GRAPH SECTION */}
+              <div className="col-span-2 bg-surface-card border border-surface-border rounded-[32px] p-6 shadow-sm">
+                <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5 mb-6"><Activity size={14} /> הרשמות השבוע</span>
+                <div className="flex items-end justify-between h-32 gap-2">
+                  {adminData.chart_data.length === 0 ? (
+                    <div className="w-full h-full flex items-center justify-center text-brand-muted text-[12px] font-bold">אין נתונים מספיקים</div>
+                  ) : (
+                    adminData.chart_data.map((data: any, i: number) => {
+                      const heightPercent = Math.max((data.count / maxChartValue) * 100, 5);
+                      return (
+                        <div key={i} className="flex flex-col items-center gap-2 flex-1">
+                          <div className="w-full bg-surface rounded-t-md flex flex-col justify-end h-full relative group">
+                            <motion.div initial={{ height: 0 }} animate={{ height: `${heightPercent}%` }} className="bg-cyan-500 rounded-t-md w-full opacity-80 group-hover:opacity-100 transition-opacity" />
+                            <span className="absolute -top-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 text-[10px] text-white font-black">{data.count}</span>
+                          </div>
+                          <span className="text-[9px] font-black text-brand-muted">{data.date}</span>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              </div>
+
+              <div className="col-span-2 bg-surface-card border border-surface-border rounded-[28px] p-5 shadow-sm flex items-center justify-between cursor-pointer active:scale-95 transition-transform" onClick={() => navigate('/create-circle')}>
                 <div className="flex flex-col">
-                  <span className="text-brand-muted text-[10px] font-black uppercase tracking-widest mb-1">מועדונים וקהילות פעילות</span>
+                  <span className="text-brand-muted text-[10px] font-black uppercase tracking-widest mb-1">מועדונים פעילים</span>
                   <span className="text-brand font-black text-2xl">{adminData.total_circles.toLocaleString()}</span>
                 </div>
-                <div className="w-12 h-12 bg-emerald-500/10 rounded-full flex items-center justify-center border border-emerald-500/20">
-                  <PlusCircle size={20} className="text-emerald-400" />
+                <div className="w-12 h-12 bg-cyan-500/10 rounded-full flex items-center justify-center border border-cyan-500/20">
+                  <PlusCircle size={20} className="text-cyan-400" />
                 </div>
               </div>
             </motion.div>
@@ -178,17 +218,17 @@ export const AdminPage: React.FC = () => {
                     <div className="flex items-center justify-between border-b border-surface-border pb-4 mb-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full overflow-hidden bg-surface border border-surface-border">
-                          {tx.avatar_url ? <img src={tx.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="text-brand-muted w-full h-full" />}
+                          {tx.avatar_url ? <img src={tx.avatar_url} className="w-full h-full object-cover" /> : <Users className="text-brand-muted w-full h-full" />}
                         </div>
                         <div className="flex flex-col">
                           <span className="text-brand font-black text-[14px]">{tx.full_name}</span>
                           <span className="text-brand-muted text-[10px] font-bold" dir="ltr">@{tx.username}</span>
                         </div>
                       </div>
-                      <span className="text-emerald-400 font-black text-xl" dir="ltr">{Math.abs(tx.amount)} CRD</span>
+                      <span className="text-cyan-400 font-black text-xl" dir="ltr">{Math.abs(tx.amount)} CRD</span>
                     </div>
                     <div className="flex gap-2">
-                      <Button onClick={() => handleCashoutAction(tx.id, 'approve')} className="flex-1 h-12 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[12px] rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-transform">
+                      <Button onClick={() => handleCashoutAction(tx.id, 'approve')} className="flex-1 h-12 bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[12px] rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-transform">
                         <CheckCircle size={16} /> העברתי כסף
                       </Button>
                       <Button onClick={() => { if(window.confirm('לדחות ולהחזיר למשתמש את ה-CRD?')) handleCashoutAction(tx.id, 'reject'); }} className="flex-1 h-12 bg-rose-500/10 text-rose-500 border border-rose-500/20 text-[12px] rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-transform">
@@ -206,13 +246,7 @@ export const AdminPage: React.FC = () => {
             <motion.div key="users" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-4">
               <div className="relative">
                 <Search size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-muted" />
-                <input 
-                  type="text" 
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="חיפוש משתמשים לניהול..." 
-                  className="w-full bg-surface-card border border-surface-border text-brand font-black h-14 rounded-full pl-4 pr-12 outline-none focus:border-indigo-500/50 transition-colors shadow-inner text-[14px]"
-                />
+                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="חיפוש משתמשים..." className="w-full bg-surface-card border border-surface-border text-brand font-black h-14 rounded-full pl-4 pr-12 outline-none focus:border-cyan-500/50 transition-colors shadow-inner text-[14px]" />
               </div>
               <div className="flex flex-col gap-2">
                 {filteredUsers.map((u: any) => (
@@ -223,18 +257,41 @@ export const AdminPage: React.FC = () => {
                       </div>
                       <div className="flex flex-col">
                         <span className={`font-black text-[14px] flex items-center gap-1.5 ${u.is_banned ? 'text-rose-500 line-through' : 'text-brand'}`}>
-                          {u.full_name} {u.role_label === 'CORE' && <ShieldCheck size={12} className="text-indigo-400" />}
+                          {u.full_name} {u.role_label === 'CORE' && <ShieldCheck size={12} className="text-cyan-400" />}
                         </span>
                         <span className="text-brand-muted text-[10px]" dir="ltr">@{u.username}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 bg-black/20 px-3 py-1.5 rounded-xl border border-white/5">
-                      <span className="text-amber-400 font-black text-[13px]">{u.crd_balance}</span>
-                      <DollarSign size={14} className="text-amber-400" />
+                      <span className="text-cyan-400 font-black text-[13px]">{u.crd_balance}</span>
+                      <DollarSign size={14} className="text-cyan-400" />
                     </div>
                   </div>
                 ))}
               </div>
+            </motion.div>
+          )}
+
+          {/* TAB: CONTENT (MODERATION) */}
+          {activeTab === 'content' && (
+            <motion.div key="content" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-4">
+              {adminData.recent_posts.map((p: any) => (
+                <div key={p.id} className="bg-surface-card border border-surface-border rounded-[24px] p-4 flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                     <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full overflow-hidden bg-surface">
+                           {p.avatar_url ? <img src={p.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-surface-border" />}
+                        </div>
+                        <span className="text-brand font-black text-[12px]">{p.full_name}</span>
+                     </div>
+                     <button onClick={() => handleDeletePost(p.id)} className="w-8 h-8 flex items-center justify-center bg-rose-500/10 text-rose-500 rounded-full border border-rose-500/20 active:scale-90">
+                        <Trash2 size={14} />
+                     </button>
+                  </div>
+                  {p.media_url && <img src={p.media_url} className="w-full h-32 object-cover rounded-xl" />}
+                  <p className="text-brand text-[13px] line-clamp-2">{p.content}</p>
+                </div>
+              ))}
             </motion.div>
           )}
           
@@ -249,7 +306,6 @@ export const AdminPage: React.FC = () => {
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedUser(null)} />
               <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 400 }} className="relative z-10 bg-surface rounded-t-[40px] p-6 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border flex flex-col">
                 <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-6" />
-                
                 <div className="flex items-center gap-4 mb-8 bg-surface-card border border-surface-border p-4 rounded-3xl">
                    <div className="w-16 h-16 rounded-full overflow-hidden bg-surface shrink-0">
                       {selectedUser.avatar_url ? <img src={selectedUser.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-surface-border" />}
@@ -260,30 +316,20 @@ export const AdminPage: React.FC = () => {
                    </div>
                    <div className="flex flex-col items-end">
                       <span className="text-[10px] text-brand-muted font-black uppercase tracking-widest mb-0.5">יתרה נוכחית</span>
-                      <span className="text-amber-400 font-black text-lg">{selectedUser.crd_balance} CRD</span>
+                      <span className="text-cyan-400 font-black text-lg">{selectedUser.crd_balance} CRD</span>
                    </div>
                 </div>
-
                 <div className="flex flex-col gap-3 mb-6">
                    <h4 className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-2">פעולות הנהלה</h4>
-                   
-                   {/* הענקת CRD */}
                    <div className="flex items-center gap-2 bg-surface-card border border-surface-border p-2 pr-4 rounded-2xl">
-                      <Gift size={20} className="text-emerald-400 shrink-0" />
-                      <input 
-                        type="number" value={grantAmount} onChange={(e) => setGrantAmount(Number(e.target.value))} 
-                        placeholder="סכום להעברה..." 
-                        className="flex-1 bg-transparent border-none text-brand font-black outline-none h-10 px-2"
-                      />
-                      <Button onClick={handleGrantCrd} disabled={actionLoading || !grantAmount} className="h-10 bg-emerald-500 text-white rounded-xl px-4 text-[12px] font-black shadow-md active:scale-95 disabled:opacity-50">שלח בונוס</Button>
+                      <Gift size={20} className="text-cyan-400 shrink-0" />
+                      <input type="number" value={grantAmount} onChange={(e) => setGrantAmount(Number(e.target.value))} placeholder="סכום להעברה..." className="flex-1 bg-transparent border-none text-brand font-black outline-none h-10 px-2" />
+                      <Button onClick={handleGrantCrd} disabled={actionLoading || !grantAmount} className="h-10 bg-cyan-500 text-black rounded-xl px-4 text-[12px] font-black shadow-md active:scale-95 disabled:opacity-50">שלח בונוס</Button>
                    </div>
-
-                   {/* חסימה */}
                    <button onClick={() => handleToggleBan(selectedUser)} disabled={actionLoading} className={`w-full h-14 rounded-2xl flex items-center justify-center gap-2 font-black text-[13px] tracking-widest uppercase transition-all shadow-sm active:scale-95 ${selectedUser.is_banned ? 'bg-surface-card text-brand border border-surface-border' : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'}`}>
                       <Ban size={18} /> {selectedUser.is_banned ? 'שחרר חסימה למשתמש' : 'חסום משתמש מהאפליקציה'}
                    </button>
                 </div>
-
               </motion.div>
             </div>
           )}
