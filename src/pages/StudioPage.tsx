@@ -23,7 +23,7 @@ export const StudioPage: React.FC = () => {
   const [cashoutAmount, setCashoutAmount] = useState<number | ''>('');
   const [processing, setProcessing] = useState(false);
 
-  const MIN_CASHOUT = 500; // מינימום משיכה ב-CRD
+  const MIN_CASHOUT = 500; 
 
   useEffect(() => {
     if (profile?.id) fetchStudioData();
@@ -32,7 +32,6 @@ export const StudioPage: React.FC = () => {
   const fetchStudioData = async () => {
     setLoading(true);
     try {
-      // שליפת עסקאות של הכנסות בלבד (סיגנלים, כספות, העברות נכנסות)
       const { data: txs, error } = await supabase
         .from('transactions')
         .select('*')
@@ -44,8 +43,6 @@ export const StudioPage: React.FC = () => {
       if (error) throw error;
 
       const earnings = txs || [];
-      
-      // חישובים סטטיסטיים
       const now = new Date();
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       
@@ -60,9 +57,8 @@ export const StudioPage: React.FC = () => {
       });
 
       setRevenueStats({ total, thisMonth, pending: profile?.crd_balance || 0 });
-      setRecentEarnings(earnings.slice(0, 10)); // 10 האחרונים
+      setRecentEarnings(earnings.slice(0, 10)); 
     } catch (err) {
-      console.error('Error fetching studio data', err);
       toast.error('שגיאה בטעינת נתוני סטודיו');
     } finally {
       setLoading(false);
@@ -79,16 +75,13 @@ export const StudioPage: React.FC = () => {
     const tid = toast.loading('מעבד בקשת משיכה...');
 
     try {
-      // ניכוי היתרה ושמירת בקשת משיכה (withdrawal)
-      const newBalance = (profile!.crd_balance || 0) - amount;
-      await supabase.from('profiles').update({ crd_balance: newBalance }).eq('id', profile!.id);
-      
-      await supabase.from('transactions').insert({
-        user_id: profile!.id,
-        amount: -amount,
-        type: 'withdrawal_pending',
-        description: 'בקשת משיכה לחשבון הבנק (ממתין לאישור)'
+      // התיקון: קריאה מאובטחת לפונקציית השרת שבנינו
+      const { error } = await supabase.rpc('request_cashout', {
+        p_user_id: profile!.id,
+        p_amount: amount
       });
+
+      if (error) throw error;
 
       if (reloadProfile) reloadProfile();
       await fetchStudioData();
@@ -97,8 +90,8 @@ export const StudioPage: React.FC = () => {
       toast.success('בקשת המשיכה נשלחה בהצלחה!', { id: tid });
       setShowCashout(false);
       setCashoutAmount('');
-    } catch (err) {
-      toast.error('שגיאה בביצוע משיכה', { id: tid });
+    } catch (err: any) {
+      toast.error(err.message || 'שגיאה בביצוע משיכה', { id: tid });
     } finally {
       setProcessing(false);
     }
