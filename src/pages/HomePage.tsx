@@ -13,7 +13,8 @@ import {
 } from 'lucide-react';                                   
 import { triggerFeedback } from '../lib/sound';          
 import toast from 'react-hot-toast';                     
-import { Share } from '@capacitor/share';                                                                         
+import { Share } from '@capacitor/share';
+import { useAuth } from '../context/AuthContext';                                                                         
 
 type AnyPost = any;                                      
 type AnyComment = any;                                                                                            
@@ -26,6 +27,7 @@ const SEAL_TYPES = [
 
 export const HomePage: React.FC = () => {                  
   const navigate = useNavigate();                          
+  const { profile } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);     
   const scrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);                                         
   const pullStartY = useRef(0);                            
@@ -466,18 +468,26 @@ export const HomePage: React.FC = () => {
         if (updateRes.error) throw updateRes.error;              
         setComments((prev) => prev.map((c) => c.id === editingCommentId ? { ...c, content: newComment.trim() } : c));                                                              
         setEditingCommentId(null);                             
-      } else {                                                   
+      } else {
+        const parentIdToUse = replyingTo ? (replyingTo.parent_id || replyingTo.id) : null;                                                   
         const data = await apiFetch(`/api/posts/${activePost.id}/comments`, {                                               
           method: 'POST',                                          
           headers: { 'x-user-id': currentUserId },                 
-          body: JSON.stringify({ content: newComment.trim(), parent_id: replyingTo?.id || null }),                        
+          body: JSON.stringify({ content: newComment.trim(), parent_id: parentIdToUse }),                        
         });                                                      
-        if (data) {                                                
-          setComments((prev) => [...prev, data]);                  
+        if (data) {
+          const newCommentObj = {
+            ...data,
+            profiles: {
+              full_name: profile?.full_name || 'משתמש',
+              avatar_url: profile?.avatar_url
+            }
+          };                                                
+          setComments((prev) => [...prev, newCommentObj]);                  
           const update = (list: AnyPost[]) => list.map((p) => p.id === activePost.id ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p);                                   
           setPosts((prev) => update(prev));                        
           if (fullScreenMedia) setFullScreenMedia((prev) => (prev ? update(prev) : prev));                                  
-          if (replyingTo) setExpandedThreads((prev) => ({ ...prev, [replyingTo.id]: true }));                               
+          if (replyingTo) setExpandedThreads((prev) => ({ ...prev, [parentIdToUse]: true }));                               
           triggerFeedback('coin');                               
         }                                                      
       }                                                        
@@ -544,21 +554,19 @@ export const HomePage: React.FC = () => {
     return parts.map((part, i) => part.startsWith('@') ? <span key={i} className="text-accent-primary font-bold">{part}</span> : <span key={i}>{part}</span>);               
   };                                                                                                                
   
-  const stopPropagation = (e: React.SyntheticEvent) => e.stopPropagation();                                                                                                  
-  
-  // -- Smart Comment Sorting logic (Threads) --
+  const stopPropagation = (e: React.SyntheticEvent) => e.stopPropagation();
+
   const sortedParentComments = useMemo(() => {
     return comments
       .filter((c) => c && !c.parent_id)
       .sort((a, b) => {
-        // מסדר קודם כל לפי כמות הדיונים (התגובות) בשרשור
         const repliesA = comments.filter((r) => r && r.parent_id === a.id).length;
         const repliesB = comments.filter((r) => r && r.parent_id === b.id).length;
         if (repliesB !== repliesA) return repliesB - repliesA;
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
-  }, [comments]);
-
+  }, [comments]);                                                                                                  
+  
   if (loading && posts.length === 0) {                       
     return <div className="min-h-screen bg-surface flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div>;               
   }                                                                                                                 
@@ -614,7 +622,7 @@ export const HomePage: React.FC = () => {
         
         <div className="relative z-10 px-4">                                                                                
           
-          {/* STICKY HEADER */}                                    
+          {/* STICKY HEADER (Removed bottom border) */}                                    
           <div className="sticky top-0 z-[60] bg-surface/80 backdrop-blur-xl pt-4 pb-3 flex justify-between items-center -mx-4 px-6 mb-4">                                                             
             <div className="w-10" />
             <div className="flex flex-col items-center absolute left-1/2 -translate-x-1/2">                                     
@@ -682,7 +690,7 @@ export const HomePage: React.FC = () => {
             </div>                                                 
           </div>                                                                                                            
           
-          {/* 📰 FEED */}                                          
+          {/* 📰 FEED (Tight Gaps) */}                                          
           <div className="flex flex-col gap-2 relative z-10 pb-10">                                                           
             {posts.map((post) => {   
 
@@ -773,7 +781,7 @@ export const HomePage: React.FC = () => {
                       )}                                                                                                                
                       
                       {/* Overlay Bottom Content */}                           
-                      <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-24 bg-gradient-to-t from-black/60 via-black/20 to-transparent flex flex-col justify-end pointer-events-none">                                                                                                                    
+                      <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-24 bg-gradient-to-t from-black/60 via-black/20 to-transparent flex flex-col justify-end pointer-events-none z-20">                                                                                                                    
                         
                         {/* Content */}                                          
                         {post.content && (                                         
@@ -837,65 +845,85 @@ export const HomePage: React.FC = () => {
                     </div>                                                 
                   )}                                                                                                                
                   
-                  {/* Text Only Post (PREMIUM REDESIGN MATCHING THE IMAGE) */}                                   
+                  {/* Text Only Post (PREMIUM REDESIGN MATCHING MEDIA) */}                                   
                   {!hasMedia && (                                            
-                    <div className="flex flex-col gap-4 p-4">                                                                           
-                      <div className="flex items-start justify-between">                                                                 
-                        {/* User Info */}
-                        <div className="flex items-center gap-3 cursor-pointer group" onClick={() => navigate(`/profile/${post.user_id}`)}>                                                          
-                          <div className="w-10 h-10 rounded-full bg-surface border border-surface-border overflow-hidden shrink-0 flex items-center justify-center shadow-inner">                                                                               
-                            {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" loading="lazy" /> : <span className="text-brand-muted font-black text-sm flex items-center justify-center leading-none">{(post.profiles?.full_name || 'א')[0]}</span>}                                                                      
-                          </div>                                                   
-                          <div className="flex flex-col text-right">                                                                          
-                            <div className="flex items-center gap-1.5">                                                                         
-                              <span className="text-brand font-black text-[14px]">{post.profiles?.full_name || 'אנונימי'}</span>                                                                         
-                              {isCore && <Crown size={12} className="text-accent-primary" />}                                                 
-                            </div>                                                   
-                            <span className="text-brand-muted text-[10px] font-bold">{new Date(post.created_at).toLocaleDateString('he-IL')}</span>                                                  
+                    <div className="w-full relative bg-[#0a0a0a] min-h-[380px] max-h-[550px] flex flex-col justify-between cursor-pointer group" onClick={() => { if(isLockedDrop) openOverlay(()=>setContributeModal(post)); else openOverlay(() => setActiveDescPost(post)); }}>                             
+                      {isLockedDrop && (                                         
+                        <div className="absolute inset-0 bg-surface/80 backdrop-blur-md flex flex-col items-center justify-center z-30 gap-2">                                                       
+                          <Lock size={24} className="text-brand-muted" />                                                                   
+                          <span className="text-[12px] font-black tracking-widest uppercase">דרופ נעול</span>                               
+                          <div className="w-[150px] bg-surface-card border border-surface-border rounded-full h-1.5 mt-1 overflow-hidden">                                                             
+                            <div className="h-full bg-accent-primary" style={{ width: `${Math.min(100, (post.current_crd / post.required_crd) * 100)}%` }} />                                        
                           </div>                                                 
-                        </div>                                                                                                            
+                        </div>                                                 
+                      )}                                                       
+                      
+                      {/* Top Text Content */}
+                      <div className={`p-6 pt-8 pb-32 flex-1 flex flex-col relative z-10 ${isLockedDrop ? 'blur-sm opacity-50' : ''}`}>
+                         <p className={`text-white/90 text-[17px] font-medium leading-relaxed text-right whitespace-pre-wrap break-words ${(post.content || '').length > 200 ? 'line-clamp-6' : ''}`}>
+                           {post.content}
+                         </p>
+                         {(post.content || '').length > 200 && (
+                           <div className="mt-2 flex items-center gap-1 text-accent-primary text-[12px] font-bold">
+                             קרא הכל <ChevronDown size={14} />
+                           </div>
+                         )}
+                      </div>
+                      
+                      {/* Bottom Overlay Matching Media Posts */}
+                      <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-24 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end pointer-events-none z-20">
                         
-                        {/* Actions Top Left */}
-                        <div className="flex items-center gap-3.5 flex-row-reverse mr-auto">                                                  
-                          {!isLockedDrop && <button onClick={() => openOverlay(() => setOptionsMenuPost(post))} className="text-brand-muted active:scale-90"><MoreVertical size={18} className="hover:text-brand transition-colors" /></button>}                                                                       
-                          {!isLockedDrop && <button onClick={() => openOverlay(() => { setActivePost(post); setActiveCommentsPostId(post.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', post.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); })} className="flex items-center gap-1 text-brand-muted active:scale-90 hover:text-brand transition-colors">                                                                            
-                            <MessageSquare size={16} />                              
-                            <span className="text-[12px] font-black">{post.comments_count || 0}</span>                                           
-                          </button>}                                               
-                          {!isLockedDrop && <button onClick={() => openOverlay(() => setSealSelectorPost(post))} className={`flex items-center gap-1 active:scale-90 transition-transform ${post.has_sealed ? 'text-orange-500' : 'text-brand-muted hover:text-orange-400'}`}>                                         
-                            <Flame size={18} fill={post.has_sealed ? 'currentColor' : 'none'} />                                              
-                            <span className="text-[12px] font-black">{post.seals_count || 0}</span>                                         
-                          </button>}                                             
-                        </div>                                                 
-                      </div>                                                                                                            
-                      
-                      {/* Inner Text Card - Black Premium Box */}
-                      <div onClick={() => { if(isLockedDrop) openOverlay(()=>setContributeModal(post)); else openOverlay(() => setActiveDescPost(post)); }} className={`bg-[#111] border border-white/5 rounded-[24px] px-6 py-10 cursor-pointer ${(post.content || '').length > 220 ? 'min-h-[220px]' : 'min-h-[160px]'} flex items-center justify-center shadow-inner relative overflow-hidden group hover:border-white/10 transition-colors`}>                             
-                        {isLockedDrop && (                                         
-                          <div className="absolute inset-0 bg-surface/80 backdrop-blur-md flex flex-col items-center justify-center z-10 gap-2">                                                       
-                            <Lock size={24} className="text-brand-muted" />                                                                   
-                            <span className="text-[12px] font-black tracking-widest uppercase">דרופ נעול</span>                               
-                            <div className="w-[150px] bg-surface-card border border-surface-border rounded-full h-1.5 mt-1 overflow-hidden">                                                             
-                              <div className="h-full bg-accent-primary" style={{ width: `${Math.min(100, (post.current_crd / post.required_crd) * 100)}%` }} />                                        
-                            </div>                                                 
+                        {post.user_circles && post.user_circles.length > 0 && !isLockedDrop && (                                            
+                          <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">                                                                            
+                            {post.user_circles.slice(0, 10).map((circle: any) => (                                                              
+                              <div key={circle.id} onClick={(e) => { e.stopPropagation(); navigate(`/circle/${circle.slug || circle.id}`); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">                                                                   
+                                <div className="w-8 h-8 rounded-full overflow-hidden border border-white/20 shadow-sm bg-surface flex items-center justify-center">                                          
+                                  {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-4 h-4 text-white/70" />}                                                                           
+                                </div>                                                   
+                                <span className="text-[9px] text-white drop-shadow-md font-bold max-w-[55px] truncate text-center uppercase tracking-wider">{circle.name}</span>                                                                                  
+                              </div>                                                 
+                            ))}                                                    
                           </div>                                                 
-                        )}                                                       
-                        <p className={`text-brand text-[17px] font-medium leading-relaxed text-center whitespace-pre-wrap break-words ${isLockedDrop ? 'blur-sm opacity-50' : ''}`}>{post.content}</p>                                                    
-                      </div>                                                                                                            
-                      
-                      {/* Circles Below Text */}
-                      {post.user_circles && post.user_circles.length > 0 && !isLockedDrop && (                                            
-                        <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mt-1">                                       
-                          {post.user_circles.slice(0, 10).map((circle: any) => (                                                              
-                            <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug || circle.id}`)} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">                                     
-                              <div className="w-8 h-8 rounded-full overflow-hidden bg-surface border border-surface-border shadow-sm flex items-center justify-center">                                    
-                                {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users size={40} className="text-brand-muted" />}                                                                        
+                        )}                                                                                                                
+                        
+                        {/* Footer: User Right, Actions Left */}                                                                          
+                        <div className="flex items-center justify-between gap-2 mt-1 pointer-events-auto">                                                                                           
+                          {/* User Info */}                                        
+                          <div className="flex items-center gap-2.5 cursor-pointer group" onClick={(e) => { e.stopPropagation(); navigate(`/profile/${post.user_id}`); }}>                             
+                            <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden shrink-0 shadow-sm bg-surface flex items-center justify-center">                               
+                              {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" loading="lazy" /> : <span className="text-white font-black text-lg flex items-center justify-center leading-none">{(post.profiles?.full_name || 'א')[0]}</span>}                                                                            
+                            </div>                                                   
+                            <div className="flex flex-col text-right">                                                                          
+                              <div className="flex items-center gap-1.5">                                                                         
+                                <span className="text-white font-black text-[14px] drop-shadow-md">{post.profiles?.full_name || 'אנונימי'}</span>                                                          
+                                {isCore && <Crown size={12} className="text-accent-primary drop-shadow-md" />}                                  
                               </div>                                                   
-                              <span className="text-[9px] text-brand-muted font-bold max-w-[55px] truncate text-center uppercase tracking-widest">{circle.name}</span>                                 
+                              <span className="text-white/80 text-[10px] font-bold drop-shadow-md">{new Date(post.created_at).toLocaleDateString('he-IL')}</span>                                      
                             </div>                                                 
-                          ))}                                                    
+                          </div>                                                                                                            
+                          
+                          {/* Actions */}                                          
+                          <div className="flex items-center gap-4 flex-row-reverse mr-auto">                                                  
+                            {!isLockedDrop && (                                        
+                              <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(post)); }} className="active:scale-90 text-white drop-shadow-md hover:text-white/80 transition-colors">                                           
+                                <MoreVertical size={20} />                                                                                      
+                              </button>                                              
+                            )}                                                       
+                            {!isLockedDrop && (                                        
+                              <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(post); setActiveCommentsPostId(post.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', post.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); }); }} className="flex items-center gap-1.5 active:scale-90 text-white drop-shadow-md hover:text-white/80 transition-colors">                                                       
+                                <MessageSquare size={20} />                                                                                       
+                                <span className="text-[13px] font-black">{post.comments_count}</span>                                           
+                              </button>                                              
+                            )}                                                       
+                            {!isLockedDrop && (                                        
+                              <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setSealSelectorPost(post)); }} className={`flex items-center gap-1.5 active:scale-90 transition-transform drop-shadow-md ${post.has_sealed ? 'text-orange-500' : 'text-white hover:text-orange-400'}`}>                                                                                
+                                <Flame size={22} fill={post.has_sealed ? 'currentColor' : 'none'} />                                              
+                                <span className="text-[13px] font-black">{post.seals_count || 0}</span>                                         
+                              </button>                                              
+                            )}                                                     
+                          </div>                                                 
                         </div>                                                 
-                      )}                                                     
+                      </div>                                                 
                     </div>                                                 
                   )}                                                     
                 </div>                                                 
@@ -1027,7 +1055,7 @@ export const HomePage: React.FC = () => {
                     <div className="text-center text-brand-muted text-[13px] font-bold mt-10 tracking-widest uppercase">אין תגובות עדיין</div>
                   ) : (
                     sortedParentComments.map((c) => {                                                                            
-                      // שליפת התגובות וסידורן מהישנה לחדשה (כדי שיראו כמו שרשור טבעי)
+                      // מציאת כל התגובות-בנות לשיחה הספציפית וסידורן לפי תאריך
                       const replies = comments.filter((r) => r && r.parent_id === c.id).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());                                                
                       const isThreadExpanded = expandedThreads[c.id];                                                                   
                       
@@ -1043,7 +1071,7 @@ export const HomePage: React.FC = () => {
                                 <p className="text-brand text-[14px] whitespace-pre-wrap leading-relaxed">{renderCommentText(c.content)}</p>                                                             
                               </div>                                                   
                               <div className="flex items-center gap-4 mt-2 px-2">                                                                 
-                                <span className="text-[11px] text-brand-muted cursor-pointer font-bold hover:text-brand transition-colors" onClick={() => { setReplyingTo(c); setNewComment(`@${c.profiles?.full_name} `); }}>השב לדיון</span>                                                                                     
+                                <span className="text-[11px] text-brand-muted cursor-pointer font-bold hover:text-brand transition-colors" onClick={() => { setReplyingTo(c); setNewComment(`@${c.profiles?.full_name} `); }}>השב</span>                                                                                     
                                 <button onClick={() => toggleCommentLike(c.id)} className={`ml-auto flex items-center gap-1 active:scale-90 transition-transform ${likedComments.has(c.id) ? 'text-orange-500' : 'text-brand-muted hover:text-orange-400'}`}>                                                                      
                                   <Flame size={14} fill={likedComments.has(c.id) ? 'currentColor' : 'none'} />                                    
                                 </button>                                              
