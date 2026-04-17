@@ -38,10 +38,15 @@ export const AdminPage: React.FC = () => {
     setLoading(true);
     try {
       const { data, error } = await supabase.rpc('get_admin_data');
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase Error:", error);
+        toast.error(`שגיאת שרת: ${error.message}`, { duration: 5000 });
+        return;
+      }
       setAdminData(data as any);
-    } catch (err) {
-      toast.error('שגיאה בטעינת נתוני אדמין');
+    } catch (err: any) {
+      console.error("App Error:", err);
+      toast.error(`תקלה: ${err.message || 'לא ידועה'}`, { duration: 5000 });
     } finally {
       setLoading(false);
     }
