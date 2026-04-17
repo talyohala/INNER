@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';                                                      
 import { motion, AnimatePresence } from 'framer-motion'; 
 import {                                                   
-  PlusCircle, Wallet, Bell, ShoppingBag, Settings, LogOut, Radar, MessageSquare, TrendingUp                                           
+  PlusCircle, Wallet, Bell, ShoppingBag, Settings, LogOut, Radar, MessageSquare, TrendingUp, ShieldCheck                                           
 } from 'lucide-react';                                   
 import { useAuth } from '../context/AuthContext';        
 import { triggerFeedback } from '../lib/sound';          
@@ -14,7 +14,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
   const [mounted, setMounted] = useState(false);           
   const location = useLocation();                          
   const navigate = useNavigate();                          
-  const { user, signOut, unreadCount, pendingSignalsCount } = useAuth() as any;                                                                                                                   
+  const { user, profile, signOut, unreadCount, pendingSignalsCount } = useAuth() as any;                                                                                                                   
   
   useEffect(() => { setMounted(true); }, []);                                                                                                           
   useEffect(() => { setIsSidebarOpen(false); }, [location.pathname]);                                                                                          
@@ -66,6 +66,14 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
 
                 <div className="flex flex-col gap-3 mt-2 pt-4 border-t border-surface-border/50">
                   
+                  {/* כפתור אדמין - מופיע רק ל-CORE */}
+                  {profile?.role_label === 'CORE' && (
+                    <button onClick={() => { triggerFeedback('pop'); navigate('/admin'); closeSidebar(); }} className="w-full flex items-center justify-center gap-2 p-4 rounded-[24px] bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500/20 active:scale-[0.98] transition-all shadow-sm">                                                          
+                      <ShieldCheck size={20} className="text-indigo-400" />
+                      <span className="text-indigo-400 text-[15px] font-black uppercase tracking-widest">פאנל ניהול</span>
+                    </button> 
+                  )}
+
                   {/* סטודיו יוצרים */}
                   <button onClick={() => { triggerFeedback('pop'); navigate('/studio'); closeSidebar(); }} className="w-full flex items-center justify-center gap-2 p-4 rounded-[24px] bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 active:scale-[0.98] transition-all shadow-sm">                                                          
                     <TrendingUp size={20} className="text-emerald-400" />

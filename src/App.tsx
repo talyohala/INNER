@@ -76,6 +76,7 @@ export const App = () => {
                 <Route path="/inbox" element={<PrivateRoute><InboxPage /></PrivateRoute>} />                                
                 <Route path="/chat/:userId" element={<PrivateRoute><ChatPage /></PrivateRoute>} />                                
                 <Route path="/studio" element={<PrivateRoute><StudioPage /></PrivateRoute>} /> {/* <-- נתיב הסטודיו */}
+                <Route path="/admin" element={<PrivateRoute><AdminPage /></PrivateRoute>} />
                 <Route path="*" element={<Navigate to="/" />} />                                                                
               </Routes>                                              
             </Layout>                                              
