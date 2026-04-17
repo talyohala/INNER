@@ -229,7 +229,7 @@ export const CirclePage: React.FC = () => {
   return (
     <>
       <FadeIn className="bg-surface h-[100dvh] font-sans flex flex-col relative overflow-hidden" dir="rtl">
-        {/* HERO SECTION - Removed bottom border */}
+        {/* HERO SECTION */}
         <div className="relative w-full h-[180px] shrink-0 bg-surface overflow-hidden flex flex-col justify-end pb-4">
           {circle.cover_url ? <img src={circle.cover_url} className="absolute inset-0 w-full h-full object-cover opacity-50" /> : <div className="absolute inset-0 bg-gradient-to-br from-surface-card to-surface"></div>}
           <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/60 to-transparent"></div>
@@ -257,22 +257,34 @@ export const CirclePage: React.FC = () => {
         ) : (
           <div className="flex flex-col flex-1 overflow-hidden relative">
             
-            {/* TABS (Clean & Centered) */}
-            <div className="flex justify-center gap-8 shrink-0 px-6 bg-surface z-10 relative pt-2">
-              {['chat', 'vaults', 'members'].map((tab) => (
-                <button key={tab} onClick={() => { triggerFeedback('pop'); setActiveTab(tab as any); }} className={`pb-3 text-[13px] font-black uppercase tracking-widest transition-colors relative ${activeTab === tab ? 'text-brand' : 'text-brand-muted hover:text-brand'}`}>
-                  {tab === 'chat' ? 'לייב צ׳אט' : tab === 'vaults' ? 'כספות' : 'חברים'}
-                  {activeTab === tab && <motion.div layoutId="circleTab" className="absolute bottom-0 left-0 right-0 h-[3px] bg-brand rounded-t-full" />}
-                </button>
-              ))}
+            {/* TABS (Segmented Control with accent-primary border) */}
+            <div className="flex justify-center px-4 py-3 bg-surface z-10 relative shrink-0 border-b border-surface-border">
+              <div className="flex w-full max-w-[340px] bg-surface border border-accent-primary/40 rounded-full p-1 relative shadow-[0_0_15px_rgba(var(--color-accent-primary),0.1)]">
+                {['chat', 'vaults', 'members'].map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => { triggerFeedback('pop'); setActiveTab(tab as any); }}
+                    className={`flex-1 relative py-2 text-[12px] font-black uppercase tracking-widest transition-colors rounded-full z-10 ${
+                      activeTab === tab ? 'text-white drop-shadow-md' : 'text-brand-muted hover:text-brand'
+                    }`}
+                  >
+                    <span className="relative z-20">
+                      {tab === 'chat' ? 'לייב צ׳אט' : tab === 'vaults' ? 'כספות' : 'חברים'}
+                    </span>
+                    {activeTab === tab && (
+                      <motion.div layoutId="activeCircleTab" className="absolute inset-0 bg-accent-primary rounded-full z-10 shadow-sm" />
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* TAB: CHAT (Fixed layout so input doesn't scroll) */}
+            {/* TAB: CHAT */}
             {activeTab === 'chat' && (
-              <div className="flex-1 flex flex-col overflow-hidden bg-surface">
+              <div className="flex-1 flex flex-col bg-surface relative h-full">
                 
                 {/* Scrollable Messages Area */}
-                <div className="flex-1 p-4 flex flex-col-reverse gap-6 overflow-y-auto scrollbar-hide">
+                <div className="absolute inset-0 overflow-y-auto scrollbar-hide p-4 flex flex-col-reverse gap-6 pb-[95px]">
                   {posts?.map((post: any) => (
                     <div key={post.id} className="flex flex-col gap-1 w-full">
                       <div className={`flex gap-3 w-full ${post.user_id === currentUserId ? 'flex-row-reverse' : ''}`}>
@@ -293,8 +305,8 @@ export const CirclePage: React.FC = () => {
                   )}
                 </div>
 
-                {/* Fixed Input Area at the bottom of the flex container */}
-                <div className="px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+75px)] shrink-0 bg-surface z-40">
+                {/* Fixed Input Area (Static at bottom) */}
+                <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+70px)] left-0 right-0 px-4 py-2 bg-surface/95 backdrop-blur-xl z-50 border-t border-surface-border">
                   <div className="w-full bg-surface-card border border-surface-border rounded-[28px] flex items-center px-2 py-1 h-14 shadow-sm">
                     <input 
                       type="text" 
