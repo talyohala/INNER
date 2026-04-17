@@ -147,38 +147,33 @@ export const HomePage: React.FC = () => {
     if (!isSilentRefresh) setLoading(true);                  
     try {                                                      
       const { data: authData } = await supabase.auth.getUser();                                                         
-      const uid = authData.user?.id || '';                     
+      const uid = authData.user?.id || null;                     
       if (uid) setCurrentUserId(uid);                                                                                   
       
-      const [rawPosts, rawProfiles, rawSeals, rawComments, rawMembers, rawCircles] = await Promise.all([                  
-        supabase.from('posts').select('*').order('created_at', { ascending: false }).limit(30).then((r) => r.data || []),                                                          
-        supabase.from('profiles').select('*').then((r) => r.data || []),                                                  
-        supabase.from('post_seals').select('*').then((r) => r.data || []),                                                
-        supabase.from('comments').select('*').then((r) => r.data || []),                                                
+      // משתמשים באלגוריתם הפיד החכם החדש שיצרנו
+      const [rawPosts, rawMembers, rawCircles] = await Promise.all([                  
+        supabase.rpc('get_smart_feed', { p_user_id: uid, p_limit: 30, p_offset: 0 }).then((r) => r.data || []),
         supabase.from('circle_members').select('*').then((r) => r.data || []),                                            
         supabase.from('circles').select('*').then((r) => r.data || []),                                                 
       ]);                                                                                                               
       
-      const fetchedPosts = rawPosts                              
-        .filter((p: any) => !p.circle_id)                        
-        .map((p: any) => {                                         
-          const prof = rawProfiles.find((pr: any) => pr.id === p.user_id) || {};                                            
-          const pSeals = rawSeals.filter((s: any) => s.post_id === p.id);                                                   
-          const pComments = rawComments.filter((c: any) => c.post_id === p.id);                                             
-          const userCircles = rawCircles.filter((c: any) => rawMembers.some((m: any) => m.circle_id === c.id && m.user_id === p.user_id));                                           
-          return {                                                   
-            ...p,                                                    
-            profiles: prof,                                          
-            seals_count: pSeals.length,                              
-            has_sealed: !!uid && pSeals.some((s: any) => s.user_id === uid),                                                  
-            comments_count: pComments.length,                        
-            user_circles: userCircles,                             
-          };                                                     
-        });                                                                                                             
+      const fetchedPosts = rawPosts.map((p: any) => {                                         
+        const userCircles = rawCircles.filter((c: any) => rawMembers.some((m: any) => m.circle_id === c.id && m.user_id === p.user_id));                                           
+        return {                                                   
+          ...p,                                                    
+          profiles: {
+            id: p.user_id,
+            full_name: p.author_name,
+            avatar_url: p.author_avatar,
+            role_label: p.author_role
+          },                             
+          user_circles: userCircles,                             
+        };                                                     
+      });                                                                                                             
       
       setPosts(fetchedPosts);                                
     } catch {                                                  
-      toast.error('שגיאה בטעינת הפיד');                      
+      toast.error('שגיאה בטעינת הפיד החכם');                      
     } finally {                                                
       setLoading(false);                                       
       setRefreshing(false);                                  
@@ -188,7 +183,7 @@ export const HomePage: React.FC = () => {
   const handleQuickRefresh = async () => {
     if (refreshing) return;
     setRefreshing(true);
-    setPullY(0); // מעלים את אינדיקטור הגרירה, נציג קפסולת ריענון במרכז
+    setPullY(0); 
     triggerFeedback('pop');
     scrollToTop();
     await Promise.all([fetchData(true), checkUnreadNotifications()]);
@@ -240,7 +235,7 @@ export const HomePage: React.FC = () => {
     if (pullStartY.current > 0 && window.scrollY <= 0) {       
       const y = e.touches[0].clientY - pullStartY.current;                                                              
       if (y > 0) {
-        setPullY(Math.min(Math.pow(y, 0.85), 100)); // ריכוך תנועה יוקרתי
+        setPullY(Math.min(Math.pow(y, 0.85), 100)); 
       }
     }                                                      
   };                                                                                                                
