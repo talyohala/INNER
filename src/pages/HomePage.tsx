@@ -186,7 +186,6 @@ export const HomePage: React.FC = () => {
       
       fetchedPosts.forEach((post: any, idx: number) => {
         mixedFeed.push(post);
-        // הוספת כרטיסיית מועדון מומלץ כל 4 פוסטים
         if ((idx + 1) % 4 === 0 && recommendedClubs[clubIdx]) {
           mixedFeed.push({ 
             ...recommendedClubs[clubIdx], 
@@ -305,13 +304,20 @@ export const HomePage: React.FC = () => {
       let media_type = 'text';                                                                                          
       
       if (selectedFile) {                                        
+        // הפיכת שם הקובץ לבטוח למניעת שגיאות העלאה נסתרות
         const safeName = selectedFile.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');                                             
-        const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}_${safeName}`;                              
-        const { data: uploadData, error: uploadError } = await supabase.storage.from('feed_images').upload(fileName, selectedFile);                                                
-        if (uploadError) throw uploadError;                                                                               
+        const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}_${safeName}`;                              
         
+        const { data: uploadData, error: uploadError } = await supabase.storage.from('feed_images').upload(fileName, selectedFile, {
+          cacheControl: '3600',
+          upsert: false
+        });                                                
+        
+        if (uploadError) throw new Error("שגיאה בהעלאת הקובץ: " + uploadError.message);                                                                               
+        if (!uploadData?.path) throw new Error("בעיה בקבלת נתיב הקובץ מהשרת");
+
         const { data: { publicUrl } } = supabase.storage.from('feed_images').getPublicUrl(uploadData.path);               
-        if (!publicUrl) throw new Error("Failed to get public URL");                                                                                                               
+        if (!publicUrl) throw new Error("לא הצלחנו לייצר קישור לקובץ");                                                                                                               
         
         media_url = publicUrl;                                   
         media_type = selectedFile.type.startsWith('video/') ? 'video' : 'image';                                        
@@ -341,6 +347,7 @@ export const HomePage: React.FC = () => {
       triggerFeedback('success');                              
       await fetchData(true);                                 
     } catch (e: any) {                                         
+      console.error(e);
       toast.error(e.message || 'שגיאה בשמירה');              
     } finally {                                                
       setPosting(false);                                     
@@ -613,10 +620,10 @@ export const HomePage: React.FC = () => {
           
           {/* CREATE POST (Slimmer & Cleaner) */}                                      
           <div className="mb-4">                                     
-            <div className="p-3 px-4 rounded-[28px] border border-surface-border bg-surface-card shadow-sm relative z-10 flex flex-col gap-2">                                                
+            <div className="p-3 px-4 rounded-[20px] border border-surface-border bg-surface-card shadow-sm relative z-10 flex flex-col gap-2">                                                
               
               {selectedFile && (                                         
-                <div className="relative w-full h-44 rounded-[20px] overflow-hidden bg-surface border border-surface-border flex items-center justify-center shadow-inner mt-2">                  
+                <div className="relative w-full h-44 rounded-[16px] overflow-hidden bg-surface border border-surface-border flex items-center justify-center shadow-inner mt-2">                  
                   {selectedFile.type.startsWith('video/') ? (                                                                         
                     <video src={URL.createObjectURL(selectedFile)} className="w-full h-full object-cover opacity-90" preload="metadata" playsInline />                                       
                   ) : (                                                      
@@ -632,7 +639,7 @@ export const HomePage: React.FC = () => {
                 value={newPost}                                          
                 onChange={(e) => setNewPost(e.target.value)}                                                                      
                 placeholder="מה בא לך לשתף עם כולם?"                           
-                className="w-full bg-transparent border-none text-brand text-[15px] font-medium outline-none resize-none placeholder:text-brand-muted/50 px-2 min-h-[44px]"                
+                className="w-full bg-transparent border-none text-brand text-[15px] font-medium outline-none resize-none placeholder:text-brand-muted/50 px-2 min-h-[44px] mt-1"                
                 rows={Math.min(Math.max(newPost.split('\n').length, 1), 4)}                                                     
               />                                                                                                                
               
@@ -669,15 +676,17 @@ export const HomePage: React.FC = () => {
 
               // -- SMART RENDER: CLUB RECOMMENDATION --
               if (post.type === 'club_recommendation') {
-                const price = Number(post.entry_crd_price) || 0;
+                // משיכת המחיר בצורה בטוחה בלי קשר לאיך קראנו לעמודה במסד
+                const price = Number(post.entry_crd_price || post.price || post.crd_price || post.entry_price || 0);
                 const isPremium = price > 0;
+                
                 return (
-                  <div key={post._uid} onClick={() => navigate(`/circle/${post.slug || post.id}`)} className="relative bg-surface-card border border-surface-border hover:border-accent-primary/30 rounded-[32px] overflow-hidden shadow-sm flex flex-col p-6 gap-4 cursor-pointer group active:scale-[0.98] transition-all">
+                  <div key={post._uid} onClick={() => navigate(`/circle/${post.slug || post.id}`)} className="relative bg-surface-card border border-surface-border hover:border-accent-primary/30 rounded-[24px] overflow-hidden shadow-sm flex flex-col p-6 gap-4 cursor-pointer group active:scale-[0.98] transition-all">
                     <div className="absolute -top-10 -right-10 w-32 h-32 bg-accent-primary/5 blur-[50px] rounded-full pointer-events-none group-hover:bg-accent-primary/10 transition-colors" />
                     
                     <div className="flex items-center justify-between gap-3 relative z-10">
                       <div className="flex items-center gap-3">
-                        <div className="w-14 h-14 rounded-[18px] overflow-hidden bg-surface border border-surface-border flex items-center justify-center shrink-0 shadow-inner">
+                        <div className="w-14 h-14 rounded-[14px] overflow-hidden bg-surface border border-surface-border flex items-center justify-center shrink-0 shadow-inner">
                           {post.cover_url ? <img src={post.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-6 h-6 text-brand-muted" />}
                         </div>
                         <div className="flex flex-col">
@@ -723,7 +732,7 @@ export const HomePage: React.FC = () => {
               const isLockedDrop = post.is_reveal_drop && post.reveal_status === 'locked';                                                                                               
               
               return (                                                   
-                <div key={post.id} className="flex flex-col rounded-[32px] bg-surface-card border border-surface-border overflow-hidden shadow-sm">                                                                                                   
+                <div key={post.id} className="flex flex-col rounded-[24px] bg-surface-card border border-surface-border overflow-hidden shadow-sm">                                                                                                   
                   
                   {hasMedia && (                                             
                     <div className="w-full relative cursor-pointer bg-surface" onClick={() => { if (!isLockedDrop) handleOpenFullscreen(post); }}>                                               
@@ -847,7 +856,7 @@ export const HomePage: React.FC = () => {
                         </div>                                                 
                       </div>                                                                                                            
                       
-                      <div onClick={() => { if(isLockedDrop) openOverlay(()=>setContributeModal(post)); else openOverlay(() => setActiveDescPost(post)); }} className={`bg-surface border border-surface-border rounded-[24px] px-6 py-8 cursor-pointer ${(post.content || '').length > 220 ? 'min-h-[220px]' : 'min-h-[140px]'} flex items-center justify-center shadow-inner relative overflow-hidden`}>                             
+                      <div onClick={() => { if(isLockedDrop) openOverlay(()=>setContributeModal(post)); else openOverlay(() => setActiveDescPost(post)); }} className={`bg-surface border border-surface-border rounded-[20px] px-6 py-8 cursor-pointer ${(post.content || '').length > 220 ? 'min-h-[220px]' : 'min-h-[140px]'} flex items-center justify-center shadow-inner relative overflow-hidden`}>                             
                         {isLockedDrop && (                                         
                           <div className="absolute inset-0 bg-surface/80 backdrop-blur-md flex flex-col items-center justify-center z-10 gap-2">                                                       
                             <Lock size={24} className="text-brand-muted" />                                                                   
@@ -889,7 +898,7 @@ export const HomePage: React.FC = () => {
           {sealSelectorPost && (                                     
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end p-4" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                             
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                             
-              <motion.div initial={{ y: '100%', scale: 0.95 }} animate={{ y: 0, scale: 1 }} exit={{ y: '100%', scale: 0.95 }} transition={{ type: 'spring', damping: 25, stiffness: 400 }} className="relative z-10 bg-surface border border-surface-border rounded-[40px] p-8 shadow-2xl flex flex-col items-center gap-6">                                          
+              <motion.div initial={{ y: '100%', scale: 0.95 }} animate={{ y: 0, scale: 1 }} exit={{ y: '100%', scale: 0.95 }} transition={{ type: 'spring', damping: 25, stiffness: 400 }} className="relative z-10 bg-surface border border-surface-border rounded-[32px] p-8 shadow-2xl flex flex-col items-center gap-6">                                          
                 <div className="w-12 h-1.5 bg-white/10 rounded-full mb-2" />                                                      
                 <div className="text-center">                              
                   <h3 className="text-brand font-black text-xl tracking-tighter uppercase">הענק חותם יוקרה</h3>                     
@@ -900,7 +909,7 @@ export const HomePage: React.FC = () => {
                     <button                                                    
                       key={type.id}                                            
                       onClick={() => handleSeal(sealSelectorPost.id, type.id)}                                                          
-                      className="flex flex-col items-center gap-3 p-5 rounded-[28px] bg-surface-card border border-surface-border hover:bg-white/5 transition-all active:scale-95 shadow-sm"                                                            
+                      className="flex flex-col items-center gap-3 p-5 rounded-[24px] bg-surface-card border border-surface-border hover:bg-white/5 transition-all active:scale-95 shadow-sm"                                                            
                     >                                                          
                       <div className={`${type.color} drop-shadow-lg`}>{type.icon}</div>                                                 
                       <div className="flex flex-col items-center gap-1">                                                                  
@@ -994,7 +1003,7 @@ export const HomePage: React.FC = () => {
           {activeCommentsPostId && (                                 
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                 
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                         
-              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 400 }} className="relative z-10 bg-surface rounded-t-[40px] h-[80vh] flex flex-col overflow-hidden pb-10 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border">                
+              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 400 }} className="relative z-10 bg-surface rounded-t-[32px] h-[80vh] flex flex-col overflow-hidden pb-10 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border">                
                 <div className="w-full py-5 flex justify-center cursor-grab active:cursor-grabbing border-b border-surface-border"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>                                                                                                             
                 <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-6 scrollbar-hide">                                     
                   {loadingComments ? <Loader2 className="animate-spin mx-auto text-brand-muted mt-10" /> : comments.filter((c) => c && !c.parent_id).length === 0 ? <div className="text-center text-brand-muted text-[13px] font-bold mt-10 tracking-widest uppercase">אין תגובות עדיין</div> : comments.filter((c) => c && !c.parent_id).map((c) => {                                                                            
@@ -1007,7 +1016,7 @@ export const HomePage: React.FC = () => {
                             {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover object-center" loading="lazy" /> : <span className="text-brand-muted font-black text-sm flex items-center justify-center leading-none">{(c.profiles?.full_name || 'א')[0]}</span>}                                                                 
                           </div>                                                   
                           <div className="flex flex-col flex-1">                                                                              
-                            <div className="bg-surface-card p-4 rounded-[24px] rounded-tr-sm cursor-pointer shadow-sm border border-surface-border" onClick={() => openOverlay(() => setCommentActionModal(c))}>                                                  
+                            <div className="bg-surface-card p-4 rounded-[20px] rounded-tr-sm cursor-pointer shadow-sm border border-surface-border" onClick={() => openOverlay(() => setCommentActionModal(c))}>                                                  
                               <span className="text-brand font-black text-[13px] mb-1.5 inline-block uppercase tracking-widest" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${c.user_id}`), 50); }}>{c.profiles?.full_name || 'אנונימי'}</span>                                                                                      
                               <p className="text-brand text-[14px] whitespace-pre-wrap leading-relaxed">{renderCommentText(c.content)}</p>                                                             
                             </div>                                                   
@@ -1031,7 +1040,7 @@ export const HomePage: React.FC = () => {
                               {reply.profiles?.avatar_url ? <img src={reply.profiles.avatar_url} className="w-full h-full object-cover object-center" loading="lazy" /> : <span className="text-brand-muted font-black text-[10px] flex items-center justify-center leading-none">{(reply.profiles?.full_name || 'א')[0]}</span>}                                                 
                             </div>                                                   
                             <div className="flex flex-col flex-1 z-10">                                                                         
-                              <div className="bg-surface/50 p-3 rounded-[20px] rounded-tr-sm cursor-pointer border border-surface-border shadow-sm" onClick={() => openOverlay(() => setCommentActionModal(reply))}>                                                
+                              <div className="bg-surface/50 p-3 rounded-[16px] rounded-tr-sm cursor-pointer border border-surface-border shadow-sm" onClick={() => openOverlay(() => setCommentActionModal(reply))}>                                                
                                 <span className="text-brand font-black text-[11px] mb-1.5 inline-block tracking-widest uppercase" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${reply.user_id}`), 50); }}>{reply.profiles?.full_name || 'אנונימי'}</span>                                                                              
                                 <p className="text-brand text-[13px] whitespace-pre-wrap leading-relaxed">{renderCommentText(reply.content)}</p>                                                         
                               </div>                                                   
@@ -1051,8 +1060,8 @@ export const HomePage: React.FC = () => {
                 {/* Input Area */}                                       
                 <div className="p-4 border-t border-surface-border flex flex-col gap-2 bg-surface">                                 
                   {replyingTo && !editingCommentId && (                      
-                    <div className="text-[11px] text-brand flex items-center justify-between px-4 py-2 bg-surface-card border border-surface-border rounded-[12px] w-fit mb-1 shadow-sm gap-2">                                                                 
-                      <span className="font-bold mr-1.5 flex items-center gap-2"><Reply size={12} className="rtl:-scale-x-100 text-brand-muted"/> משיב ל-@{replyingTo.profiles?.full_name}</span>                                                         
+                    <div className="text-[11px] text-brand flex items-center justify-between px-4 py-2 bg-surface-card border border-surface-border rounded-[12px] w-fit mb-1 shadow-sm">                                                                 
+                      <span className="font-bold mr-2 flex items-center gap-1.5"><Reply size={12} className="rtl:-scale-x-100 text-brand-muted"/> משיב ל-@{replyingTo.profiles?.full_name}</span>                                                         
                       <X size={14} className="cursor-pointer text-brand-muted hover:text-brand" onClick={() => { setReplyingTo(null); setNewComment(''); }} />                                 
                     </div>                                                 
                   )}                                                       
@@ -1062,12 +1071,12 @@ export const HomePage: React.FC = () => {
                       <span onClick={() => { setEditingCommentId(null); setNewComment(''); }} className="cursor-pointer text-brand-muted hover:text-brand">ביטול</span>                        
                     </div>                                                 
                   )}                                                       
-                  <div className="flex gap-2 items-center bg-surface-card rounded-[24px] p-1.5 pl-2 border border-surface-border shadow-inner">                                                
+                  <div className="flex gap-2 items-center bg-surface-card rounded-[20px] p-1.5 pl-2 border border-surface-border shadow-inner">                                                
                     <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="הוסף תגובה..." className="flex-1 bg-transparent px-4 text-brand text-[14px] outline-none placeholder:text-brand-muted" />                                                                 
                     <button                                                    
                       onClick={submitComment}                                  
                       disabled={!newComment.trim()}                            
-                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md active:scale-95 disabled:opacity-30 ${newComment.trim() ? 'bg-white text-black opacity-100' : 'bg-surface-border text-brand-muted'}`}                                                                  
+                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md active:scale-95 ${newComment.trim() ? 'bg-white text-black opacity-100' : 'bg-surface-border text-brand-muted opacity-30'}`}                                                                  
                     >                                                          
                       <Send size={16} className="rtl:-scale-x-100 -ml-0.5" />                                                         
                     </button>                                              
@@ -1081,8 +1090,8 @@ export const HomePage: React.FC = () => {
           {commentActionModal && (                                   
             <div className="fixed inset-0 z-[99999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                         
-              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[40px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border">                                   
-                <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/10 rounded-full pointer-events-none" /></div>                          
+              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[32px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border">                                   
+                <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>                          
                 <button onClick={() => { closeOverlay(); setReplyingTo(commentActionModal.parent_id ? comments.find((c) => c?.id === commentActionModal.parent_id) : commentActionModal); setNewComment(`@${commentActionModal.profiles?.full_name} `); }} className="w-full p-4 bg-surface-card border border-surface-border rounded-2xl text-brand font-black flex justify-between items-center text-[15px] active:scale-95 transition-all shadow-sm">                                  
                   <span>השב לתגובה</span><Reply size={20} className="text-brand-muted" />                                         
                 </button>                                                
@@ -1104,7 +1113,7 @@ export const HomePage: React.FC = () => {
           {userCirclesModal && (                                     
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                 
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                         
-              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[40px] p-6 flex flex-col gap-3 pb-12 max-h-[70vh] shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border">                      
+              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[32px] p-6 flex flex-col gap-3 pb-12 max-h-[70vh] shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border">                      
                 <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>                          
                 <h2 className="text-brand font-black text-lg mb-4">מועדונים ({userCirclesModal.length})</h2>                      
                 <div className="flex flex-col gap-3 overflow-y-auto pr-1" onPointerDown={stopPropagation} onTouchStart={stopPropagation}>                                                    
@@ -1125,16 +1134,16 @@ export const HomePage: React.FC = () => {
           {optionsMenuPost && (                                      
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                 
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                         
-              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[40px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border text-center">                       
+              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[32px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border text-center">                       
                 <div className="w-full py-2 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>                          
-                <button onClick={() => { closeOverlay(); setTimeout(() => handleShare(optionsMenuPost), 100); }} className="w-full p-4 bg-surface-card rounded-[24px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>שתף פוסט</span><Share2 size={20} className="text-brand-muted" /></button>                           
-                {optionsMenuPost.media_url && <button onClick={() => handleDownloadMedia(optionsMenuPost.media_url)} className="w-full p-4 bg-surface-card rounded-[24px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>שמור למכשיר</span><Download size={20} className="text-brand-muted" /></button>}                 
-                <button onClick={async () => { try { await supabase.from('saved_posts').insert({ user_id: currentUserId, post_id: optionsMenuPost.id }); toast.success('הפוסט נשמר במועדפים!'); } catch { toast.error('הפוסט כבר שמור אצלך'); } closeOverlay(); }} className="w-full p-4 bg-surface-card rounded-[24px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>שמור במועדפים</span><Bookmark size={20} className="text-brand-muted" /></button>                                             
-                <button onClick={() => handleCopyLink(optionsMenuPost)} className="w-full p-4 bg-surface-card rounded-[24px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>העתק קישור</span><LinkIcon size={20} className="text-brand-muted" /></button>                                                                                                                         
+                <button onClick={() => { closeOverlay(); setTimeout(() => handleShare(optionsMenuPost), 100); }} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>שתף פוסט</span><Share2 size={20} className="text-brand-muted" /></button>                           
+                {optionsMenuPost.media_url && <button onClick={() => handleDownloadMedia(optionsMenuPost.media_url)} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>שמור למכשיר</span><Download size={20} className="text-brand-muted" /></button>}                 
+                <button onClick={async () => { try { await supabase.from('saved_posts').insert({ user_id: currentUserId, post_id: optionsMenuPost.id }); toast.success('הפוסט נשמר במועדפים!'); } catch { toast.error('הפוסט כבר שמור אצלך'); } closeOverlay(); }} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>שמור במועדפים</span><Bookmark size={20} className="text-brand-muted" /></button>                                             
+                <button onClick={() => handleCopyLink(optionsMenuPost)} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>העתק קישור</span><LinkIcon size={20} className="text-brand-muted" /></button>                                                                                                                         
                 {optionsMenuPost.user_id === currentUserId && (                                                                     
                   <>                                                         
-                    <button onClick={() => { closeOverlay(); setTimeout(() => { openOverlay(() => { setEditingPost(optionsMenuPost); setNewPost(optionsMenuPost.content || ''); setShowCreatePost(true); }); }, 100); }} className="w-full p-4 bg-surface-card rounded-[24px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm mt-2"><span>ערוך פוסט</span><Edit2 size={20} className="text-brand-muted" /></button>                                    
-                    <button onClick={() => { if (window.confirm('למחוק פוסט?')) { deletePost(optionsMenuPost.id); } }} className="w-full p-4 bg-surface-card border border-rose-500/30 rounded-[24px] text-rose-500 font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all mt-2"><span>מחק פוסט</span><Trash2 size={20} className="text-rose-500" /></button>                               
+                    <button onClick={() => { closeOverlay(); setTimeout(() => { openOverlay(() => { setEditingPost(optionsMenuPost); setNewPost(optionsMenuPost.content || ''); setShowCreatePost(true); }); }, 100); }} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm mt-2"><span>ערוך פוסט</span><Edit2 size={20} className="text-brand-muted" /></button>                                    
+                    <button onClick={() => { if (window.confirm('למחוק פוסט?')) { deletePost(optionsMenuPost.id); } }} className="w-full p-4 bg-surface-card border border-rose-500/30 rounded-[20px] text-rose-500 font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all mt-2"><span>מחק פוסט</span><Trash2 size={20} className="text-rose-500" /></button>                               
                   </>                                                    
                 )}                                                     
               </motion.div>                                          
@@ -1145,7 +1154,7 @@ export const HomePage: React.FC = () => {
           {activeDescPost && (                                       
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                 
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                         
-              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[40px] flex flex-col overflow-hidden pb-10 max-h-[75vh] shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border text-center">                                                             
+              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[32px] flex flex-col overflow-hidden pb-10 max-h-[75vh] shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border text-center">                                                             
                 <div className="w-full py-5 flex justify-center cursor-grab active:cursor-grabbing border-b border-surface-border"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>                                                    
                 <div className="p-6 overflow-y-auto" onPointerDown={stopPropagation} onTouchStart={stopPropagation}>                                                                         
                   <p className="text-brand text-[15px] leading-relaxed whitespace-pre-wrap">{activeDescPost.content}</p>                                                                   
@@ -1158,7 +1167,7 @@ export const HomePage: React.FC = () => {
           {contributeModal && (                                      
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                 
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                         
-              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[40px] p-6 flex flex-col gap-4 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border text-center">                       
+              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[32px] p-6 flex flex-col gap-4 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border text-center">                       
                 <div className="w-full py-2 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>                                                                                   
                 <div className="flex flex-col items-center gap-2 mb-2">                                                             
                   <div className="w-16 h-16 bg-surface-card border border-surface-border rounded-full flex items-center justify-center shadow-inner mb-2">                                     
@@ -1169,7 +1178,7 @@ export const HomePage: React.FC = () => {
                     השקע CRD כדי לעזור לחשוף את הפוסט הזה לכולם.                                                                    
                   </p>                                                   
                 </div>                                                                                                            
-                <div className="bg-surface-card border border-surface-border p-4 rounded-2xl flex flex-col gap-2">                  
+                <div className="bg-surface-card border border-surface-border p-4 rounded-[20px] flex flex-col gap-2">                  
                   <div className="flex justify-between items-end mb-1">                                                               
                     <span className="text-[11px] font-black text-brand-muted tracking-widest uppercase">התקדמות</span>                                                                         
                     <span className="text-[13px] font-black text-brand">{contributeModal.current_crd} / {contributeModal.required_crd}</span>                                                
@@ -1178,7 +1187,7 @@ export const HomePage: React.FC = () => {
                     <div className="h-full bg-accent-primary" style={{ width: `${Math.min(100, (contributeModal.current_crd / contributeModal.required_crd) * 100)}%` }} />                  
                   </div>                                                 
                 </div>                                                                                                            
-                <div className="flex items-center gap-3 bg-surface-card border border-surface-border rounded-2xl p-2 pl-4 mt-2">                                                             
+                <div className="flex items-center gap-3 bg-surface-card border border-surface-border rounded-[20px] p-2 pl-4 mt-2">                                                             
                   <div className="w-12 h-12 bg-surface rounded-xl flex items-center justify-center shrink-0">                         
                     <Coins size={20} className="text-brand-muted" />                                                                
                   </div>                                                   
