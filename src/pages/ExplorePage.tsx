@@ -25,12 +25,10 @@ export const ExplorePage: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeSub, setActiveSub] = useState('');
   
-  // States for Explore Home
   const [circles, setCircles] = useState<any[]>([]);
   const [suggestedUsers, setSuggestedUsers] = useState<any[]>([]);
   const [trendingPosts, setTrendingPosts] = useState<any[]>([]);
   
-  // States for Smart Search Results
   const [searchCirclesResult, setSearchCirclesResult] = useState<any[]>([]);
   const [searchUsersResult, setSearchUsersResult] = useState<any[]>([]);
   const [searchPostsResult, setSearchPostsResult] = useState<any[]>([]);
@@ -60,7 +58,6 @@ export const ExplorePage: React.FC = () => {
     localStorage.setItem('inner_recent_searches', JSON.stringify(updated));
   };
 
-  // --- Explore Home Fetchers ---
   useEffect(() => {
     const fetchCircles = async () => {
       try {
@@ -107,7 +104,6 @@ export const ExplorePage: React.FC = () => {
     fetchTrending();
   }, []);
 
-  // --- SMART GLOBAL SEARCH ALGORITHM ---
   useEffect(() => {
     const fetchSearchResults = async () => {
       const term = search.trim();
@@ -122,7 +118,6 @@ export const ExplorePage: React.FC = () => {
       try {
         const queryTerm = `%${term}%`;
         
-        // שליפה מקבילה מ-3 טבלאות
         const [usersRes, circlesRes, postsRes] = await Promise.all([
           supabase.from('profiles')
             .select('id, full_name, username, avatar_url, bio, role_label')
@@ -149,7 +144,6 @@ export const ExplorePage: React.FC = () => {
       }
     };
     
-    // Debounce של 400ms כדי לא להעמיס על השרת בהקלדה מהירה
     const timeoutId = setTimeout(fetchSearchResults, 400);
     return () => clearTimeout(timeoutId);
   }, [search]);
@@ -160,7 +154,6 @@ export const ExplorePage: React.FC = () => {
   return (
     <FadeIn className="pt-[calc(env(safe-area-inset-top)+12px)] pb-32 bg-surface min-h-screen font-sans flex flex-col overflow-x-hidden" dir="rtl">
       
-      {/* Header & Sticky Search Bar (Slate navy focus) */}
       <div className="relative z-20 px-4 sticky top-0 bg-surface/90 backdrop-blur-2xl py-3 shadow-sm border-b border-surface-border">
         <div className="relative">
           <input
@@ -182,7 +175,6 @@ export const ExplorePage: React.FC = () => {
       <div className="flex-1 mt-4">
         <AnimatePresence mode="wait">
           
-          {/* STATE 1: SMART SEARCH ACTIVE */}
           {search.trim() ? (
             <motion.div key="search-results" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col gap-6">
               
@@ -190,7 +182,6 @@ export const ExplorePage: React.FC = () => {
                 <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-slate-400" /></div>
               ) : (
                 <>
-                  {/* Global Circle Results */}
                   {searchCirclesResult.length > 0 && (
                     <div className="flex flex-col gap-2">
                       <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-6">מועדונים</span>
@@ -231,7 +222,6 @@ export const ExplorePage: React.FC = () => {
                     </div>
                   )}
                   
-                  {/* Global User Results */}
                   {searchUsersResult.length > 0 && (
                     <div className="flex flex-col gap-2">
                       <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-6">משתמשים</span>
@@ -261,7 +251,6 @@ export const ExplorePage: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Global Posts & Hashtags Results */}
                   {searchPostsResult.length > 0 && (
                     <div className="flex flex-col gap-2">
                       <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-6">פוסטים ודיונים</span>
@@ -282,7 +271,6 @@ export const ExplorePage: React.FC = () => {
                               <Hash size={14} className="text-slate-400/50" />
                             </div>
                             <p className="text-brand text-[13px] leading-relaxed line-clamp-2 font-medium">
-                              {/* Highlight the search term visually if needed, but for now simple render */}
                               {post.content}
                             </p>
                           </div>
@@ -291,23 +279,20 @@ export const ExplorePage: React.FC = () => {
                     </div>
                   )}
 
-                  {/* No Results at all */}
                   {!hasSearchResults && (
                     <div className="text-center py-20 flex flex-col items-center gap-4 opacity-50">
                       <Search size={40} className="text-brand-muted" strokeWidth={1} />
                       <span className="text-brand-muted font-black text-[12px] tracking-widest uppercase">אין תוצאות לחיפוש הזה</span>
                     </div>
                   )}
-                </划>
+                </>
               )}
             </motion.div>
 
           ) : (
             
-            /* STATE 2: EXPLORE HOME */
             <motion.div key="explore-home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col gap-8 pb-10">
               
-              {/* Sponsor Drop (Updated Slate navy) */}
               <div className="mx-4 relative overflow-hidden rounded-[24px] cursor-pointer group active:scale-[0.98] transition-transform shadow-lg border border-surface-border">
                 <div className="absolute inset-0 bg-gradient-to-r from-slate-600/20 via-slate-500/10 to-slate-600/20 animate-pulse opacity-50" />
                 <div className="absolute inset-0 bg-surface-card/60 backdrop-blur-xl" />
@@ -325,7 +310,6 @@ export const ExplorePage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Trending Posts (Slate navy accent) */}
               {!loadingTrending && trendingPosts.length > 0 && (
                 <div className="flex flex-col gap-3">
                   <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-6 flex items-center gap-1.5">
@@ -364,7 +348,6 @@ export const ExplorePage: React.FC = () => {
                 </div>
               )}
 
-              {/* Recent Searches */}
               {recentSearches.length > 0 && (
                 <div className="flex flex-col px-4 gap-3">
                   <div className="flex items-center justify-between px-1">
@@ -383,7 +366,6 @@ export const ExplorePage: React.FC = () => {
                 </div>
               )}
 
-              {/* CATEGORIES (Updated to match Smoky Navy Glass) */}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2 min-w-max pb-1 overflow-x-auto scrollbar-hide px-4">
                   {CATEGORY_TREE.map((cat) => (
@@ -401,7 +383,6 @@ export const ExplorePage: React.FC = () => {
                   ))}
                 </div>
                 
-                {/* Sub-categories */}
                 <AnimatePresence mode="wait">
                   {currentCatObj && currentCatObj.sub && currentCatObj.sub.length > 0 && (
                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="flex overflow-x-auto scrollbar-hide gap-2 px-4 mt-1">
@@ -423,7 +404,6 @@ export const ExplorePage: React.FC = () => {
                 </AnimatePresence>
               </div>
 
-              {/* Popular Circles Grid (Updated Slate navy accent & Animated Flame) */}
               <div className="flex flex-col gap-4">
                 <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-6 flex items-center gap-1.5">
                   מועדונים חמים <TrendingUp size={14} className="text-slate-400" />
@@ -465,7 +445,6 @@ export const ExplorePage: React.FC = () => {
                               <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface-card/60 to-transparent" />
                             </div>
                             
-                            {/* VIP / Price / Lock / Animated Flame */}
                             <div className="relative z-10 p-3 flex justify-between items-start">
                               <div className="bg-black/50 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-white/10 flex items-center gap-1.5 shadow-sm">
                                 {isLocked ? (
@@ -486,7 +465,6 @@ export const ExplorePage: React.FC = () => {
                                 )}
                               </div>
                               
-                              {/* Pure, Animated Trending Flame */}
                               {circle.is_trending && (
                                 <motion.div
                                   animate={{ 
@@ -505,7 +483,6 @@ export const ExplorePage: React.FC = () => {
                               )}
                             </div>
                             
-                            {/* Title & Stats */}
                             <div className="relative z-10 mt-auto p-4 pt-10 bg-gradient-to-t from-surface via-surface/90 to-transparent">
                               <h3 className="text-white font-black text-[16px] leading-tight drop-shadow-md truncate">
                                 {circle.name}
@@ -522,7 +499,6 @@ export const ExplorePage: React.FC = () => {
                 )}
               </div>
 
-              {/* Recommended Users (Slate navy) */}
               <div className="flex flex-col gap-4 pt-4">
                 <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-6">אנשים ששווה להכיר</span>
                 {loadingSuggestions ? (
