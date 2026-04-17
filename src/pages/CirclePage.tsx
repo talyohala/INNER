@@ -207,10 +207,13 @@ export const CirclePage: React.FC = () => {
         user_id: currentUserId,
         content: newPost.trim(),
         media_url: null,
-        media_type: 'text'
+        media_type: 'text',
+        parent_id: null,
+        is_reveal_drop: false,
+        reveal_status: 'revealed',
+        required_crd: 0
       };
 
-      // מחזירים את התשובה כדי לדחוף מיד למסך המשתמש
       const { data: insertedPost, error } = await supabase
         .from('posts')
         .insert(postData)
@@ -219,7 +222,6 @@ export const CirclePage: React.FC = () => {
         
       if (error) throw error;
       
-      // מעדכן את המסך באותו רגע
       if (insertedPost) {
         setData((curr: any) => ({ 
           ...curr, 
@@ -242,8 +244,8 @@ export const CirclePage: React.FC = () => {
   return (
     <>
       <FadeIn className="bg-surface h-[100dvh] font-sans flex flex-col relative overflow-hidden" dir="rtl">
-        {/* HERO SECTION */}
-        <div className="relative w-full h-[180px] shrink-0 bg-surface overflow-hidden flex flex-col justify-end pb-4 border-b border-surface-border">
+        {/* HERO SECTION - ללא אף קו מפריד */}
+        <div className="relative w-full h-[180px] shrink-0 bg-surface overflow-hidden flex flex-col justify-end pb-4">
           {circle.cover_url ? <img src={circle.cover_url} className="absolute inset-0 w-full h-full object-cover opacity-50" /> : <div className="absolute inset-0 bg-gradient-to-br from-surface-card to-surface"></div>}
           <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/60 to-transparent"></div>
           
@@ -270,7 +272,7 @@ export const CirclePage: React.FC = () => {
         ) : (
           <div className="flex flex-col flex-1 overflow-hidden relative">
             
-            {/* TABS */}
+            {/* TABS (Clean Outline Style - ללא קווים בכלל) */}
             <div className="flex justify-center gap-3 px-4 py-3 bg-surface z-10 relative shrink-0">
               {['chat', 'vaults', 'members'].map((tab) => (
                 <button
@@ -313,7 +315,7 @@ export const CirclePage: React.FC = () => {
                   )}
                 </div>
 
-                {/* Fixed Input Area */}
+                {/* Fixed Input Area (ללא קו הפרדה עליון) */}
                 <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+60px)] left-0 right-0 px-4 py-2 bg-surface/95 backdrop-blur-xl z-50">
                   <div className="w-full bg-surface-card border border-surface-border rounded-[28px] flex items-center px-2 py-1 h-14 shadow-sm">
                     <input 
