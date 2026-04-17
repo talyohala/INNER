@@ -150,7 +150,6 @@ export const HomePage: React.FC = () => {
       const uid = authData.user?.id || null;                     
       if (uid) setCurrentUserId(uid);                                                                                   
       
-      // משתמשים באלגוריתם הפיד החכם החדש שיצרנו
       const [rawPosts, rawMembers, rawCircles] = await Promise.all([                  
         supabase.rpc('get_smart_feed', { p_user_id: uid, p_limit: 30, p_offset: 0 }).then((r) => r.data || []),
         supabase.from('circle_members').select('*').then((r) => r.data || []),                                            
@@ -165,7 +164,8 @@ export const HomePage: React.FC = () => {
             id: p.user_id,
             full_name: p.author_name,
             avatar_url: p.author_avatar,
-            role_label: p.author_role
+            role_label: p.author_role,
+            username: p.author_name
           },                             
           user_circles: userCircles,                             
         };                                                     
@@ -173,7 +173,7 @@ export const HomePage: React.FC = () => {
       
       setPosts(fetchedPosts);                                
     } catch {                                                  
-      toast.error('שגיאה בטעינת הפיד החכם');                      
+      toast.error('שגיאה בטעינת הפיד');                      
     } finally {                                                
       setLoading(false);                                       
       setRefreshing(false);                                  
@@ -439,6 +439,16 @@ export const HomePage: React.FC = () => {
       setNewComment(''); setReplyingTo(null);                
     } catch { toast.error('שגיאה בשרת'); }                 
   };                                                                                                                
+
+  const toggleCommentLike = (id: string) => {
+    setLikedComments(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    triggerFeedback('pop');
+  };
   
   const deletePost = async (postId: string) => {             
     triggerFeedback('error'); closeOverlay();                
