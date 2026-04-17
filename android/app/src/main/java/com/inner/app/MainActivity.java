@@ -1,4 +1,4 @@
-package app.inner.mobile;
+package com.inner.app;
 
 import com.getcapacitor.BridgeActivity;
 
