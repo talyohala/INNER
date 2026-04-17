@@ -8,7 +8,6 @@ import { FadeIn } from '../components/ui';
 import { triggerFeedback } from '../lib/sound';
 import { useAuth } from '../context/AuthContext';
 
-// עץ הקטגוריות - מחובר לדאטה-בייס
 const CATEGORY_TREE = [
   { id: 'all', name: 'הכל' },
   { id: 'venture_capital', name: 'הון סיכון', sub: ['Crypto', 'Real Estate', 'Startups'] },
@@ -56,7 +55,6 @@ export const ExplorePage: React.FC = () => {
     localStorage.setItem('inner_recent_searches', JSON.stringify(updated));
   };
 
-  // משיכת מועדונים
   useEffect(() => {
     const fetchCircles = async () => {
       try {
@@ -71,7 +69,7 @@ export const ExplorePage: React.FC = () => {
         const formatted = (Array.isArray(data) ? data : []).map((c: any) => ({
           ...c,
           active_now: Math.max(1, Math.ceil((c.members_count || 5) * 0.2 + Math.random() * 4)),
-          is_trending: Math.random() > 0.7 // סימולציה של טרנד חם
+          is_trending: Math.random() > 0.7 
         }));
         
         setCircles(formatted);
@@ -80,7 +78,6 @@ export const ExplorePage: React.FC = () => {
     fetchCircles();
   }, [activeCategory, activeSub]);
 
-  // משיכת משתמשים מומלצים
   useEffect(() => {
     const fetchSuggested = async () => {
       try {
@@ -91,7 +88,6 @@ export const ExplorePage: React.FC = () => {
     fetchSuggested();
   }, []);
 
-  // משיכת פוסטים חמים (Trending)
   useEffect(() => {
     const fetchTrending = async () => {
       try {
@@ -105,7 +101,6 @@ export const ExplorePage: React.FC = () => {
     fetchTrending();
   }, []);
 
-  // חיפוש משתמשים (לייב)
   useEffect(() => {
     const fetchUsers = async () => {
       if (!search.trim()) { setUsersListData([]); return; }
@@ -121,7 +116,6 @@ export const ExplorePage: React.FC = () => {
     return () => clearTimeout(timeoutId);
   }, [search]);
 
-  // סינון מקומי לפי חיפוש טקסט במועדונים
   const filteredCircles = circles.filter((c) => {
     const searchLower = search.trim().toLowerCase();
     const nameMatch = c.name?.toLowerCase().includes(searchLower);
@@ -134,7 +128,6 @@ export const ExplorePage: React.FC = () => {
   return (
     <FadeIn className="pt-[calc(env(safe-area-inset-top)+12px)] pb-32 bg-surface min-h-screen font-sans flex flex-col overflow-x-hidden" dir="rtl">
       
-      {/* Header & Sticky Search Bar */}
       <div className="relative z-20 px-4 sticky top-0 bg-surface/90 backdrop-blur-2xl py-3 shadow-sm border-b border-surface-border">
         <div className="relative">
           <input
@@ -155,12 +148,8 @@ export const ExplorePage: React.FC = () => {
 
       <div className="flex-1 mt-4">
         <AnimatePresence mode="wait">
-          
-          {/* STATE 1: SEARCH ACTIVE */}
           {search.trim() ? (
             <motion.div key="search-results" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col gap-6">
-              
-              {/* Circle Results */}
               {filteredCircles.length > 0 && (
                 <div className="flex flex-col gap-2">
                   <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-6">מועדונים</span>
@@ -200,8 +189,6 @@ export const ExplorePage: React.FC = () => {
                   </div>
                 </div>
               )}
-              
-              {/* User Results */}
               {loadingUsers ? (
                 <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-indigo-400" /></div>
               ) : usersListData.length > 0 && (
@@ -229,8 +216,6 @@ export const ExplorePage: React.FC = () => {
                   </div>
                 </div>
               )}
-
-              {/* No Results */}
               {filteredCircles.length === 0 && usersListData.length === 0 && !loadingUsers && (
                 <div className="text-center py-20 flex flex-col items-center gap-4 opacity-50">
                   <Search size={40} className="text-brand-muted" strokeWidth={1} />
@@ -238,13 +223,8 @@ export const ExplorePage: React.FC = () => {
                 </div>
               )}
             </motion.div>
-
           ) : (
-            
-            /* STATE 2: EXPLORE HOME */
             <motion.div key="explore-home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col gap-8 pb-10">
-              
-              {/* Sponsor Drop */}
               <div className="mx-4 relative overflow-hidden rounded-[24px] cursor-pointer group active:scale-[0.98] transition-transform shadow-lg border border-surface-border">
                 <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/20 via-purple-500/10 to-indigo-500/20 animate-pulse opacity-50" />
                 <div className="absolute inset-0 bg-surface-card/60 backdrop-blur-xl" />
@@ -262,7 +242,6 @@ export const ExplorePage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Trending Posts (New Section!) */}
               {!loadingTrending && trendingPosts.length > 0 && (
                 <div className="flex flex-col gap-3">
                   <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-6 flex items-center gap-1.5">
@@ -301,7 +280,6 @@ export const ExplorePage: React.FC = () => {
                 </div>
               )}
 
-              {/* Recent Searches */}
               {recentSearches.length > 0 && (
                 <div className="flex flex-col px-4 gap-3">
                   <div className="flex items-center justify-between px-1">
@@ -320,7 +298,6 @@ export const ExplorePage: React.FC = () => {
                 </div>
               )}
 
-              {/* CATEGORIES (Vibes) - Updated to match new premium tabs */}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2 min-w-max pb-1 overflow-x-auto scrollbar-hide px-4">
                   {CATEGORY_TREE.map((cat) => (
@@ -330,15 +307,13 @@ export const ExplorePage: React.FC = () => {
                       className={`px-5 py-2.5 rounded-full text-[13px] font-medium transition-all border ${
                         activeCategory === cat.id
                           ? 'bg-indigo-400/10 border-indigo-400/30 text-indigo-300 shadow-[0_0_15px_rgba(165,180,252,0.1)]'
-                          : 'bg-surface-card border-surface-border text-brand-muted hover:text-brand'
+                          : 'bg-surface-card border border-surface-border text-brand-muted hover:text-brand'
                       }`}
                     >
                       {cat.name}
                     </button>
                   ))}
                 </div>
-                
-                {/* Sub-categories */}
                 <AnimatePresence mode="wait">
                   {currentCatObj && currentCatObj.sub && currentCatObj.sub.length > 0 && (
                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="flex overflow-x-auto scrollbar-hide gap-2 px-4 mt-1">
@@ -361,7 +336,6 @@ export const ExplorePage: React.FC = () => {
                 </AnimatePresence>
               </div>
 
-              {/* Popular Circles Grid */}
               <div className="flex flex-col gap-4">
                 <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-6 flex items-center gap-1.5">
                   טרקלינים חמים <TrendingUp size={14} className="text-indigo-400" />
@@ -403,7 +377,6 @@ export const ExplorePage: React.FC = () => {
                               <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface-card/60 to-transparent" />
                             </div>
                             
-                            {/* VIP Price Tag / Timer Badge / Lock */}
                             <div className="relative z-10 p-3 flex justify-between items-start">
                               <div className="bg-black/50 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-white/10 flex items-center gap-1.5 shadow-sm">
                                 {isLocked ? (
@@ -424,23 +397,19 @@ export const ExplorePage: React.FC = () => {
                                 )}
                               </div>
                               
-                              {/* Trending Badge */}
                               {circle.is_trending && (
-                                <div className="bg-red-500/20 backdrop-blur-md px-2 py-1 rounded-xl border border-red-500/30 flex items-center gap-1">
-                                  <Timer size={10} className="text-red-400" />
-                                  <span className="text-red-400 text-[9px] font-black uppercase tracking-widest">HOT</span>
+                                <div className="bg-red-500/20 backdrop-blur-md px-2 py-1 rounded-xl border border-red-500/30 flex items-center justify-center gap-1">
+                                  <Flame size={11} className="text-red-400" fill="currentColor" />
                                 </div>
                               )}
                             </div>
                             
-                            {/* Title & Stats */}
                             <div className="relative z-10 mt-auto p-4 pt-10 bg-gradient-to-t from-surface via-surface/90 to-transparent">
                               <h3 className="text-white font-black text-[16px] leading-tight drop-shadow-md truncate">
                                 {circle.name}
                               </h3>
                               <div className="flex items-center gap-1.5 mt-2">
-                                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_#22c55e]" />
-                                <span className="text-[11px] font-black text-white/80 drop-shadow-md uppercase tracking-wider">{circle.active_now} אונליין</span>
+                                <span className="text-[11px] font-black text-white/80 drop-shadow-md uppercase tracking-wider">{circle.active_now} מחוברים</span>
                               </div>
                             </div>
                           </div>
@@ -451,7 +420,6 @@ export const ExplorePage: React.FC = () => {
                 )}
               </div>
 
-              {/* Recommended Users */}
               <div className="flex flex-col gap-4 pt-4">
                 <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-6">אנשים ששווה להכיר</span>
                 {loadingSuggestions ? (
@@ -484,7 +452,6 @@ export const ExplorePage: React.FC = () => {
                   </div>
                 )}
               </div>
-
             </motion.div>
           )}
         </AnimatePresence>
