@@ -469,6 +469,7 @@ export const HomePage: React.FC = () => {
         setComments((prev) => prev.map((c) => c.id === editingCommentId ? { ...c, content: newComment.trim() } : c));                                                              
         setEditingCommentId(null);                             
       } else {
+        // --- FIX: Ensure parent_id is sent and recorded properly so it threads! ---
         const parentIdToUse = replyingTo ? (replyingTo.parent_id || replyingTo.id) : null;                                                   
         const data = await apiFetch(`/api/posts/${activePost.id}/comments`, {                                               
           method: 'POST',                                          
@@ -478,6 +479,7 @@ export const HomePage: React.FC = () => {
         if (data) {
           const newCommentObj = {
             ...data,
+            parent_id: parentIdToUse, // CRITICAL FIX: Ensure local state immediately knows it's a child reply
             profiles: {
               full_name: profile?.full_name || 'משתמש',
               avatar_url: profile?.avatar_url
@@ -487,7 +489,7 @@ export const HomePage: React.FC = () => {
           const update = (list: AnyPost[]) => list.map((p) => p.id === activePost.id ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p);                                   
           setPosts((prev) => update(prev));                        
           if (fullScreenMedia) setFullScreenMedia((prev) => (prev ? update(prev) : prev));                                  
-          if (replyingTo) setExpandedThreads((prev) => ({ ...prev, [parentIdToUse]: true }));                               
+          if (parentIdToUse) setExpandedThreads((prev) => ({ ...prev, [parentIdToUse]: true })); // Auto-expand thread to show new reply                              
           triggerFeedback('coin');                               
         }                                                      
       }                                                        
@@ -556,15 +558,15 @@ export const HomePage: React.FC = () => {
   
   const stopPropagation = (e: React.SyntheticEvent) => e.stopPropagation();
 
-  // אלגוריתם שיחות חמות: מחשב מי קיבל הכי הרבה תגובות פנימיות
+  // --- SMART THREAD SORTING ---
   const sortedParentComments = useMemo(() => {
     return comments
       .filter((c) => c && !c.parent_id)
       .sort((a, b) => {
         const repliesA = comments.filter((r) => r && r.parent_id === a.id).length;
         const repliesB = comments.filter((r) => r && r.parent_id === b.id).length;
-        if (repliesB !== repliesA) return repliesB - repliesA; // חם יותר עולה למעלה
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime(); // אם שווה, החדש למעלה
+        if (repliesB !== repliesA) return repliesB - repliesA; // Hottest threads jump to top!
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
   }, [comments]);                                                                                                  
   
@@ -695,7 +697,6 @@ export const HomePage: React.FC = () => {
           <div className="flex flex-col gap-2 relative z-10 pb-10">                                                           
             {posts.map((post) => {   
 
-              // -- SMART RENDER: CLUB RECOMMENDATION --
               if (post.type === 'club_recommendation') {
                 const price = Number(post.entry_crd_price || post.price || post.crd_price || post.entry_price || 0);
                 const isPremium = price > 0;
@@ -703,7 +704,6 @@ export const HomePage: React.FC = () => {
                 return (
                   <div key={post._uid} onClick={() => navigate(`/circle/${post.slug || post.id}`)} className="relative bg-surface-card border border-surface-border hover:border-accent-primary/30 rounded-[24px] overflow-hidden shadow-sm flex flex-col p-6 gap-4 cursor-pointer group active:scale-[0.98] transition-all">
                     <div className="absolute -top-10 -right-10 w-32 h-32 bg-accent-primary/5 blur-[50px] rounded-full pointer-events-none group-hover:bg-accent-primary/10 transition-colors" />
-                    
                     <div className="flex items-center justify-between gap-3 relative z-10">
                       <div className="flex items-center gap-3">
                         <div className="w-14 h-14 rounded-[14px] overflow-hidden bg-surface border border-surface-border flex items-center justify-center shrink-0 shadow-inner">
@@ -715,11 +715,9 @@ export const HomePage: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    
                     {post.description && (
                       <p className="text-brand-muted text-[13px] font-medium leading-relaxed line-clamp-2 relative z-10">{post.description}</p>
                     )}
-                    
                     <div className="flex items-center justify-between mt-2 pt-4 border-t border-surface-border/50 relative z-10">
                       <div className="flex items-center gap-3">
                         <div className="flex items-center gap-1.5 text-brand-muted">
@@ -736,7 +734,6 @@ export const HomePage: React.FC = () => {
                           <div className="text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-lg border border-emerald-400/20 text-[11px] font-black tracking-widest shadow-sm">חינם</div>
                         )}
                       </div>
-                      
                       <div className="text-brand text-[12px] font-black uppercase tracking-widest group-hover:text-accent-primary transition-colors flex items-center gap-1">
                         סייר במועדון <ChevronLeft size={14} className="rtl:rotate-180" />
                       </div>
@@ -934,11 +931,12 @@ export const HomePage: React.FC = () => {
         </div>                                                 
       </FadeIn>                                                                                                         
       
-      {/* OVERLAYS */}                                         
+      {/* ---------------- OVERLAYS / PORTALS ---------------- */}
+      {/* All modals are declared EXACTLY ONCE here to prevent duplication bugs */}
       {mounted && typeof document !== 'undefined' && createPortal(                                                        
         <AnimatePresence>                                                                                                   
           
-          {/* SEAL SELECTOR MODAL */}                              
+          {/* 1. SEAL SELECTOR MODAL */}                              
           {sealSelectorPost && (                                     
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end p-4" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                             
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                             
@@ -967,7 +965,7 @@ export const HomePage: React.FC = () => {
             </div>                                                 
           )}                                                                                                                
           
-          {/* FULL SCREEN MEDIA */}                                
+          {/* 2. FULL SCREEN MEDIA */}                                
           {fullScreenMedia && (                                      
             <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed inset-0 z-[999999] bg-surface">                     
               <div className="w-full h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide" onScroll={handleContainerScroll}>                                                      
@@ -981,7 +979,6 @@ export const HomePage: React.FC = () => {
                         <img src={vid.media_url} className="w-full h-full object-contain full-media-item" onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Media+Unavailable'; }} loading="lazy" />                                                                              
                       )}                                                                                                                
                       
-                      {/* Action Buttons: Left side column (No BG) */}                                                                  
                       <div className="absolute bottom-32 left-4 flex flex-col gap-6 items-center z-50 pointer-events-auto">                                                                        
                         <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setSealSelectorPost(vid)); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform">                                                     
                           <Flame size={32} className={vid.has_sealed ? 'text-orange-500' : 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]'} fill={vid.has_sealed ? 'currentColor' : 'none'} strokeWidth={1.5} />                                         
@@ -993,24 +990,17 @@ export const HomePage: React.FC = () => {
                         </button>                                              
                       </div>                                                                                                            
                       
-                      {/* 3 Dots at the bottom left */}                        
-                      <button                                                    
-                        onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }}                             
-                        className="absolute bottom-8 left-5 z-[60] active:scale-90 transition-transform drop-shadow-md pointer-events-auto"                                                      
-                      >                                                          
+                      <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }} className="absolute bottom-8 left-5 z-[60] active:scale-90 transition-transform drop-shadow-md pointer-events-auto">                                                          
                         <MoreVertical size={28} className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />                       
                       </button>                                                                                                         
                       
-                      {/* Bottom Info Area */}                                 
                       <div className="absolute bottom-0 left-0 right-0 px-5 pb-8 pt-32 bg-gradient-to-t from-black/60 via-black/20 to-transparent flex flex-col pointer-events-none">                                                                                                                                
-                        
                         {vid.content && (                                          
                           <p className="text-white drop-shadow-md text-[15px] font-medium text-right max-w-[85%] line-clamp-3 pointer-events-auto cursor-pointer mb-4" onClick={(e) => { e.stopPropagation(); openOverlay(() => setActiveDescPost(vid)); }}>                                                             
                             {vid.content}                                          
                           </p>                                                   
                         )}                                                                                                                
                         
-                        {/* Circles (Round) */}                                  
                         {vid.user_circles && vid.user_circles.length > 0 && (                                                               
                           <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">                                                                            
                             {vid.user_circles.slice(0, 10).map((circle: any) => (                                                               
@@ -1043,7 +1033,7 @@ export const HomePage: React.FC = () => {
             </motion.div>                                          
           )}                                                                                                                
           
-          {/* COMMENTS MODAL (SMART SORTING & THREADS) */}                                   
+          {/* 3. COMMENTS MODAL (SMART SORTING & THREADS) */}                                   
           {activeCommentsPostId && (                                 
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                 
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                         
@@ -1056,7 +1046,6 @@ export const HomePage: React.FC = () => {
                     <div className="text-center text-brand-muted text-[13px] font-bold mt-10 tracking-widest uppercase">אין תגובות עדיין</div>
                   ) : (
                     sortedParentComments.map((c) => {                                                                            
-                      // מציאת כל התגובות-בנות לשיחה הספציפית וסידורן לפי תאריך
                       const replies = comments.filter((r) => r && r.parent_id === c.id).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());                                                
                       const isThreadExpanded = expandedThreads[c.id];                                                                   
                       
@@ -1149,7 +1138,7 @@ export const HomePage: React.FC = () => {
             </div>                                                 
           )}                                                                                                                
           
-          {/* COMMENT ACTION MODAL */}                             
+          {/* 4. COMMENT ACTION MODAL */}                             
           {commentActionModal && (                                   
             <div className="fixed inset-0 z-[99999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                         
@@ -1172,7 +1161,7 @@ export const HomePage: React.FC = () => {
             </div>                                                 
           )}                                                                                                                
           
-          {/* USER CIRCLES MODAL */}                               
+          {/* 5. USER CIRCLES MODAL */}                               
           {userCirclesModal && (                                     
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                 
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                         
@@ -1193,7 +1182,7 @@ export const HomePage: React.FC = () => {
             </div>                                                 
           )}                                                                                                                
           
-          {/* OPTIONS MENU POST */}                                
+          {/* 6. OPTIONS MENU POST */}                                
           {optionsMenuPost && (                                      
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                 
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                         
@@ -1213,7 +1202,7 @@ export const HomePage: React.FC = () => {
             </div>                                                 
           )}                                                                                                                
           
-          {/* DESC POST FULL */}                                   
+          {/* 7. DESC POST FULL */}                                   
           {activeDescPost && (                                       
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                 
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                         
@@ -1226,7 +1215,7 @@ export const HomePage: React.FC = () => {
             </div>                                                 
           )}                                                                                                                
           
-          {/* CONTRIBUTE MODAL */}                                 
+          {/* 8. CONTRIBUTE MODAL */}                                 
           {contributeModal && (                                      
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                 
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                         
