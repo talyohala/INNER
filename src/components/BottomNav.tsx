@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, Search, User, Menu, Radar } from 'lucide-react';
+import { Home, Search, User, Menu, Locate } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { triggerFeedback } from '../lib/sound';
 
@@ -17,7 +17,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onMenuClick, hasUnread, ha
   const items = [
     { path: '/', icon: Home, label: 'פיד' },
     { path: '/explore', icon: Search, label: 'חיפוש' },
-    { path: '/radar', icon: Radar, label: 'רדאר' },
+    { path: '/radar', icon: Locate, label: 'רדאר' },
     { path: '/profile', icon: User, label: 'פרופיל' },
   ];
 
