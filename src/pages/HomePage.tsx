@@ -9,7 +9,7 @@ import {
   Loader2, Bell, Users, MessageSquare, Send, X, Paperclip,                                                          
   RefreshCw, UserCircle, Trash2, Edit2, Share2, MoreVertical,                                                       
   ChevronLeft, Reply, ChevronDown, ChevronUp, ArrowUp, Download,                                                    
-  Link as LinkIcon, Bookmark, Crown, Lock, Timer, Flame, Diamond, Handshake, Coins, PlusCircle                                       
+  Link as LinkIcon, Bookmark, Crown, Lock, Flame, Diamond, Handshake, Coins, PlusCircle                                       
 } from 'lucide-react';                                   
 import { triggerFeedback } from '../lib/sound';          
 import toast from 'react-hot-toast';                     
@@ -556,14 +556,15 @@ export const HomePage: React.FC = () => {
   
   const stopPropagation = (e: React.SyntheticEvent) => e.stopPropagation();
 
+  // אלגוריתם שיחות חמות: מחשב מי קיבל הכי הרבה תגובות פנימיות
   const sortedParentComments = useMemo(() => {
     return comments
       .filter((c) => c && !c.parent_id)
       .sort((a, b) => {
         const repliesA = comments.filter((r) => r && r.parent_id === a.id).length;
         const repliesB = comments.filter((r) => r && r.parent_id === b.id).length;
-        if (repliesB !== repliesA) return repliesB - repliesA;
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        if (repliesB !== repliesA) return repliesB - repliesA; // חם יותר עולה למעלה
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime(); // אם שווה, החדש למעלה
       });
   }, [comments]);                                                                                                  
   
@@ -622,7 +623,7 @@ export const HomePage: React.FC = () => {
         
         <div className="relative z-10 px-4">                                                                                
           
-          {/* STICKY HEADER (Removed bottom border) */}                                    
+          {/* STICKY HEADER */}                                    
           <div className="sticky top-0 z-[60] bg-surface/80 backdrop-blur-xl pt-4 pb-3 flex justify-between items-center -mx-4 px-6 mb-4">                                                             
             <div className="w-10" />
             <div className="flex flex-col items-center absolute left-1/2 -translate-x-1/2">                                     
@@ -638,7 +639,7 @@ export const HomePage: React.FC = () => {
             </button>                                              
           </div>                                                                                                            
           
-          {/* CREATE POST (Slimmer & Cleaner) */}                                      
+          {/* CREATE POST */}                                      
           <div className="mb-4">                                     
             <div className="p-3 px-4 rounded-[20px] border border-surface-border bg-surface-card shadow-sm relative z-10 flex flex-col gap-2">                                                
               
@@ -690,7 +691,7 @@ export const HomePage: React.FC = () => {
             </div>                                                 
           </div>                                                                                                            
           
-          {/* 📰 FEED (Tight Gaps) */}                                          
+          {/* 📰 FEED */}                                          
           <div className="flex flex-col gap-2 relative z-10 pb-10">                                                           
             {posts.map((post) => {   
 
@@ -847,9 +848,9 @@ export const HomePage: React.FC = () => {
                   
                   {/* Text Only Post (PREMIUM REDESIGN MATCHING MEDIA) */}                                   
                   {!hasMedia && (                                            
-                    <div className="w-full relative bg-[#0a0a0a] min-h-[380px] max-h-[550px] flex flex-col justify-between cursor-pointer group" onClick={() => { if(isLockedDrop) openOverlay(()=>setContributeModal(post)); else openOverlay(() => setActiveDescPost(post)); }}>                             
+                    <div className="w-full relative bg-[#0a0a0a] min-h-[380px] max-h-[550px] flex flex-col justify-between cursor-pointer group rounded-[24px]" onClick={() => { if(isLockedDrop) openOverlay(()=>setContributeModal(post)); else openOverlay(() => setActiveDescPost(post)); }}>                             
                       {isLockedDrop && (                                         
-                        <div className="absolute inset-0 bg-surface/80 backdrop-blur-md flex flex-col items-center justify-center z-30 gap-2">                                                       
+                        <div className="absolute inset-0 bg-surface/80 backdrop-blur-md flex flex-col items-center justify-center z-30 gap-2 rounded-[24px]">                                                       
                           <Lock size={24} className="text-brand-muted" />                                                                   
                           <span className="text-[12px] font-black tracking-widest uppercase">דרופ נעול</span>                               
                           <div className="w-[150px] bg-surface-card border border-surface-border rounded-full h-1.5 mt-1 overflow-hidden">                                                             
@@ -871,7 +872,7 @@ export const HomePage: React.FC = () => {
                       </div>
                       
                       {/* Bottom Overlay Matching Media Posts */}
-                      <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-24 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end pointer-events-none z-20">
+                      <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-24 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end pointer-events-none z-20 rounded-b-[24px]">
                         
                         {post.user_circles && post.user_circles.length > 0 && !isLockedDrop && (                                            
                           <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">                                                                            
@@ -1066,7 +1067,7 @@ export const HomePage: React.FC = () => {
                               {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover object-center" loading="lazy" /> : <span className="text-brand-muted font-black text-sm flex items-center justify-center leading-none">{(c.profiles?.full_name || 'א')[0]}</span>}                                                                 
                             </div>                                                   
                             <div className="flex flex-col flex-1">                                                                              
-                              <div className="bg-surface-card p-4 rounded-[20px] rounded-tr-sm cursor-pointer shadow-sm border border-surface-border" onClick={() => openOverlay(() => setCommentActionModal(c))}>                                                  
+                              <div className="bg-surface-card p-4 rounded-[20px] rounded-tr-sm cursor-pointer shadow-sm border border-surface-border w-fit max-w-[95%]" onClick={() => openOverlay(() => setCommentActionModal(c))}>                                                  
                                 <span className="text-brand font-black text-[13px] mb-1.5 inline-block uppercase tracking-widest" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${c.user_id}`), 50); }}>{c.profiles?.full_name || 'אנונימי'}</span>                                                                                      
                                 <p className="text-brand text-[14px] whitespace-pre-wrap leading-relaxed">{renderCommentText(c.content)}</p>                                                             
                               </div>                                                   
@@ -1090,14 +1091,15 @@ export const HomePage: React.FC = () => {
                           {/* התגובות המאונסטות בתוך העץ */}
                           {isThreadExpanded && (                                                                       
                             <div className="pr-12 flex flex-col gap-4 mt-3 relative">                                                     
-                              <div className="absolute right-5 top-0 bottom-4 w-px bg-surface-border z-0" />
+                              <div className="absolute right-5 top-0 bottom-4 w-[1.5px] bg-surface-border z-0" />
                               {replies.map((reply) => (
-                                <div key={reply.id} className="flex gap-3 relative z-10">                                                     
-                                  <div className="w-8 h-8 min-w-[32px] rounded-full bg-surface-card shrink-0 overflow-hidden cursor-pointer border border-surface-border flex items-center justify-center shadow-inner" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${reply.user_id}`), 50); }}>                                                   
+                                <div key={reply.id} className="flex gap-3 relative z-10">
+                                  <div className="absolute right-[-28px] top-[-12px] w-[20px] h-6 border-r-[1.5px] border-b-[1.5px] border-surface-border rounded-br-[12px] z-0" />
+                                  <div className="w-8 h-8 min-w-[32px] rounded-full bg-surface-card shrink-0 overflow-hidden cursor-pointer border border-surface-border flex items-center justify-center shadow-inner relative z-10" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${reply.user_id}`), 50); }}>                                                   
                                     {reply.profiles?.avatar_url ? <img src={reply.profiles.avatar_url} className="w-full h-full object-cover object-center" loading="lazy" /> : <span className="text-brand-muted font-black text-[10px] flex items-center justify-center leading-none">{(reply.profiles?.full_name || 'א')[0]}</span>}                                                 
                                   </div>                                                   
                                   <div className="flex flex-col flex-1">                                                                         
-                                    <div className="bg-surface/50 p-3 rounded-[16px] rounded-tr-sm cursor-pointer border border-surface-border shadow-sm" onClick={() => openOverlay(() => setCommentActionModal(reply))}>                                                
+                                    <div className="bg-surface/50 p-3 rounded-[16px] rounded-tr-sm cursor-pointer border border-surface-border shadow-sm w-fit max-w-[95%]" onClick={() => openOverlay(() => setCommentActionModal(reply))}>                                                
                                       <span className="text-brand font-black text-[11px] mb-1.5 inline-block tracking-widest uppercase" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${reply.user_id}`), 50); }}>{reply.profiles?.full_name || 'אנונימי'}</span>                                                                              
                                       <p className="text-brand text-[13px] whitespace-pre-wrap leading-relaxed">{renderCommentText(reply.content)}</p>                                                         
                                     </div>                                                   
