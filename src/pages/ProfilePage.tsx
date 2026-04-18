@@ -21,14 +21,13 @@ const SEAL_TYPES = [
   { id: 'alliance', icon: <Handshake size={24} />, label: 'ברית', color: 'text-emerald-400', xp: 100 }
 ];
 
-// Map Zodiac names to Unicode Icons for dynamic display
 const getZodiacIcon = (zodiac: string) => {
   const map: Record<string, string> = {
     'טלה': '♈', 'שור': '♉', 'תאומים': '♊', 'סרטן': '♋',
     'אריה': '♌', 'בתולה': '♍', 'מאזניים': '♎', 'עקרב': '♏',
     'קשת': '♐', 'גדי': '♑', 'דלי': '♒', 'דגים': '♓'
   };
-  return map[zodiac] || '✨'; // Fallback icon
+  return map[zodiac] || '✨';
 };
 
 export const ProfilePage: React.FC = () => {
@@ -87,7 +86,6 @@ export const ProfilePage: React.FC = () => {
   const [editingPost, setEditingPost] = useState<any | null>(null);
   const [editPostText, setEditPostText] = useState('');
 
-  // Profile Specific State
   const [extraInfoOpen, setExtraInfoOpen] = useState(false);
 
   const isMyProfile = !routeId || routeId === authProfile?.username || routeId === user?.id;
@@ -155,10 +153,12 @@ export const ProfilePage: React.FC = () => {
           const result = await apiFetch<any>('/api/profile/collection', { headers }).catch(() => ({ profile: authProfile }));
           targetId = result.profile?.id || authProfile?.id || me;
 
-          const [{ data: memberships }, { data: ownedCircles }, { data: myPosts }] = await Promise.all([
+          // FETCH FRESH PROFILE DATA DIRECTLY FROM DB (Bypass Cache)
+          const [{ data: memberships }, { data: ownedCircles }, { data: myPosts }, { data: freshProfile }] = await Promise.all([
             supabase.from('circle_members').select('circle:circles(*)').eq('user_id', targetId).neq('role', 'admin'),
             supabase.from('circles').select('*').eq('owner_id', targetId),
             supabase.from('posts').select('*, seals:post_seals(id, seal_type, user_id), comments_count:comments(count)').eq('user_id', targetId).order('created_at', { ascending: false }),
+            supabase.from('profiles').select('*').eq('id', targetId).single()
           ]);
 
           const formattedPosts = (myPosts || []).map((p: any) => ({
@@ -166,7 +166,7 @@ export const ProfilePage: React.FC = () => {
             seals_count: p.seals?.length || 0,
             has_sealed: !!me && p.seals?.some((s: any) => s.user_id === me),
             comments_count: p.comments_count?.[0]?.count || 0,
-            profiles: result.profile || authProfile
+            profiles: freshProfile || result.profile || authProfile
           }));
 
           let mySavedPosts: any[] = [];
@@ -184,7 +184,7 @@ export const ProfilePage: React.FC = () => {
           } catch {}
 
           if (isMounted) {
-            setData({ profile: result.profile || authProfile, memberships: memberships || result.memberships || [], ownedCircles: ownedCircles || result.ownedCircles || [], posts: formattedPosts, savedPosts: mySavedPosts });
+            setData({ profile: freshProfile || result.profile || authProfile, memberships: memberships || result.memberships || [], ownedCircles: ownedCircles || result.ownedCircles || [], posts: formattedPosts, savedPosts: mySavedPosts });
           }
         } else {
           const identifier = routeId || '';
@@ -244,6 +244,17 @@ export const ProfilePage: React.FC = () => {
     if (!authLoading) loadProfileData();
     return () => { isMounted = false; };
   }, [user, routeId, isMyProfile, authLoading, navigate, authProfile]);
+
+  // --- REALTIME PROFILE SYNC ---
+  useEffect(() => {
+    if (!data.profile?.id) return;
+    const channel = supabase.channel(`profile_sync_${data.profile.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${data.profile.id}` }, (payload) => {
+        setData((prev: any) => ({ ...prev, profile: { ...prev.profile, ...payload.new } }));
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [data.profile?.id]);
 
   const mediaPosts = useMemo(() => {
     const pool = activeTab === 'saved' && isMyProfile ? data.savedPosts || [] : data.posts || [];
@@ -471,14 +482,12 @@ export const ProfilePage: React.FC = () => {
   const userSavedPosts = data.savedPosts || [];
   const displayLink = userProfile?.social_link ? userProfile.social_link.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '') : '';
 
-  // 1. נתונים שתמיד גלויים (מזל, מין, השכלה)
   const visibleChips = [
     userProfile?.zodiac ? { key: 'zodiac', value: `מזל ${userProfile.zodiac}`, icon: <span className="text-[15px] leading-none mb-0.5">{getZodiacIcon(userProfile.zodiac)}</span> } : null,
     userProfile?.gender ? { key: 'gender', value: userProfile.gender, icon: userProfile.gender === 'זכר' ? <span className="text-blue-400 leading-none text-[15px] font-black">♂</span> : userProfile.gender === 'נקבה' ? <span className="text-pink-400 leading-none text-[15px] font-black">♀</span> : <Sparkles size={14} className="text-brand-muted/70" /> } : null,
     userProfile?.education ? { key: 'education', value: userProfile.education, icon: <GraduationCap size={14} className="text-brand-muted/70" /> } : null,
   ].filter(Boolean);
 
-  // 2. נתונים שמוסתרים מתחת לחץ "מידע נוסף"
   const hiddenChips = [
     { key: 'job_title', value: userProfile?.job_title, icon: <Briefcase size={14} className="text-brand-muted/70" /> },
     { key: 'location', value: userProfile?.location, icon: <MapPin size={14} className="text-brand-muted/70" /> },
@@ -571,7 +580,6 @@ export const ProfilePage: React.FC = () => {
                  </a>
               )}
 
-              {/* Primary Visible Chips (Zodiac, Gender, Education) */}
               {visibleChips.length > 0 && (
                 <div className="flex flex-wrap justify-center gap-2 mt-1 px-2">
                    {visibleChips.map((item: any) => (
@@ -583,7 +591,6 @@ export const ProfilePage: React.FC = () => {
                 </div>
               )}
 
-              {/* Expandable Extra Info (Job, Location, Relationship, Birthdate) */}
               {hiddenChips.length > 0 && (
                 <div className="w-full mt-1">
                   <button 
@@ -633,7 +640,7 @@ export const ProfilePage: React.FC = () => {
             </div>
           )}
 
-          {/* TABS & GRID (Clean Outline Style) */}
+          {/* TABS & GRID */}
           <div className="w-full mb-10">
             <div className="flex justify-center gap-3 px-4 py-3 bg-surface z-10 relative shrink-0 mb-4">
               {['posts', 'joined', ...(isMyProfile ? ['saved'] : [])].map((tab) => (
@@ -767,7 +774,7 @@ export const ProfilePage: React.FC = () => {
               </div>
             )}
 
-            {/* FULL SCREEN MEDIA (z-[90000]) */}
+            {/* FULL SCREEN MEDIA */}
             {fullScreenMedia && (
               <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed inset-0 z-[90000] bg-surface">
                 <div className="w-full h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide" onScroll={handleContainerScroll}>
@@ -809,11 +816,6 @@ export const ProfilePage: React.FC = () => {
                             <span className="text-white text-[13px] font-black drop-shadow-md">{vid.comments_count}</span>
                           </button>
                         </div>
-
-                        {/* 3 Dots Menu */}
-                        <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }} className="absolute bottom-8 left-5 z-[60] active:scale-90 transition-transform p-1">
-                          <MoreVertical size={28} strokeWidth={2} className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
-                        </button>
                       </div>
                     );
                   })}
