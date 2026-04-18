@@ -21,6 +21,16 @@ const SEAL_TYPES = [
   { id: 'alliance', icon: <Handshake size={24} />, label: 'ברית', color: 'text-emerald-400', xp: 100 }
 ];
 
+// Map Zodiac names to Unicode Icons for dynamic display
+const getZodiacIcon = (zodiac: string) => {
+  const map: Record<string, string> = {
+    'טלה': '♈', 'שור': '♉', 'תאומים': '♊', 'סרטן': '♋',
+    'אריה': '♌', 'בתולה': '♍', 'מאזניים': '♎', 'עקרב': '♏',
+    'קשת': '♐', 'גדי': '♑', 'דלי': '♒', 'דגים': '♓'
+  };
+  return map[zodiac] || '✨'; // Fallback icon
+};
+
 export const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
   const { username: routeId } = useParams<{ username?: string }>();
@@ -64,7 +74,6 @@ export const ProfilePage: React.FC = () => {
 
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<any | null>(null);
-  const [expandedThreads, setExpandedThreads] = useState<Record<string, boolean>>({});
   const [commentActionModal, setCommentActionModal] = useState<any | null>(null);
 
   const [optionsMenuPost, setOptionsMenuPost] = useState<any>(null);
@@ -77,6 +86,9 @@ export const ProfilePage: React.FC = () => {
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [editingPost, setEditingPost] = useState<any | null>(null);
   const [editPostText, setEditPostText] = useState('');
+
+  // Profile Specific State
+  const [extraInfoOpen, setExtraInfoOpen] = useState(false);
 
   const isMyProfile = !routeId || routeId === authProfile?.username || routeId === user?.id;
 
@@ -460,9 +472,10 @@ export const ProfilePage: React.FC = () => {
   const userSavedPosts = data.savedPosts || [];
   const displayLink = userProfile?.social_link ? userProfile.social_link.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '') : '';
 
-  const aboutItems = [
-    { key: 'location', label: 'מתגורר ב', value: userProfile?.location, icon: <MapPin size={14} className="text-brand-muted/70" /> },
-    { key: 'relationship_status', label: 'מצב משפחתי', value: userProfile?.relationship_status, icon: <Heart size={14} className="text-brand-muted/70" /> },
+  // Process data for extra info chips
+  const extraInfoItems = [
+    { key: 'gender', label: 'מין', value: userProfile?.gender, icon: userProfile?.gender === 'זכר' ? <span className="text-blue-400 leading-none text-[15px] font-black">♂</span> : userProfile?.gender === 'נקבה' ? <span className="text-pink-400 leading-none text-[15px] font-black">♀</span> : <Sparkles size={14} className="text-brand-muted/70" /> },
+    { key: 'birth_date', label: 'תאריך לידה', value: userProfile?.birth_date ? new Date(userProfile.birth_date).toLocaleDateString('he-IL') : '', icon: <Calendar size={14} className="text-brand-muted/70" /> },
     { key: 'education', label: 'השכלה', value: userProfile?.education, icon: <GraduationCap size={14} className="text-brand-muted/70" /> },
     { key: 'job_title', label: 'עיסוק', value: userProfile?.job_title, icon: <Briefcase size={14} className="text-brand-muted/70" /> },
   ].filter((item) => item.value);
@@ -540,32 +553,58 @@ export const ProfilePage: React.FC = () => {
             {/* About Section - Modern & Elegant */}
             <div className="flex flex-col items-center gap-4 mb-6 w-full max-w-[400px]">
               {userProfile?.bio && (
-                <p className="text-brand text-[14px] leading-relaxed text-center font-medium px-4">
+                <p className="text-brand text-[14px] leading-relaxed text-center font-medium px-4 whitespace-pre-wrap">
                   {userProfile.bio}
                 </p>
               )}
 
               {userProfile?.social_link && (
-                 <a href={userProfile.social_link.startsWith('http') ? userProfile.social_link : `https://${userProfile.social_link}`} target="_blank" rel="noopener noreferrer" className="text-accent-primary text-[13px] font-black flex items-center gap-1.5 hover:opacity-80 transition-opacity bg-accent-primary/10 px-4 py-1.5 rounded-full mt-1">
-                   <LinkIcon size={14} />
+                 <a href={userProfile.social_link.startsWith('http') ? userProfile.social_link : `https://${userProfile.social_link}`} target="_blank" rel="noopener noreferrer" className="text-white text-[13px] font-bold flex items-center gap-2 hover:opacity-80 transition-opacity mt-1">
+                   <LinkIcon size={14} className="text-white/80" />
                    <span dir="ltr" className="tracking-wide">{displayLink}</span>
                  </a>
               )}
 
-              {(userProfile?.zodiac || aboutItems.length > 0) && (
-                <div className="flex flex-wrap justify-center gap-2 mt-2 px-2">
-                   {userProfile?.zodiac && (
-                      <span className="flex items-center gap-1.5 text-brand-muted text-[12px] font-bold bg-surface-card border border-white/[0.05] px-3 py-1.5 rounded-[20px] shadow-sm">
-                        <Moon size={14} className="text-accent-primary" />
-                        {userProfile.zodiac}
-                      </span>
-                   )}
-                   {aboutItems.map((item: any) => (
-                     <div key={item.key} className="flex items-center gap-1.5 text-brand-muted text-[12px] font-bold bg-surface-card border border-white/[0.05] px-3 py-1.5 rounded-[20px] shadow-sm">
-                       {item.icon}
-                       <span>{item.value}</span>
-                     </div>
-                   ))}
+              {/* zodiac (extracted from العريقة) */}
+              {userProfile?.zodiac && (
+                <span className="flex items-center gap-2 text-brand text-[13px] font-medium bg-surface-card border border-white/[0.05] px-4 py-2 rounded-full shadow-sm">
+                  <span className="text-[15px] leading-none mb-0.5">{getZodiacIcon(userProfile.zodiac)}</span>
+                  מזל {userProfile.zodiac}
+                </span>
+              )}
+
+              {/* Expandable Extra Info (Gender, Birthdate, Job, Education) */}
+              {extraInfoItems.length > 0 && (
+                <div className="w-full mt-1">
+                  <button 
+                    onClick={() => { triggerFeedback('pop'); setExtraInfoOpen(!extraInfoOpen); }} 
+                    className="flex items-center justify-center gap-2 text-brand-muted hover:text-white transition-colors text-[11px] font-black uppercase tracking-widest mx-auto w-full"
+                  >
+                    <span>מידע נוסף</span>
+                    <motion.div animate={{ rotate: extraInfoOpen ? 180 : 0 }}>
+                      <ChevronDown size={14} />
+                    </motion.div>
+                  </button>
+
+                  <AnimatePresence initial={false}>
+                    {extraInfoOpen && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden w-full"
+                      >
+                        <div className="flex flex-wrap justify-center gap-2.5 pt-4 pb-2 px-2">
+                           {extraInfoItems.map((item: any) => (
+                             <div key={item.key} className="flex items-center gap-2 text-brand-muted text-[12px] font-bold bg-surface-card border border-white/[0.05] px-3.5 py-2 rounded-full shadow-sm">
+                               {item.icon}
+                               <span>{item.value}</span>
+                             </div>
+                           ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               )}
             </div>
@@ -688,17 +727,17 @@ export const ProfilePage: React.FC = () => {
                   
                   {gridActionModal.type === 'post' && (
                     <>
-                      <button onClick={() => { closeOverlay(); setTimeout(() => { openOverlay(() => { setEditingPost(gridActionModal.item); setEditPostText(gridActionModal.item.content || ''); setShowCreatePost(true); }); }, 100); }} className="w-full p-4 bg-surface-card rounded-2xl text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>ערוך פוסט</span><Edit2 size={20} className="text-brand-muted" /></button>
-                      <button onClick={() => { if (window.confirm('למחוק פוסט?')) deletePost(gridActionModal.item.id); }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 font-black flex justify-between items-center text-[15px] mt-2 active:scale-[0.98] transition-all"><span>מחק פוסט</span><Trash2 size={20} className="text-red-500" /></button>
+                      <button onClick={() => { closeOverlay(); setTimeout(() => { openOverlay(() => { setEditingPost(gridActionModal.item); setEditPostText(gridActionModal.item.content || ''); setShowCreatePost(true); }); }, 100); }} className="w-full p-4 bg-surface-card rounded-[24px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>ערוך פוסט</span><Edit2 size={20} className="text-brand-muted" /></button>
+                      <button onClick={() => { if (window.confirm('למחוק פוסט?')) deletePost(gridActionModal.item.id); }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-[24px] text-red-500 font-black flex justify-between items-center text-[15px] mt-2 active:scale-[0.98] transition-all"><span>מחק פוסט</span><Trash2 size={20} className="text-red-500" /></button>
                     </>
                   )}
                   {gridActionModal.type === 'saved' && (
-                    <button onClick={() => removeFromSaved(gridActionModal.item.id)} className="w-full p-4 bg-surface-card rounded-2xl text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>הסר משמורים</span><Bookmark size={20} className="text-brand-muted" /></button>
+                    <button onClick={() => removeFromSaved(gridActionModal.item.id)} className="w-full p-4 bg-surface-card rounded-[24px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>הסר משמורים</span><Bookmark size={20} className="text-brand-muted" /></button>
                   )}
                   {gridActionModal.type === 'circle' && (
                     <>
-                      <button onClick={() => { closeOverlay(); setTimeout(() => { navigate(`/circle/${gridActionModal.item.slug}`); }, 100); }} className="w-full p-4 bg-surface-card rounded-2xl text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>כנס למועדון</span><LinkIcon size={20} className="text-brand-muted" /></button>
-                      <button onClick={() => { if (window.confirm('לעזוב את המועדון?')) leaveCircle(gridActionModal.item.id); }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 font-black flex justify-between items-center text-[15px] mt-2 active:scale-[0.98] transition-all"><span>עזוב מועדון</span><LogOut size={20} className="text-red-500" /></button>
+                      <button onClick={() => { closeOverlay(); setTimeout(() => { navigate(`/circle/${gridActionModal.item.slug}`); }, 100); }} className="w-full p-4 bg-surface-card rounded-[24px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>כנס למועדון</span><LinkIcon size={20} className="text-brand-muted" /></button>
+                      <button onClick={() => { if (window.confirm('לעזוב את המועדון?')) leaveCircle(gridActionModal.item.id); }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-[24px] text-red-500 font-black flex justify-between items-center text-[15px] mt-2 active:scale-[0.98] transition-all"><span>עזוב מועדון</span><LogOut size={20} className="text-red-500" /></button>
                     </>
                   )}
                 </motion.div>
