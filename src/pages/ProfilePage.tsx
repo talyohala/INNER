@@ -61,19 +61,15 @@ export const ProfilePage: React.FC = () => {
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState('');
   const [loadingComments, setLoadingComments] = useState(false);
-
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<any | null>(null);
-  const [expandedThreads, setExpandedThreads] = useState<Record<string, boolean>>({});
   const [commentActionModal, setCommentActionModal] = useState<any | null>(null);
-  const [likedComments, setLikedComments] = useState<Set<string>>(new Set());
 
   const [optionsMenuPost, setOptionsMenuPost] = useState<any>(null);
   const [activeDescPost, setActiveDescPost] = useState<any>(null);
   const [gridActionModal, setGridActionModal] = useState<{ item: any, type: 'post' | 'saved' | 'circle' } | null>(null);
 
   const [sealSelectorPost, setSealSelectorPost] = useState<any | null>(null);
-  const [isDropMode, setIsDropMode] = useState(false);
   const [contributeModal, setContributeModal] = useState<any | null>(null);
   const [contributeAmount, setContributeAmount] = useState<number | ''>(50);
   const [contributing, setContributing] = useState(false);
@@ -91,19 +87,10 @@ export const ProfilePage: React.FC = () => {
     followers: false, following: false, create: false, gridAction: false, seals: false, contribute: false
   });
 
-  const openOverlay = (action: () => void) => {
-    window.history.pushState({ overlay: true }, '');
-    action();
-  };
+  const openOverlay = (action: () => void) => { window.history.pushState({ overlay: true }, ''); action(); };
+  const closeOverlay = () => { window.history.back(); };
 
-  const closeOverlay = () => {
-    window.history.back();
-  };
-
-  useEffect(() => {
-    setMounted(true);
-    setPortalNode(document.getElementById('root') || document.body);
-  }, []);
+  useEffect(() => { setMounted(true); setPortalNode(document.getElementById('root') || document.body); }, []);
 
   useEffect(() => {
     stateRef.current = {
@@ -129,14 +116,12 @@ export const ProfilePage: React.FC = () => {
       else if (s.create) { setShowCreatePost(false); setEditingPost(null); setEditPostText(''); }
       else if (s.fullscreen) setFullScreenMedia(null);
     };
-
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   useEffect(() => {
     let isMounted = true;
-
     const loadProfileData = async () => {
       try {
         setLoadingData(true);
@@ -179,9 +164,7 @@ export const ProfilePage: React.FC = () => {
             }).filter(Boolean) || [];
           } catch {}
 
-          if (isMounted) {
-            setData({ profile: result.profile || authProfile, memberships: memberships || result.memberships || [], ownedCircles: ownedCircles || result.ownedCircles || [], posts: formattedPosts, savedPosts: mySavedPosts });
-          }
+          if (isMounted) setData({ profile: result.profile || authProfile, memberships: memberships || result.memberships || [], ownedCircles: ownedCircles || result.ownedCircles || [], posts: formattedPosts, savedPosts: mySavedPosts });
         } else {
           const identifier = routeId || '';
           const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
@@ -335,12 +318,8 @@ export const ProfilePage: React.FC = () => {
         else throw error;
         const revert = (list: any[]) => list.map((p) => p.id === postId ? { ...p, has_sealed: false, seals_count: Math.max(0, (p.seals_count || 0) - 1) } : p);
         setData((prev: any) => ({ ...prev, posts: revert(prev.posts || []), savedPosts: revert(prev.savedPosts || []) }));
-      } else {
-        triggerFeedback('success');
-      }
-    } catch (err) {
-      toast.error('שגיאה בהענקת חותם');
-    }
+      } else { triggerFeedback('success'); }
+    } catch (err) { toast.error('שגיאה בהענקת חותם'); }
   };
 
   const handleShare = async (post: any) => {
@@ -371,7 +350,6 @@ export const ProfilePage: React.FC = () => {
           const update = (list: any[]) => list.map((p) => p.id === activePost.id ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p);
           setData((prev: any) => ({ ...prev, posts: update(prev.posts || []), savedPosts: update(prev.savedPosts || []) }));
           if (fullScreenMedia) setFullScreenMedia((prev) => (prev ? update(prev) : prev));
-          if (replyingTo) setExpandedThreads((prev) => ({ ...prev, [replyingTo.id]: true }));
           triggerFeedback('coin');
         }
       }
@@ -441,6 +419,16 @@ export const ProfilePage: React.FC = () => {
     } catch { toast.error('שגיאה בעדכון הפוסט'); }
   };
 
+  const handleContribute = async () => {
+    if (!contributeModal || !contributeAmount || contributeAmount <= 0) return;
+    setContributing(true); triggerFeedback('pop');
+    try {
+      const { error } = await supabase.rpc('contribute_to_drop', { p_post_id: contributeModal.id, p_amount: contributeAmount });
+      if (error) throw error;
+      toast.success('תרומתך התקבלה! 🎉'); closeOverlay(); triggerFeedback('coin');
+    } catch (err: any) { triggerFeedback('error'); toast.error(err.message || 'שגיאה בתרומה.'); } finally { setContributing(false); }
+  };
+
   const stopPropagation = (e: any) => e.stopPropagation();
 
   if (authLoading || loadingData) {
@@ -485,11 +473,11 @@ export const ProfilePage: React.FC = () => {
         </div>
       </motion.div>
 
-      {/* Main Content Area (ללא קו מפריד עליון) */}
+      {/* Main Content Area */}
       <FadeIn className="relative z-10 pt-[200px] pb-32">
         <div className="bg-surface rounded-t-[40px] px-4 min-h-screen flex flex-col items-center shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
           
-          {/* Avatar with Edit Button attached */}
+          {/* Avatar with Edit Button */}
           <motion.div whileHover={{ scale: 1.05 }} className="w-[100px] h-[100px] rounded-full bg-surface p-1.5 relative -mt-[50px] z-20 shadow-xl">
             <div className="w-full h-full rounded-full overflow-hidden bg-surface-card relative flex items-center justify-center">
               {userProfile?.avatar_url ? (
@@ -499,7 +487,6 @@ export const ProfilePage: React.FC = () => {
               )}
             </div>
             
-            {/* Edit Button exactly on the Avatar */}
             {isMyProfile && (
               <button 
                 onClick={() => { triggerFeedback('pop'); navigate('/edit-profile'); }} 
@@ -617,7 +604,7 @@ export const ProfilePage: React.FC = () => {
             )}
           </div>
 
-          {/* TABS & GRID (Clean Outline Style ללא רקע מלא) */}
+          {/* TABS & GRID */}
           <div className="w-full mb-10">
             <div className="flex justify-center gap-3 px-4 py-3 bg-surface z-10 relative shrink-0 mb-4">
               {['posts', 'joined', ...(isMyProfile ? ['saved'] : [])].map((tab) => (
@@ -636,7 +623,6 @@ export const ProfilePage: React.FC = () => {
             </div>
 
             <AnimatePresence mode="wait">
-              
               {/* POSTS TAB */}
               {activeTab === 'posts' && (
                 <motion.div key="posts" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-1 -mx-3.5">
@@ -708,7 +694,7 @@ export const ProfilePage: React.FC = () => {
         </div>
       </FadeIn>
 
-      {/* OVERLAYS (All Dark Mode, Clean UI) */}
+      {/* OVERLAYS (Modals) */}
       {mounted && portalNode && createPortal(
         <>
           <AnimatePresence>
@@ -752,7 +738,7 @@ export const ProfilePage: React.FC = () => {
               </div>
             )}
 
-            {/* FULL SCREEN MEDIA (Keep existing logic, simplified styling) */}
+            {/* FULL SCREEN MEDIA */}
             {fullScreenMedia && (
               <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed inset-0 z-[999999] bg-surface">
                 <div className="w-full h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide" onScroll={handleContainerScroll}>
@@ -766,12 +752,26 @@ export const ProfilePage: React.FC = () => {
                         ) : (
                           <img src={vid.media_url} className="w-full h-full object-contain full-media-item" onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Media+Unavailable'; }} />
                         )}
+                        
+                        {/* Action Buttons: Left Side Column */}
+                        <div className="absolute bottom-32 left-4 flex flex-col gap-6 items-center z-50 pointer-events-auto">
+                          <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setSealSelectorPost(vid)); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform">
+                            <Flame size={32} className={vid.has_sealed ? 'text-orange-500' : 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]'} fill={vid.has_sealed ? 'currentColor' : 'none'} strokeWidth={1.5} />
+                            <span className="text-white text-[13px] font-black drop-shadow-md">{vid.seals_count || 0}</span>
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(vid); setActiveCommentsPostId(vid.id); setLoadingComments(true); supabase.from('comments').select('*, profiles!user_id(*)').eq('post_id', vid.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); }); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform">
+                            <MessageSquare size={32} className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" strokeWidth={1.5} />
+                            <span className="text-white text-[13px] font-black drop-shadow-md">{vid.comments_count}</span>
+                          </button>
+                        </div>
+
                         {/* 3 Dots Menu */}
                         <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }} className="absolute bottom-8 left-5 z-[60] active:scale-90 transition-transform p-1">
                           <MoreVertical size={28} strokeWidth={2} className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
                         </button>
+
                         {/* Close button */}
-                        <button onClick={(e) => { e.stopPropagation(); closeOverlay(); }} className="absolute top-10 right-4 z-[60] active:scale-90 transition-transform p-2 bg-black/40 backdrop-blur-md rounded-full text-white">
+                        <button onClick={(e) => { e.stopPropagation(); closeOverlay(); }} className="absolute top-10 right-4 z-[60] active:scale-90 transition-transform p-2 bg-black/40 backdrop-blur-md rounded-full text-white shadow-md">
                           <X size={24} />
                         </button>
                       </div>
@@ -779,6 +779,75 @@ export const ProfilePage: React.FC = () => {
                   })}
                 </div>
               </motion.div>
+            )}
+
+            {/* SEAL SELECTOR MODAL */}
+            {sealSelectorPost && (
+              <div className="fixed inset-0 z-[9999999] flex flex-col justify-end p-4" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
+                <motion.div initial={{ y: '100%', scale: 0.95 }} animate={{ y: 0, scale: 1 }} exit={{ y: '100%', scale: 0.95 }} transition={{ type: 'spring', damping: 25, stiffness: 400 }} className="relative z-10 bg-surface border border-surface-border rounded-[40px] p-8 shadow-2xl flex flex-col items-center gap-6">
+                  <div className="w-12 h-1.5 bg-white/10 rounded-full mb-2" />
+                  <div className="text-center">
+                    <h3 className="text-brand font-black text-xl tracking-tighter uppercase">הענק חותם יוקרה</h3>
+                    <p className="text-brand-muted text-[13px] mt-2 font-medium">החותם יישאר לשבוע ויעניק ליוצר XP</p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4 w-full">
+                    {SEAL_TYPES.map((type) => (
+                      <button key={type.id} onClick={() => handleSeal(sealSelectorPost.id, type.id)} className="flex flex-col items-center gap-3 p-5 rounded-[28px] bg-surface-card border border-surface-border hover:bg-white/5 transition-all active:scale-95 shadow-sm">
+                        <div className={`${type.color} drop-shadow-lg`}>{type.icon}</div>
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-brand font-black text-[12px] uppercase tracking-widest">{type.label}</span>
+                          <span className="text-accent-primary bg-accent-primary/10 border border-accent-primary/20 px-2 py-0.5 rounded-md text-[10px] font-black tracking-widest">+{type.xp} XP</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              </div>
+            )}
+
+            {/* COMMENTS MODAL */}
+            {activeCommentsPostId && (
+              <div className="fixed inset-0 z-[99999] flex flex-col justify-end" dir="rtl" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
+                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="relative z-10 bg-surface rounded-t-[40px] h-[85vh] flex flex-col overflow-hidden pb-[env(safe-area-inset-bottom,20px)] shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border">
+                  <div className="w-full py-5 flex justify-center cursor-grab active:cursor-grabbing border-b border-surface-border" onPointerDown={(e) => commentsDragControls.start(e)} style={{ touchAction: 'none' }}><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>
+                  <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 scrollbar-hide">
+                    {loadingComments ? <Loader2 className="animate-spin mx-auto text-accent-primary mt-10" /> : comments.filter((c) => c && !c.parent_id).map((c) => {
+                      const replies = comments.filter((r) => r && r.parent_id === c.id);
+                      return (
+                        <div key={c.id} className="flex flex-col gap-2">
+                          <div className="flex gap-3">
+                            <div className="w-10 h-10 min-w-[40px] rounded-full bg-surface-card shrink-0 overflow-hidden cursor-pointer border border-surface-border flex items-center justify-center" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${c.user_id}`), 50); }}>
+                              {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover object-center" /> : <span className="text-brand-muted font-black text-sm flex items-center justify-center leading-none">{(c.profiles?.full_name || 'א')[0]}</span>}
+                            </div>
+                            <div className="flex flex-col flex-1">
+                              <div className="bg-surface-card p-4 rounded-[24px] rounded-tr-sm cursor-pointer border border-surface-border shadow-sm" onClick={() => openOverlay(() => setCommentActionModal(c))}>
+                                <span className="text-brand font-black text-[13px] mb-1 inline-block uppercase tracking-widest" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${c.user_id}`), 50); }}>{c.profiles?.full_name || 'אנונימי'}</span>
+                                <p className="text-brand text-[13px] whitespace-pre-wrap leading-relaxed">{c.content}</p>
+                              </div>
+                            </div>
+                          </div>
+                          {replies.length > 0 && (
+                            <div className="pr-10 flex flex-col gap-2 mt-1">
+                              {replies.map((reply) => (
+                                <div key={reply.id} className="bg-surface/50 rounded-[20px] p-3 border border-surface-border">
+                                  <div className="text-brand text-[11px] font-black mb-1 uppercase tracking-widest">{reply.profiles?.full_name || 'אנונימי'}</div>
+                                  <div className="text-brand-muted text-[12px]">{reply.content}</div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="p-4 bg-surface flex gap-2">
+                    <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="הוסף תגובה..." className="flex-1 bg-surface-card border border-surface-border text-brand rounded-full px-5 outline-none text-[15px] placeholder:text-brand-muted shadow-inner" />
+                    <Button onClick={submitComment} disabled={!newComment.trim()} className="w-14 h-14 p-0 rounded-full shrink-0 bg-accent-primary text-white shadow-[0_5px_15px_rgba(var(--color-accent-primary),0.3)] active:scale-95 disabled:opacity-50 transition-all"><Send size={20} className="rtl:-scale-x-100 -ml-1" /></Button>
+                  </div>
+                </motion.div>
+              </div>
             )}
             
             {/* OPTIONS MODAL */}
@@ -807,7 +876,7 @@ export const ProfilePage: React.FC = () => {
               <div className="fixed inset-0 z-[100000] flex flex-col justify-end" dir="rtl" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
                 <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="relative z-10 bg-surface rounded-t-[40px] h-[75vh] flex flex-col overflow-hidden pb-10 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border">
-                  <div className="w-full py-5 flex justify-center cursor-grab active:cursor-grabbing" onPointerDown={(e) => (showFollowersList ? followersDragControls.start(e) : followingDragControls.start(e))} style={{ touchAction: 'none' }}><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>
+                  <div className="w-full py-5 flex justify-center cursor-grab active:cursor-grabbing border-b border-surface-border" onPointerDown={(e) => (showFollowersList ? followersDragControls.start(e) : followingDragControls.start(e))} style={{ touchAction: 'none' }}><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>
                   <div className="text-center py-2 mb-2"><h3 className="text-brand font-black text-lg">{showFollowersList ? 'עוקבים' : 'נעקבים'}</h3></div>
                   <div className="flex-1 overflow-y-auto px-4 flex flex-col gap-3 scrollbar-hide">
                     {loadingUsersList ? <Loader2 className="animate-spin mx-auto text-accent-primary mt-10" /> : usersListData.length === 0 ? <div className="text-center text-brand-muted mt-10 text-[14px]">אין נתונים להצגה</div> : usersListData.map((item) => (
