@@ -5,7 +5,7 @@ import { motion, AnimatePresence, useDragControls, useScroll, useTransform } fro
 import { 
   UserCircle, Loader2, MessageSquare, MoreVertical, MoreHorizontal, Share2, Reply, Trash2, X, Send, Download, 
   Link as LinkIcon, Edit2, Bookmark, MapPin, GraduationCap, ChevronDown, ChevronUp, Briefcase, Calendar, 
-  Sparkles, LogOut, Crown, Flame, Diamond, Handshake, ShieldCheck, Heart, Lock, Coins, Users 
+  Sparkles, LogOut, Crown, Flame, Diamond, Handshake, ShieldCheck, Heart, Lock, Coins, Users, Moon 
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
@@ -77,7 +77,6 @@ export const ProfilePage: React.FC = () => {
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [editingPost, setEditingPost] = useState<any | null>(null);
   const [editPostText, setEditPostText] = useState('');
-  const [aboutOpen, setAboutOpen] = useState(false);
 
   const isMyProfile = !routeId || routeId === authProfile?.username || routeId === user?.id;
 
@@ -314,6 +313,19 @@ export const ProfilePage: React.FC = () => {
     } catch { toast.error('שגיאה בטעינת הרשימה'); } finally { setLoadingUsersList(false); }
   };
 
+  const handleRemoveSeal = async (postId: string) => {
+    triggerFeedback('pop');
+    const update = (list: any[]) => list.map((p) => p.id === postId ? { ...p, has_sealed: false, seals_count: Math.max(0, (p.seals_count || 0) - 1) } : p);
+    setData((prev: any) => ({ ...prev, posts: update(prev.posts || []), savedPosts: update(prev.savedPosts || []) }));
+    if (fullScreenMedia) setFullScreenMedia((prev) => (prev ? update(prev) : prev));
+
+    try {
+      await supabase.from('post_seals').delete().match({ post_id: postId, user_id: currentUserId });
+    } catch (err) {
+      toast.error('שגיאה בהסרת חותם');
+    }
+  };
+
   const handleSeal = async (postId: string, sealType: string) => {
     triggerFeedback('pop');
     closeOverlay();
@@ -449,12 +461,10 @@ export const ProfilePage: React.FC = () => {
   const displayLink = userProfile?.social_link ? userProfile.social_link.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '') : '';
 
   const aboutItems = [
-    { key: 'location', label: 'מתגורר ב', value: userProfile?.location, icon: <MapPin size={16} /> },
-    { key: 'relationship_status', label: 'מצב משפחתי', value: userProfile?.relationship_status, icon: <Heart size={16} /> },
-    { key: 'education', label: 'השכלה', value: userProfile?.education, icon: <GraduationCap size={16} /> },
-    { key: 'job_title', label: 'עיסוק', value: userProfile?.job_title, icon: <Briefcase size={16} /> },
-    { key: 'birth_date', label: 'תאריך לידה', value: userProfile?.birth_date ? new Date(userProfile.birth_date).toLocaleDateString('he-IL') : '', icon: <Calendar size={16} /> },
-    { key: 'bio', label: 'ביו', value: userProfile?.bio, icon: <Sparkles size={16} />, full: true },
+    { key: 'location', label: 'מתגורר ב', value: userProfile?.location, icon: <MapPin size={14} className="text-brand-muted/70" /> },
+    { key: 'relationship_status', label: 'מצב משפחתי', value: userProfile?.relationship_status, icon: <Heart size={14} className="text-brand-muted/70" /> },
+    { key: 'education', label: 'השכלה', value: userProfile?.education, icon: <GraduationCap size={14} className="text-brand-muted/70" /> },
+    { key: 'job_title', label: 'עיסוק', value: userProfile?.job_title, icon: <Briefcase size={14} className="text-brand-muted/70" /> },
   ].filter((item) => item.value);
 
   return (
@@ -527,58 +537,38 @@ export const ProfilePage: React.FC = () => {
               </div>
             )}
 
-            {/* About Section */}
-            {(userProfile?.zodiac || userProfile?.social_link || aboutItems.length > 0) && (
-              <div className="flex flex-col items-center gap-2 mb-6 w-full">
-                {userProfile?.social_link && (
-                  <a href={userProfile.social_link.startsWith('http') ? userProfile.social_link : `https://${userProfile.social_link}`} target="_blank" rel="noopener noreferrer" className="text-white text-[13px] font-bold flex items-center gap-1.5 hover:text-white/80 transition-colors">
-                    <span dir="ltr" className="tracking-wide text-white">{displayLink}</span>
-                    <LinkIcon size={14} className="text-white" />
-                  </a>
-                )}
-                {userProfile?.zodiac && <span className="text-brand-muted text-[13px] font-medium">{userProfile.zodiac}</span>}
+            {/* About Section - Modern & Elegant */}
+            <div className="flex flex-col items-center gap-4 mb-6 w-full max-w-[400px]">
+              {userProfile?.bio && (
+                <p className="text-brand text-[14px] leading-relaxed text-center font-medium px-4">
+                  {userProfile.bio}
+                </p>
+              )}
 
-                {aboutItems.length > 0 && (
-                  <div className="w-full max-w-[360px] mt-2">
-                    <button onClick={() => { triggerFeedback('pop'); setAboutOpen((prev) => !prev); }} className="w-full flex items-center justify-center gap-2 text-brand-muted hover:text-brand transition-colors">
-                      <span className="text-[13px] font-black tracking-wide">אודות</span>
-                      {aboutOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                    </button>
-                    <AnimatePresence initial={false}>
-                      {aboutOpen && (
-                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                          <div className="mt-4 bg-surface-card border border-white/[0.05] rounded-[24px] p-4 text-right shadow-lg">
-                            <div className="grid grid-cols-1 gap-3">
-                              {aboutItems.map((item: any) => (
-                                <div key={item.key} className={`flex items-start gap-3 rounded-[16px] border border-white/[0.02] bg-white/[0.02] px-4 py-3 ${item.full ? 'flex-col items-stretch' : ''}`}>
-                                  {!item.full ? (
-                                    <>
-                                      <div className="mt-0.5 text-accent-primary">{item.icon}</div>
-                                      <div className="flex-1">
-                                        <div className="text-brand-muted text-[10px] font-black tracking-widest mb-1 uppercase">{item.label}</div>
-                                        <div className="text-brand text-[13px] font-medium">{item.value}</div>
-                                      </div>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <div className="flex items-center gap-2 text-accent-primary">
-                                        {item.icon}
-                                        <div className="text-brand-muted text-[10px] font-black tracking-widest uppercase">{item.label}</div>
-                                      </div>
-                                      <div className="text-brand text-[13px] font-medium leading-6 whitespace-pre-wrap">{item.value}</div>
-                                    </>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                )}
-              </div>
-            )}
+              {userProfile?.social_link && (
+                 <a href={userProfile.social_link.startsWith('http') ? userProfile.social_link : `https://${userProfile.social_link}`} target="_blank" rel="noopener noreferrer" className="text-accent-primary text-[13px] font-black flex items-center gap-1.5 hover:opacity-80 transition-opacity bg-accent-primary/10 px-4 py-1.5 rounded-full mt-1">
+                   <LinkIcon size={14} />
+                   <span dir="ltr" className="tracking-wide">{displayLink}</span>
+                 </a>
+              )}
+
+              {(userProfile?.zodiac || aboutItems.length > 0) && (
+                <div className="flex flex-wrap justify-center gap-2 mt-2 px-2">
+                   {userProfile?.zodiac && (
+                      <span className="flex items-center gap-1.5 text-brand-muted text-[12px] font-bold bg-surface-card border border-white/[0.05] px-3 py-1.5 rounded-[20px] shadow-sm">
+                        <Moon size={14} className="text-accent-primary" />
+                        {userProfile.zodiac}
+                      </span>
+                   )}
+                   {aboutItems.map((item: any) => (
+                     <div key={item.key} className="flex items-center gap-1.5 text-brand-muted text-[12px] font-bold bg-surface-card border border-white/[0.05] px-3 py-1.5 rounded-[20px] shadow-sm">
+                       {item.icon}
+                       <span>{item.value}</span>
+                     </div>
+                   ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* XP Progress - Clean & Centered */}
@@ -613,7 +603,6 @@ export const ProfilePage: React.FC = () => {
             </div>
 
             <AnimatePresence mode="wait">
-              
               {/* POSTS TAB */}
               {activeTab === 'posts' && (
                 <motion.div key="posts" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-1 -mx-3.5">
@@ -621,7 +610,7 @@ export const ProfilePage: React.FC = () => {
                     <div className="col-span-3 text-center py-10 text-brand-muted text-[14px] font-bold">אין פוסטים עדיין</div>
                   ) : (
                     userPosts.map((post: any) => (
-                      <div key={post.id} onClick={() => { openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = mediaPosts.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[2/3] bg-surface-card relative overflow-hidden cursor-pointer active:opacity-70 border border-white/[0.05] rounded-[24px]">
+                      <div key={post.id} onClick={() => { openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = mediaPosts.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[2/3] bg-surface-card relative overflow-hidden cursor-pointer active:opacity-70 border border-white/[0.05] rounded-[16px]">
                         {isMyProfile && (
                           <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'post' })); }} className="absolute top-2 left-2 z-20 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] hover:text-white/70 transition-colors">
                             <MoreHorizontal size={24} strokeWidth={2.5} />
@@ -642,7 +631,7 @@ export const ProfilePage: React.FC = () => {
               {activeTab === 'joined' && (
                 <motion.div key="joined" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-1 -mx-3.5">
                   {joinedCircles.map((circle: any) => (
-                    <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className="aspect-[2/3] bg-surface-card relative overflow-hidden cursor-pointer border border-white/[0.05] rounded-[24px] group">
+                    <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className="aspect-[2/3] bg-surface-card relative overflow-hidden cursor-pointer border border-white/[0.05] rounded-[16px] group">
                       <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: circle, type: 'circle' })); }} className="absolute top-2 left-2 z-20 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] hover:text-white/70 transition-colors opacity-0 group-hover:opacity-100 touch-manipulation">
                         <MoreHorizontal size={24} strokeWidth={2.5} />
                       </button>
@@ -666,7 +655,7 @@ export const ProfilePage: React.FC = () => {
                     <div className="col-span-3 text-center py-10 text-brand-muted text-[14px] font-bold">אין פוסטים שמורים</div>
                   ) : (
                     userSavedPosts.map((post: any) => (
-                      <div key={post.id} onClick={() => { const savedMedia = userSavedPosts.filter((p: any) => p.media_url); openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = savedMedia.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[2/3] bg-surface-card relative overflow-hidden cursor-pointer active:opacity-70 border border-white/[0.05] rounded-[24px]">
+                      <div key={post.id} onClick={() => { const savedMedia = userSavedPosts.filter((p: any) => p.media_url); openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = savedMedia.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[2/3] bg-surface-card relative overflow-hidden cursor-pointer active:opacity-70 border border-white/[0.05] rounded-[16px]">
                         <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'saved' })); }} className="absolute top-2 left-2 z-20 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] hover:text-white/70 transition-colors">
                           <MoreHorizontal size={24} strokeWidth={2.5} />
                         </button>
@@ -699,19 +688,32 @@ export const ProfilePage: React.FC = () => {
                   
                   {gridActionModal.type === 'post' && (
                     <>
-                      <button onClick={() => { closeOverlay(); setTimeout(() => { openOverlay(() => { setEditingPost(gridActionModal.item); setEditPostText(gridActionModal.item.content || ''); setShowCreatePost(true); }); }, 100); }} className="w-full p-4 bg-surface-card rounded-[24px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>ערוך פוסט</span><Edit2 size={20} className="text-brand-muted" /></button>
-                      <button onClick={() => { if (window.confirm('למחוק פוסט?')) deletePost(gridActionModal.item.id); }} className="w-full p-4 bg-surface-card border border-red-500/30 rounded-[24px] text-red-500 font-black flex justify-between items-center text-[15px] mt-2 active:scale-[0.98] transition-all"><span>מחק פוסט</span><Trash2 size={20} className="text-red-500" /></button>
+                      <button onClick={() => { closeOverlay(); setTimeout(() => { openOverlay(() => { setEditingPost(gridActionModal.item); setEditPostText(gridActionModal.item.content || ''); setShowCreatePost(true); }); }, 100); }} className="w-full p-4 bg-surface-card rounded-2xl text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>ערוך פוסט</span><Edit2 size={20} className="text-brand-muted" /></button>
+                      <button onClick={() => { if (window.confirm('למחוק פוסט?')) deletePost(gridActionModal.item.id); }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 font-black flex justify-between items-center text-[15px] mt-2 active:scale-[0.98] transition-all"><span>מחק פוסט</span><Trash2 size={20} className="text-red-500" /></button>
                     </>
                   )}
                   {gridActionModal.type === 'saved' && (
-                    <button onClick={() => removeFromSaved(gridActionModal.item.id)} className="w-full p-4 bg-surface-card rounded-[24px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>הסר משמורים</span><Bookmark size={20} className="text-brand-muted" /></button>
+                    <button onClick={() => removeFromSaved(gridActionModal.item.id)} className="w-full p-4 bg-surface-card rounded-2xl text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>הסר משמורים</span><Bookmark size={20} className="text-brand-muted" /></button>
                   )}
                   {gridActionModal.type === 'circle' && (
                     <>
-                      <button onClick={() => { closeOverlay(); setTimeout(() => { navigate(`/circle/${gridActionModal.item.slug}`); }, 100); }} className="w-full p-4 bg-surface-card rounded-[24px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>כנס למועדון</span><LinkIcon size={20} className="text-brand-muted" /></button>
-                      <button onClick={() => { if (window.confirm('לעזוב את המועדון?')) leaveCircle(gridActionModal.item.id); }} className="w-full p-4 bg-surface-card border border-red-500/30 rounded-[24px] text-red-500 font-black flex justify-between items-center text-[15px] mt-2 active:scale-[0.98] transition-all"><span>עזוב מועדון</span><LogOut size={20} className="text-red-500" /></button>
+                      <button onClick={() => { closeOverlay(); setTimeout(() => { navigate(`/circle/${gridActionModal.item.slug}`); }, 100); }} className="w-full p-4 bg-surface-card rounded-2xl text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>כנס למועדון</span><LinkIcon size={20} className="text-brand-muted" /></button>
+                      <button onClick={() => { if (window.confirm('לעזוב את המועדון?')) leaveCircle(gridActionModal.item.id); }} className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 font-black flex justify-between items-center text-[15px] mt-2 active:scale-[0.98] transition-all"><span>עזוב מועדון</span><LogOut size={20} className="text-red-500" /></button>
                     </>
                   )}
+                </motion.div>
+              </div>
+            )}
+
+            {/* CREATE/EDIT POST MODAL */}
+            {showCreatePost && (
+              <div className="fixed inset-0 z-[100000] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
+                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[40px] p-6 flex flex-col gap-4 pb-[env(safe-area-inset-bottom,32px)] border-t border-surface-border shadow-[0_-20px_50px_rgba(0,0,0,0.8)]">
+                  <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>
+                  <div className="flex justify-between items-center px-2"><h3 className="text-brand font-black text-[16px] uppercase tracking-widest">עריכת פוסט</h3><button onClick={closeOverlay} className="text-brand-muted hover:text-brand"><X size={24} /></button></div>
+                  <textarea value={editPostText} onChange={(e) => setEditPostText(e.target.value)} placeholder="כתוב משהו..." className="h-36 bg-surface-card rounded-[24px] p-5 text-brand text-[15px] outline-none resize-none border border-surface-border placeholder:text-brand-muted shadow-inner" />
+                  <Button onClick={saveEditedPost} disabled={!editPostText.trim()} className="h-14 bg-accent-primary text-white font-black text-[15px] uppercase tracking-widest rounded-full mt-2 shadow-[0_5px_20px_rgba(var(--color-accent-primary),0.3)] active:scale-95 transition-all">שמור עריכה</Button>
                 </motion.div>
               </div>
             )}
@@ -733,7 +735,14 @@ export const ProfilePage: React.FC = () => {
                         
                         {/* Action Buttons: Left Side Column */}
                         <div className="absolute bottom-32 left-4 flex flex-col gap-6 items-center z-50 pointer-events-auto">
-                          <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setSealSelectorPost(vid)); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform">
+                          <button onClick={(e) => { 
+                            e.stopPropagation(); 
+                            if (vid.has_sealed) {
+                              handleRemoveSeal(vid.id);
+                            } else {
+                              openOverlay(() => setSealSelectorPost(vid)); 
+                            }
+                          }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform">
                             <Flame size={32} className={vid.has_sealed ? 'text-orange-500' : 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]'} fill={vid.has_sealed ? 'currentColor' : 'none'} strokeWidth={1.5} />
                             <span className="text-white text-[13px] font-black drop-shadow-md">{vid.seals_count || 0}</span>
                           </button>
@@ -755,11 +764,6 @@ export const ProfilePage: React.FC = () => {
                         {/* 3 Dots Menu */}
                         <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }} className="absolute bottom-8 left-5 z-[60] active:scale-90 transition-transform p-1">
                           <MoreVertical size={28} strokeWidth={2} className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
-                        </button>
-
-                        {/* Close button */}
-                        <button onClick={(e) => { e.stopPropagation(); closeOverlay(); }} className="absolute top-10 right-4 z-[60] active:scale-90 transition-transform p-2 bg-black/40 backdrop-blur-md rounded-full text-white shadow-md">
-                          <X size={24} />
                         </button>
                       </div>
                     );
@@ -793,7 +797,7 @@ export const ProfilePage: React.FC = () => {
               </div>
             )}
 
-            {/* COMMENTS MODAL (z-[99000] - Now safely above FullScreen Media) */}
+            {/* COMMENTS MODAL (z-[99000] - Safely above FullScreen Media) */}
             {activeCommentsPostId && (
               <div className="fixed inset-0 z-[99000] flex flex-col justify-end" dir="rtl" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
@@ -908,7 +912,7 @@ export const ProfilePage: React.FC = () => {
               </div>
             )}
 
-            {/* COMMENT ACTION MODAL (z-[99900] - מעל חלון התגובות) */}
+            {/* COMMENT ACTION MODAL */}
             {commentActionModal && (
               <div className="fixed inset-0 z-[99900] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
