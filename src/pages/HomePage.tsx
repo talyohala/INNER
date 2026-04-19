@@ -6,10 +6,10 @@ import { supabase } from '../lib/supabase';
 import { apiFetch } from '../lib/api';
 import { FadeIn, Button } from '../components/ui';
 import {
-  Loader2, Bell, Users, MessageSquare, Send, X, Paperclip,
-  RefreshCw, UserCircle, Trash2, Edit2, Share2, MoreVertical,
-  ChevronLeft, Reply, ChevronDown, ChevronUp, ArrowUp, Download,
-  Link as LinkIcon, Bookmark, Crown, Lock, Flame, Diamond, Handshake, Coins, PlusCircle, ArrowRight
+  Loader2, Bell, Users, MessageSquare, Send, X, Paperclip, RefreshCw,
+  UserCircle, Trash2, Edit2, Share2, MoreVertical, ChevronLeft, Reply,
+  ChevronDown, ChevronUp, ArrowUp, Download, Link as LinkIcon, Bookmark,
+  Crown, Lock, Flame, Diamond, Handshake, Coins, Megaphone, Gift, ArrowLeft
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -34,12 +34,18 @@ export const HomePage: React.FC = () => {
   const lastScrollY = useRef(0);
 
   const [mounted, setMounted] = useState(false);
-
   const [posts, setPosts] = useState<AnyPost[]>(() => {
     try {
       const cached = localStorage.getItem('inner_feed_cache');
       return cached ? JSON.parse(cached) : [];
     } catch { return []; }
+  });
+
+  // Campaigns State
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [claimedCampaigns, setClaimedCampaigns] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('inner_claimed_camps') || '[]')); }
+    catch { return new Set(); }
   });
 
   const [loading, setLoading] = useState(posts.length === 0);
@@ -77,10 +83,9 @@ export const HomePage: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [currentUserId, setCurrentUserId] = useState('');
-
   const [userCirclesModal, setUserCirclesModal] = useState<any[] | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
-  const [postCirclesModal, setPostCirclesModal] = useState<any[] | null>(null); // NEW: Bottom sheet for >20 circles
+  const [postCirclesModal, setPostCirclesModal] = useState<any[] | null>(null);
 
   const stateRef = useRef({
     comments: false, options: false, desc: false, create: false,
@@ -95,10 +100,7 @@ export const HomePage: React.FC = () => {
     const batch: AnyPost[] = [];
     for (let i = 0; i < size; i += 1) {
       const picked = pool[Math.floor(Math.random() * pool.length)];
-      batch.push({
-        ...picked,
-        _uid: `${picked.id}-${Math.random().toString(36).slice(2, 9)}`,
-      });
+      batch.push({ ...picked, _uid: `${picked.id}-${Math.random().toString(36).slice(2, 9)}` });
     }
     return batch;
   };
@@ -151,7 +153,7 @@ export const HomePage: React.FC = () => {
       if (!authData.user) return;
       const { count } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', authData.user.id).eq('is_read', false);
       setUnreadCount(count || 0);
-    } catch {}
+    } catch { }
   };
 
   const fetchData = async (isSilentRefresh = false) => {
@@ -161,14 +163,16 @@ export const HomePage: React.FC = () => {
       const uid = authData.user?.id || null;
       if (uid) setCurrentUserId(uid);
 
-      const [rawPosts, rawMembers, rawCircles] = await Promise.all([
+      const [rawPosts, rawMembers, rawCircles, rawCamps] = await Promise.all([
         supabase.rpc('get_smart_feed', { p_user_id: uid, p_limit: 30, p_offset: 0 }).then((r) => r.data || []),
         supabase.from('circle_members').select('*').then((r) => r.data || []),
         supabase.from('circles').select('*').then((r) => r.data || []),
+        supabase.from('campaigns').select('*').eq('placement', 'feed').eq('active', true).order('created_at', { ascending: false }).then(r => r.data || [])
       ]);
 
-      const myCircleIds = new Set(rawMembers.filter((m: any) => m.user_id === uid).map((m: any) => m.circle_id));
+      setCampaigns(rawCamps);
 
+      const myCircleIds = new Set(rawMembers.filter((m: any) => m.user_id === uid).map((m: any) => m.circle_id));
       const recommendedClubs = rawCircles
         .filter((c: any) => !myCircleIds.has(c.id))
         .map((c: any) => ({
@@ -194,7 +198,6 @@ export const HomePage: React.FC = () => {
 
       let mixedFeed: any[] = [];
       let clubIdx = 0;
-
       fetchedPosts.forEach((post: any, idx: number) => {
         mixedFeed.push(post);
         if ((idx + 1) % 4 === 0 && recommendedClubs[clubIdx]) {
@@ -214,6 +217,21 @@ export const HomePage: React.FC = () => {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  const handleClaimCampaign = (camp: any) => {
+    triggerFeedback('pop');
+    const newSet = new Set(claimedCampaigns).add(camp.id);
+    setClaimedCampaigns(newSet);
+    localStorage.setItem('inner_claimed_camps', JSON.stringify(Array.from(newSet)));
+
+    if (camp.reward > 0) {
+      toast.success(`איזה כיף! קיבלת ${camp.reward} CRD מתנה 🎉`);
+      triggerFeedback('coin');
+      // כאן בעתיד אפשר להוסיף קריאת RPC שתעדכן את היתרה של המשתמש בפועל
+    } else {
+      toast.success('ההודעה נסגרה');
     }
   };
 
@@ -268,7 +286,7 @@ export const HomePage: React.FC = () => {
       entries.forEach((entry) => {
         const vid = entry.target as HTMLVideoElement;
         if (vid.tagName !== 'VIDEO') return;
-        if (entry.isIntersecting) { vid.muted = false; vid.play().catch(() => {}); }
+        if (entry.isIntersecting) { vid.muted = false; vid.play().catch(() => { }); }
         else { vid.pause(); vid.muted = true; vid.currentTime = 0; }
       });
     }, { threshold: 0.7 });
@@ -314,7 +332,6 @@ export const HomePage: React.FC = () => {
   const handlePost = async () => {
     if (!newPost.trim() && !selectedFile && !editingPost) return;
     if (isDropMode && (!dropTarget || dropTarget < 50)) return toast.error('יעד מינימלי לדרופ: 50 CRD');
-
     setPosting(true);
     triggerFeedback('pop');
     try {
@@ -322,6 +339,7 @@ export const HomePage: React.FC = () => {
         await supabase.from('posts').update({ content: newPost.trim() }).eq('id', editingPost.id);
         setPosts((curr) => curr.map((p) => p.id === editingPost.id ? { ...p, content: newPost.trim() } : p));
         toast.success('עודכן בהצלחה');
+        setNewPost(''); setEditingPost(null);
         closeOverlay();
         return;
       }
@@ -332,18 +350,14 @@ export const HomePage: React.FC = () => {
       if (selectedFile) {
         const safeName = selectedFile.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
         const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}_${safeName}`;
-
         const { data: uploadData, error: uploadError } = await supabase.storage.from('feed_images').upload(fileName, selectedFile, {
           cacheControl: '3600',
           upsert: false
         });
-
         if (uploadError) throw new Error("שגיאה בהעלאת הקובץ: " + uploadError.message);
         if (!uploadData?.path) throw new Error("בעיה בקבלת נתיב הקובץ מהשרת");
-
         const { data: { publicUrl } } = supabase.storage.from('feed_images').getPublicUrl(uploadData.path);
         if (!publicUrl) throw new Error("לא הצלחנו לייצר קישור לקובץ");
-
         media_url = publicUrl;
         media_type = selectedFile.type.startsWith('video/') ? 'video' : 'image';
       }
@@ -397,7 +411,6 @@ export const HomePage: React.FC = () => {
     const update = (list: AnyPost[]) => list.map((p) => p.id === postId ? { ...p, has_sealed: false, seals_count: Math.max(0, p.seals_count - 1) } : p);
     setPosts((prev) => update(prev));
     if (fullScreenMedia) setFullScreenMedia((prev) => (prev ? update(prev) : prev));
-
     try {
       await supabase.from('post_seals').delete().match({ post_id: postId, user_id: currentUserId });
     } catch (err) {
@@ -411,7 +424,6 @@ export const HomePage: React.FC = () => {
     const update = (list: AnyPost[]) => list.map((p) => p.id === postId ? { ...p, has_sealed: true, seals_count: p.seals_count + 1 } : p);
     setPosts((prev) => update(prev));
     if (fullScreenMedia) setFullScreenMedia((prev) => (prev ? update(prev) : prev));
-
     try {
       const { error } = await supabase.from('post_seals').insert({ post_id: postId, user_id: currentUserId, seal_type: sealType });
       if (error) {
@@ -464,7 +476,7 @@ export const HomePage: React.FC = () => {
         await navigator.clipboard.writeText(`${textToShare}\n${publicUrl}`);
         toast.success('הקישור הועתק ללוח');
       }
-    } catch {}
+    } catch { }
   };
 
   const handleCopyLink = async (post: AnyPost) => {
@@ -547,7 +559,7 @@ export const HomePage: React.FC = () => {
     const update = (list: AnyPost[]) => list.map((p) => p.id === activePost?.id ? { ...p, comments_count: Math.max(0, (p.comments_count || 0) - 1) } : p);
     setPosts((prev) => update(prev));
     if (fullScreenMedia) setFullScreenMedia((prev) => (prev ? update(prev) : prev));
-    try { await supabase.from('comments').delete().eq('id', commentId); } catch {}
+    try { await supabase.from('comments').delete().eq('id', commentId); } catch { }
   };
 
   const handleOpenFullscreen = (post: AnyPost) => {
@@ -578,7 +590,7 @@ export const HomePage: React.FC = () => {
       .sort((a, b) => {
         const repliesA = comments.filter((r) => r && r.parent_id === a.id).length;
         const repliesB = comments.filter((r) => r && r.parent_id === b.id).length;
-        if (repliesB !== repliesA) return repliesB - repliesA; 
+        if (repliesB !== repliesA) return repliesB - repliesA;
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
   }, [comments]);
@@ -594,25 +606,17 @@ export const HomePage: React.FC = () => {
       <AnimatePresence>
         {showScrollTop && !isAnyModalOpen() && (
           <motion.button
-            initial={{ opacity: 0, scale: 0.5, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.5, y: 20 }}
-            onClick={scrollToTop}
-            className="fixed bottom-24 right-5 z-[80] w-12 h-12 bg-surface-card/90 backdrop-blur-xl border border-surface-border text-brand rounded-[18px] flex items-center justify-center shadow-[0_10px_40px_rgba(0,0,0,0.5)] active:scale-90 transition-transform"
+            initial={{ opacity: 0, scale: 0.5, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.5, y: 20 }}
+            onClick={scrollToTop} className="fixed bottom-24 right-5 z-[80] w-12 h-12 bg-surface-card/90 backdrop-blur-xl border border-surface-border text-brand rounded-[18px] flex items-center justify-center shadow-[0_10px_40px_rgba(0,0,0,0.5)] active:scale-90 transition-transform"
           >
-            <ArrowUp size={20} className="text-indigo-300" />
+            <ArrowUp size={20} className="text-accent-primary" />
           </motion.button>
         )}
       </AnimatePresence>
 
       <AnimatePresence>
         {refreshing && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8, y: -20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.8, y: -20 }}
-            className="fixed top-24 left-0 right-0 flex justify-center z-[999] pointer-events-none"
-          >
+          <motion.div initial={{ opacity: 0, scale: 0.8, y: -20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.8, y: -20 }} className="fixed top-24 left-0 right-0 flex justify-center z-[999] pointer-events-none">
             <div className="bg-surface-card/95 backdrop-blur-2xl border border-surface-border px-5 py-3 rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.5)] flex items-center gap-3">
               <Loader2 size={16} className="animate-spin text-accent-primary" />
               <span className="text-[12px] font-black tracking-widest uppercase text-brand">מרענן נתונים...</span>
@@ -620,99 +624,129 @@ export const HomePage: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
       <FadeIn className="pt-[env(safe-area-inset-top)] pb-32 bg-surface min-h-screen relative overflow-x-hidden touch-pan-y" dir="rtl" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
-        
         {!refreshing && pullY > 0 && (
-          <div 
-            className="fixed top-0 left-0 right-0 flex justify-center z-[100] pointer-events-none"
-            style={{ transform: `translateY(${pullY - 50}px)`, opacity: pullY / 60 }}
-          >                  
-            <div className="bg-surface-card p-3 rounded-full shadow-lg border border-surface-border mt-10">                     
-              <RefreshCw size={20} className="text-brand-muted" style={{ transform: `rotate(${pullY * 3}deg)` }} />                   
-            </div>                                                 
+          <div className="fixed top-0 left-0 right-0 flex justify-center z-[100] pointer-events-none" style={{ transform: `translateY(${pullY - 50}px)`, opacity: pullY / 60 }}>
+            <div className="bg-surface-card p-3 rounded-full shadow-lg border border-surface-border mt-10">
+              <RefreshCw size={20} className="text-brand-muted" style={{ transform: `rotate(${pullY * 3}deg)` }} />
+            </div>
           </div>
-        )}                                                                                                            
-        
-        <div className="relative z-10 px-4">                                                                                
+        )}
+
+        <div className="relative z-10 px-4">
           
-          <div className="sticky top-0 z-[60] bg-surface/80 backdrop-blur-xl pt-4 pb-3 flex justify-between items-center -mx-4 px-6 mb-4">                                                             
+          <div className="sticky top-0 z-[60] bg-surface/80 backdrop-blur-xl pt-4 pb-3 flex justify-between items-center -mx-4 px-6 mb-4">
             <div className="w-10" />
-            <div className="flex flex-col items-center absolute left-1/2 -translate-x-1/2">                                     
-              <h1 className="text-2xl font-black text-brand tracking-widest uppercase drop-shadow-sm">INNER</h1>                
-              <div className="flex items-center gap-1.5 mt-0.5 bg-surface-card border border-surface-border px-3 py-0.5 rounded-full shadow-inner">                                        
-                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_#22c55e]" />                 
-                <span className="text-[10px] font-black text-brand-muted tracking-widest">{onlineUsers.toLocaleString()} אונליין</span>                                                  
-              </div>                                                 
-            </div>                                                   
-            <button onClick={() => navigate('/notifications')} className="w-10 h-10 flex justify-center items-center bg-surface-card border border-surface-border rounded-full active:scale-90 relative shadow-sm transition-transform">                                                                   
-              <Bell size={18} className="text-brand" />                
-              {unreadCount > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border border-surface animate-pulse shadow-[0_0_5px_#f43f5e]" />}                                                                
-            </button>                                              
-          </div>                                                                                                            
-          
-          <div className="mb-4">                                     
-            <div className="p-3 px-4 rounded-[20px] border border-surface-border bg-surface-card shadow-sm relative z-10 flex flex-col gap-2">                                                
-              
-              {selectedFile && (                                         
-                <div className="relative w-full h-44 rounded-[16px] overflow-hidden bg-surface border border-surface-border flex items-center justify-center shadow-inner mt-2">                  
-                  {selectedFile.type.startsWith('video/') ? (                                                                         
-                    <video src={URL.createObjectURL(selectedFile)} className="w-full h-full object-cover opacity-90" preload="metadata" playsInline />                                       
-                  ) : (                                                      
-                    <img src={URL.createObjectURL(selectedFile)} className="w-full h-full object-cover opacity-90" loading="lazy" />                                                         
-                  )}                                                       
-                  <button onClick={(e) => { e.stopPropagation(); setSelectedFile(null); }} className="absolute top-3 right-3 w-8 h-8 bg-black/60 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center text-white z-10">                                                         
-                    <X size={14} />                                        
-                  </button>                                              
-                </div>                                                 
-              )}                                                       
-              
-              <textarea                                                  
-                value={newPost}                                          
-                onChange={(e) => setNewPost(e.target.value)}                                                                      
-                placeholder="מה בא לך לשתף עם כולם?"                           
-                className="w-full bg-transparent border-none text-brand text-[15px] font-medium outline-none resize-none placeholder:text-brand-muted/50 px-2 min-h-[44px] mt-1"                
-                rows={Math.min(Math.max(newPost.split('\n').length, 1), 4)}                                                     
-              />                                                                                                                
-              
-              <AnimatePresence>                                          
-                {isDropMode && (                                           
-                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="flex items-center gap-3 bg-surface border border-accent-primary/30 p-3 rounded-2xl mt-1">                                                                 
-                    <div className="flex flex-col flex-1">                                                                              
-                      <span className="text-[11px] font-black text-accent-primary tracking-widest uppercase mb-1">יעד פתיחה (CRD)</span>                                                         
-                      <input type="number" value={dropTarget} onChange={(e) => setDropTarget(e.target.value === '' ? '' : Number(e.target.value))} className="bg-transparent border-none text-brand font-black outline-none w-full" placeholder="500" />                             
-                    </div>                                                 
-                  </motion.div>                                          
-                )}                                                     
-              </AnimatePresence>                                                                                                
-              
-              <div className="flex justify-between items-center border-t border-surface-border pt-2 mt-1">                        
-                <div className="flex gap-1">                               
-                  <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 text-brand-muted hover:text-brand px-2 py-1.5 rounded-full transition-colors">                                                               
-                    <Paperclip size={18} />                                
-                  </button>                                                
-                  <button onClick={() => setIsDropMode(!isDropMode)} className={`flex items-center gap-2 px-2 py-1.5 rounded-full transition-colors ${isDropMode ? 'text-accent-primary' : 'text-brand-muted hover:text-brand'}`}>                                                          
+            <div className="flex flex-col items-center absolute left-1/2 -translate-x-1/2">
+              <h1 className="text-2xl font-black text-brand tracking-widest uppercase drop-shadow-sm">INNER</h1>
+              <div className="flex items-center gap-1.5 mt-0.5 bg-surface-card border border-surface-border px-3 py-0.5 rounded-full shadow-inner">
+                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_#22c55e]" />
+                <span className="text-[10px] font-black text-brand-muted tracking-widest">{onlineUsers.toLocaleString()} אונליין</span>
+              </div>
+            </div>
+            <button onClick={() => navigate('/notifications')} className="w-10 h-10 flex justify-center items-center bg-surface-card border border-surface-border rounded-full active:scale-90 relative shadow-sm transition-transform">
+              <Bell size={18} className="text-brand" />
+              {unreadCount > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border border-surface animate-pulse shadow-[0_0_5px_#f43f5e]" />}
+            </button>
+          </div>
+
+          {/* CREATE POST BLOCK */}
+          <div className="mb-4">
+            <div className="p-3 px-4 rounded-[20px] border border-surface-border bg-surface-card shadow-sm relative z-10 flex flex-col gap-2">
+              {selectedFile && (
+                <div className="relative w-full h-44 rounded-[16px] overflow-hidden bg-surface border border-surface-border flex items-center justify-center shadow-inner mt-2">
+                  {selectedFile.type.startsWith('video/') ? (
+                    <video src={URL.createObjectURL(selectedFile)} className="w-full h-full object-cover opacity-90" preload="metadata" playsInline />
+                  ) : (
+                    <img src={URL.createObjectURL(selectedFile)} className="w-full h-full object-cover opacity-90" loading="lazy" />
+                  )}
+                  <button onClick={(e) => { e.stopPropagation(); setSelectedFile(null); }} className="absolute top-3 right-3 w-8 h-8 bg-black/60 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center text-white z-10">
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+              <textarea
+                value={newPost}
+                onChange={(e) => setNewPost(e.target.value)}
+                placeholder="מה בא לך לשתף עם כולם?"
+                className="w-full bg-transparent border-none text-brand text-[15px] font-medium outline-none resize-none placeholder:text-brand-muted/50 px-2 min-h-[44px] mt-1"
+                rows={Math.min(Math.max(newPost.split('\n').length, 1), 4)}
+              />
+              <AnimatePresence>
+                {isDropMode && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="flex items-center gap-3 bg-surface border border-accent-primary/30 p-3 rounded-2xl mt-1">
+                    <div className="flex flex-col flex-1">
+                      <span className="text-[11px] font-black text-accent-primary tracking-widest uppercase mb-1">יעד פתיחה (CRD)</span>
+                      <input type="number" value={dropTarget} onChange={(e) => setDropTarget(e.target.value === '' ? '' : Number(e.target.value))} className="bg-transparent border-none text-brand font-black outline-none w-full" placeholder="500" />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <div className="flex justify-between items-center border-t border-surface-border pt-2 mt-1">
+                <div className="flex gap-1">
+                  <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 text-brand-muted hover:text-brand px-2 py-1.5 rounded-full transition-colors">
+                    <Paperclip size={18} />
+                  </button>
+                  <button onClick={() => setIsDropMode(!isDropMode)} className={`flex items-center gap-2 px-2 py-1.5 rounded-full transition-colors ${isDropMode ? 'text-accent-primary' : 'text-brand-muted hover:text-brand'}`}>
                     <Lock size={18} />
-                  </button>                                              
-                </div>                                                   
-                <button onClick={handlePost} disabled={posting || (!newPost.trim() && !selectedFile)} className="w-10 h-10 shrink-0 rounded-full bg-accent-primary text-white flex items-center justify-center disabled:opacity-50 active:scale-95 transition-transform shadow-md">                                     
-                  {posting ? <Loader2 size={18} className="animate-spin text-white" /> : <Send size={18} className="rtl:-scale-x-100 -ml-0.5" />}                                          
-                </button>                                              
-              </div>                                                                                                          
-            </div>                                                 
-          </div>                                                                                                            
-          
+                  </button>
+                </div>
+                <button onClick={handlePost} disabled={posting || (!newPost.trim() && !selectedFile && !editingPost)} className="w-10 h-10 shrink-0 rounded-full bg-accent-primary text-white flex items-center justify-center disabled:opacity-50 active:scale-95 transition-transform shadow-md">
+                  {posting ? <Loader2 size={18} className="animate-spin text-white" /> : <Send size={18} className="rtl:-scale-x-100 -ml-0.5" />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* CAMPAIGNS BANNER (FEED PLACEMENT) */}
+          <AnimatePresence>
+            {campaigns.filter(c => !claimedCampaigns.has(c.id)).map(camp => (
+              <motion.div
+                key={camp.id}
+                initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9, height: 0, marginBottom: 0 }}
+                className="mb-4 relative bg-surface-card border border-accent-primary/40 rounded-[24px] p-5 shadow-[0_10px_30px_rgba(var(--color-accent-primary),0.15)] overflow-hidden"
+              >
+                <div className="absolute -top-10 -right-10 w-32 h-32 bg-accent-primary/10 blur-[50px] rounded-full pointer-events-none" />
+                <div className="relative z-10 flex flex-col gap-3">
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-accent-primary/10 flex items-center justify-center border border-accent-primary/30">
+                        <Megaphone size={16} className="text-accent-primary" />
+                      </div>
+                      <span className="text-accent-primary font-black text-[12px] uppercase tracking-widest">הודעת מערכת</span>
+                    </div>
+                    <button onClick={() => handleClaimCampaign(camp)} className="text-brand-muted hover:text-brand transition-colors active:scale-90">
+                      <X size={18} />
+                    </button>
+                  </div>
+                  <div>
+                    <h3 className="text-brand font-black text-[18px] mb-1">{camp.title}</h3>
+                    <p className="text-brand-muted text-[13px] leading-relaxed">{camp.body}</p>
+                  </div>
+                  {camp.reward > 0 && (
+                    <Button onClick={() => handleClaimCampaign(camp)} className="w-full mt-2 bg-accent-primary text-white font-black text-[14px] uppercase tracking-widest rounded-xl h-12 shadow-[0_5px_15px_rgba(var(--color-accent-primary),0.3)] active:scale-95 transition-all flex items-center justify-center gap-2">
+                      <Gift size={18} /> קבל {camp.reward} CRD
+                    </Button>
+                  )}
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+
           <div className="flex flex-col gap-2 relative z-10 pb-10">
             {loading && posts.length === 0 ? (
-               <div className="flex flex-col gap-4 w-full opacity-60">
-                 {[1,2,3].map(i => (
-                    <div key={i} className="w-full h-48 bg-surface-card border border-surface-border rounded-[24px] animate-pulse"></div>
-                 ))}
-               </div>
-            ) : posts.map((post) => {   
+              <div className="flex flex-col gap-4 w-full opacity-60">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="w-full h-48 bg-surface-card border border-surface-border rounded-[24px] animate-pulse"></div>
+                ))}
+              </div>
+            ) : posts.map((post) => {
               if (post.type === 'club_recommendation') {
                 const price = Number(post.entry_crd_price || post.price || post.crd_price || post.entry_price || 0);
                 const isPremium = price > 0;
-                
                 return (
                   <div key={post._uid} onClick={() => navigate(`/circle/${post.slug || post.id}`)} className="relative bg-surface-card border border-surface-border hover:border-accent-primary/30 rounded-[24px] overflow-hidden shadow-sm flex flex-col p-6 gap-4 cursor-pointer group active:scale-[0.98] transition-all">
                     <div className="absolute -top-10 -right-10 w-32 h-32 bg-accent-primary/5 blur-[50px] rounded-full pointer-events-none group-hover:bg-accent-primary/10 transition-colors" />
@@ -753,12 +787,10 @@ export const HomePage: React.FC = () => {
                   </div>
                 );
               }
-
               const hasMedia = !!post.media_url;
               const isVideo = post.media_url?.match(/\.(mp4|webm|mov)$/i);
               const isCore = post.profiles?.role_label === 'CORE';
               const isLockedDrop = post.is_reveal_drop && post.reveal_status === 'locked';
-
               return (
                 <div key={post.id} className="flex flex-col rounded-[24px] bg-surface-card border border-surface-border overflow-hidden shadow-sm">
                   {hasMedia && (
@@ -770,7 +802,7 @@ export const HomePage: React.FC = () => {
                       )}
 
                       {isLockedDrop && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 z-20 gap-3 p-6" onClick={(e) => { e.stopPropagation(); openOverlay(()=>setContributeModal(post)); }}>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 z-20 gap-3 p-6" onClick={(e) => { e.stopPropagation(); openOverlay(() => setContributeModal(post)); }}>
                           <div className="w-16 h-16 rounded-full bg-surface/80 backdrop-blur-md flex items-center justify-center border border-white/10 shadow-lg mb-2">
                             <Lock size={28} className="text-white" />
                           </div>
@@ -789,7 +821,7 @@ export const HomePage: React.FC = () => {
 
                       <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-24 bg-gradient-to-t from-black/60 via-black/20 to-transparent flex flex-col justify-end pointer-events-none z-20">
                         {post.content && (
-                          <p onClick={(e) => { e.stopPropagation(); if(isLockedDrop) openOverlay(()=>setContributeModal(post)); else openOverlay(() => setActiveDescPost(post)); }} className={`text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] text-[15px] font-medium text-right line-clamp-2 pointer-events-auto cursor-pointer mb-3 ${isLockedDrop ? 'select-none blur-sm opacity-50' : ''}`}>
+                          <p onClick={(e) => { e.stopPropagation(); if (isLockedDrop) openOverlay(() => setContributeModal(post)); else openOverlay(() => setActiveDescPost(post)); }} className={`text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] text-[15px] font-medium text-right line-clamp-2 pointer-events-auto cursor-pointer mb-3 ${isLockedDrop ? 'select-none blur-sm opacity-50' : ''}`}>
                             {post.content}
                           </p>
                         )}
@@ -871,7 +903,7 @@ export const HomePage: React.FC = () => {
                   )}
 
                   {!hasMedia && (
-                    <div className="w-full relative bg-[#0a0a0a] min-h-[380px] max-h-[550px] flex flex-col justify-between cursor-pointer group rounded-[24px]" onClick={() => { if(isLockedDrop) openOverlay(()=>setContributeModal(post)); else openOverlay(() => setActiveDescPost(post)); }}>
+                    <div className="w-full relative bg-[#0a0a0a] min-h-[380px] max-h-[550px] flex flex-col justify-between cursor-pointer group rounded-[24px]" onClick={() => { if (isLockedDrop) openOverlay(() => setContributeModal(post)); else openOverlay(() => setActiveDescPost(post)); }}>
                       {isLockedDrop && (
                         <div className="absolute inset-0 bg-surface/80 backdrop-blur-md flex flex-col items-center justify-center z-30 gap-2 rounded-[24px]">
                           <Lock size={24} className="text-brand-muted" />
@@ -881,7 +913,6 @@ export const HomePage: React.FC = () => {
                           </div>
                         </div>
                       )}
-                      
                       <div className={`p-6 pt-8 pb-32 flex-1 flex flex-col relative z-10 ${isLockedDrop ? 'blur-sm opacity-50' : ''}`}>
                         <p className={`text-white/90 text-[17px] font-medium leading-relaxed text-right whitespace-pre-wrap break-words ${(post.content || '').length > 200 ? 'line-clamp-6' : ''}`}>
                           {post.content}
@@ -892,9 +923,8 @@ export const HomePage: React.FC = () => {
                           </div>
                         )}
                       </div>
-                      
+
                       <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-24 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end pointer-events-none z-20 rounded-b-[24px]">
-                        
                         {post.user_circles && post.user_circles.length > 0 && !isLockedDrop && (
                           <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">
                             {(() => {
@@ -1021,27 +1051,24 @@ export const HomePage: React.FC = () => {
                         ) : (
                           <img src={vid.media_url} className="w-full h-full object-contain full-media-item" onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Media+Unavailable'; }} loading="lazy" />
                         )}
-                        
+
                         <div className="absolute bottom-32 left-4 flex flex-col gap-6 items-center z-50 pointer-events-auto">
-                          <button onClick={(e) => { 
-                            e.stopPropagation(); 
-                            if (vid.has_sealed) {
-                              handleRemoveSeal(vid.id);
-                            } else {
-                              openOverlay(() => setSealSelectorPost(vid)); 
-                            }
+                          <button onClick={(e) => {
+                            e.stopPropagation();
+                            if (vid.has_sealed) { handleRemoveSeal(vid.id); }
+                            else { openOverlay(() => setSealSelectorPost(vid)); }
                           }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform">
                             <Flame size={32} className={vid.has_sealed ? 'text-orange-500' : 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]'} fill={vid.has_sealed ? 'currentColor' : 'none'} strokeWidth={1.5} />
                             <span className="text-white text-[13px] font-black drop-shadow-md">{vid.seals_count || 0}</span>
                           </button>
-                          <button onClick={(e) => { 
-                            e.stopPropagation(); 
-                            openOverlay(() => { 
-                              setActivePost(vid); 
-                              setActiveCommentsPostId(vid.id); 
-                              setLoadingComments(true); 
-                              supabase.from('comments').select('*, profiles(*)').eq('post_id', vid.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); 
-                            }); 
+                          <button onClick={(e) => {
+                            e.stopPropagation();
+                            openOverlay(() => {
+                              setActivePost(vid);
+                              setActiveCommentsPostId(vid.id);
+                              setLoadingComments(true);
+                              supabase.from('comments').select('*, profiles(*)').eq('post_id', vid.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); });
+                            });
                           }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                             <MessageSquare size={32} strokeWidth={1.5} />
                             <span className="text-white text-[13px] font-black drop-shadow-md">{vid.comments_count}</span>
@@ -1051,14 +1078,14 @@ export const HomePage: React.FC = () => {
                         <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }} className="absolute bottom-8 left-5 z-[60] active:scale-90 transition-transform p-1 pointer-events-auto">
                           <MoreVertical size={28} className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
                         </button>
-                        
+
                         <div className="absolute bottom-0 left-0 right-0 px-5 pb-8 pt-32 bg-gradient-to-t from-black/60 via-black/20 to-transparent flex flex-col pointer-events-none">
                           {vid.content && (
                             <p className="text-white drop-shadow-md text-[15px] font-medium text-right max-w-[85%] line-clamp-3 pointer-events-auto cursor-pointer mb-4" onClick={(e) => { e.stopPropagation(); openOverlay(() => setActiveDescPost(vid)); }}>
                               {vid.content}
                             </p>
                           )}
-                          
+
                           {vid.user_circles && vid.user_circles.length > 0 && (
                             <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">
                               {(() => {
@@ -1096,6 +1123,7 @@ export const HomePage: React.FC = () => {
                               })()}
                             </div>
                           )}
+
                           <div className="flex items-center justify-start pointer-events-auto">
                             <div className="flex items-center gap-3 cursor-pointer" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${vid.user_id}`), 50); }}>
                               <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden shrink-0 shadow-sm bg-surface flex items-center justify-center">
@@ -1149,7 +1177,6 @@ export const HomePage: React.FC = () => {
                                     <Flame size={14} fill={likedComments.has(c.id) ? 'currentColor' : 'none'} />
                                   </button>
                                 </div>
-                                {/* כפתור פתיחת השרשור */}
                                 {replies.length > 0 && (
                                   <button onClick={() => setExpandedThreads((prev) => ({ ...prev, [c.id]: !prev[c.id] }))} className="text-right text-[12px] font-black text-accent-primary hover:text-accent-primary/80 transition-colors mt-2 flex items-center gap-1.5 pr-1">
                                     {isThreadExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -1158,7 +1185,6 @@ export const HomePage: React.FC = () => {
                                 )}
                               </div>
                             </div>
-                            {/* התגובות המאונסטות בתוך העץ */}
                             {isThreadExpanded && (
                               <div className="pr-12 flex flex-col gap-4 mt-3 relative">
                                 <div className="absolute right-5 top-0 bottom-4 w-[1.5px] bg-surface-border z-0" />
@@ -1192,7 +1218,7 @@ export const HomePage: React.FC = () => {
                   <div className="p-4 border-t border-surface-border flex flex-col gap-2 bg-surface">
                     {replyingTo && !editingCommentId && (
                       <div className="text-[11px] text-brand flex items-center justify-between px-4 py-2 bg-surface-card border border-surface-border rounded-[12px] w-fit mb-1 shadow-sm gap-2">
-                        <span className="font-bold mr-1.5 flex items-center gap-2"><Reply size={12} className="rtl:-scale-x-100 text-brand-muted"/> משיב ל-@{replyingTo.profiles?.full_name}</span>
+                        <span className="font-bold mr-1.5 flex items-center gap-2"><Reply size={12} className="rtl:-scale-x-100 text-brand-muted" /> משיב ל-@{replyingTo.profiles?.full_name}</span>
                         <X size={14} className="cursor-pointer text-brand-muted hover:text-brand" onClick={() => { setReplyingTo(null); setNewComment(''); }} />
                       </div>
                     )}
@@ -1283,10 +1309,9 @@ export const HomePage: React.FC = () => {
                   {optionsMenuPost.media_url && <button onClick={() => handleDownloadMedia(optionsMenuPost.media_url)} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>שמור למכשיר</span><Download size={20} className="text-brand-muted" /></button>}
                   <button onClick={async () => { try { await supabase.from('saved_posts').insert({ user_id: currentUserId, post_id: optionsMenuPost.id }); toast.success('הפוסט נשמר במועדפים!'); } catch { toast.error('הפוסט כבר שמור אצלך'); } closeOverlay(); }} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>שמור במועדפים</span><Bookmark size={20} className="text-brand-muted" /></button>
                   <button onClick={() => handleCopyLink(optionsMenuPost)} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>העתק קישור</span><LinkIcon size={20} className="text-brand-muted" /></button>
-                  
                   {optionsMenuPost.user_id === currentUserId && (
                     <>
-                      <button onClick={() => { closeOverlay(); setTimeout(() => { openOverlay(() => { setEditingPost(optionsMenuPost); setEditPostText(optionsMenuPost.content || ''); setShowCreatePost(true); }); }, 100); }} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm mt-2"><span>ערוך פוסט</span><Edit2 size={20} className="text-brand-muted" /></button>
+                      <button onClick={() => { closeOverlay(); setTimeout(() => { setEditingPost(optionsMenuPost); setNewPost(optionsMenuPost.content || ''); window.scrollTo({ top: 0, behavior: 'smooth' }); }, 100); }} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm mt-2"><span>ערוך פוסט</span><Edit2 size={20} className="text-brand-muted" /></button>
                       <button onClick={() => { if (window.confirm('למחוק פוסט?')) { deletePost(optionsMenuPost.id); } }} className="w-full p-4 bg-surface-card border border-rose-500/30 rounded-[20px] text-rose-500 font-black flex justify-between items-center text-[15px] mt-2 active:scale-[0.98] transition-all"><span>מחק פוסט</span><Trash2 size={20} className="text-red-500" /></button>
                     </>
                   )}
