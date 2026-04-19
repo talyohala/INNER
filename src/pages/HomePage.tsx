@@ -9,7 +9,7 @@ import {
   Loader2, Bell, Users, MessageSquare, Send, X, Paperclip, RefreshCw,
   UserCircle, Trash2, Edit2, Share2, MoreVertical, ChevronLeft, Reply,
   ChevronDown, ChevronUp, ArrowUp, Download, Link as LinkIcon, Bookmark,
-  Crown, Lock, Flame, Diamond, Handshake, Coins, Megaphone, Gift, ArrowLeft
+  Crown, Lock, Flame, Diamond, Handshake, Coins, Gift, ArrowLeft
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -25,6 +25,31 @@ const SEAL_TYPES = [
   { id: 'alliance', icon: <Handshake size={24} />, label: 'ברית', color: 'text-emerald-400', xp: 100 }
 ];
 
+const Confetti = ({ active }: { active: boolean }) => {
+  if (!active) return null;
+  const colors = ['#8b5cf6', '#34d399', '#fb7185', '#fbbf24', '#60a5fa', '#ffffff'];
+  return (
+    <div className="fixed inset-0 pointer-events-none z-[99999] flex items-center justify-center overflow-hidden">
+      {Array.from({ length: 60 }).map((_, i) => (
+        <motion.div
+          key={i}
+          initial={{ opacity: 1, x: 0, y: 0, scale: 0 }}
+          animate={{
+            opacity: 0,
+            x: (Math.random() - 0.5) * 600,
+            y: (Math.random() - 0.5) * 800 - 100,
+            scale: Math.random() * 1.5 + 0.5,
+            rotate: Math.random() * 720,
+          }}
+          transition={{ duration: 1.5 + Math.random(), ease: "easeOut" }}
+          className="absolute w-3 h-3"
+          style={{ backgroundColor: colors[Math.floor(Math.random() * colors.length)], borderRadius: Math.random() > 0.5 ? '50%' : '4px' }}
+        />
+      ))}
+    </div>
+  );
+};
+
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const { profile } = useAuth();
@@ -35,18 +60,14 @@ export const HomePage: React.FC = () => {
 
   const [mounted, setMounted] = useState(false);
   const [posts, setPosts] = useState<AnyPost[]>(() => {
-    try {
-      const cached = localStorage.getItem('inner_feed_cache');
-      return cached ? JSON.parse(cached) : [];
-    } catch { return []; }
+    try { const cached = localStorage.getItem('inner_feed_cache'); return cached ? JSON.parse(cached) : []; } catch { return []; }
   });
 
-  // Campaigns State
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [claimedCampaigns, setClaimedCampaigns] = useState<Set<string>>(() => {
-    try { return new Set(JSON.parse(localStorage.getItem('inner_claimed_camps') || '[]')); }
-    catch { return new Set(); }
+    try { return new Set(JSON.parse(localStorage.getItem('inner_claimed_camps') || '[]')); } catch { return new Set(); }
   });
+  const [showConfetti, setShowConfetti] = useState(false);
 
   const [loading, setLoading] = useState(posts.length === 0);
   const [newPost, setNewPost] = useState('');
@@ -83,13 +104,12 @@ export const HomePage: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [currentUserId, setCurrentUserId] = useState('');
-  const [userCirclesModal, setUserCirclesModal] = useState<any[] | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [postCirclesModal, setPostCirclesModal] = useState<any[] | null>(null);
 
   const stateRef = useRef({
     comments: false, options: false, desc: false, create: false,
-    fullscreen: false, commentAction: false, userCircles: false, contribute: false, seals: false, postCircles: false
+    fullscreen: false, commentAction: false, contribute: false, seals: false, postCircles: false
   });
 
   const mediaPosts = useMemo(() => posts.filter((p) => p.type === 'post' && !!p.media_url), [posts]);
@@ -109,15 +129,14 @@ export const HomePage: React.FC = () => {
     stateRef.current = {
       comments: !!activeCommentsPostId, options: !!optionsMenuPost, desc: !!activeDescPost,
       create: showCreatePost, fullscreen: !!fullScreenMedia, commentAction: !!commentActionModal,
-      userCircles: !!userCirclesModal, contribute: !!contributeModal, seals: !!sealSelectorPost, postCircles: !!postCirclesModal
+      contribute: !!contributeModal, seals: !!sealSelectorPost, postCircles: !!postCirclesModal
     };
-  }, [activeCommentsPostId, optionsMenuPost, activeDescPost, showCreatePost, fullScreenMedia, commentActionModal, userCirclesModal, contributeModal, sealSelectorPost, postCirclesModal]);
+  }, [activeCommentsPostId, optionsMenuPost, activeDescPost, showCreatePost, fullScreenMedia, commentActionModal, contributeModal, sealSelectorPost, postCirclesModal]);
 
   useEffect(() => {
     const handlePopState = () => {
       const s = stateRef.current;
       if (s.commentAction) setCommentActionModal(null);
-      else if (s.userCircles) setUserCirclesModal(null);
       else if (s.postCircles) setPostCirclesModal(null);
       else if (s.contribute) setContributeModal(null);
       else if (s.seals) setSealSelectorPost(null);
@@ -185,13 +204,7 @@ export const HomePage: React.FC = () => {
         return {
           ...p,
           type: 'post',
-          profiles: {
-            id: p.user_id,
-            full_name: p.author_name,
-            avatar_url: p.author_avatar,
-            role_label: p.author_role,
-            username: p.author_name
-          },
+          profiles: { id: p.user_id, full_name: p.author_name, avatar_url: p.author_avatar, role_label: p.author_role, username: p.author_name },
           user_circles: userCircles,
         };
       });
@@ -201,11 +214,7 @@ export const HomePage: React.FC = () => {
       fetchedPosts.forEach((post: any, idx: number) => {
         mixedFeed.push(post);
         if ((idx + 1) % 4 === 0 && recommendedClubs[clubIdx]) {
-          mixedFeed.push({
-            ...recommendedClubs[clubIdx],
-            type: 'club_recommendation',
-            _uid: `club-rec-${recommendedClubs[clubIdx].id}-${idx}`
-          });
+          mixedFeed.push({ ...recommendedClubs[clubIdx], type: 'club_recommendation', _uid: `club-rec-${recommendedClubs[clubIdx].id}-${idx}` });
           clubIdx++;
         }
       });
@@ -222,6 +231,9 @@ export const HomePage: React.FC = () => {
 
   const handleClaimCampaign = (camp: any) => {
     triggerFeedback('pop');
+    setShowConfetti(true);
+    setTimeout(() => setShowConfetti(false), 3000);
+
     const newSet = new Set(claimedCampaigns).add(camp.id);
     setClaimedCampaigns(newSet);
     localStorage.setItem('inner_claimed_camps', JSON.stringify(Array.from(newSet)));
@@ -229,9 +241,8 @@ export const HomePage: React.FC = () => {
     if (camp.reward > 0) {
       toast.success(`איזה כיף! קיבלת ${camp.reward} CRD מתנה 🎉`);
       triggerFeedback('coin');
-      // כאן בעתיד אפשר להוסיף קריאת RPC שתעדכן את היתרה של המשתמש בפועל
     } else {
-      toast.success('ההודעה נסגרה');
+      toast.success('תודה רבה!');
     }
   };
 
@@ -386,7 +397,6 @@ export const HomePage: React.FC = () => {
       triggerFeedback('success');
       await fetchData(true);
     } catch (e: any) {
-      console.error(e);
       toast.error(e.message || 'שגיאה בשמירה');
     } finally {
       setPosting(false);
@@ -601,6 +611,7 @@ export const HomePage: React.FC = () => {
 
   return (
     <>
+      <Confetti active={showConfetti} />
       <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*" />
 
       <AnimatePresence>
@@ -651,6 +662,85 @@ export const HomePage: React.FC = () => {
             </button>
           </div>
 
+          {/* CAMPAIGNS RENDERING */}
+          <AnimatePresence>
+            {campaigns.filter(c => !claimedCampaigns.has(c.id)).map(camp => {
+              
+              if (camp.style === 'hero') {
+                // Hero Style: Edge-to-edge media with overlay text
+                return (
+                  <motion.div key={camp.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, height: 0 }} className="-mx-4 mb-4 relative min-h-[300px] flex flex-col justify-end overflow-hidden group shadow-lg cursor-pointer" onClick={() => handleClaimCampaign(camp)}>
+                    {camp.media_url ? (
+                      camp.media_type === 'video' ? 
+                        <video src={camp.media_url} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover" /> :
+                        <img src={camp.media_url} className="absolute inset-0 w-full h-full object-cover" />
+                    ) : <div className="absolute inset-0 bg-accent-primary" />}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                    <button onClick={(e) => { e.stopPropagation(); handleClaimCampaign(camp); }} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white/70 hover:text-white border border-white/20 z-20">
+                      <X size={16} />
+                    </button>
+                    <div className="relative z-10 p-6 flex flex-col gap-2">
+                      <span className="text-white/80 font-black text-[10px] uppercase tracking-[0.2em]">{camp.reward > 0 ? 'מתנה מיוחדת' : 'הודעת מערכת'}</span>
+                      <h3 className="text-white font-black text-2xl leading-tight">{camp.title}</h3>
+                      <p className="text-white/90 text-sm font-medium">{camp.body}</p>
+                      {camp.reward > 0 && (
+                        <div className="mt-2 w-full h-12 bg-white text-black font-black text-[13px] uppercase tracking-widest rounded-full shadow-[0_5px_20px_rgba(255,255,255,0.3)] flex items-center justify-center gap-2">
+                          <Gift size={16} /> קבל {camp.reward} CRD
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              } 
+              
+              else if (camp.style === 'compact') {
+                // Compact Style: Small banner
+                return (
+                  <motion.div key={camp.id} initial={{ opacity: 0, y: -20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.9, height: 0, marginBottom: 0 }} className="mb-4 relative bg-surface-card border border-surface-border rounded-[20px] p-3 flex items-center gap-4 shadow-sm" onClick={() => handleClaimCampaign(camp)}>
+                    {camp.media_url && (
+                      <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-surface-border">
+                        {camp.media_type === 'video' ? <video src={camp.media_url} autoPlay loop muted playsInline className="w-full h-full object-cover" /> : <img src={camp.media_url} className="w-full h-full object-cover" />}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0 flex flex-col justify-center">
+                      <h3 className="text-brand font-black text-[14px] truncate">{camp.title}</h3>
+                      <span className="text-accent-primary font-bold text-[11px] uppercase tracking-widest truncate">{camp.reward > 0 ? `קבל ${camp.reward} CRD` : camp.body}</span>
+                    </div>
+                    <button onClick={(e) => { e.stopPropagation(); handleClaimCampaign(camp); }} className="w-8 h-8 flex items-center justify-center shrink-0 bg-surface border border-surface-border rounded-full text-brand-muted hover:text-brand">
+                      <X size={14} />
+                    </button>
+                  </motion.div>
+                );
+              }
+
+              // Standard Style
+              return (
+                <motion.div key={camp.id} initial={{ opacity: 0, y: -20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.9, height: 0, marginBottom: 0 }} className="mb-4 relative bg-surface-card border border-surface-border hover:border-accent-primary/30 rounded-[28px] overflow-hidden shadow-sm flex flex-col group cursor-pointer" onClick={() => handleClaimCampaign(camp)}>
+                  <div className="absolute top-4 right-4 z-20">
+                    <button onClick={(e) => { e.stopPropagation(); handleClaimCampaign(camp); }} className="w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/80 hover:text-white">
+                      <X size={14} />
+                    </button>
+                  </div>
+                  {camp.media_url && (
+                    <div className="w-full h-48 bg-surface">
+                      {camp.media_type === 'video' ? <video src={camp.media_url} autoPlay loop muted playsInline className="w-full h-full object-cover" /> : <img src={camp.media_url} className="w-full h-full object-cover" />}
+                    </div>
+                  )}
+                  <div className="p-5 flex flex-col gap-2">
+                    <span className="text-accent-primary font-black text-[10px] uppercase tracking-widest">{camp.reward > 0 ? 'מתנה מחכה לך' : 'הודעת מערכת'}</span>
+                    <h3 className="text-brand font-black text-lg">{camp.title}</h3>
+                    <p className="text-brand-muted text-[13px] leading-relaxed">{camp.body}</p>
+                    {camp.reward > 0 && (
+                      <div className="w-full mt-3 h-12 rounded-xl bg-accent-primary text-white font-black text-[13px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-[0_5px_15px_rgba(var(--color-accent-primary),0.3)]">
+                        <Gift size={16} /> לחץ לקבלת {camp.reward} CRD
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+
           {/* CREATE POST BLOCK */}
           <div className="mb-4">
             <div className="p-3 px-4 rounded-[20px] border border-surface-border bg-surface-card shadow-sm relative z-10 flex flex-col gap-2">
@@ -698,43 +788,6 @@ export const HomePage: React.FC = () => {
               </div>
             </div>
           </div>
-
-          {/* CAMPAIGNS BANNER (FEED PLACEMENT) */}
-          <AnimatePresence>
-            {campaigns.filter(c => !claimedCampaigns.has(c.id)).map(camp => (
-              <motion.div
-                key={camp.id}
-                initial={{ opacity: 0, y: -20, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9, height: 0, marginBottom: 0 }}
-                className="mb-4 relative bg-surface-card border border-accent-primary/40 rounded-[24px] p-5 shadow-[0_10px_30px_rgba(var(--color-accent-primary),0.15)] overflow-hidden"
-              >
-                <div className="absolute -top-10 -right-10 w-32 h-32 bg-accent-primary/10 blur-[50px] rounded-full pointer-events-none" />
-                <div className="relative z-10 flex flex-col gap-3">
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-accent-primary/10 flex items-center justify-center border border-accent-primary/30">
-                        <Megaphone size={16} className="text-accent-primary" />
-                      </div>
-                      <span className="text-accent-primary font-black text-[12px] uppercase tracking-widest">הודעת מערכת</span>
-                    </div>
-                    <button onClick={() => handleClaimCampaign(camp)} className="text-brand-muted hover:text-brand transition-colors active:scale-90">
-                      <X size={18} />
-                    </button>
-                  </div>
-                  <div>
-                    <h3 className="text-brand font-black text-[18px] mb-1">{camp.title}</h3>
-                    <p className="text-brand-muted text-[13px] leading-relaxed">{camp.body}</p>
-                  </div>
-                  {camp.reward > 0 && (
-                    <Button onClick={() => handleClaimCampaign(camp)} className="w-full mt-2 bg-accent-primary text-white font-black text-[14px] uppercase tracking-widest rounded-xl h-12 shadow-[0_5px_15px_rgba(var(--color-accent-primary),0.3)] active:scale-95 transition-all flex items-center justify-center gap-2">
-                      <Gift size={18} /> קבל {camp.reward} CRD
-                    </Button>
-                  )}
-                </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
 
           <div className="flex flex-col gap-2 relative z-10 pb-10">
             {loading && posts.length === 0 ? (
