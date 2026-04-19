@@ -4,11 +4,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { apiFetch } from '../lib/api';
-import { Button } from '../components/ui';
+import { FadeIn, Button } from '../components/ui';
 import { VaultCard } from '../components/VaultCard';
 import {
   Loader2, MessageSquare, Lock, ShieldAlert, Flame, Diamond, Handshake,
-  Plus, Send, X, Coins, Users, Archive, Sparkles, Trophy,
+  Send, X, Coins, Users, Archive, Sparkles, Trophy, Check,
   Pin, BarChart3, Target, ChevronLeft, Eye, Activity, Paperclip, Camera, Copy, Edit2, Trash2
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
@@ -56,12 +56,8 @@ export const CirclePage: React.FC = () => {
   const { profile: myProfile } = useAuth();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const storyInputRef = useRef<HTMLInputElement>(null);
-  const instantPhotoRef = useRef<HTMLInputElement>(null);
-  const instantVideoRef = useRef<HTMLInputElement>(null);
   const channelRef = useRef<any>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
-  const cameraPressTimer = useRef<NodeJS.Timeout | null>(null);
 
   const [mounted, setMounted] = useState(false);
   const [data, setData] = useState<any>(() => {
@@ -98,18 +94,30 @@ export const CirclePage: React.FC = () => {
   const [contributingDrop, setContributingDrop] = useState(false);
   const [dropAmount, setDropAmount] = useState<number | ''>(50);
 
+  // Action Sheet States
   const [actionPost, setActionPost] = useState<any | null>(null);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
-  const [isCameraPressed, setIsCameraPressed] = useState(false);
+  const pressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  let touchStartY = 0;
 
-  // סדר כרונולוגי: הודעות ישנות למעלה, חדשות למטה
+  // ==== INLINE CAMERA STATES ====
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [capturedStoryBlob, setCapturedStoryBlob] = useState<Blob | null>(null);
+  const [capturedMediaType, setCapturedMediaType] = useState<'image' | 'video'>('image');
+  const videoFeedRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const videoChunksRef = useRef<Blob[]>([]);
+  const recordPressTimer = useRef<NodeJS.Timeout | null>(null);
+
   const sortedPosts = useMemo(() => {
     return [...(data?.posts || [])].sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
   }, [data?.posts]);
 
   useEffect(() => { setMounted(true); }, []);
 
-  // גלילה אוטומטית למטה כשנוספת הודעה
+  // גלילה אוטומטית למטה כשנוספת הודעה או נפתח המסך
   useEffect(() => {
     if (activeTab === 'chat' && messagesRef.current) {
       messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
@@ -143,8 +151,6 @@ export const CirclePage: React.FC = () => {
         setTypingUsers(typing);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, async () => { await fetchCircleData(uid, true); await fetchOverview(uid, true); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'circle_activity' }, async () => { await fetchOverview(uid, true); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'circle_drops' }, async () => { await fetchOverview(uid, true); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'circle_stories' }, async () => { await fetchOverview(uid, true); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'post_seals' }, async () => { await fetchCircleData(uid, true); })
       .subscribe(async (status: string) => {
@@ -156,79 +162,45 @@ export const CirclePage: React.FC = () => {
     return () => { if (ch) supabase.removeChannel(ch); };
   }, [slug]);
 
-  useEffect(() => {
-    if (activeTab === 'vaults' && data?.circle?.id) fetchVaults();
-  }, [activeTab, data?.circle?.id]);
-
   const fetchCircleData = async (uid: string, silent = false) => {
     if (!silent) setLoading(true);
     try {
-      let circle: any = null;
-      const { data: circleBySlug } = await supabase.from('circles').select('*').eq('slug', slug).maybeSingle();
-      circle = circleBySlug;
-      if (!circle) {
-        const { data: circleById } = await supabase.from('circles').select('*').eq('id', slug).maybeSingle();
-        circle = circleById;
-      }
-      if (!circle) throw new Error('מועדון לא נמצא');
+      const { data: cData } = await supabase.from('circles').select('*').or(`slug.eq.${slug},id.eq.${slug}`).maybeSingle();
+      if (!cData) throw new Error('מועדון לא נמצא');
 
       let isMember = false;
       let membership = null;
       if (uid && !uid.startsWith('guest_')) {
-        const { data: memberData } = await supabase.from('circle_members').select('*').eq('circle_id', circle.id).eq('user_id', uid).maybeSingle();
-        if (memberData) { isMember = true; membership = memberData; }
+        const { data: mData } = await supabase.from('circle_members').select('*').eq('circle_id', cData.id).eq('user_id', uid).maybeSingle();
+        if (mData) { isMember = true; membership = mData; }
       }
 
-      const { data: posts } = await supabase.from('posts').select('*, profiles!user_id(*), post_seals(*)').eq('circle_id', circle.id).order('created_at', { ascending: false }).limit(60);
+      const { data: posts } = await supabase.from('posts').select('*, profiles!user_id(*), post_seals(*)').eq('circle_id', cData.id).order('created_at', { ascending: false }).limit(60);
 
-      const nextData = { circle, isMember, membership, posts: posts || [] };
+      const nextData = { circle: cData, isMember, membership, posts: posts || [] };
       setData(nextData);
       localStorage.setItem(`inner_circle_${slug}_cache`, JSON.stringify(nextData));
-      fetchMembersList(circle.id);
-    } catch {
-      navigate('/');
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  };
-
-  const fetchMembersList = async (circleId: string) => {
-    try {
-      const { data: membersData } = await supabase.from('circle_members').select('role, created_at, tier, profiles(*)').eq('circle_id', circleId);
-      if (membersData) {
-        const sorted = membersData.sort((a, b) => a.role === 'admin' ? -1 : b.role === 'admin' ? 1 : 0);
-        setMembersList(sorted);
-        localStorage.setItem(`inner_members_${slug}_cache`, JSON.stringify(sorted));
-      }
-    } catch {}
+      
+      const { data: membersData } = await supabase.from('circle_members').select('role, created_at, tier, profiles(*)').eq('circle_id', cData.id);
+      if (membersData) setMembersList(membersData.sort((a, b) => a.role === 'admin' ? -1 : 1));
+    } catch { navigate('/'); } finally { if (!silent) setLoading(false); }
   };
 
   const fetchOverview = async (uid: string, silent = false) => {
     try {
-      let circleId = data?.circle?.id;
-      if (!circleId) return;
-
-      const { data: overviewData, error } = await supabase.rpc('get_circle_overview', { p_circle_id: circleId, p_user_id: uid && !uid.startsWith('guest_') ? uid : null });
-
-      if (!error && overviewData) {
-        setOverview(overviewData);
-        if (!silent) localStorage.setItem(`inner_overview_${slug}_cache`, JSON.stringify(overviewData));
-      }
+      if (!data?.circle?.id) return;
+      const { data: oData } = await supabase.rpc('get_circle_overview', { p_circle_id: data.circle.id, p_user_id: uid && !uid.startsWith('guest_') ? uid : null });
+      if (oData) setOverview(oData);
     } catch {}
   };
 
   const fetchVaults = async () => {
     if (!data?.circle?.id) return;
     try {
-      const { data: vaultData } = await supabase.from('vaults').select('*').eq('circle_id', data.circle.id).eq('is_active', true).order('created_at', { ascending: false });
-      let unlockedIds: string[] = [];
-      if (currentUserId && !currentUserId.startsWith('guest_')) {
-        const { data: unlocks } = await supabase.from('vault_unlocks').select('vault_id').eq('user_id', currentUserId);
-        unlockedIds = (unlocks || []).map((u: any) => u.vault_id);
-      }
-      const enrichedVaults = (vaultData || []).map((v: any) => ({ ...v, is_unlocked: unlockedIds.includes(v.id) || v.creator_id === currentUserId }));
-      setVaults(enrichedVaults);
-      localStorage.setItem(`inner_vaults_${slug}_cache`, JSON.stringify(enrichedVaults));
+      const { data: vData } = await supabase.from('vaults').select('*').eq('circle_id', data.circle.id).eq('is_active', true).order('created_at', { ascending: false });
+      const { data: unlocks } = await supabase.from('vault_unlocks').select('vault_id').eq('user_id', currentUserId);
+      const unlockedIds = (unlocks || []).map((u: any) => u.vault_id);
+      setVaults((vData || []).map((v: any) => ({ ...v, is_unlocked: unlockedIds.includes(v.id) || v.creator_id === currentUserId })));
     } catch {} finally { setLoadingVaults(false); }
   };
 
@@ -238,15 +210,14 @@ export const CirclePage: React.FC = () => {
     try {
       if (data.isMember) {
         await apiFetch(`/api/circles/${data.circle.slug}/upgrade`, { method: 'POST', body: JSON.stringify({ tier }) });
-        toast.success(`שודרגת ל-${tier}!`);
       } else {
         await apiFetch(`/api/circles/${data.circle.slug}/join`, { method: 'POST' });
-        toast.success('ברוך הבא למועדון!');
         try { await supabase.from('circle_activity').insert({ circle_id: data.circle.id, actor_user_id: currentUserId, activity_type: 'join_circle', payload: { tier } }); } catch {}
       }
       await supabase.rpc('ensure_circle_user_stats', { p_circle_id: data.circle.id, p_user_id: currentUserId });
       await fetchCircleData(currentUserId);
       await fetchOverview(currentUserId);
+      toast.success('ברוך הבא למועדון!');
     } catch (err: any) { toast.error(err?.message || 'שגיאה בהצטרפות'); } finally { setJoining(false); triggerFeedback('success'); }
   };
 
@@ -255,107 +226,178 @@ export const CirclePage: React.FC = () => {
     if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) {
       setSelectedFile(file);
       triggerFeedback('pop');
-    } else if (file) {
-      toast.error('אנא בחר קובץ תמונה או וידאו תקין');
     }
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleStoryChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) return toast.error('העלה תמונה או וידאו בלבד');
-    
+  // ==========================================
+  // INLINE CAMERA LOGIC
+  // ==========================================
+  const openCamera = async () => {
+    setIsCameraOpen(true);
+    setCapturedStoryBlob(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true });
+      streamRef.current = stream;
+      if (videoFeedRef.current) videoFeedRef.current.srcObject = stream;
+    } catch (e) {
+      toast.error('אין גישה למצלמה או למיקרופון');
+      setIsCameraOpen(false);
+    }
+  };
+
+  const closeCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    setIsCameraOpen(false);
+    setCapturedStoryBlob(null);
+    setIsRecording(false);
+  };
+
+  const handleCameraDown = () => {
+    recordPressTimer.current = setTimeout(() => {
+      // חלפה חצי שניה -> התחל צילום וידאו
+      setIsRecording(true);
+      triggerFeedback('heavy');
+      videoChunksRef.current = [];
+      try {
+        const recorder = new MediaRecorder(streamRef.current!);
+        mediaRecorderRef.current = recorder;
+        recorder.ondataavailable = (e) => { if (e.data.size > 0) videoChunksRef.current.push(e.data); };
+        recorder.onstop = () => {
+          const blob = new Blob(videoChunksRef.current, { type: 'video/webm' });
+          setCapturedStoryBlob(blob);
+          setCapturedMediaType('video');
+        };
+        recorder.start();
+      } catch (e) { toast.error('צילום וידאו לא נתמך במכשיר זה'); setIsRecording(false); }
+    }, 500);
+  };
+
+  const handleCameraUp = () => {
+    if (recordPressTimer.current) clearTimeout(recordPressTimer.current);
+    if (isRecording) {
+      // סיום צילום וידאו
+      mediaRecorderRef.current?.stop();
+      setIsRecording(false);
+    } else {
+      // לחיצה קצרה -> תמונה
+      triggerFeedback('pop');
+      if (videoFeedRef.current) {
+        const canvas = document.createElement('canvas');
+        canvas.width = videoFeedRef.current.videoWidth;
+        canvas.height = videoFeedRef.current.videoHeight;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(videoFeedRef.current, 0, 0);
+          canvas.toBlob((blob) => {
+            if (blob) { setCapturedStoryBlob(blob); setCapturedMediaType('image'); }
+          }, 'image/jpeg', 0.9);
+        }
+      }
+    }
+  };
+
+  const uploadCapturedStory = async () => {
+    if (!capturedStoryBlob) return;
     setUploadingStory(true); triggerFeedback('pop');
     
+    // OPTIMISTIC UI: מציג מיד בסטוריז למעלה
+    const tempUrl = URL.createObjectURL(capturedStoryBlob);
+    const tempStory = {
+      id: `temp-${Date.now()}`,
+      media_url: tempUrl,
+      media_type: capturedMediaType,
+      full_name: myProfile?.full_name || 'אני',
+      created_at: new Date().toISOString()
+    };
+    setOverview(prev => ({ ...prev, stories: [tempStory, ...(prev.stories || [])] }));
+    closeCamera(); // סוגר את המצלמה מיד ומחזיר לצ'אט
+
     try {
-      const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
-      const fileName = `story_${Date.now()}_${Math.random().toString(36).slice(2, 6)}_${safeName}`;
-      const { data: uploadData, error } = await supabase.storage.from('feed_images').upload(fileName, file, { cacheControl: '3600', upsert: false });
+      const ext = capturedMediaType === 'video' ? 'webm' : 'jpg';
+      const file = new File([capturedStoryBlob], `story_${Date.now()}.${ext}`, { type: capturedMediaType === 'video' ? 'video/webm' : 'image/jpeg' });
+      
+      const { data: uploadData, error } = await supabase.storage.from('feed_images').upload(file.name, file);
       if (error) throw error;
       const { data: { publicUrl } } = supabase.storage.from('feed_images').getPublicUrl(uploadData.path);
       
       const expiresAt = new Date(); expiresAt.setHours(expiresAt.getHours() + 24);
-      const mediaType = file.type.startsWith('video/') ? 'video' : 'image';
-
-      const { error: dbError } = await supabase.from('circle_stories').insert({ circle_id: data.circle.id, user_id: currentUserId, media_url: publicUrl, media_type: mediaType, expires_at: expiresAt.toISOString() });
-      if (dbError) throw dbError;
-
+      await supabase.from('circle_stories').insert({ circle_id: data.circle.id, user_id: currentUserId, media_url: publicUrl, media_type: capturedMediaType, expires_at: expiresAt.toISOString() });
       supabase.rpc('add_circle_xp', { p_circle_id: data.circle.id, p_user_id: currentUserId, p_amount: 20, p_reason: 'story_upload' }).then();
-
+      
+      toast.success('הסטורי באוויר! ✨');
       await fetchOverview(currentUserId, true);
-      toast.success('הרגע עלה בהצלחה');
-    } catch (err: any) { 
-      toast.error('שגיאה בהעלאת רגע'); 
+    } catch { 
+      toast.error('שגיאה בהעלאת הסטורי'); 
+      // רולבק למקרה של כישלון
+      setOverview(prev => ({ ...prev, stories: prev.stories?.filter((s:any) => s.id !== tempStory.id) || [] }));
     } finally { 
       setUploadingStory(false); 
-      if (storyInputRef.current) storyInputRef.current.value = ''; 
-      if (instantPhotoRef.current) instantPhotoRef.current.value = '';
-      if (instantVideoRef.current) instantVideoRef.current.value = '';
     }
-  };
-
-  // מנגנון לחיצה ארוכה למצלמה
-  const handleCameraStart = () => {
-    setIsCameraPressed(true);
-    cameraPressTimer.current = setTimeout(() => {
-      // עברה חצי שניה - לחיצה ארוכה -> פותח מצלמת וידאו
-      triggerFeedback('heavy');
-      instantVideoRef.current?.click();
-      setIsCameraPressed(false);
-    }, 500);
-  };
-
-  const handleCameraEnd = () => {
-    if (isCameraPressed) {
-      if (cameraPressTimer.current) clearTimeout(cameraPressTimer.current);
-      // שוחרר לפני חצי שניה - לחיצה קצרה -> פותח מצלמת תמונות
-      triggerFeedback('pop');
-      instantPhotoRef.current?.click();
-      setIsCameraPressed(false);
-    }
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setNewPost(val);
-    if (channelRef.current) channelRef.current.track({ isTyping: val.length > 0 });
   };
 
   const handlePost = async () => {
     if (!newPost.trim() && !selectedFile) return;
     if (!data?.circle?.id || !currentUserId || currentUserId.startsWith('guest_')) return toast.error('יש להתחבר תחילה');
 
-    setPosting(true); triggerFeedback('pop');
+    triggerFeedback('pop');
 
     try {
       if (editingPostId) {
+        // עריכה
         const { error } = await supabase.from('posts').update({ content: newPost.trim() }).eq('id', editingPostId);
         if (error) throw error;
-        toast.success('הודעה עודכנה');
+        setData((curr: any) => ({ ...curr, posts: curr.posts.map((p:any) => p.id === editingPostId ? { ...p, content: newPost.trim() } : p) }));
+        setNewPost(''); setEditingPostId(null);
       } else {
-        let media_url: string | null = null;
+        // OPTIMISTIC UI להודעה חדשה: מופיע מיד!
+        const tempId = `temp-${Date.now()}`;
+        const tempMediaUrl = selectedFile ? URL.createObjectURL(selectedFile) : null;
+        const tempMediaType = selectedFile?.type.startsWith('video') ? 'video' : 'image';
+        
+        const tempPost = {
+          id: tempId,
+          user_id: currentUserId,
+          content: newPost.trim(),
+          media_url: tempMediaUrl,
+          media_type: tempMediaType,
+          created_at: new Date().toISOString(),
+          profiles: myProfile,
+          post_seals: []
+        };
+
+        setData((curr: any) => ({ ...curr, posts: [tempPost, ...(curr.posts || [])] }));
+        
+        const contentToSend = newPost.trim();
+        const fileToSend = selectedFile;
+        setNewPost(''); setSelectedFile(null);
+        if (channelRef.current) channelRef.current.track({ isTyping: false });
+
+        // העלאה אמיתית ברקע
+        let media_url = null;
         let media_type = 'text';
 
-        if (selectedFile) {
-          const fileName = `chat_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-          const { data: uploadData, error } = await supabase.storage.from('feed_images').upload(fileName, selectedFile);
-          if (error) throw error;
-          media_url = supabase.storage.from('feed_images').getPublicUrl(uploadData.path).data.publicUrl;
-          media_type = selectedFile.type.startsWith('video/') ? 'video' : 'image';
+        if (fileToSend) {
+          const { data: uploadData, error } = await supabase.storage.from('feed_images').upload(`chat_${Date.now()}`, fileToSend);
+          if (!error) {
+            media_url = supabase.storage.from('feed_images').getPublicUrl(uploadData.path).data.publicUrl;
+            media_type = fileToSend.type.startsWith('video') ? 'video' : 'image';
+          }
         }
 
-        const { error } = await supabase.from('posts').insert({
-          circle_id: data.circle.id, user_id: currentUserId, content: newPost.trim(), media_url, media_type, is_reveal_drop: false, reveal_status: 'revealed', required_crd: 0
-        });
+        const { data: insertedPost } = await supabase.from('posts').insert({
+          circle_id: data.circle.id, user_id: currentUserId, content: contentToSend, media_url, media_type, is_reveal_drop: false, reveal_status: 'revealed', required_crd: 0
+        }).select('*, profiles!user_id(*), post_seals(*)').single();
 
-        if (error) throw error;
-        supabase.rpc('add_circle_xp', { p_circle_id: data.circle.id, p_user_id: currentUserId, p_amount: selectedFile ? 20 : 8, p_reason: 'post' }).then();
+        if (insertedPost) {
+          setData((curr: any) => ({ ...curr, posts: curr.posts.map((p:any) => p.id === tempId ? insertedPost : p) }));
+          supabase.rpc('add_circle_xp', { p_circle_id: data.circle.id, p_user_id: currentUserId, p_amount: fileToSend ? 20 : 8, p_reason: 'post' }).then();
+        }
       }
-
-      setNewPost(''); setSelectedFile(null); setEditingPostId(null);
-      if (channelRef.current) channelRef.current.track({ isTyping: false });
-    } catch { toast.error('שגיאה בשליחה'); } finally { setPosting(false); }
+    } catch { toast.error('שגיאה בשליחה'); } 
   };
 
   const handleContributeToDrop = async () => {
@@ -372,31 +414,43 @@ export const CirclePage: React.FC = () => {
 
   const handleSealToggle = async (postId: string, sealType: string, isRemoving: boolean) => {
     triggerFeedback('pop');
+    // OPTIMISTIC UI לחותם
+    setData((curr: any) => {
+      const newPosts = curr.posts.map((p: any) => {
+        if (p.id !== postId) return p;
+        let newSeals = [...(p.post_seals || [])];
+        if (isRemoving) {
+          newSeals = newSeals.filter((s:any) => !(s.user_id === currentUserId && s.seal_type === sealType));
+        } else {
+          newSeals.push({ post_id: postId, user_id: currentUserId, seal_type: sealType });
+        }
+        return { ...p, post_seals: newSeals };
+      });
+      return { ...curr, posts: newPosts };
+    });
+
     try {
       if (isRemoving) {
-        const { error } = await supabase.from('post_seals').delete().match({ post_id: postId, user_id: currentUserId, seal_type: sealType });
-        if (error) throw error;
+        await supabase.from('post_seals').delete().match({ post_id: postId, user_id: currentUserId, seal_type: sealType });
       } else {
         const { error } = await supabase.from('post_seals').insert({ post_id: postId, user_id: currentUserId, seal_type: sealType });
-        if (error && error.code !== '23505') throw error;
         if (!error) {
           const xpAmount = SEAL_TYPES.find(s => s.id === sealType)?.xp || 10;
           supabase.rpc('add_circle_xp', { p_circle_id: data.circle.id, p_user_id: currentUserId, p_amount: xpAmount, p_reason: 'gave_seal' }).then();
         }
       }
-      await fetchCircleData(currentUserId, true);
-    } catch { toast.error('שגיאה בעדכון חותם'); }
+    } catch {}
   };
 
-  let touchStartActionY = 0;
-  const handleMessageTouchStart = (e: React.TouchEvent, post: any) => {
-    touchStartActionY = e.touches[0].clientY;
-    timerRef.current = setTimeout(() => { triggerFeedback('pop'); setActionPost(post); }, 450);
+  const handleMessageTouchStart = (e: React.TouchEvent | React.MouseEvent, post: any) => {
+    touchStartY = ('touches' in e) ? e.touches[0].clientY : e.clientY;
+    pressTimerRef.current = setTimeout(() => { triggerFeedback('heavy'); setActionPost(post); }, 450);
   };
-  const handleMessageTouchMove = (e: React.TouchEvent) => {
-    if (Math.abs(e.touches[0].clientY - touchStartActionY) > 10 && timerRef.current) clearTimeout(timerRef.current);
+  const handleMessageTouchMove = (e: React.TouchEvent | React.MouseEvent) => {
+    const currentY = ('touches' in e) ? e.touches[0].clientY : e.clientY;
+    if (Math.abs(currentY - touchStartY) > 10 && pressTimerRef.current) clearTimeout(pressTimerRef.current);
   };
-  const handleMessageTouchEnd = () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  const handleMessageTouchEnd = () => { if (pressTimerRef.current) clearTimeout(pressTimerRef.current); };
 
   const handleCopyText = () => {
     if (actionPost?.content) { navigator.clipboard.writeText(actionPost.content); toast.success('הועתק ללוח'); }
@@ -408,6 +462,7 @@ export const CirclePage: React.FC = () => {
     try {
       const { error } = await supabase.from('posts').delete().eq('id', actionPost.id);
       if (error) throw error;
+      setData((curr: any) => ({ ...curr, posts: curr.posts.filter((p: any) => p.id !== actionPost.id) }));
       toast.success('הודעה נמחקה');
     } catch { toast.error('שגיאה במחיקה'); } finally { setActionPost(null); }
   };
@@ -432,19 +487,75 @@ export const CirclePage: React.FC = () => {
   const xpProgress = Math.min(100, Math.round((myXP / xpToNext) * 100));
   const memberCount = membersList.length || circle.members_count || 0;
 
-  return mounted && typeof document !== 'undefined' ? createPortal(
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[99999999] bg-[#050505] font-sans flex flex-col overflow-hidden" dir="rtl">
-      
-      {/* Hidden Inputs */}
+  const content = (
+    <FadeIn className="fixed inset-0 z-[99999] bg-[#050505] font-sans flex flex-col overflow-hidden" dir="rtl">
       <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*" />
-      <input type="file" ref={storyInputRef} onChange={handleStoryChange} className="hidden" accept="image/*,video/*" />
-      <input type="file" ref={instantPhotoRef} onChange={handleStoryChange} className="hidden" accept="image/*" capture="environment" />
-      <input type="file" ref={instantVideoRef} onChange={handleStoryChange} className="hidden" accept="video/*" capture="environment" />
+      
+      {/* ========================================= */}
+      {/* INLINE CAMERA OVERLAY */}
+      {/* ========================================= */}
+      <AnimatePresence>
+        {isCameraOpen && (
+          <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed inset-0 z-[9999999] bg-black flex flex-col">
+            
+            {/* Header / Close */}
+            <div className="absolute top-0 left-0 right-0 p-6 pt-[calc(env(safe-area-inset-top)+20px)] flex justify-end z-20 bg-gradient-to-b from-black/50 to-transparent pointer-events-none">
+              <button onClick={closeCamera} className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white pointer-events-auto active:scale-90 transition-all">
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Viewfinder */}
+            <div className="flex-1 relative bg-[#111] overflow-hidden rounded-b-[40px]">
+              {!capturedStoryBlob ? (
+                <video ref={videoFeedRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+              ) : (
+                capturedMediaType === 'video' ? (
+                  <video src={URL.createObjectURL(capturedStoryBlob)} autoPlay loop playsInline className="w-full h-full object-cover" />
+                ) : (
+                  <img src={URL.createObjectURL(capturedStoryBlob)} className="w-full h-full object-cover" />
+                )
+              )}
+
+              {/* Recording Indicator */}
+              {isRecording && (
+                <div className="absolute top-[100px] left-1/2 -translate-x-1/2 flex items-center gap-2 bg-red-500/20 backdrop-blur-md border border-red-500/50 px-3 py-1.5 rounded-full text-red-500 font-black text-[12px] animate-pulse">
+                  <div className="w-2 h-2 rounded-full bg-red-500" /> מקליט וידאו...
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Controls */}
+            <div className="h-[140px] shrink-0 bg-black flex items-center justify-center px-6 pb-[env(safe-area-inset-bottom)]">
+              {!capturedStoryBlob ? (
+                // Capture Button
+                <button 
+                  onTouchStart={handleCameraDown} onTouchEnd={handleCameraUp} onMouseDown={handleCameraDown} onMouseUp={handleCameraUp}
+                  className={`w-20 h-20 rounded-full border-4 transition-all flex items-center justify-center ${isRecording ? 'border-red-500 scale-110 bg-red-500/20' : 'border-white bg-white/20 active:scale-95'}`}
+                >
+                  <div className={`w-16 h-16 rounded-full transition-all ${isRecording ? 'bg-red-500 scale-50 rounded-[8px]' : 'bg-white'}`} />
+                </button>
+              ) : (
+                // Preview Controls
+                <div className="flex items-center gap-4 w-full">
+                  <button onClick={() => { setCapturedStoryBlob(null); setIsRecording(false); }} className="flex-1 h-14 rounded-full bg-white/10 text-white font-black text-[14px] active:scale-95 transition-all">
+                    צלם שוב
+                  </button>
+                  <button onClick={uploadCapturedStory} className="flex-1 h-14 rounded-full bg-accent-primary text-white font-black text-[14px] active:scale-95 transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(var(--color-accent-primary),0.4)]">
+                    {uploadingStory ? <Loader2 size={18} className="animate-spin" /> : <><Send size={18} className="rtl:-scale-x-100" /> לסטורי</>}
+                  </button>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {/* ========================================= */}
 
       {/* FULLSCREEN MEDIA OVERLAY */}
       <AnimatePresence>
         {fullScreenMedia && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[999999999] bg-black flex items-center justify-center" onClick={() => setFullScreenMedia(null)}>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9999999] bg-black flex items-center justify-center" onClick={() => setFullScreenMedia(null)}>
             {fullScreenMedia.type === 'video' ? (
                <video src={fullScreenMedia.url} controls autoPlay className="w-full h-full object-contain" onClick={(e) => e.stopPropagation()} />
             ) : (
@@ -460,21 +571,19 @@ export const CirclePage: React.FC = () => {
       {/* BOTTOM SHEET: ACTION MENU */}
       <AnimatePresence>
         {actionPost && (
-          <div className="fixed inset-0 z-[999999999] flex flex-col justify-end" dir="rtl">
+          <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" dir="rtl">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setActionPost(null)} />
             <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="relative bg-[#111] rounded-t-[32px] p-6 pb-[calc(env(safe-area-inset-bottom)+32px)] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
               <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6" />
-              
               <div className="flex items-center gap-4 mb-6 pb-6 border-b border-white/10">
                 <div className="w-12 h-12 rounded-full overflow-hidden bg-white/5 border border-white/10 shrink-0">
-                  {actionPost.profiles?.avatar_url ? <img src={actionPost.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white/40 font-black text-[14px]">{(actionPost.profiles?.full_name || 'א')[0]}</div>}
+                  {actionPost.profiles?.avatar_url ? <img src={actionPost.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white/40">{(actionPost.profiles?.full_name || 'א')[0]}</div>}
                 </div>
                 <div className="flex flex-col">
                   <span className="text-white font-black text-[16px]">{actionPost.profiles?.full_name || 'אנונימי'}</span>
                   <span className="text-white/40 text-[11px] uppercase tracking-widest">{formatTime(actionPost.created_at)}</span>
                 </div>
               </div>
-
               <div className="flex flex-col gap-3">
                 {actionPost.content && (
                   <button onClick={handleCopyText} className="flex items-center gap-4 p-4 rounded-[20px] bg-white/5 hover:bg-white/10 text-white font-black text-[14px] transition-colors active:scale-95">
@@ -497,75 +606,46 @@ export const CirclePage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* BACK BUTTON */}
       <button onClick={() => navigate(-1)} className="absolute top-[calc(env(safe-area-inset-top)+16px)] right-4 p-2 text-white/80 hover:text-white z-50 transition-all active:scale-90 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
         <ChevronLeft size={32} className="rtl:rotate-180" />
       </button>
 
-      {/* HERO / BACKGROUND */}
       <div className="absolute top-0 left-0 right-0 h-[40vh] pointer-events-none z-0">
         {circle.cover_url && <img src={circle.cover_url} className="w-full h-full object-cover opacity-30 mix-blend-luminosity" />}
         <div className="absolute inset-0 bg-gradient-to-b from-[#050505]/40 via-[#050505]/80 to-[#050505]" />
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[300px] h-[300px] bg-accent-primary/20 blur-[100px] rounded-full" />
       </div>
 
-      {/* HEADER */}
       <div className="relative z-20 pt-[calc(env(safe-area-inset-top)+20px)] px-6 flex flex-col items-center text-center shrink-0">
         <h1 className="text-3xl font-black text-white tracking-widest drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mb-1">{circle.name}</h1>
-        <p className="text-white/50 text-[12px] font-medium tracking-wide max-w-[280px] leading-relaxed">
-          {circle.description || 'מרחב פרימיום לחברי המועדון'}
-        </p>
-        
+        <p className="text-white/50 text-[12px] font-medium tracking-wide max-w-[280px] leading-relaxed">{circle.description || 'מרחב פרימיום לחברי המועדון'}</p>
         {isMember && (
           <div className="flex items-center gap-4 mt-4">
-            <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 bg-accent-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(var(--color-accent-primary),0.8)]" />
-              {onlineCount} אונליין
-            </span>
-            <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase">
-              {membersList.length} חברים
-            </span>
+            <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-accent-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(var(--color-accent-primary),0.8)]" />{onlineCount} אונליין</span>
+            <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase">{membersList.length} חברים</span>
           </div>
         )}
       </div>
 
       {!isMember ? (
         <div className="flex-1 flex flex-col items-center justify-center p-6 relative z-10">
-          <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shadow-[0_0_30px_rgba(0,0,0,0.5)] backdrop-blur-2xl mb-8 relative">
-            <Lock size={32} className="text-white/40" />
-          </div>
-          <Button onClick={() => handleJoin('INNER')} disabled={joining} className="w-full max-w-[300px] h-14 bg-white/10 backdrop-blur-md border border-white/20 text-white font-black rounded-[20px] uppercase tracking-widest text-[13px] hover:bg-white/20 transition-all shadow-[0_10px_40px_rgba(0,0,0,0.3)]">
-            בקשת גישה ({circle.join_price || 0} CRD)
-          </Button>
+          <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shadow-[0_0_30px_rgba(0,0,0,0.5)] backdrop-blur-2xl mb-8 relative"><Lock size={32} className="text-white/40" /></div>
+          <Button onClick={() => handleJoin('INNER')} disabled={joining} className="w-full max-w-[300px] h-14 bg-white/10 backdrop-blur-md border border-white/20 text-white font-black rounded-[20px] uppercase tracking-widest text-[13px] hover:bg-white/20 transition-all shadow-[0_10px_40px_rgba(0,0,0,0.3)]">בקשת גישה ({circle.join_price || 0} CRD)</Button>
         </div>
       ) : (
         <div className="flex flex-col flex-1 overflow-hidden relative z-10 mt-6">
-          
-          {/* NAVIGATION */}
           <div className="flex items-center justify-center gap-8 px-6 mb-6 shrink-0 relative z-20">
-            {[
-              { id: 'chat', label: 'לייב' },
-              { id: 'overview', label: 'דשבורד' },
-              { id: 'vaults', label: 'כספות' },
-              { id: 'members', label: 'קהילה' }
-            ].map((t) => {
+            {[{ id: 'chat', label: 'לייב' }, { id: 'overview', label: 'דשבורד' }, { id: 'vaults', label: 'כספות' }, { id: 'members', label: 'קהילה' }].map((t) => {
               const isActive = activeTab === t.id;
               return (
-                <button
-                  key={t.id}
-                  onClick={() => setActiveTab(t.id as any)}
-                  className={`relative text-[12px] font-black uppercase tracking-widest transition-colors ${isActive ? 'text-white' : 'text-white/30 hover:text-white/60'}`}
-                >
+                <button key={t.id} onClick={() => setActiveTab(t.id as any)} className={`relative text-[12px] font-black uppercase tracking-widest transition-colors ${isActive ? 'text-white' : 'text-white/30 hover:text-white/60'}`}>
                   {t.label}
-                  {isActive && (
-                    <motion.div layoutId="nav-indicator" className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-accent-primary shadow-[0_0_10px_rgba(var(--color-accent-primary),1)]" />
-                  )}
+                  {isActive && <motion.div layoutId="nav-indicator" className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-accent-primary shadow-[0_0_10px_rgba(var(--color-accent-primary),1)]" />}
                 </button>
               );
             })}
           </div>
 
-          {/* TAB: OVERVIEW */}
           {activeTab === 'overview' && (
             <div className="flex-1 overflow-y-auto px-5 pb-[120px] flex flex-col gap-4 scrollbar-hide">
               <div className="bg-white/[0.03] backdrop-blur-3xl border border-white/5 rounded-[32px] p-6 relative overflow-hidden">
@@ -598,9 +678,7 @@ export const CirclePage: React.FC = () => {
                     <div className="h-full bg-accent-primary rounded-full" style={{ width: `${Math.min(100, Math.round(((overview.drop.current_crd || 0) / Math.max(1, overview.drop.target_crd || 1)) * 100))}%` }} />
                   </div>
                   <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full p-1.5 pl-4">
-                    <button onClick={handleContributeToDrop} disabled={contributingDrop || !dropAmount} className="h-10 px-6 bg-white text-black font-black text-[12px] uppercase tracking-widest rounded-full active:scale-95 transition-transform disabled:opacity-50">
-                      {contributingDrop ? '...' : 'תרום CRD'}
-                    </button>
+                    <button onClick={handleContributeToDrop} disabled={contributingDrop || !dropAmount} className="h-10 px-6 bg-white text-black font-black text-[12px] uppercase tracking-widest rounded-full active:scale-95 transition-transform disabled:opacity-50">{contributingDrop ? '...' : 'תרום CRD'}</button>
                     <input type="number" value={dropAmount} onChange={(e) => setDropAmount(Number(e.target.value))} className="flex-1 bg-transparent border-none outline-none text-white font-black text-left text-[16px]" placeholder="50" dir="ltr" />
                   </div>
                 </div>
@@ -649,13 +727,12 @@ export const CirclePage: React.FC = () => {
             </div>
           )}
 
-          {/* TAB: CHAT */}
           {activeTab === 'chat' && (
             <div className="flex-1 relative flex flex-col overflow-hidden">
               
               {/* STORIES ROW */}
               {overview.stories && overview.stories.length > 0 && (
-                <div className="shrink-0 pt-1 pb-3">
+                <div className="shrink-0 pt-1 pb-3 border-b border-white/5">
                   <div className="flex gap-4 overflow-x-auto scrollbar-hide px-5">
                     {overview.stories.map((story: any) => (
                       <div key={story.id} className="flex flex-col items-center gap-1 shrink-0" onClick={() => window.open(story.media_url, '_blank')}>
@@ -672,18 +749,13 @@ export const CirclePage: React.FC = () => {
               )}
 
               {/* MESSAGES LIST */}
-              <div ref={messagesRef} className="flex-1 overflow-y-auto scrollbar-hide px-4 pt-2 pb-[100px]">
-                <div className="flex flex-col gap-6 min-h-full">
+              <div ref={messagesRef} className="flex-1 overflow-y-auto scrollbar-hide px-4 pt-2 pb-[120px]">
+                <div className="flex flex-col gap-6 min-h-full justify-end pb-4">
                   {sortedPosts.length === 0 ? (
-                    <div className="text-center py-20 flex flex-col items-center justify-center h-full">
-                      <span className="text-white/20 font-black text-[12px] tracking-[0.3em] uppercase">שקט כאן.</span>
-                    </div>
+                    <div className="text-center py-20 flex flex-col items-center justify-center h-full"><span className="text-white/20 font-black text-[12px] tracking-[0.3em] uppercase">שקט כאן.</span></div>
                   ) : (
                     sortedPosts.map((post: any) => (
-                      <div 
-                        key={post.id} 
-                        className={`flex flex-col gap-1 w-full select-none ${post.user_id === currentUserId ? 'items-end' : 'items-start'}`}
-                      >
+                      <div key={post.id} className={`flex flex-col gap-1 w-full select-none ${post.user_id === currentUserId ? 'items-end' : 'items-start'}`}>
                         
                         {post.user_id !== currentUserId && !post.media_url && (
                           <div className="flex items-center gap-2 pl-2 mb-1" onClick={() => navigate(`/profile/${post.user_id}`)}>
@@ -699,9 +771,9 @@ export const CirclePage: React.FC = () => {
                           onTouchStart={(e) => handleMessageTouchStart(e, post)}
                           onTouchMove={handleMessageTouchMove}
                           onTouchEnd={handleMessageTouchEnd}
-                          onMouseDown={(e) => { timerRef.current = setTimeout(() => { triggerFeedback('pop'); setActionPost(post); }, 450); }}
-                          onMouseMove={() => { if(timerRef.current) clearTimeout(timerRef.current); }}
-                          onMouseUp={() => { if(timerRef.current) clearTimeout(timerRef.current); }}
+                          onMouseDown={(e) => { pressTimerRef.current = setTimeout(() => { triggerFeedback('pop'); setActionPost(post); }, 450); }}
+                          onMouseMove={(e) => { if(pressTimerRef.current) clearTimeout(pressTimerRef.current); }}
+                          onMouseUp={() => { if(pressTimerRef.current) clearTimeout(pressTimerRef.current); }}
                         >
                           {post.media_url ? (
                             <div className="relative w-full group min-w-[200px] cursor-pointer" onClick={() => setFullScreenMedia({url: post.media_url, type: post.media_type})}>
@@ -720,6 +792,7 @@ export const CirclePage: React.FC = () => {
                           )}
                         </div>
 
+                        {/* DIRECT SEALS UI */}
                         <div className={`flex items-center gap-1.5 px-2 mt-0.5 w-full ${post.user_id === currentUserId ? 'justify-end' : 'justify-start'}`}>
                           {SEAL_TYPES.map((sealDef) => {
                             const sealsOfType = post.post_seals?.filter((s:any) => s.seal_type === sealDef.id) || [];
@@ -744,7 +817,7 @@ export const CirclePage: React.FC = () => {
                 </div>
               </div>
 
-              {/* INPUT BAR WITH CAMERA BUTTON */}
+              {/* INPUT BAR */}
               <div className="absolute bottom-0 left-0 right-0 px-4 z-[100] pb-[calc(env(safe-area-inset-bottom)+16px)] bg-gradient-to-t from-[#050505] via-[#050505]/90 to-transparent">
                 <AnimatePresence>
                   {selectedFile && (
@@ -759,15 +832,8 @@ export const CirclePage: React.FC = () => {
 
                 <div className="flex items-end gap-3 max-w-[600px] mx-auto">
                   {(!newPost.trim() && !selectedFile && !editingPostId) && (
-                    <button 
-                      onTouchStart={handleCameraStart}
-                      onTouchEnd={handleCameraEnd}
-                      onMouseDown={handleCameraStart}
-                      onMouseUp={handleCameraEnd}
-                      className={`shrink-0 w-[54px] h-[54px] rounded-full bg-accent-primary text-white flex items-center justify-center shadow-[0_5px_20px_rgba(var(--color-accent-primary),0.4)] transition-all ${isCameraPressed ? 'scale-90 bg-accent-primary/80' : 'hover:bg-accent-primary/90'}`}
-                      title="לחיצה קצרה לתמונה, ארוכה לוידאו"
-                    >
-                      {uploadingStory ? <Loader2 size={24} className="animate-spin text-white" /> : <Camera size={24} />}
+                    <button onClick={openCamera} className="shrink-0 w-[54px] h-[54px] rounded-full bg-accent-primary text-white flex items-center justify-center shadow-[0_5px_20px_rgba(var(--color-accent-primary),0.4)] hover:bg-accent-primary/90 active:scale-90 transition-all" title="צלם סטורי">
+                      <Camera size={24} />
                     </button>
                   )}
 
@@ -782,8 +848,8 @@ export const CirclePage: React.FC = () => {
                         <button onClick={() => fileInputRef.current?.click()} className="w-9 h-9 flex items-center justify-center rounded-full text-white/30 hover:text-white/70 transition-colors" title="צרף תמונה"><Paperclip size={18} /></button>
                       )}
                       {(newPost.trim() || selectedFile || editingPostId) && (
-                        <button onClick={handlePost} disabled={posting} className="w-10 h-10 rounded-full bg-accent-primary text-white flex items-center justify-center active:scale-90 disabled:opacity-30 transition-all shadow-[0_0_15px_rgba(var(--color-accent-primary),0.4)]">
-                          {posting ? <Loader2 size={16} className="animate-spin text-white" /> : <Send size={16} className="rtl:-scale-x-100 -ml-0.5" />}
+                        <button onClick={handlePost} disabled={posting} className="w-10 h-10 rounded-full bg-accent-primary text-white flex items-center justify-center active:scale-90 disabled:opacity-30 transition-all shadow-[0_0_15px_rgba(var(--color-accent-primary),0.5)]">
+                          {posting ? <Loader2 size={16} className="animate-spin text-white" /> : <Send size={16} className="rtl:-scale-x-100 -ml-0.5 text-white" />}
                         </button>
                       )}
                     </div>
@@ -793,7 +859,6 @@ export const CirclePage: React.FC = () => {
             </div>
           )}
 
-          {/* TAB: VAULTS */}
           {activeTab === 'vaults' && (
             <div className="flex-1 p-5 flex flex-col gap-4 overflow-y-auto pb-[120px] scrollbar-hide">
               {loadingVaults ? (
@@ -806,7 +871,6 @@ export const CirclePage: React.FC = () => {
             </div>
           )}
 
-          {/* TAB: MEMBERS */}
           {activeTab === 'members' && (
             <div className="flex-1 p-5 flex flex-col gap-3 overflow-y-auto pb-[120px] scrollbar-hide">
               {membersList.map((m) => (
@@ -824,7 +888,8 @@ export const CirclePage: React.FC = () => {
           )}
         </div>
       )}
-    </motion.div>, 
-    document.body
-  ) : null;
+    </FadeIn>
+  );
+
+  return mounted && typeof document !== 'undefined' ? createPortal(content, document.body) : null;
 };
