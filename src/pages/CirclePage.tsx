@@ -13,7 +13,6 @@ import {
   Flame,
   Diamond,
   Handshake,
-  Plus,
   Send,
   X,
   Camera,
@@ -162,7 +161,6 @@ export const CirclePage: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fullScreenMedia, setFullScreenMedia] = useState<{ url: string; type: string } | null>(null);
 
-  const [uploadingStory, setUploadingStory] = useState(false);
   const [joining, setJoining] = useState(false);
   const [contributingDrop, setContributingDrop] = useState(false);
   const [dropAmount, setDropAmount] = useState<number | ''>(50);
@@ -172,20 +170,23 @@ export const CirclePage: React.FC = () => {
   const pressTimerRef = useRef<NodeJS.Timeout | null>(null);
   let touchStartY = 0;
 
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
+  const [isStoryCaptureOpen, setIsStoryCaptureOpen] = useState(false);
+  const [isRecordingStory, setIsRecordingStory] = useState(false);
   const [capturedStoryBlob, setCapturedStoryBlob] = useState<Blob | null>(null);
-  const [capturedMediaType, setCapturedMediaType] = useState<'image' | 'video'>('image');
-  const videoFeedRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const videoChunksRef = useRef<Blob[]>([]);
-  const recordPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const [capturedMediaType, setCapturedMediaType] = useState<'video' | 'image'>('video');
+  const [uploadingStory, setUploadingStory] = useState(false);
+
+  const storyVideoRef = useRef<HTMLVideoElement>(null);
+  const storyStreamRef = useRef<MediaStream | null>(null);
+  const storyRecorderRef = useRef<MediaRecorder | null>(null);
+  const storyChunksRef = useRef<Blob[]>([]);
+  const storyHoldTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const storyLongPressStartedRef = useRef(false);
+  const storyIgnoreClickRef = useRef(false);
 
   const sortedPosts = useMemo(() => {
     return [...(data?.posts || [])].sort(
-      (a: any, b: any) =>
-        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      (a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
   }, [data?.posts]);
 
@@ -208,9 +209,7 @@ export const CirclePage: React.FC = () => {
       setCurrentUserId(uid);
 
       const circleId = await fetchCircleData(uid);
-      if (circleId) {
-        await fetchOverview(uid, circleId);
-      }
+      if (circleId) await fetchOverview(uid, circleId);
 
       ch = supabase.channel(`circle_${slug}`, { config: { presence: { key: uid } } });
       channelRef.current = ch;
@@ -280,6 +279,7 @@ export const CirclePage: React.FC = () => {
 
     return () => {
       if (ch) supabase.removeChannel(ch);
+      cleanupStoryCapture();
     };
   }, [slug]);
 
@@ -376,11 +376,7 @@ export const CirclePage: React.FC = () => {
     } catch {}
   };
 
-  const fetchOverview = async (
-    uid: string,
-    circleId?: string,
-    silent = false
-  ) => {
+  const fetchOverview = async (uid: string, circleId?: string, silent = false) => {
     try {
       const resolvedCircleId = circleId || data?.circle?.id;
       if (!resolvedCircleId) return;
@@ -494,103 +490,120 @@ export const CirclePage: React.FC = () => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const openCamera = async () => {
-    setIsCameraOpen(true);
-    setCapturedStoryBlob(null);
-    triggerFeedback('pop');
+  const cleanupStoryCapture = () => {
+    if (storyStreamRef.current) {
+      storyStreamRef.current.getTracks().forEach((track) => track.stop());
+      storyStreamRef.current = null;
+    }
+
+    if (storyRecorderRef.current && storyRecorderRef.current.state !== 'inactive') {
+      try {
+        storyRecorderRef.current.stop();
+      } catch {}
+    }
+
+    storyRecorderRef.current = null;
+    storyChunksRef.current = [];
+    setIsRecordingStory(false);
+  };
+
+  const openQuickStoryCapture = async () => {
+    if (!currentUserId || currentUserId.startsWith('guest_')) {
+      toast.error('יש להתחבר תחילה');
+      return;
+    }
 
     try {
+      setCapturedStoryBlob(null);
+      setCapturedMediaType('video');
+      setIsStoryCaptureOpen(true);
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment' },
         audio: true,
       });
 
-      streamRef.current = stream;
+      storyStreamRef.current = stream;
 
-      if (videoFeedRef.current) {
-        videoFeedRef.current.srcObject = stream;
+      if (storyVideoRef.current) {
+        storyVideoRef.current.srcObject = stream;
+        try {
+          await storyVideoRef.current.play();
+        } catch {}
       }
-    } catch {
-      toast.error('אין גישה למצלמה או למיקרופון');
-      setIsCameraOpen(false);
-    }
-  };
 
-  const closeCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
+      storyChunksRef.current = [];
+      const recorder = new MediaRecorder(stream);
+      storyRecorderRef.current = recorder;
 
-    setIsCameraOpen(false);
-    setCapturedStoryBlob(null);
-    setIsRecording(false);
-  };
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) storyChunksRef.current.push(e.data);
+      };
 
-  const handleCameraDown = () => {
-    recordPressTimer.current = setTimeout(() => {
-      setIsRecording(true);
+      recorder.onstop = () => {
+        const blob = new Blob(storyChunksRef.current, { type: 'video/webm' });
+        setCapturedStoryBlob(blob);
+        setCapturedMediaType('video');
+        setIsRecordingStory(false);
+        cleanupStoryCapture();
+      };
+
+      recorder.start();
+      setIsRecordingStory(true);
       triggerFeedback('heavy');
-      videoChunksRef.current = [];
-
-      try {
-        const recorder = new MediaRecorder(streamRef.current!);
-        mediaRecorderRef.current = recorder;
-
-        recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) videoChunksRef.current.push(e.data);
-        };
-
-        recorder.onstop = () => {
-          const blob = new Blob(videoChunksRef.current, { type: 'video/webm' });
-          setCapturedStoryBlob(blob);
-          setCapturedMediaType('video');
-        };
-
-        recorder.start();
-      } catch {
-        toast.error('צילום וידאו לא נתמך במכשיר זה');
-        setIsRecording(false);
-      }
-    }, 500);
+    } catch {
+      cleanupStoryCapture();
+      setIsStoryCaptureOpen(false);
+      toast.error('אין גישה למצלמה או למיקרופון');
+    }
   };
 
-  const handleCameraUp = () => {
-    if (recordPressTimer.current) clearTimeout(recordPressTimer.current);
+  const startStoryLongPress = () => {
+    storyIgnoreClickRef.current = false;
+    storyLongPressStartedRef.current = false;
 
-    if (isRecording) {
-      mediaRecorderRef.current?.stop();
-      setIsRecording(false);
-    } else {
-      triggerFeedback('pop');
+    if (storyHoldTimerRef.current) clearTimeout(storyHoldTimerRef.current);
 
-      if (videoFeedRef.current) {
-        const canvas = document.createElement('canvas');
-        canvas.width = videoFeedRef.current.videoWidth;
-        canvas.height = videoFeedRef.current.videoHeight;
+    storyHoldTimerRef.current = setTimeout(async () => {
+      storyLongPressStartedRef.current = true;
+      storyIgnoreClickRef.current = true;
+      await openQuickStoryCapture();
+    }, 260);
+  };
 
-        const ctx = canvas.getContext('2d');
+  const endStoryLongPress = () => {
+    if (storyHoldTimerRef.current) {
+      clearTimeout(storyHoldTimerRef.current);
+      storyHoldTimerRef.current = null;
+    }
 
-        if (ctx) {
-          ctx.drawImage(videoFeedRef.current, 0, 0);
-          canvas.toBlob(
-            (blob) => {
-              if (blob) {
-                setCapturedStoryBlob(blob);
-                setCapturedMediaType('image');
-              }
-            },
-            'image/jpeg',
-            0.9
-          );
-        }
+    if (storyLongPressStartedRef.current && storyRecorderRef.current) {
+      if (storyRecorderRef.current.state === 'recording') {
+        try {
+          storyRecorderRef.current.stop();
+        } catch {}
       }
     }
+  };
+
+  const handleCameraButtonClick = () => {
+    if (storyIgnoreClickRef.current) {
+      storyIgnoreClickRef.current = false;
+      return;
+    }
+    toast('לחץ לחיצה ארוכה כדי להעלות סטורי', {
+      icon: '📸',
+    });
+  };
+
+  const cancelStoryPreview = () => {
+    setCapturedStoryBlob(null);
+    setIsStoryCaptureOpen(false);
+    cleanupStoryCapture();
   };
 
   const uploadCapturedStory = async () => {
-    if (!capturedStoryBlob) return;
-    if (!data?.circle?.id || !currentUserId || currentUserId.startsWith('guest_')) {
+    if (!capturedStoryBlob || !data?.circle?.id || !currentUserId || currentUserId.startsWith('guest_')) {
       return toast.error('יש להתחבר תחילה');
     }
 
@@ -611,16 +624,13 @@ export const CirclePage: React.FC = () => {
       stories: [tempStory, ...(prev.stories || [])],
     }));
 
-    closeCamera();
+    setIsStoryCaptureOpen(false);
 
     try {
-      const ext = capturedMediaType === 'video' ? 'webm' : 'jpg';
       const file = new File(
         [capturedStoryBlob],
-        `story_${Date.now()}.${ext}`,
-        {
-          type: capturedMediaType === 'video' ? 'video/webm' : 'image/jpeg',
-        }
+        `story_${Date.now()}.webm`,
+        { type: 'video/webm' }
       );
 
       const { data: uploadData, error } = await supabase.storage
@@ -640,7 +650,7 @@ export const CirclePage: React.FC = () => {
         circle_id: data.circle.id,
         user_id: currentUserId,
         media_url: publicUrl,
-        media_type: capturedMediaType,
+        media_type: 'video',
         expires_at: expiresAt.toISOString(),
       });
 
@@ -653,7 +663,8 @@ export const CirclePage: React.FC = () => {
         })
         .then();
 
-      toast.success('הסטורי באוויר! ✨');
+      toast.success('הסטורי עלה ל־24 שעות');
+      setCapturedStoryBlob(null);
       await fetchOverview(currentUserId, data.circle.id, true);
     } catch {
       toast.error('שגיאה בהעלאת הסטורי');
@@ -876,10 +887,7 @@ export const CirclePage: React.FC = () => {
     } catch {}
   };
 
-  const handleMessageTouchStart = (
-    e: React.TouchEvent | React.MouseEvent,
-    post: any
-  ) => {
+  const handleMessageTouchStart = (e: React.TouchEvent | React.MouseEvent, post: any) => {
     touchStartY = 'touches' in e ? e.touches[0].clientY : e.clientY;
     pressTimerRef.current = setTimeout(() => {
       triggerFeedback('heavy');
@@ -972,101 +980,96 @@ export const CirclePage: React.FC = () => {
       />
 
       <AnimatePresence>
-        {isCameraOpen && (
+        {isStoryCaptureOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 50 }}
-            className="fixed inset-0 z-[999999999] bg-black flex flex-col"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[999999999] bg-black"
           >
-            <div className="absolute top-0 left-0 right-0 p-6 pt-[calc(env(safe-area-inset-top)+20px)] flex justify-end z-20 bg-gradient-to-b from-black/50 to-transparent pointer-events-none">
-              <button
-                onClick={closeCamera}
-                className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white pointer-events-auto active:scale-90 transition-all"
-              >
-                <X size={24} />
-              </button>
-            </div>
-
-            <div className="flex-1 relative bg-[#111] overflow-hidden rounded-b-[40px]">
-              {!capturedStoryBlob ? (
+            {!capturedStoryBlob ? (
+              <div className="w-full h-full relative">
                 <video
-                  ref={videoFeedRef}
+                  ref={storyVideoRef}
                   autoPlay
                   playsInline
                   muted
                   className="w-full h-full object-cover"
                 />
-              ) : capturedMediaType === 'video' ? (
-                <video
-                  src={URL.createObjectURL(capturedStoryBlob)}
-                  autoPlay
-                  loop
-                  playsInline
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <img
-                  src={URL.createObjectURL(capturedStoryBlob)}
-                  className="w-full h-full object-cover"
-                />
-              )}
-
-              {isRecording && (
-                <div className="absolute top-[100px] left-1/2 -translate-x-1/2 flex items-center gap-2 bg-red-500/20 backdrop-blur-md border border-red-500/50 px-3 py-1.5 rounded-full text-red-500 font-black text-[12px] animate-pulse">
-                  <div className="w-2 h-2 rounded-full bg-red-500" />
-                  מקליט וידאו...
-                </div>
-              )}
-            </div>
-
-            <div className="h-[140px] shrink-0 bg-black flex items-center justify-center px-6 pb-[env(safe-area-inset-bottom)]">
-              {!capturedStoryBlob ? (
-                <button
-                  onTouchStart={handleCameraDown}
-                  onTouchEnd={handleCameraUp}
-                  onMouseDown={handleCameraDown}
-                  onMouseUp={handleCameraUp}
-                  className={`w-20 h-20 rounded-full border-4 transition-all flex items-center justify-center ${
-                    isRecording
-                      ? 'border-red-500 scale-110 bg-red-500/20'
-                      : 'border-white bg-white/20 active:scale-95'
-                  }`}
-                >
-                  <div
-                    className={`w-16 h-16 rounded-full transition-all ${
-                      isRecording ? 'bg-red-500 scale-50 rounded-[8px]' : 'bg-white'
-                    }`}
-                  />
-                </button>
-              ) : (
-                <div className="flex items-center gap-4 w-full">
+                <div className="absolute inset-x-0 top-0 p-6 pt-[calc(env(safe-area-inset-top)+18px)] flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent">
                   <button
                     onClick={() => {
-                      setCapturedStoryBlob(null);
-                      setIsRecording(false);
+                      cleanupStoryCapture();
+                      setIsStoryCaptureOpen(false);
                     }}
-                    className="flex-1 h-14 rounded-full bg-white/10 text-white font-black text-[14px] active:scale-95 transition-all"
+                    className="w-11 h-11 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white active:scale-90 transition-all"
                   >
-                    צלם שוב
+                    <X size={22} />
+                  </button>
+
+                  <div className="px-4 py-2 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 text-[12px] font-black tracking-widest flex items-center gap-2 animate-pulse">
+                    <span className="w-2 h-2 rounded-full bg-red-500" />
+                    מקליט עכשיו
+                  </div>
+                </div>
+
+                <div className="absolute inset-x-0 bottom-0 pb-[calc(env(safe-area-inset-bottom)+28px)] px-6">
+                  <div className="text-center text-white/80 text-[13px] font-black tracking-wide">
+                    שחרר את הלחיצה כדי לעצור ולבחור אם להעלות
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="w-full h-full bg-black flex flex-col">
+                <div className="flex-1 relative">
+                  {capturedMediaType === 'video' ? (
+                    <video
+                      src={URL.createObjectURL(capturedStoryBlob)}
+                      autoPlay
+                      loop
+                      controls
+                      playsInline
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <img
+                      src={URL.createObjectURL(capturedStoryBlob)}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+
+                  <div className="absolute top-0 left-0 right-0 p-6 pt-[calc(env(safe-area-inset-top)+18px)] bg-gradient-to-b from-black/70 to-transparent">
+                    <div className="text-center text-white font-black text-[18px]">
+                      להעלות את זה לסטורי?
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-5 pb-[calc(env(safe-area-inset-bottom)+20px)] flex gap-3 bg-[#050505]">
+                  <button
+                    onClick={cancelStoryPreview}
+                    className="flex-1 h-14 rounded-full bg-white/10 text-white font-black active:scale-95 transition-all"
+                  >
+                    לא
                   </button>
 
                   <button
                     onClick={uploadCapturedStory}
-                    className="flex-1 h-14 rounded-full bg-accent-primary text-white font-black text-[14px] active:scale-95 transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(var(--color-accent-primary),0.4)]"
+                    disabled={uploadingStory}
+                    className="flex-1 h-14 rounded-full bg-accent-primary text-white font-black active:scale-95 transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(var(--color-accent-primary),0.4)]"
                   >
                     {uploadingStory ? (
                       <Loader2 size={18} className="animate-spin" />
                     ) : (
                       <>
                         <Send size={18} className="rtl:-scale-x-100" />
-                        לסטורי
+                        העלה לסטורי
                       </>
                     )}
                   </button>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -1095,7 +1098,6 @@ export const CirclePage: React.FC = () => {
                 onClick={(e) => e.stopPropagation()}
               />
             )}
-
             <button
               onClick={() => setFullScreenMedia(null)}
               className="absolute top-[calc(env(safe-area-inset-top)+16px)] left-4 p-3 text-white/70 hover:text-white transition-all active:scale-90 z-50 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
@@ -1365,42 +1367,32 @@ export const CirclePage: React.FC = () => {
 
           {activeTab === 'chat' && (
             <div className="flex-1 relative flex flex-col overflow-hidden">
-              <div className="shrink-0 pt-1 pb-3">
-                <div className="flex gap-4 overflow-x-auto scrollbar-hide px-5">
-                  <div
-                    className="flex flex-col items-center gap-1 shrink-0"
-                    onClick={openCamera}
-                  >
-                    <div className="w-14 h-14 rounded-full p-[2px] bg-white/5 cursor-pointer active:scale-95 transition-transform flex items-center justify-center border border-white/10">
-                      <Plus size={22} className="text-white/70" />
-                    </div>
-                    <span className="text-[9px] font-black text-white/60 tracking-wider truncate max-w-[55px] text-center">
-                      חדש
-                    </span>
-                  </div>
-
-                  {(overview.stories || []).map((story: any) => (
-                    <div
-                      key={story.id}
-                      className="flex flex-col items-center gap-1 shrink-0"
-                      onClick={() => window.open(story.media_url, '_blank')}
-                    >
-                      <div className="w-14 h-14 rounded-full p-[2px] bg-gradient-to-tr from-accent-primary via-white/20 to-transparent cursor-pointer active:scale-95 transition-transform">
-                        <div className="w-full h-full rounded-full overflow-hidden border-2 border-[#050505] bg-white/5">
-                          {story.media_type === 'video' ? (
-                            <video src={story.media_url} className="w-full h-full object-cover" />
-                          ) : (
-                            <img src={story.media_url} className="w-full h-full object-cover" />
-                          )}
+              {!!overview.stories?.length && (
+                <div className="shrink-0 px-5 pt-1 pb-4">
+                  <div className="flex gap-4 overflow-x-auto scrollbar-hide">
+                    {overview.stories.map((story: any) => (
+                      <div
+                        key={story.id}
+                        className="flex flex-col items-center gap-2 shrink-0"
+                        onClick={() => window.open(story.media_url, '_blank')}
+                      >
+                        <div className="w-[74px] h-[74px] rounded-full p-[3px] bg-gradient-to-tr from-accent-primary via-white/30 to-transparent cursor-pointer active:scale-95 transition-transform shadow-[0_0_25px_rgba(var(--color-accent-primary),0.18)]">
+                          <div className="w-full h-full rounded-full overflow-hidden border-[3px] border-[#050505] bg-white/5">
+                            {story.media_type === 'video' ? (
+                              <video src={story.media_url} className="w-full h-full object-cover" />
+                            ) : (
+                              <img src={story.media_url} className="w-full h-full object-cover" />
+                            )}
+                          </div>
                         </div>
+                        <span className="text-[10px] font-black text-white/70 tracking-wider truncate max-w-[74px] text-center">
+                          {story.full_name?.split(' ')[0]}
+                        </span>
                       </div>
-                      <span className="text-[9px] font-black text-white/60 tracking-wider truncate max-w-[55px] text-center">
-                        {story.full_name?.split(' ')[0]}
-                      </span>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div ref={messagesRef} className="flex-1 overflow-y-auto scrollbar-hide px-4 pt-2 pb-[120px]">
                 <div className="flex flex-col gap-6 min-h-full justify-end pb-4">
@@ -1605,9 +1597,15 @@ export const CirclePage: React.FC = () => {
                 <div className="flex items-end gap-3 max-w-[600px] mx-auto">
                   {!newPost.trim() && !selectedFile && !editingPostId && (
                     <button
-                      onClick={openCamera}
-                      className="shrink-0 w-[54px] h-[54px] rounded-full bg-accent-primary text-white flex items-center justify-center shadow-[0_5px_20px_rgba(var(--color-accent-primary),0.4)] transition-all hover:bg-accent-primary/90"
-                      title="לסטורי"
+                      onClick={handleCameraButtonClick}
+                      onTouchStart={startStoryLongPress}
+                      onTouchEnd={endStoryLongPress}
+                      onTouchCancel={endStoryLongPress}
+                      onMouseDown={startStoryLongPress}
+                      onMouseUp={endStoryLongPress}
+                      onMouseLeave={endStoryLongPress}
+                      className="shrink-0 w-[54px] h-[54px] rounded-full bg-accent-primary text-white flex items-center justify-center shadow-[0_5px_20px_rgba(var(--color-accent-primary),0.4)] transition-all hover:bg-accent-primary/90 active:scale-95"
+                      title="סטורי"
                     >
                       <Camera size={24} />
                     </button>
