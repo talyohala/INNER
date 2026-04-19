@@ -55,12 +55,10 @@ const PLACEMENTS = [
   { id: 'feed', label: 'פיד ראשי' },
   { id: 'explore', label: 'חיפוש וגילוי' },
   { id: 'wallet', label: 'ארנק' },
-  { id: 'business', label: 'עסקים ויזמות' },
-  { id: 'tech', label: 'טכנולוגיה' },
-  { id: 'finance', label: 'פיננסים' },
-  { id: 'lifestyle', label: 'לייף סטייל' },
-  { id: 'creators', label: 'יוצרים ואמנות' },
-  { id: 'exclusive', label: 'המעגל הסגור' }
+  { id: 'radar', label: 'רדאר' },
+  { id: 'profile', label: 'פרופיל אישי' },
+  { id: 'shop', label: 'חנות' },
+  { id: 'notifications', label: 'התראות' }
 ];
 
 export const AdminPage: React.FC = () => {
@@ -176,7 +174,7 @@ export const AdminPage: React.FC = () => {
         active: true
       });
       if (error) throw error;
-      toast.success('הקמפיין באוויר! 🚀', { id: tid });
+      toast.success('הקמפיין באוויר!', { id: tid });
       triggerFeedback('success');
       setCampTitle(''); setCampBody(''); setCampReward('');
     } catch (err: any) {
@@ -225,7 +223,7 @@ export const AdminPage: React.FC = () => {
               <div className="bg-surface-card border border-surface-border pt-10 pb-8 rounded-[40px] flex flex-col items-center text-center shadow-[0_20px_50px_rgba(0,0,0,0.4)] relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-accent-primary/5 via-transparent to-transparent opacity-60" />
                 <div className="absolute -top-20 -right-20 w-40 h-40 bg-accent-primary/20 blur-[80px] rounded-full pointer-events-none" />
-                <span className="text-brand-muted text-[11px] font-black uppercase tracking-[0.2em] mb-1 z-10 drop-shadow-md flex items-center gap-1.5"><Coins size={14} className="text-accent-primary"/> כלכלת CRD באפליקציה</span>
+                <span className="text-brand-muted text-[11px] font-black uppercase tracking-[0.2em] mb-1 z-10 drop-shadow-md flex items-center gap-1.5"><Coins size={14} className="text-accent-primary"/> כלכלת האפליקציה</span>
                 <div className="flex flex-col items-center justify-center mt-2 z-10 relative">
                   <span className="text-[56px] font-black text-brand tracking-tighter leading-none drop-shadow-[0_0_20px_rgba(var(--color-accent-primary),0.3)]">{adminData.total_crd.toLocaleString()}</span>
                   <span className="text-[11px] font-black text-accent-primary uppercase tracking-[0.4em] mt-3 drop-shadow-md">סה״כ במחזור</span>
