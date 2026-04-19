@@ -98,7 +98,7 @@ export const ProfilePage: React.FC = () => {
   const [editPostText, setEditPostText] = useState('');
 
   const [extraInfoOpen, setExtraInfoOpen] = useState(false);
-  const [isBioExpanded, setIsBioExpanded] = useState(false);
+  const [isBioExpanded, setIsBioExpanded] = useState(false); // BIO EXPAND STATE
 
   const stateRef = useRef({
     comments: false, options: false, desc: false, fullscreen: false, commentAction: false,
@@ -273,7 +273,6 @@ export const ProfilePage: React.FC = () => {
     return pool.filter((p: any) => p.media_url);
   }, [data.posts, data.savedPosts, activeTab, isMyProfile]);
 
-  // מיזוג המועדונים: אלו שבבעלותי ואלו שאני חבר בהם
   const allMyCircles = useMemo(() => {
     const owned = data.ownedCircles || [];
     const joined = data.memberships?.map((m: any) => m?.circle).filter(Boolean) || [];
@@ -603,7 +602,7 @@ export const ProfilePage: React.FC = () => {
 
               {userProfile?.bio && (
                 <div className="flex flex-col items-center gap-1 w-full px-4">
-                  <p className="text-brand text-[14px] leading-relaxed text-center font-medium whitespace-pre-wrap">
+                  <p className="text-brand text-[14px] leading-relaxed text-center font-medium whitespace-pre-wrap break-words">
                     {(userProfile.bio.length > 100 && !isBioExpanded) ? userProfile.bio.slice(0, 100) + '...' : userProfile.bio}
                   </p>
                   {userProfile.bio.length > 100 && (
@@ -857,7 +856,7 @@ export const ProfilePage: React.FC = () => {
                             <span className="text-white text-[13px] font-black drop-shadow-md">{vid.comments_count}</span>
                           </button>
                         </div>
-                        
+
                         <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }} className="absolute bottom-8 left-5 z-[60] active:scale-90 transition-transform p-1">
                           <MoreVertical size={28} strokeWidth={2} className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
                         </button>
@@ -1031,6 +1030,21 @@ export const ProfilePage: React.FC = () => {
                       <button onClick={() => { if (window.confirm('למחוק פוסט?')) { deletePost(optionsMenuPost.id); } }} className="w-full p-4 bg-surface-card border border-red-500/30 rounded-[24px] text-red-500 font-black flex justify-between items-center text-[15px] mt-2 active:scale-[0.98] transition-all"><span>מחק פוסט</span><Trash2 size={20} className="text-red-500" /></button>
                     </>
                   )}
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+
+          {/* DESC POST FULL */}
+          <AnimatePresence>
+            {activeDescPost && (
+              <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
+                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[32px] flex flex-col overflow-hidden pb-10 max-h-[75vh] shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border text-center">
+                  <div className="w-full py-5 flex justify-center cursor-grab active:cursor-grabbing border-b border-surface-border"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>
+                  <div className="p-6 overflow-y-auto" onPointerDown={stopPropagation} onTouchStart={stopPropagation}>
+                    <p className="text-brand text-[15px] leading-relaxed whitespace-pre-wrap">{activeDescPost.content}</p>
+                  </div>
                 </motion.div>
               </div>
             )}
