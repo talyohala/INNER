@@ -796,7 +796,6 @@ export const HomePage: React.FC = () => {
                         {post.user_circles && post.user_circles.length > 0 && !isLockedDrop && (
                           <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">
                             {post.user_circles.slice(0, 10).map((circle: any) => {
-                              // הילה סביב המועדון אם המשתמש הוא הבעלים
                               const isOwnerOfThisCircle = circle.owner_id === post.user_id;
                               
                               return (
@@ -877,7 +876,6 @@ export const HomePage: React.FC = () => {
                         {post.user_circles && post.user_circles.length > 0 && !isLockedDrop && (
                           <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">
                             {post.user_circles.slice(0, 10).map((circle: any) => {
-                              // הילה סביב המועדון אם המשתמש הוא הבעלים
                               const isOwnerOfThisCircle = circle.owner_id === post.user_id;
                               
                               return (
@@ -1086,6 +1084,7 @@ export const HomePage: React.FC = () => {
                                     <Flame size={14} fill={likedComments.has(c.id) ? 'currentColor' : 'none'} />
                                   </button>
                                 </div>
+                                {/* כפתור פתיחת השרשור */}
                                 {replies.length > 0 && (
                                   <button onClick={() => setExpandedThreads((prev) => ({ ...prev, [c.id]: !prev[c.id] }))} className="text-right text-[12px] font-black text-accent-primary hover:text-accent-primary/80 transition-colors mt-2 flex items-center gap-1.5 pr-1">
                                     {isThreadExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -1094,6 +1093,7 @@ export const HomePage: React.FC = () => {
                                 )}
                               </div>
                             </div>
+                            {/* התגובות המאונסטות בתוך העץ */}
                             {isThreadExpanded && (
                               <div className="pr-12 flex flex-col gap-4 mt-3 relative">
                                 <div className="absolute right-5 top-0 bottom-4 w-[1.5px] bg-surface-border z-0" />
@@ -1139,7 +1139,11 @@ export const HomePage: React.FC = () => {
                     )}
                     <div className="flex gap-2 items-center bg-surface-card rounded-[20px] p-1.5 pl-2 border border-surface-border shadow-inner">
                       <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="הוסף תגובה לדיון..." className="flex-1 bg-transparent px-4 text-brand text-[14px] outline-none placeholder:text-brand-muted" />
-                      <button onClick={submitComment} disabled={!newComment.trim()} className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md active:scale-95 disabled:opacity-30 ${newComment.trim() ? 'bg-accent-primary text-white opacity-100' : 'bg-surface-border text-brand-muted'}`} >
+                      <button
+                        onClick={submitComment}
+                        disabled={!newComment.trim()}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md active:scale-95 disabled:opacity-30 ${newComment.trim() ? 'bg-accent-primary text-white opacity-100' : 'bg-surface-border text-brand-muted'}`}
+                      >
                         <Send size={16} className="rtl:-scale-x-100 -ml-0.5" />
                       </button>
                     </div>
@@ -1212,7 +1216,7 @@ export const HomePage: React.FC = () => {
                   {optionsMenuPost.user_id === currentUserId && (
                     <>
                       <button onClick={() => { closeOverlay(); setTimeout(() => { openOverlay(() => { setEditingPost(optionsMenuPost); setEditPostText(optionsMenuPost.content || ''); setShowCreatePost(true); }); }, 100); }} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm mt-2"><span>ערוך פוסט</span><Edit2 size={20} className="text-brand-muted" /></button>
-                      <button onClick={() => { if (window.confirm('למחוק פוסט?')) { deletePost(optionsMenuPost.id); } }} className="w-full p-4 bg-surface-card border border-rose-500/30 rounded-[20px] text-rose-500 font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all mt-2"><span>מחק פוסט</span><Trash2 size={20} className="text-red-500" /></button>
+                      <button onClick={() => { if (window.confirm('למחוק פוסט?')) { deletePost(optionsMenuPost.id); } }} className="w-full p-4 bg-surface-card border border-rose-500/30 rounded-[20px] text-rose-500 font-black flex justify-between items-center text-[15px] mt-2 active:scale-[0.98] transition-all"><span>מחק פוסט</span><Trash2 size={20} className="text-red-500" /></button>
                     </>
                   )}
                 </motion.div>
