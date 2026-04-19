@@ -172,9 +172,11 @@ export const AdminPage: React.FC = () => {
         body: campBody,
         reward: Number(campReward) || 0,
         active: true
-      });
+      }).select(); // <-- הוספנו select כדי למנוע את תקיעת ה-Promise מול RLS
+      
       if (error) throw error;
-      toast.success('הקמפיין באוויר!', { id: tid });
+      
+      toast.success('הקמפיין באוויר! 🚀', { id: tid });
       triggerFeedback('success');
       setCampTitle(''); setCampBody(''); setCampReward('');
     } catch (err: any) {
@@ -265,7 +267,7 @@ export const AdminPage: React.FC = () => {
             </motion.div>
           )}
 
-          {/* TAB: CAMPAIGNS (NEW) */}
+          {/* TAB: CAMPAIGNS */}
           {activeTab === 'campaigns' && (
             <motion.div key="campaigns" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-5">
               <div className="bg-surface-card border border-surface-border rounded-[32px] p-6 shadow-sm flex flex-col gap-6">
@@ -335,10 +337,10 @@ export const AdminPage: React.FC = () => {
                     </div>
                     <div className="flex gap-2">
                       <Button onClick={() => handleCashoutAction(tx.id, 'approve')} className="flex-1 h-14 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[13px] font-black tracking-widest uppercase rounded-[20px] flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-sm">
-                        <CheckCircle size={18} /> אושר
+                        אושר
                       </Button>
                       <Button onClick={() => { if(window.confirm('לדחות ולהחזיר למשתמש את ה-CRD?')) handleCashoutAction(tx.id, 'reject'); }} className="flex-1 h-14 bg-rose-500/10 text-rose-500 border border-rose-500/20 text-[13px] font-black tracking-widest uppercase rounded-[20px] flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-sm">
-                        <XCircle size={18} /> דחה
+                        דחה
                       </Button>
                     </div>
                   </div>
@@ -390,7 +392,7 @@ export const AdminPage: React.FC = () => {
                       </div>
                       <span className="text-brand font-black text-[13px]">{p.full_name}</span>
                     </div>
-                    <button onClick={() => handleDeletePost(p.id)} className="p-2 text-brand-muted hover:text-rose-500 active:scale-90 transition-colors">
+                    <button onClick={() => handleDeletePost(p.id)} className="p-2 text-rose-500 active:scale-90 transition-transform">
                       <Trash2 size={18} />
                     </button>
                   </div>
