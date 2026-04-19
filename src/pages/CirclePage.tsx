@@ -7,9 +7,8 @@ import { apiFetch } from '../lib/api';
 import { FadeIn, Button } from '../components/ui';
 import { VaultCard } from '../components/VaultCard';
 import {
-  Loader2, MessageSquare, Lock, ShieldAlert, Flame, Diamond, Handshake,
-  Plus, Send, X, Coins, Users, Archive, Sparkles, Trophy,
-  Pin, BarChart3, Target, ChevronLeft, Eye, Activity, Paperclip, Camera, Copy, Edit2, Trash2
+  Loader2, Lock, ShieldAlert, Flame, Diamond, Handshake,
+  Plus, Send, X, Camera, Copy, Edit2, Trash2, Paperclip, ChevronLeft
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -84,13 +83,12 @@ export const CirclePage: React.FC = () => {
   const [contributingDrop, setContributingDrop] = useState(false);
   const [dropAmount, setDropAmount] = useState<number | ''>(50);
 
-  // ACTION SHEET STATES
   const [actionPost, setActionPost] = useState<any | null>(null);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const pressTimerRef = useRef<NodeJS.Timeout | null>(null);
   let touchStartY = 0;
 
-  // INLINE CAMERA STATES
+  // INLINE CAMERA
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [capturedStoryBlob, setCapturedStoryBlob] = useState<Blob | null>(null);
@@ -258,7 +256,7 @@ export const CirclePage: React.FC = () => {
     }
   };
 
-  // INLINE CAMERA LOGIC
+  // INLINE CAMERA
   const openCamera = async () => {
     setIsCameraOpen(true);
     setCapturedStoryBlob(null);
@@ -297,7 +295,7 @@ export const CirclePage: React.FC = () => {
           setCapturedMediaType('video');
         };
         recorder.start();
-      } catch (e) { toast.error('צילום וידאו לא נתמך במכשיר זה'); setIsRecording(false); }
+      } catch (e) { toast.error('צילום וידאו לא נתמך'); setIsRecording(false); }
     }, 500);
   };
 
@@ -503,6 +501,8 @@ export const CirclePage: React.FC = () => {
     return <div className="fixed inset-0 z-[999999] bg-[#050505] flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div>;
   }
 
+  if (!mounted || typeof document === 'undefined') return null;
+
   const { circle, isMember, membership } = data;
   const isOwner = circle.creator_id === currentUserId || membership?.role === 'admin';
   const myStats = overview?.my_stats || null;
@@ -510,30 +510,19 @@ export const CirclePage: React.FC = () => {
   const myXP = myStats?.xp || 0;
   const xpToNext = myLevel * 100;
   const xpProgress = Math.min(100, Math.round((myXP / xpToNext) * 100));
-  const memberCount = membersList.length || circle.members_count || 0;
 
-  return mounted && typeof document !== 'undefined' ? createPortal(
-    <FadeIn className="fixed inset-0 z-[999999] bg-[#050505] font-sans flex flex-col overflow-hidden" dir="rtl">
-      
-      {/* Hidden Inputs */}
+  return createPortal(
+    <FadeIn className="fixed inset-0 z-[99999] bg-[#050505] font-sans flex flex-col overflow-hidden" dir="rtl">
       <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*" />
       <input type="file" ref={storyInputRef} onChange={handleStoryChange} className="hidden" accept="image/*,video/*" />
 
-      {/* ========================================= */}
-      {/* INLINE CAMERA OVERLAY */}
-      {/* ========================================= */}
+      {/* CAMERA OVERLAY */}
       <AnimatePresence>
         {isCameraOpen && (
           <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed inset-0 z-[99999999] bg-black flex flex-col">
-            
-            {/* Header / Close */}
             <div className="absolute top-0 left-0 right-0 p-6 pt-[calc(env(safe-area-inset-top)+20px)] flex justify-end z-20 bg-gradient-to-b from-black/50 to-transparent pointer-events-none">
-              <button onClick={closeCamera} className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white pointer-events-auto active:scale-90 transition-all">
-                <X size={24} />
-              </button>
+              <button onClick={closeCamera} className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white pointer-events-auto active:scale-90 transition-all"><X size={24} /></button>
             </div>
-
-            {/* Viewfinder */}
             <div className="flex-1 relative bg-[#111] overflow-hidden rounded-b-[40px]">
               {!capturedStoryBlob ? (
                 <video ref={videoFeedRef} autoPlay playsInline muted className="w-full h-full object-cover" />
@@ -544,16 +533,12 @@ export const CirclePage: React.FC = () => {
                   <img src={URL.createObjectURL(capturedStoryBlob)} className="w-full h-full object-cover" />
                 )
               )}
-
-              {/* Recording Indicator */}
               {isRecording && (
                 <div className="absolute top-[100px] left-1/2 -translate-x-1/2 flex items-center gap-2 bg-red-500/20 backdrop-blur-md border border-red-500/50 px-3 py-1.5 rounded-full text-red-500 font-black text-[12px] animate-pulse">
                   <div className="w-2 h-2 rounded-full bg-red-500" /> מקליט וידאו...
                 </div>
               )}
             </div>
-
-            {/* Bottom Controls */}
             <div className="h-[140px] shrink-0 bg-black flex items-center justify-center px-6 pb-[env(safe-area-inset-bottom)]">
               {!capturedStoryBlob ? (
                 <button 
@@ -564,9 +549,7 @@ export const CirclePage: React.FC = () => {
                 </button>
               ) : (
                 <div className="flex items-center gap-4 w-full">
-                  <button onClick={() => { setCapturedStoryBlob(null); setIsRecording(false); }} className="flex-1 h-14 rounded-full bg-white/10 text-white font-black text-[14px] active:scale-95 transition-all">
-                    צלם שוב
-                  </button>
+                  <button onClick={() => { setCapturedStoryBlob(null); setIsRecording(false); }} className="flex-1 h-14 rounded-full bg-white/10 text-white font-black text-[14px] active:scale-95 transition-all">צלם שוב</button>
                   <button onClick={uploadCapturedStory} className="flex-1 h-14 rounded-full bg-accent-primary text-white font-black text-[14px] active:scale-95 transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(var(--color-accent-primary),0.4)]">
                     {uploadingStory ? <Loader2 size={18} className="animate-spin" /> : <><Send size={18} className="rtl:-scale-x-100" /> לסטורי</>}
                   </button>
@@ -577,7 +560,7 @@ export const CirclePage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* FULLSCREEN MEDIA OVERLAY */}
+      {/* FULLSCREEN MEDIA */}
       <AnimatePresence>
         {fullScreenMedia && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9999999] bg-black flex items-center justify-center" onClick={() => setFullScreenMedia(null)}>
@@ -593,14 +576,13 @@ export const CirclePage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* BOTTOM SHEET: ACTION MENU */}
+      {/* BOTTOM SHEET */}
       <AnimatePresence>
         {actionPost && (
           <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" dir="rtl">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setActionPost(null)} />
             <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="relative bg-[#111] rounded-t-[32px] p-6 pb-[calc(env(safe-area-inset-bottom)+32px)] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
               <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6" />
-              
               <div className="flex items-center gap-4 mb-6 pb-6 border-b border-white/10">
                 <div className="w-12 h-12 rounded-full overflow-hidden bg-white/5 border border-white/10 shrink-0">
                   {actionPost.profiles?.avatar_url ? <img src={actionPost.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white/40 font-black text-[14px]">{(actionPost.profiles?.full_name || 'א')[0]}</div>}
@@ -610,22 +592,15 @@ export const CirclePage: React.FC = () => {
                   <span className="text-white/40 text-[11px] uppercase tracking-widest">{formatTime(actionPost.created_at)}</span>
                 </div>
               </div>
-
               <div className="flex flex-col gap-3">
                 {actionPost.content && (
-                  <button onClick={handleCopyText} className="flex items-center gap-4 p-4 rounded-[20px] bg-white/5 hover:bg-white/10 text-white font-black text-[14px] transition-colors active:scale-95">
-                    <Copy size={20} className="text-white/50" /> העתק טקסט
-                  </button>
+                  <button onClick={handleCopyText} className="flex items-center gap-4 p-4 rounded-[20px] bg-white/5 hover:bg-white/10 text-white font-black text-[14px] transition-colors active:scale-95"><Copy size={20} className="text-white/50" /> העתק טקסט</button>
                 )}
                 {actionPost.user_id === currentUserId && (
-                  <button onClick={handleEditPost} className="flex items-center gap-4 p-4 rounded-[20px] bg-white/5 hover:bg-white/10 text-white font-black text-[14px] transition-colors active:scale-95">
-                    <Edit2 size={20} className="text-white/50" /> ערוך הודעה
-                  </button>
+                  <button onClick={handleEditPost} className="flex items-center gap-4 p-4 rounded-[20px] bg-white/5 hover:bg-white/10 text-white font-black text-[14px] transition-colors active:scale-95"><Edit2 size={20} className="text-white/50" /> ערוך הודעה</button>
                 )}
                 {(actionPost.user_id === currentUserId || isOwner) && (
-                  <button onClick={handleDeletePost} className="flex items-center gap-4 p-4 rounded-[20px] bg-red-500/10 hover:bg-red-500/20 text-red-500 font-black text-[14px] transition-colors active:scale-95 border border-red-500/10">
-                    <Trash2 size={20} /> מחק הודעה
-                  </button>
+                  <button onClick={handleDeletePost} className="flex items-center gap-4 p-4 rounded-[20px] bg-red-500/10 hover:bg-red-500/20 text-red-500 font-black text-[14px] transition-colors active:scale-95 border border-red-500/10"><Trash2 size={20} /> מחק הודעה</button>
                 )}
               </div>
             </motion.div>
@@ -645,52 +620,29 @@ export const CirclePage: React.FC = () => {
 
       <div className="relative z-20 pt-[calc(env(safe-area-inset-top)+20px)] px-6 flex flex-col items-center text-center shrink-0">
         <h1 className="text-3xl font-black text-white tracking-widest drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mb-1">{circle.name}</h1>
-        <p className="text-white/50 text-[12px] font-medium tracking-wide max-w-[280px] leading-relaxed">
-          {circle.description || 'מרחב פרימיום לחברי המועדון'}
-        </p>
-        
+        <p className="text-white/50 text-[12px] font-medium tracking-wide max-w-[280px] leading-relaxed">{circle.description || 'מרחב פרימיום לחברי המועדון'}</p>
         {isMember && (
           <div className="flex items-center gap-4 mt-4">
-            <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 bg-accent-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(var(--color-accent-primary),0.8)]" />
-              {onlineCount} אונליין
-            </span>
-            <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase">
-              {membersList.length} חברים
-            </span>
+            <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-accent-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(var(--color-accent-primary),0.8)]" />{onlineCount} אונליין</span>
+            <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase">{membersList.length} חברים</span>
           </div>
         )}
       </div>
 
       {!isMember ? (
         <div className="flex-1 flex flex-col items-center justify-center p-6 relative z-10">
-          <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shadow-[0_0_30px_rgba(0,0,0,0.5)] backdrop-blur-2xl mb-8 relative">
-            <Lock size={32} className="text-white/40" />
-          </div>
-          <Button onClick={() => handleJoin('INNER')} disabled={joining} className="w-full max-w-[300px] h-14 bg-white/10 backdrop-blur-md border border-white/20 text-white font-black rounded-[20px] uppercase tracking-widest text-[13px] hover:bg-white/20 transition-all shadow-[0_10px_40px_rgba(0,0,0,0.3)]">
-            בקשת גישה ({circle.join_price || 0} CRD)
-          </Button>
+          <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shadow-[0_0_30px_rgba(0,0,0,0.5)] backdrop-blur-2xl mb-8 relative"><Lock size={32} className="text-white/40" /></div>
+          <Button onClick={() => handleJoin('INNER')} disabled={joining} className="w-full max-w-[300px] h-14 bg-white/10 backdrop-blur-md border border-white/20 text-white font-black rounded-[20px] uppercase tracking-widest text-[13px] hover:bg-white/20 transition-all shadow-[0_10px_40px_rgba(0,0,0,0.3)]">בקשת גישה ({circle.join_price || 0} CRD)</Button>
         </div>
       ) : (
         <div className="flex flex-col flex-1 overflow-hidden relative z-10 mt-6">
           <div className="flex items-center justify-center gap-8 px-6 mb-6 shrink-0 relative z-20">
-            {[
-              { id: 'chat', label: 'לייב' },
-              { id: 'overview', label: 'דשבורד' },
-              { id: 'vaults', label: 'כספות' },
-              { id: 'members', label: 'קהילה' }
-            ].map((t) => {
+            {[{ id: 'chat', label: 'לייב' }, { id: 'overview', label: 'דשבורד' }, { id: 'vaults', label: 'כספות' }, { id: 'members', label: 'קהילה' }].map((t) => {
               const isActive = activeTab === t.id;
               return (
-                <button
-                  key={t.id}
-                  onClick={() => setActiveTab(t.id as any)}
-                  className={`relative text-[12px] font-black uppercase tracking-widest transition-colors ${isActive ? 'text-white' : 'text-white/30 hover:text-white/60'}`}
-                >
+                <button key={t.id} onClick={() => setActiveTab(t.id as any)} className={`relative text-[12px] font-black uppercase tracking-widest transition-colors ${isActive ? 'text-white' : 'text-white/30 hover:text-white/60'}`}>
                   {t.label}
-                  {isActive && (
-                    <motion.div layoutId="nav-indicator" className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-accent-primary shadow-[0_0_10px_rgba(var(--color-accent-primary),1)]" />
-                  )}
+                  {isActive && <motion.div layoutId="nav-indicator" className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-accent-primary shadow-[0_0_10px_rgba(var(--color-accent-primary),1)]" />}
                 </button>
               );
             })}
@@ -715,7 +667,6 @@ export const CirclePage: React.FC = () => {
                   <div className="h-full bg-accent-primary rounded-full shadow-[0_0_10px_rgba(var(--color-accent-primary),0.8)]" style={{ width: `${xpProgress}%` }} />
                 </div>
               </div>
-
               {overview.drop && (
                 <div className="bg-white/[0.02] backdrop-blur-2xl border border-white/5 rounded-[32px] p-6">
                   <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase mb-1 block">דרופ קהילתי</span>
@@ -728,51 +679,8 @@ export const CirclePage: React.FC = () => {
                     <div className="h-full bg-accent-primary rounded-full" style={{ width: `${Math.min(100, Math.round(((overview.drop.current_crd || 0) / Math.max(1, overview.drop.target_crd || 1)) * 100))}%` }} />
                   </div>
                   <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full p-1.5 pl-4">
-                    <button onClick={handleContributeToDrop} disabled={contributingDrop || !dropAmount} className="h-10 px-6 bg-white text-black font-black text-[12px] uppercase tracking-widest rounded-full active:scale-95 transition-transform disabled:opacity-50">
-                      {contributingDrop ? '...' : 'תרום CRD'}
-                    </button>
+                    <button onClick={handleContributeToDrop} disabled={contributingDrop || !dropAmount} className="h-10 px-6 bg-white text-black font-black text-[12px] uppercase tracking-widest rounded-full active:scale-95 transition-transform disabled:opacity-50">{contributingDrop ? '...' : 'תרום CRD'}</button>
                     <input type="number" value={dropAmount} onChange={(e) => setDropAmount(Number(e.target.value))} className="flex-1 bg-transparent border-none outline-none text-white font-black text-left text-[16px]" placeholder="50" dir="ltr" />
-                  </div>
-                </div>
-              )}
-
-              <div className="bg-white/[0.02] backdrop-blur-2xl border border-white/5 rounded-[32px] p-6">
-                <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase mb-4 block">יעדים ומשימות</span>
-                {overview.tasks?.length ? (
-                  <div className="flex flex-col gap-4">
-                    {overview.tasks.map((task: any) => (
-                      <div key={task.id} className="flex flex-col gap-2">
-                        <div className="flex justify-between items-start">
-                          <span className={`text-[13px] font-black ${task.completed ? 'text-white/30 line-through' : 'text-white'}`}>{task.title}</span>
-                          <span className="text-[10px] font-black text-accent-primary tracking-widest bg-accent-primary/10 px-2 py-0.5 rounded-sm">+{task.reward_xp} XP</span>
-                        </div>
-                        <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full ${task.completed ? 'bg-white/20' : 'bg-accent-primary'}`} style={{ width: `${Math.min(100, Math.round(((task.progress || 0) / Math.max(1, task.target_count || 1)) * 100))}%` }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-[11px] font-medium text-white/30">הכל נקי. אין משימות להיום.</div>
-                )}
-              </div>
-
-              {overview.leaderboard?.length > 0 && (
-                <div className="bg-white/[0.02] backdrop-blur-2xl border border-white/5 rounded-[32px] p-6">
-                  <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase mb-4 block">טבלת מובילים</span>
-                  <div className="flex flex-col gap-4">
-                    {overview.leaderboard.slice(0, 3).map((userStat: any, idx: number) => (
-                      <div key={userStat.user_id} className="flex items-center gap-4 cursor-pointer" onClick={() => navigate(`/profile/${userStat.user_id}`)}>
-                        <span className={`text-[12px] font-black w-4 text-center ${idx === 0 ? 'text-accent-primary' : 'text-white/30'}`}>{idx + 1}</span>
-                        <div className="w-10 h-10 rounded-full overflow-hidden bg-white/5 border border-white/10">
-                          {userStat.avatar_url ? <img src={userStat.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white/30 text-[10px]">{(userStat.full_name || 'א')[0]}</div>}
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-[13px] font-black text-white truncate max-w-[150px]">{userStat.full_name}</span>
-                          <span className="text-[10px] font-bold text-white/40 tracking-widest uppercase">{userStat.xp} XP</span>
-                        </div>
-                      </div>
-                    ))}
                   </div>
                 </div>
               )}
@@ -781,8 +689,6 @@ export const CirclePage: React.FC = () => {
 
           {activeTab === 'chat' && (
             <div className="flex-1 relative flex flex-col overflow-hidden">
-              
-              {/* STORIES ROW */}
               {overview.stories && overview.stories.length > 0 && (
                 <div className="shrink-0 pt-1 pb-3">
                   <div className="flex gap-4 overflow-x-auto scrollbar-hide px-5">
@@ -800,28 +706,19 @@ export const CirclePage: React.FC = () => {
                 </div>
               )}
 
-              {/* MESSAGES LIST */}
               <div ref={messagesRef} className="flex-1 overflow-y-auto scrollbar-hide px-4 pt-2 pb-[120px]">
                 <div className="flex flex-col gap-6 min-h-full justify-end pb-4">
                   {sortedPosts.length === 0 ? (
-                    <div className="text-center py-20 flex flex-col items-center justify-center h-full">
-                      <span className="text-white/20 font-black text-[12px] tracking-[0.3em] uppercase">שקט כאן.</span>
-                    </div>
+                    <div className="text-center py-20 flex flex-col items-center justify-center h-full"><span className="text-white/20 font-black text-[12px] tracking-[0.3em] uppercase">שקט כאן.</span></div>
                   ) : (
                     sortedPosts.map((post: any) => (
-                      <div 
-                        key={post.id} 
-                        className={`flex flex-col gap-1 w-full select-none ${post.user_id === currentUserId ? 'items-end' : 'items-start'}`}
-                      >
+                      <div key={post.id} className={`flex flex-col gap-1 w-full select-none ${post.user_id === currentUserId ? 'items-end' : 'items-start'}`}>
                         {post.user_id !== currentUserId && !post.media_url && (
                           <div className="flex items-center gap-2 pl-2 mb-1" onClick={() => navigate(`/profile/${post.user_id}`)}>
-                            <div className="w-5 h-5 rounded-full overflow-hidden bg-white/5">
-                              {post.profiles?.avatar_url && <img src={post.profiles.avatar_url} className="w-full h-full object-cover" />}
-                            </div>
+                            <div className="w-5 h-5 rounded-full overflow-hidden bg-white/5">{post.profiles?.avatar_url && <img src={post.profiles.avatar_url} className="w-full h-full object-cover" />}</div>
                             <span className="text-white/40 text-[10px] font-black uppercase tracking-wider">{post.profiles?.full_name?.split(' ')[0]}</span>
                           </div>
                         )}
-
                         <div 
                           className={`relative flex flex-col max-w-[85%] rounded-[24px] ${post.user_id === currentUserId ? 'rounded-br-sm' : 'rounded-bl-sm'} overflow-hidden shadow-sm ${!post.media_url ? (post.user_id === currentUserId ? 'bg-accent-primary/20 border border-accent-primary/30 text-white' : 'bg-white/5 border border-white/5 text-white/90') : 'bg-black/20'}`}
                           onTouchStart={(e) => handleMessageTouchStart(e, post)}
@@ -847,21 +744,14 @@ export const CirclePage: React.FC = () => {
                             <div className="px-4 py-3"><span className="text-[14px] leading-relaxed font-medium whitespace-pre-wrap break-words">{post.content}</span></div>
                           )}
                         </div>
-
                         <div className={`flex items-center gap-1.5 px-2 mt-0.5 w-full ${post.user_id === currentUserId ? 'justify-end' : 'justify-start'}`}>
                           {SEAL_TYPES.map((sealDef) => {
                             const sealsOfType = post.post_seals?.filter((s:any) => s.seal_type === sealDef.id) || [];
                             const count = sealsOfType.length;
                             const hasSealed = sealsOfType.some((s:any) => s.user_id === currentUserId);
                             return (
-                              <button
-                                key={sealDef.id}
-                                onClick={() => handleSealToggle(post.id, sealDef.id, hasSealed)}
-                                className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-black border transition-all active:scale-95 ${count > 0 ? (hasSealed ? sealDef.color : 'text-white/60 bg-white/5 border-white/10') : 'bg-white/5 border-white/5 text-white/30 hover:text-white/60'}`}
-                                title={sealDef.meaning}
-                              >
-                                {sealDef.icon}
-                                {count > 0 && <span>{count}</span>}
+                              <button key={sealDef.id} onClick={() => handleSealToggle(post.id, sealDef.id, hasSealed)} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-black border transition-all active:scale-95 ${count > 0 ? (hasSealed ? sealDef.color : 'text-white/60 bg-white/5 border-white/10') : 'bg-white/5 border-white/5 text-white/30 hover:text-white/60'}`} title={sealDef.meaning}>
+                                {sealDef.icon} {count > 0 && <span>{count}</span>}
                               </button>
                             );
                           })}
@@ -872,7 +762,6 @@ export const CirclePage: React.FC = () => {
                 </div>
               </div>
 
-              {/* INPUT BAR WITH INLINE CAMERA BUTTON */}
               <div className="absolute bottom-0 left-0 right-0 px-4 z-[100] pb-[calc(env(safe-area-inset-bottom)+16px)] bg-gradient-to-t from-[#050505] via-[#050505]/90 to-transparent">
                 <AnimatePresence>
                   {selectedFile && (
@@ -884,28 +773,16 @@ export const CirclePage: React.FC = () => {
                     </motion.div>
                   )}
                 </AnimatePresence>
-
                 <div className="flex items-end gap-3 max-w-[600px] mx-auto">
                   {(!newPost.trim() && !selectedFile && !editingPostId) && (
-                    <button 
-                      onClick={openCamera}
-                      className={`shrink-0 w-[54px] h-[54px] rounded-full bg-accent-primary text-white flex items-center justify-center shadow-[0_5px_20px_rgba(var(--color-accent-primary),0.4)] transition-all hover:bg-accent-primary/90`}
-                      title="לחיצה לפתיחת המצלמה הפנימית"
-                    >
+                    <button onClick={openCamera} className="shrink-0 w-[54px] h-[54px] rounded-full bg-accent-primary text-white flex items-center justify-center shadow-[0_5px_20px_rgba(var(--color-accent-primary),0.4)] transition-all hover:bg-accent-primary/90">
                       <Camera size={24} />
                     </button>
                   )}
-
                   <div className={`flex-1 backdrop-blur-3xl bg-white/5 border border-white/10 rounded-[28px] min-h-[54px] flex items-center px-2 pr-4 shadow-[0_10px_40px_rgba(0,0,0,0.5)] transition-all ${editingPostId ? 'ring-2 ring-accent-primary border-transparent' : ''}`}>
-                    <input
-                      type="text" value={newPost} onChange={handleInputChange} onKeyDown={(e) => { if (e.key === 'Enter') handlePost(); }}
-                      placeholder={editingPostId ? "ערוך הודעה..." : "הודעה למעגל..."} 
-                      className="flex-1 bg-transparent border-none outline-none text-white text-[14px] font-medium placeholder:text-white/30 py-3"
-                    />
+                    <input type="text" value={newPost} onChange={handleInputChange} onKeyDown={(e) => { if (e.key === 'Enter') handlePost(); }} placeholder={editingPostId ? "ערוך הודעה..." : "הודעה למעגל..."} className="flex-1 bg-transparent border-none outline-none text-white text-[14px] font-medium placeholder:text-white/30 py-3" />
                     <div className="flex items-center gap-1.5 shrink-0 ml-1">
-                      {!editingPostId && (
-                        <button onClick={() => fileInputRef.current?.click()} className="w-9 h-9 flex items-center justify-center rounded-full text-white/30 hover:text-white/70 transition-colors" title="צרף תמונה"><Paperclip size={18} /></button>
-                      )}
+                      {!editingPostId && <button onClick={() => fileInputRef.current?.click()} className="w-9 h-9 flex items-center justify-center rounded-full text-white/30 hover:text-white/70 transition-colors"><Paperclip size={18} /></button>}
                       {(newPost.trim() || selectedFile || editingPostId) && (
                         <button onClick={handlePost} disabled={posting} className="w-10 h-10 rounded-full bg-accent-primary text-white flex items-center justify-center active:scale-90 disabled:opacity-30 transition-all shadow-[0_0_15px_rgba(var(--color-accent-primary),0.5)]">
                           {posting ? <Loader2 size={16} className="animate-spin text-white" /> : <Send size={16} className="rtl:-scale-x-100 -ml-0.5 text-white" />}
@@ -920,23 +797,14 @@ export const CirclePage: React.FC = () => {
 
           {activeTab === 'vaults' && (
             <div className="flex-1 p-5 flex flex-col gap-4 overflow-y-auto pb-[120px] scrollbar-hide">
-              {loadingVaults ? (
-                <div className="flex justify-center py-20"><Loader2 className="animate-spin text-accent-primary" size={24} /></div>
-              ) : vaults.length === 0 ? (
-                <div className="text-center py-20 text-[12px] font-black text-white/30 tracking-[0.2em] uppercase">הכספת ריקה</div>
-              ) : (
-                vaults.map((vault) => <VaultCard key={vault.id} vault={vault} onUnlockSuccess={fetchVaults} />)
-              )}
+              {vaults.map((vault) => <VaultCard key={vault.id} vault={vault} onUnlockSuccess={fetchVaults} />)}
             </div>
           )}
-
           {activeTab === 'members' && (
             <div className="flex-1 p-5 flex flex-col gap-3 overflow-y-auto pb-[120px] scrollbar-hide">
               {membersList.map((m) => (
                 <div key={m.profiles?.id} onClick={() => navigate(`/profile/${m.profiles?.id}`)} className="flex items-center gap-4 bg-white/5 border border-white/5 p-4 rounded-[24px] cursor-pointer active:scale-95 transition-all">
-                  <div className="w-10 h-10 rounded-full overflow-hidden bg-black/50 flex items-center justify-center border border-white/5">
-                    {m.profiles?.avatar_url ? <img src={m.profiles.avatar_url} className="w-full h-full object-cover" /> : <span className="text-white/40 font-black text-[12px]">{(m.profiles?.full_name || 'א')[0]}</span>}
-                  </div>
+                  <div className="w-10 h-10 rounded-full overflow-hidden bg-black/50 flex items-center justify-center border border-white/5">{m.profiles?.avatar_url ? <img src={m.profiles.avatar_url} className="w-full h-full object-cover" /> : <span className="text-white/40 font-black text-[12px]">{(m.profiles?.full_name || 'א')[0]}</span>}</div>
                   <div className="flex flex-col text-right flex-1">
                     <span className="text-white font-black text-[14px] flex items-center gap-1.5">{m.profiles?.full_name} {m.role === 'admin' && <ShieldAlert size={12} className="text-accent-primary" />}</span>
                     <span className="text-white/30 text-[10px] font-bold tracking-widest mt-0.5 uppercase">{m.tier || 'MEMBER'}</span>
@@ -949,5 +817,5 @@ export const CirclePage: React.FC = () => {
       )}
     </FadeIn>,
     document.body
-  ) : null;
+  );
 };
