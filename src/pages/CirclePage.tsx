@@ -20,6 +20,11 @@ const SEAL_TYPES = [
   { id: 'alliance', icon: <Handshake size={14} />, label: 'ברית', color: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/30', xp: 100 }
 ];
 
+type OverviewPayload = {
+  pins?: any[]; stories?: any[]; drop?: any | null; events?: any[];
+  activity?: any[]; leaderboard?: any[]; my_stats?: any | null; tasks?: any[]; trust_rules?: any | null;
+};
+
 const formatTime = (dateStr?: string | null) => {
   if (!dateStr) return '';
   try { return new Date(dateStr).toLocaleString('he-IL', { hour: '2-digit', minute: '2-digit' }); } catch { return ''; }
@@ -62,7 +67,9 @@ export const CirclePage: React.FC = () => {
     try { return JSON.parse(localStorage.getItem(`inner_members_${slug}_cache`) || '[]'); } catch { return []; }
   });
 
-  const [overview, setOverview] = useState<any>({});
+  const [overview, setOverview] = useState<OverviewPayload>({
+    pins: [], stories: [], drop: null, events: [], activity: [], leaderboard: [], my_stats: null, tasks: [], trust_rules: null
+  });
 
   const [currentUserId, setCurrentUserId] = useState<string>('');
   const [onlineCount, setOnlineCount] = useState(1);
@@ -77,12 +84,11 @@ export const CirclePage: React.FC = () => {
   const [contributingDrop, setContributingDrop] = useState(false);
   const [dropAmount, setDropAmount] = useState<number | ''>(50);
 
-  // בוטום שיט (לחיצה ארוכה)
   const [actionPost, setActionPost] = useState<any | null>(null);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const pressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  let touchStartY = 0;
 
-  // מצלמה פנימית
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [capturedStoryBlob, setCapturedStoryBlob] = useState<Blob | null>(null);
@@ -121,7 +127,9 @@ export const CirclePage: React.FC = () => {
       ch.on('presence', { event: 'sync' }, () => {
         const state = ch.presenceState();
         let count = 0;
-        for (const id in state) count += state[id].length;
+        for (const id in state) {
+          count += state[id].length;
+        }
         setOnlineCount(Math.max(1, count));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, async () => { await fetchCircleData(uid, true); })
@@ -133,6 +141,10 @@ export const CirclePage: React.FC = () => {
     initCircle();
     return () => { if (ch) supabase.removeChannel(ch); };
   }, [slug]);
+
+  useEffect(() => {
+    if (activeTab === 'vaults' && data?.circle?.id) fetchVaults();
+  }, [activeTab, data?.circle?.id]);
 
   const fetchCircleData = async (uid: string, silent = false) => {
     if (!silent) setLoading(true);
@@ -170,8 +182,6 @@ export const CirclePage: React.FC = () => {
     const unlockedIds = (unlocks || []).map((u: any) => u.vault_id);
     setVaults((vData || []).map((v: any) => ({ ...v, is_unlocked: unlockedIds.includes(v.id) || v.creator_id === currentUserId })));
   };
-
-  useEffect(() => { if (activeTab === 'vaults' && data?.circle?.id) fetchVaults(); }, [activeTab, data?.circle?.id]);
 
   const handleJoin = async (tier: 'INNER' | 'CORE') => {
     if (!currentUserId || currentUserId.startsWith('guest_')) return toast.error('יש להתחבר תחילה');
@@ -231,7 +241,6 @@ export const CirclePage: React.FC = () => {
     }
   };
 
-  // מנגנון מצלמה פנימית
   const openCamera = async () => {
     setIsCameraOpen(true); setCapturedStoryBlob(null); triggerFeedback('pop');
     try {
@@ -303,7 +312,6 @@ export const CirclePage: React.FC = () => {
     } catch { toast.error('שגיאה בהעלאה'); } finally { setUploadingStory(false); }
   };
 
-  // פונקציית הקלדה שתוקנה והוחזרה
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setNewPost(e.target.value);
     if (channelRef.current) channelRef.current.track({ isTyping: e.target.value.length > 0 });
@@ -364,14 +372,13 @@ export const CirclePage: React.FC = () => {
     }
   };
 
-  let touchStartActionY = 0;
   const handleMessageTouchStart = (e: React.TouchEvent | React.MouseEvent, post: any) => {
-    touchStartActionY = ('touches' in e) ? e.touches[0].clientY : e.clientY;
+    touchStartY = ('touches' in e) ? e.touches[0].clientY : e.clientY;
     pressTimerRef.current = setTimeout(() => { triggerFeedback('heavy'); setActionPost(post); }, 450);
   };
   const handleMessageTouchMove = (e: React.TouchEvent | React.MouseEvent) => {
     const currentY = ('touches' in e) ? e.touches[0].clientY : e.clientY;
-    if (Math.abs(currentY - touchStartActionY) > 10 && pressTimerRef.current) clearTimeout(pressTimerRef.current);
+    if (Math.abs(currentY - touchStartY) > 10 && pressTimerRef.current) clearTimeout(pressTimerRef.current);
   };
   const handleMessageTouchEnd = () => { if (pressTimerRef.current) clearTimeout(pressTimerRef.current); };
 
@@ -389,6 +396,18 @@ export const CirclePage: React.FC = () => {
     setActionPost(null);
   };
 
+  const handleContributeToDrop = async () => {
+    if (!overview?.drop?.id || !dropAmount || Number(dropAmount) <= 0) return;
+    setContributingDrop(true); triggerFeedback('pop');
+    try {
+      const { error } = await supabase.rpc('circle_contribute_to_drop', { p_drop_id: overview.drop.id, p_user_id: currentUserId, p_amount: Number(dropAmount) });
+      if (error) throw error;
+      await fetchOverview(currentUserId, true);
+      setDropAmount(50);
+      toast.success('התרומה התקבלה!');
+    } catch { toast.error('שגיאה בתרומה'); } finally { setContributingDrop(false); }
+  };
+
   if (loading || !data) {
     return <div className="fixed inset-0 z-[999999] bg-[#050505] flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div>;
   }
@@ -404,20 +423,21 @@ export const CirclePage: React.FC = () => {
   const xpProgress = Math.min(100, Math.round((myXP / xpToNext) * 100));
 
   return createPortal(
-    <FadeIn className="fixed inset-0 z-[99999] bg-[#050505] font-sans flex flex-col overflow-hidden" dir="rtl">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[99999999] bg-[#050505] font-sans flex flex-col overflow-hidden text-white" dir="rtl">
       
       <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*" />
       <input type="file" ref={storyInputRef} onChange={handleStoryChange} className="hidden" accept="image/*,video/*" />
       <input type="file" ref={instantPhotoRef} onChange={handleStoryChange} className="hidden" accept="image/*" capture="user" />
       <input type="file" ref={instantVideoRef} onChange={handleStoryChange} className="hidden" accept="video/*" capture="user" />
 
+      {/* INLINE CAMERA */}
       <AnimatePresence>
         {isCameraOpen && (
-          <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed inset-0 z-[99999999] bg-black flex flex-col">
+          <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed inset-0 z-[999999999] bg-black flex flex-col">
             <div className="absolute top-[calc(env(safe-area-inset-top)+16px)] right-4 z-20">
               <button onClick={closeCamera} className="p-3 bg-black/40 backdrop-blur-md rounded-full text-white active:scale-90 transition-transform"><X size={24} /></button>
             </div>
-            <div className="flex-1 relative bg-[#111] overflow-hidden rounded-b-[32px] shadow-2xl">
+            <div className="flex-1 relative bg-[#111] overflow-hidden rounded-b-[40px] shadow-2xl">
               {!capturedStoryBlob ? (
                 <video ref={videoFeedRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
               ) : (
@@ -441,15 +461,17 @@ export const CirclePage: React.FC = () => {
         )}
       </AnimatePresence>
 
+      {/* FULLSCREEN MEDIA */}
       <AnimatePresence>
         {fullScreenMedia && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9999999] bg-black flex items-center justify-center" onClick={() => setFullScreenMedia(null)}>
-            {fullScreenMedia.type === 'video' ? <video src={fullScreenMedia.url} controls autoPlay className="w-full h-full object-contain" onClick={(e) => e.stopPropagation()} /> : <img src={fullScreenMedia.url} className="w-full h-full object-contain" onClick={(e) => e.stopPropagation()} />}
+            {fullScreenMedia.type === 'video' ? <video src={fullScreenMedia.url} controls autoPlay className="w-full h-full object-contain" onClick={e => e.stopPropagation()} /> : <img src={fullScreenMedia.url} className="w-full h-full object-contain" onClick={e => e.stopPropagation()} />}
             <button className="absolute top-[calc(env(safe-area-inset-top)+16px)] left-4 p-3 text-white/70 hover:text-white transition-all active:scale-90 z-50 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"><X size={28} /></button>
           </motion.div>
         )}
       </AnimatePresence>
 
+      {/* ACTION SHEET */}
       <AnimatePresence>
         {actionPost && (
           <div className="fixed inset-0 z-[9999999] flex flex-col justify-end">
@@ -461,8 +483,8 @@ export const CirclePage: React.FC = () => {
                 <div className="flex flex-col"><span className="text-white font-black text-[18px]">{actionPost.profiles?.full_name}</span><span className="text-white/40 text-[12px] uppercase font-bold">{formatTime(actionPost.created_at)}</span></div>
               </div>
               <div className="flex flex-col gap-3">
-                {actionPost.content && <button onClick={() => { navigator.clipboard.writeText(actionPost.content); toast.success('הועתק'); setActionPost(null); }} className="flex items-center gap-4 p-4 bg-white/5 rounded-[20px] text-white font-black hover:bg-white/10 active:scale-95 transition-all"><Copy size={20} className="text-white/50" /> העתק טקסט</button>}
-                {actionPost.user_id === currentUserId && <button onClick={() => { setNewPost(actionPost.content); setEditingPostId(actionPost.id); setActionPost(null); }} className="flex items-center gap-4 p-4 bg-white/5 rounded-[20px] text-white font-black hover:bg-white/10 active:scale-95 transition-all"><Edit2 size={20} className="text-white/50" /> ערוך הודעה</button>}
+                {actionPost.content && <button onClick={handleCopyText} className="flex items-center gap-4 p-4 bg-white/5 rounded-[20px] text-white font-black hover:bg-white/10 active:scale-95 transition-all"><Copy size={20} className="text-white/50" /> העתק טקסט</button>}
+                {actionPost.user_id === currentUserId && <button onClick={handleEditPost} className="flex items-center gap-4 p-4 bg-white/5 rounded-[20px] text-white font-black hover:bg-white/10 active:scale-95 transition-all"><Edit2 size={20} className="text-white/50" /> ערוך הודעה</button>}
                 {(actionPost.user_id === currentUserId || isOwner) && <button onClick={handleDeletePost} className="flex items-center gap-4 p-4 bg-red-500/10 text-red-500 font-black rounded-[20px] border border-red-500/20 hover:bg-red-500/20 active:scale-95 transition-all"><Trash2 size={20} /> מחק הודעה</button>}
               </div>
             </motion.div>
@@ -494,8 +516,49 @@ export const CirclePage: React.FC = () => {
             ))}
           </div>
 
+          {activeTab === 'overview' && (
+            <div className="flex-1 overflow-y-auto px-5 pb-[120px] flex flex-col gap-4 scrollbar-hide">
+              <div className="bg-white/[0.03] backdrop-blur-3xl border border-white/5 rounded-[32px] p-6 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-accent-primary/10 blur-[50px] pointer-events-none" />
+                <span className="text-[10px] font-black text-white/30 tracking-[0.2em] uppercase mb-1 block">הסטטוס שלך</span>
+                <div className="flex items-end justify-between">
+                  <div>
+                    <h2 className="text-3xl font-black text-white tracking-tight">{getLevelName(myLevel)}</h2>
+                    <span className="text-[12px] font-black text-accent-primary tracking-widest mt-1 block">LEVEL {myLevel}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] font-black text-white/50 tracking-widest uppercase">XP עד לרמה הבאה</span>
+                    <div className="text-[16px] font-black text-white">{myXP} / <span className="text-white/30">{xpToNext}</span></div>
+                  </div>
+                </div>
+                <div className="w-full h-1 bg-white/5 rounded-full mt-4 overflow-hidden">
+                  <div className="h-full bg-accent-primary rounded-full shadow-[0_0_10px_rgba(var(--color-accent-primary),0.8)]" style={{ width: `${xpProgress}%` }} />
+                </div>
+              </div>
+              {overview.drop && (
+                <div className="bg-white/[0.02] backdrop-blur-2xl border border-white/5 rounded-[32px] p-6">
+                  <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase mb-1 block">דרופ קהילתי</span>
+                  <h3 className="text-xl font-black text-white mb-4">{overview.drop.title}</h3>
+                  <div className="flex justify-between items-end mb-2">
+                    <span className="text-[24px] font-black text-accent-primary leading-none">{overview.drop.current_crd || 0}</span>
+                    <span className="text-[10px] font-black text-white/40 tracking-widest uppercase">מתוך {overview.drop.target_crd || 0}</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden mb-5">
+                    <div className="h-full bg-accent-primary rounded-full" style={{ width: `${Math.min(100, Math.round(((overview.drop.current_crd || 0) / Math.max(1, overview.drop.target_crd || 1)) * 100))}%` }} />
+                  </div>
+                  <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full p-1.5 pl-4">
+                    <button onClick={handleContributeToDrop} disabled={contributingDrop || !dropAmount} className="h-10 px-6 bg-white text-black font-black text-[12px] uppercase tracking-widest rounded-full active:scale-95 transition-transform disabled:opacity-50">
+                      {contributingDrop ? '...' : 'תרום CRD'}
+                    </button>
+                    <input type="number" value={dropAmount} onChange={(e) => setDropAmount(Number(e.target.value))} className="flex-1 bg-transparent border-none outline-none text-white font-black text-left text-[16px]" placeholder="50" dir="ltr" />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === 'chat' && (
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 relative flex flex-col overflow-hidden">
               
               {overview.stories?.length > 0 && (
                 <div className="shrink-0 pb-3 flex gap-4 overflow-x-auto px-5 border-b border-white/5">
@@ -506,13 +569,13 @@ export const CirclePage: React.FC = () => {
                   {overview.stories.map((s:any) => (
                     <div key={s.id} onClick={() => window.open(s.media_url, '_blank')} className="flex flex-col items-center gap-1 shrink-0 cursor-pointer active:scale-95 transition-transform">
                       <div className="w-16 h-16 rounded-full p-[2px] bg-gradient-to-tr from-accent-primary via-white/20 to-transparent"><div className="w-full h-full rounded-full overflow-hidden border-[3px] border-[#050505] bg-white/5"><img src={s.media_url} className="w-full h-full object-cover"/></div></div>
-                      <span className="text-[10px] text-white/60 font-black tracking-wider truncate max-w-[60px]">{s.full_name}</span>
+                      <span className="text-[10px] text-white/60 font-black tracking-wider truncate max-w-[60px]">{s.full_name?.split(' ')[0]}</span>
                     </div>
                   ))}
                 </div>
               )}
 
-              <div ref={messagesRef} className="flex-1 overflow-y-auto px-4 pb-[100px] flex flex-col gap-6">
+              <div ref={messagesRef} className="flex-1 overflow-y-auto px-4 pb-[100px] flex flex-col gap-6 pt-4">
                 {sortedPosts.map((post: any) => {
                   const isMe = post.user_id === currentUserId;
                   return (
@@ -520,8 +583,8 @@ export const CirclePage: React.FC = () => {
                       
                       {!isMe && !post.media_url && (
                         <div className="flex items-center gap-2 px-2 cursor-pointer active:opacity-70 transition-opacity" onClick={() => navigate(`/profile/${post.user_id}`)}>
-                          <div className="w-10 h-10 rounded-full overflow-hidden bg-white/5 shrink-0"><img src={post.profiles?.avatar_url} className="w-full h-full object-cover" /></div>
-                          <span className="text-[12px] text-white/50 font-black tracking-widest">{post.profiles?.full_name}</span>
+                          <div className="w-8 h-8 rounded-full overflow-hidden bg-white/5 shrink-0"><img src={post.profiles?.avatar_url} className="w-full h-full object-cover" /></div>
+                          <span className="text-[11px] text-white/50 font-black tracking-widest">{post.profiles?.full_name}</span>
                         </div>
                       )}
                       
@@ -573,42 +636,20 @@ export const CirclePage: React.FC = () => {
                 </AnimatePresence>
 
                 <div className="flex items-end gap-3 max-w-[600px] mx-auto">
-                  {(!newPost && !selectedFile && !editingPostId) && (
+                  {(!newPost.trim() && !selectedFile && !editingPostId) && (
                     <button onClick={openCamera} className="w-[54px] h-[54px] rounded-full bg-accent-primary text-white flex items-center justify-center shrink-0 shadow-[0_5px_20px_rgba(var(--color-accent-primary),0.4)] active:scale-90 transition-transform"><Camera size={24} /></button>
                   )}
                   <div className={`flex-1 bg-white/5 border border-white/10 rounded-[28px] flex items-center px-2 pr-4 min-h-[54px] backdrop-blur-3xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] transition-all ${editingPostId ? 'ring-2 ring-accent-primary border-transparent' : ''}`}>
                     <input type="text" value={newPost} onChange={handleInputChange} onKeyDown={e => e.key === 'Enter' && handlePost()} placeholder={editingPostId ? "ערוך הודעה..." : "הודעה למעגל..."} className="flex-1 bg-transparent outline-none text-[15px] font-medium placeholder:text-white/30 py-3" />
                     {!editingPostId && <button onClick={() => fileInputRef.current?.click()} className="text-white/30 hover:text-white/70 mx-2 transition-colors"><Paperclip size={20} /></button>}
-                    {(newPost || selectedFile || editingPostId) && <button onClick={handlePost} disabled={posting} className="w-10 h-10 bg-accent-primary text-white rounded-full flex items-center justify-center active:scale-90 transition-transform shadow-[0_0_15px_rgba(var(--color-accent-primary),0.5)]"><Send size={18} className="rtl:-scale-x-100 -ml-1" /></button>}
+                    {(newPost.trim() || selectedFile || editingPostId) && <button onClick={handlePost} disabled={posting} className="w-10 h-10 bg-accent-primary text-white rounded-full flex items-center justify-center active:scale-90 transition-transform shadow-[0_0_15px_rgba(var(--color-accent-primary),0.5)]"><Send size={18} className="rtl:-scale-x-100 -ml-1" /></button>}
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {activeTab === 'overview' && (
-            <div className="flex-1 overflow-y-auto px-5 pb-[120px] flex flex-col gap-4 scrollbar-hide">
-              <div className="bg-white/[0.03] backdrop-blur-3xl border border-white/5 rounded-[32px] p-6 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-accent-primary/10 blur-[50px] pointer-events-none" />
-                <span className="text-[10px] font-black text-white/30 tracking-[0.2em] uppercase mb-1 block">הסטטוס שלך</span>
-                <div className="flex items-end justify-between">
-                  <div>
-                    <h2 className="text-3xl font-black text-white tracking-tight">{getLevelName(myLevel)}</h2>
-                    <span className="text-[12px] font-black text-accent-primary tracking-widest mt-1 block">LEVEL {myLevel}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[10px] font-black text-white/50 tracking-widest uppercase">XP עד לרמה הבאה</span>
-                    <div className="text-[16px] font-black text-white">{myXP} / <span className="text-white/30">{xpToNext}</span></div>
-                  </div>
-                </div>
-                <div className="w-full h-1 bg-white/5 rounded-full mt-4 overflow-hidden">
-                  <div className="h-full bg-accent-primary rounded-full shadow-[0_0_10px_rgba(var(--color-accent-primary),0.8)]" style={{ width: `${xpProgress}%` }} />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'vaults' && <div className="flex-1 p-5 overflow-y-auto pb-[120px]">{vaults.map(v => <VaultCard key={v.id} vault={v} onUnlockSuccess={fetchVaults} />)}</div>}
+          {activeTab === 'vaults' && <div className="flex-1 p-5 flex flex-col gap-4 overflow-y-auto pb-[120px] scrollbar-hide">{vaults.map(v => <VaultCard key={v.id} vault={v} onUnlockSuccess={fetchVaults} />)}</div>}
           
           {activeTab === 'members' && (
             <div className="flex-1 p-5 flex flex-col gap-3 overflow-y-auto pb-[120px] scrollbar-hide">
@@ -629,7 +670,7 @@ export const CirclePage: React.FC = () => {
 
         </div>
       )}
-    </FadeIn>,
+    </motion.div>,
     document.body
   );
 };
