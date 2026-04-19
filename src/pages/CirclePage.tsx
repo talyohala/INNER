@@ -9,7 +9,7 @@ import {
   Loader2, MessageSquare, Lock, ShieldAlert, Flame, Diamond, Handshake,
   Plus, Send, X, Coins, Paperclip, Users, ChevronLeft, ChevronDown,
   Gift, Medal, Crown, UserCircle, Archive, Sparkles, Pin, Target, Radio,
-  BarChart3, Calendar, BadgeCheck, Eye
+  BarChart3, Calendar, BadgeCheck, Eye, Activity, Trophy, Image as ImageIcon
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -203,6 +203,14 @@ export const CirclePage: React.FC = () => {
   const fetchOverview = async (uid: string, silent = false) => {
     try {
       let circleId = data?.circle?.id;
+      if (!circleId) {
+        const { data: bySlug } = await supabase.from('circles').select('id').eq('slug', slug).maybeSingle();
+        circleId = bySlug?.id;
+        if (!circleId) {
+          const { data: byId } = await supabase.from('circles').select('id').eq('id', slug).maybeSingle();
+          circleId = byId?.id;
+        }
+      }
       if (!circleId) return;
 
       const { data: overviewData, error } = await supabase.rpc('get_circle_overview', {
@@ -238,6 +246,11 @@ export const CirclePage: React.FC = () => {
     }
   };
 
+  const ensureStatsRow = async () => {
+    if (!data?.circle?.id || !currentUserId || currentUserId.startsWith('guest_')) return;
+    try { await supabase.rpc('ensure_circle_user_stats', { p_circle_id: data.circle.id, p_user_id: currentUserId }); } catch {}
+  };
+
   const handleJoin = async (tier: 'INNER' | 'CORE') => {
     if (!currentUserId || currentUserId.startsWith('guest_')) return toast.error('יש להתחבר תחילה');
     setJoining(true); triggerFeedback('pop');
@@ -250,6 +263,7 @@ export const CirclePage: React.FC = () => {
         triggerFeedback('success'); toast.success('ברוך הבא למועדון! 🎉');
         try { await supabase.from('circle_activity').insert({ circle_id: data.circle.id, actor_user_id: currentUserId, activity_type: 'join_circle', payload: { tier } }); } catch {}
       }
+      await ensureStatsRow();
       await fetchCircleData(currentUserId);
       await fetchOverview(currentUserId);
     } catch (err: any) {
@@ -339,6 +353,7 @@ export const CirclePage: React.FC = () => {
       if (error) throw error;
       if (insertedPost) setData((curr: any) => ({ ...curr, posts: [insertedPost, ...(curr.posts || [])] }));
 
+      await ensureStatsRow();
       const xpAmount = selectedFile ? 20 : 8;
       await supabase.rpc('add_circle_xp', { p_circle_id: data.circle.id, p_user_id: currentUserId, p_amount: xpAmount, p_reason: selectedFile ? 'media_post' : 'text_post' });
       await supabase.from('circle_activity').insert({ circle_id: data.circle.id, actor_user_id: currentUserId, activity_type: 'new_post', payload: { has_media: !!selectedFile, media_type: selectedFile ? media_type : null } });
@@ -383,8 +398,6 @@ export const CirclePage: React.FC = () => {
   const myXP = myStats?.xp || 0;
   const xpToNext = myLevel * 100;
   const xpProgress = Math.min(100, Math.round((myXP / xpToNext) * 100));
-  const featuredStoryCount = overview?.stories?.length || 0;
-  const activeEventCount = overview?.events?.length || 0;
   const memberCount = membersList.length || circle.members_count || 0;
 
   return (
@@ -507,7 +520,7 @@ export const CirclePage: React.FC = () => {
                       <Activity size={16} className="text-emerald-400" />
                     </div>
                     <div className="text-brand text-[18px] font-black">{memberCount} חברים</div>
-                    <div className="text-brand-muted text-[12px] mt-1">{onlineCount} אונליין עכשיו</div>
+                    <div className="text-brand-muted text-[11px] mt-0.5">{onlineCount} אונליין עכשיו</div>
                     <div className="text-accent-primary text-[10px] font-black mt-4 uppercase tracking-widest bg-accent-primary/10 w-fit px-2 py-1 rounded-md">
                       {overview?.activity?.length || 0} פעילויות לאחרונה
                     </div>
@@ -537,53 +550,55 @@ export const CirclePage: React.FC = () => {
                       <Eye size={16} className="text-accent-primary" />
                       <span className="text-brand font-black text-[13px] tracking-widest uppercase">רגעים</span>
                     </div>
-                    <button onClick={() => storyInputRef.current?.click()} disabled={uploadingStory} className="px-4 py-1.5 rounded-full bg-accent-primary text-white text-[11px] font-black tracking-widest active:scale-95 transition-all">
-                      {uploadingStory ? 'מעלה...' : 'העלה רגע'}
+                    <button onClick={() => storyInputRef.current?.click()} disabled={uploadingStory} className="px-4 py-1.5 rounded-full bg-accent-primary text-white text-[11px] font-black tracking-widest active:scale-95 transition-all shadow-sm">
+                      {uploadingStory ? 'מעלה...' : '+ הוסף רגע'}
                     </button>
                   </div>
+
                   {overview?.stories?.length ? (
                     <div className="flex gap-3 overflow-x-auto scrollbar-hide">
                       {overview.stories.map((story: any) => (
-                        <div key={story.id} className="w-[88px] shrink-0" onClick={() => window.open(story.media_url, '_blank')}>
-                          <div className="relative w-full h-[120px] rounded-[20px] overflow-hidden border border-surface-border bg-surface cursor-pointer active:scale-95 transition-transform">
+                        <div key={story.id} className="w-[90px] shrink-0" onClick={() => window.open(story.media_url, '_blank')}>
+                          <div className="relative w-full h-[130px] rounded-[20px] overflow-hidden border border-surface-border bg-surface cursor-pointer active:scale-95 transition-transform">
                             {story.media_type === 'video' ? <video src={story.media_url} className="w-full h-full object-cover" /> : <img src={story.media_url} className="w-full h-full object-cover" />}
                             <div className="absolute inset-x-0 bottom-0 p-2 pt-6 bg-gradient-to-t from-black/80 to-transparent">
-                              <div className="text-white text-[10px] font-black truncate">{story.full_name || story.username || 'מישהו'}</div>
+                              <div className="text-white text-[10px] font-black truncate drop-shadow-md">{story.full_name || story.username || 'מישהו'}</div>
                             </div>
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="text-brand-muted text-[13px]">אין רגעים עדיין, תהיה הראשון לשתף!</div>
+                    <div className="text-brand-muted text-[12px] font-medium">אין רגעים עדיין, תהיה הראשון לשתף!</div>
                   )}
                 </div>
 
                 {overview?.drop && (
                   <div className="rounded-[28px] bg-surface-card border border-surface-border p-5 shadow-sm">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <Gift size={16} className="text-accent-primary" />
-                        <span className="text-brand font-black text-[13px] tracking-widest uppercase">דרופ קהילתי</span>
-                      </div>
-                      <span className="text-brand-muted text-[11px]">{overview.drop?.expires_at ? formatTime(overview.drop.expires_at) : 'ללא תאריך'}</span>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-brand-muted font-black text-[11px] tracking-widest uppercase">דרופ קהילתי</span>
+                      <span className="text-accent-primary text-[10px] font-black bg-accent-primary/10 px-2 py-0.5 rounded-md">{overview.drop?.expires_at ? formatTime(overview.drop.expires_at) : 'ללא הגבלת זמן'}</span>
                     </div>
-                    <div className="text-brand text-[16px] font-black mb-1">{overview.drop.title || 'דרופ פתוח'}</div>
-                    {overview.drop.description && <div className="text-brand-muted text-[13px] leading-relaxed mb-3">{overview.drop.description}</div>}
-                    <div className="w-full h-2 rounded-full bg-surface overflow-hidden mb-2">
-                      <div className="h-full bg-accent-primary rounded-full" style={{ width: `${Math.min(100, Math.round(((overview.drop.current_crd || 0) / Math.max(1, overview.drop.target_crd || 1)) * 100))}%` }} />
+
+                    <div className="text-brand text-[18px] font-black mb-1">{overview.drop.title || 'דרופ פתוח'}</div>
+                    {overview.drop.description && <div className="text-brand-muted text-[13px] leading-relaxed mb-4">{overview.drop.description}</div>}
+
+                    <div className="w-full h-2.5 rounded-full bg-surface overflow-hidden mb-2">
+                      <div className="h-full bg-accent-primary rounded-full shadow-[0_0_10px_rgba(var(--color-accent-primary),0.5)]" style={{ width: `${Math.min(100, Math.round(((overview.drop.current_crd || 0) / Math.max(1, overview.drop.target_crd || 1)) * 100))}%` }} />
                     </div>
-                    <div className="flex items-center justify-between text-[12px] font-bold text-brand-muted mb-4">
-                      <span>{overview.drop.current_crd || 0} CRD נאסף</span>
+
+                    <div className="flex items-center justify-between text-[11px] font-black text-brand-muted mb-4 uppercase tracking-widest">
+                      <span>{overview.drop.current_crd || 0} נאסף</span>
                       <span>{overview.drop.target_crd || 0} יעד</span>
                     </div>
+
                     <div className="flex items-center gap-2">
-                      <div className="flex-1 h-12 rounded-[18px] bg-surface border border-surface-border px-4 flex items-center">
+                      <div className="flex-1 h-12 rounded-[20px] bg-surface border border-surface-border px-4 flex items-center shadow-inner">
                         <Coins size={16} className="text-brand-muted ml-2" />
                         <input type="number" value={dropAmount} onChange={(e) => setDropAmount(Number(e.target.value))} className="bg-transparent w-full outline-none text-brand font-black" placeholder="50" />
                       </div>
-                      <button onClick={handleContributeToDrop} disabled={contributingDrop || !dropAmount} className="h-12 px-6 rounded-[18px] bg-accent-primary text-white font-black text-[12px] tracking-widest active:scale-95 disabled:opacity-50 transition-all">
-                        {contributingDrop ? '...' : 'תרום'}
+                      <button onClick={handleContributeToDrop} disabled={contributingDrop || !dropAmount} className="h-12 px-6 rounded-[20px] bg-accent-primary text-white font-black text-[12px] uppercase tracking-widest active:scale-95 disabled:opacity-50 transition-all shadow-[0_5px_15px_rgba(var(--color-accent-primary),0.3)]">
+                        {contributingDrop ? <Loader2 size={16} className="animate-spin" /> : 'תרום'}
                       </button>
                     </div>
                   </div>
@@ -602,15 +617,15 @@ export const CirclePage: React.FC = () => {
                           <div key={task.id} className="rounded-[20px] bg-surface border border-surface-border p-4">
                             <div className="flex items-start justify-between gap-3">
                               <div>
-                                <div className="text-brand font-black text-[14px]">{task.title}</div>
+                                <div className="text-brand font-black text-[15px]">{task.title}</div>
                                 {task.description && <div className="text-brand-muted text-[12px] mt-1">{task.description}</div>}
                               </div>
-                              <div className="text-accent-primary text-[11px] font-black whitespace-nowrap bg-accent-primary/10 px-2 py-1 rounded-md">+{task.reward_xp} XP</div>
+                              <div className="text-accent-primary bg-accent-primary/10 px-2 py-1 rounded-lg text-[10px] font-black whitespace-nowrap border border-accent-primary/20">+{task.reward_xp} XP</div>
                             </div>
-                            <div className="mt-3 w-full h-1.5 rounded-full bg-surface overflow-hidden">
-                              <div className={`h-full rounded-full ${task.completed ? 'bg-emerald-400' : 'bg-accent-primary'}`} style={{ width: `${progressPercent}%` }} />
+                            <div className="mt-4 w-full h-1.5 rounded-full bg-surface-card overflow-hidden">
+                              <div className={`h-full rounded-full ${task.completed ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-accent-primary shadow-[0_0_8px_rgba(var(--color-accent-primary),0.5)]'}`} style={{ width: `${progressPercent}%` }} />
                             </div>
-                            <div className="flex items-center justify-between mt-2 text-[11px] text-brand-muted font-bold">
+                            <div className="flex items-center justify-between mt-2 text-[10px] text-brand-muted font-black uppercase tracking-widest">
                               <span>{task.progress || 0} / {task.target_count || 1}</span>
                               <span>{task.completed ? 'הושלם' : task.task_type}</span>
                             </div>
@@ -619,60 +634,60 @@ export const CirclePage: React.FC = () => {
                       })}
                     </div>
                   ) : (
-                    <div className="text-brand-muted text-[13px]">אין משימות פעילות כרגע</div>
+                    <div className="text-brand-muted text-[12px] font-medium">אין משימות פעילות כרגע.</div>
                   )}
                 </div>
 
                 <div className="grid grid-cols-1 gap-4">
                   <div className="rounded-[28px] bg-surface-card border border-surface-border p-5 shadow-sm">
                     <div className="flex items-center gap-2 mb-4">
-                      <Crown size={16} className="text-accent-primary" />
+                      <Trophy size={16} className="text-accent-primary" />
                       <span className="text-brand font-black text-[13px] tracking-widest uppercase">מובילים במועדון</span>
                     </div>
                     {overview?.leaderboard?.length ? (
                       <div className="flex flex-col gap-3">
                         {overview.leaderboard.slice(0, 5).map((userStat: any, idx: number) => (
-                          <div key={`${userStat.user_id}-${idx}`} className="flex items-center gap-3 bg-surface rounded-[20px] p-3 border border-surface-border cursor-pointer" onClick={() => navigate(`/profile/${userStat.user_id}`)}>
-                            <div className="w-8 h-8 rounded-full bg-accent-primary/10 text-accent-primary flex items-center justify-center font-black text-[12px]">{idx + 1}</div>
+                          <div key={`${userStat.user_id}-${idx}`} className="flex items-center gap-3 bg-surface rounded-[20px] p-3 pr-4 border border-surface-border cursor-pointer active:scale-95 transition-all hover:border-accent-primary/30" onClick={() => navigate(`/profile/${userStat.user_id}`)}>
+                            <div className="w-6 h-6 rounded-full bg-surface-card border border-surface-border flex items-center justify-center font-black text-[10px] text-brand-muted">{idx + 1}</div>
                             <div className="w-10 h-10 rounded-full overflow-hidden bg-surface-card border border-surface-border shrink-0">
                               {userStat.avatar_url ? <img src={userStat.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-brand-muted font-black">{(userStat.full_name || 'א')[0]}</div>}
                             </div>
-                            <div className="flex-1 min-w-0">
+                            <div className="flex-1 min-w-0 flex flex-col">
                               <div className="text-brand font-black text-[13px] truncate">{userStat.full_name || 'אנונימי'}</div>
                               <div className="text-brand-muted text-[11px] font-bold">רמה {userStat.level || 1} • {userStat.xp || 0} XP</div>
                             </div>
-                            {idx === 0 && <Medal size={18} className="text-amber-400 ml-2" />}
-                            {idx === 1 && <Medal size={18} className="text-slate-300 ml-2" />}
-                            {idx === 2 && <Medal size={18} className="text-orange-400 ml-2" />}
+                            {idx === 0 && <Medal size={18} className="text-amber-400 drop-shadow-md ml-2" />}
+                            {idx === 1 && <Medal size={18} className="text-slate-300 drop-shadow-md ml-2" />}
+                            {idx === 2 && <Medal size={18} className="text-orange-400 drop-shadow-md ml-2" />}
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div className="text-brand-muted text-[13px]">אין דירוג עדיין</div>
+                      <div className="text-brand-muted text-[12px] font-medium">אין דירוג עדיין.</div>
                     )}
                   </div>
 
                   <div className="rounded-[28px] bg-surface-card border border-surface-border p-5 shadow-sm">
                     <div className="flex items-center gap-2 mb-4">
                       <BarChart3 size={16} className="text-accent-primary" />
-                      <span className="text-brand font-black text-[13px] tracking-widest uppercase">מה חדש</span>
+                      <span className="text-brand font-black text-[13px] tracking-widest uppercase">מה חדש (פעילות)</span>
                     </div>
                     {overview?.activity?.length ? (
                       <div className="flex flex-col gap-4">
                         {overview.activity.slice(0, 8).map((item: any) => (
                           <div key={item.id} className="flex items-start gap-3">
-                            <div className="w-9 h-9 rounded-full overflow-hidden bg-surface border border-surface-border shrink-0">
-                              {item.avatar_url ? <img src={item.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-brand-muted font-black text-[11px]">{(item.full_name || 'א')[0]}</div>}
+                            <div className="w-10 h-10 rounded-full overflow-hidden bg-surface border border-surface-border shrink-0">
+                              {item.avatar_url ? <img src={item.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-brand-muted font-black text-[12px]">{(item.full_name || 'א')[0]}</div>}
                             </div>
-                            <div className="flex-1">
+                            <div className="flex-1 pt-0.5">
                               <div className="text-brand text-[13px] leading-relaxed"><span className="font-black">{item.full_name || 'משתמש'}</span> <span className="text-brand-muted">{getActivityLabel(item.activity_type, item.payload)}</span></div>
-                              <div className="text-accent-primary/70 font-black text-[9px] uppercase tracking-widest mt-1">{formatRelative(item.created_at)}</div>
+                              <div className="text-accent-primary/70 font-black tracking-widest uppercase text-[9px] mt-1">{formatRelative(item.created_at)}</div>
                             </div>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div className="text-brand-muted text-[13px]">עדיין אין פעילות להצגה</div>
+                      <div className="text-brand-muted text-[12px] font-medium">עדיין אין פעילות להצגה.</div>
                     )}
                   </div>
                 </div>
@@ -680,34 +695,34 @@ export const CirclePage: React.FC = () => {
             )}
 
             {activeTab === 'chat' && (
-              <>
+              <div className="flex-1 relative flex flex-col overflow-hidden">
                 <div ref={messagesRef} className="flex-1 overflow-y-auto scrollbar-hide px-4 pt-2 pb-[120px] z-0">
                   <div className="flex flex-col gap-4 min-h-full">
                     {sortedPosts.length === 0 ? (
                       <div className="text-center py-20 opacity-50 flex flex-col items-center gap-3 my-auto">
-                        <div className="w-20 h-20 rounded-full bg-surface-card flex items-center justify-center border border-surface-border shadow-inner">
+                        <div className="w-20 h-20 rounded-[24px] bg-surface-card flex items-center justify-center border border-surface-border shadow-inner">
                           <MessageSquare size={32} className="text-brand-muted" />
                         </div>
-                        <span className="text-brand-muted font-black text-[13px] tracking-widest uppercase">הצ'אט שקט מדי...<br />שבור את הקרח</span>
+                        <span className="text-brand-muted font-black text-[13px] tracking-widest uppercase mt-2">הצ'אט שקט מדי...<br />שבור את הקרח!</span>
                       </div>
                     ) : (
                       sortedPosts.map((post: any) => (
                         <div key={post.id} className="flex flex-col gap-1 w-full">
                           <div className={`flex gap-3 w-full ${post.user_id === currentUserId ? 'flex-row-reverse' : ''}`}>
-                            <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-surface-border bg-surface-card flex items-center justify-center shadow-sm cursor-pointer mt-auto" onClick={() => navigate(`/profile/${post.user_id}`)}>
-                              {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <span className="text-brand-muted font-black text-[10px]">{(post.profiles?.full_name || 'א')[0]}</span>}
+                            <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 border border-surface-border bg-surface-card flex items-center justify-center shadow-sm cursor-pointer mt-auto" onClick={() => navigate(`/profile/${post.user_id}`)}>
+                              {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <span className="text-brand-muted font-black text-[12px]">{(post.profiles?.full_name || 'א')[0]}</span>}
                             </div>
                             <div className="flex flex-col gap-1.5 max-w-[78%]">
-                              <div className={`p-3.5 rounded-[24px] text-[14px] font-medium shadow-sm leading-relaxed ${post.user_id === currentUserId ? 'bg-accent-primary/10 border border-accent-primary/20 text-brand rounded-br-sm' : 'bg-surface-card border border-surface-border text-brand-muted rounded-bl-sm'}`}>
+                              <div className={`p-4 rounded-[24px] text-[14px] font-medium shadow-sm leading-relaxed ${post.user_id === currentUserId ? 'bg-accent-primary/10 border border-accent-primary/20 text-brand rounded-br-sm' : 'bg-surface-card border border-surface-border text-brand-muted rounded-bl-sm'}`}>
                                 {post.user_id !== currentUserId && <span className="text-accent-primary text-[10px] font-black block mb-1.5 uppercase tracking-widest">{post.profiles?.full_name || 'אנונימי'}</span>}
                                 {post.media_url && (
-                                  <div className={`rounded-[16px] overflow-hidden border border-surface-border bg-surface ${post.content ? 'mb-2' : ''}`}>
+                                  <div className={`rounded-[16px] overflow-hidden border border-surface-border bg-surface ${post.content ? 'mb-3' : ''}`}>
                                     {post.media_type === 'video' ? <video src={post.media_url} controls playsInline className="w-full h-auto max-h-[300px] object-cover" /> : <img src={post.media_url} className="w-full h-auto max-h-[300px] object-cover" loading="lazy" />}
                                   </div>
                                 )}
-                                {post.content && <span>{post.content}</span>}
+                                {post.content && <span className="whitespace-pre-wrap break-words">{post.content}</span>}
                               </div>
-                              <div className={`flex items-center gap-2 px-1 ${post.user_id === currentUserId ? 'justify-end' : 'justify-start'}`}>
+                              <div className={`flex items-center gap-2 px-1.5 ${post.user_id === currentUserId ? 'justify-end' : 'justify-start'}`}>
                                 {SEAL_TYPES.map((seal) => (
                                   <div key={`${post.id}-${seal.id}`} className={`text-[10px] font-black flex items-center gap-1 ${seal.color}`} title={seal.meaning}>
                                     {seal.icon}
@@ -753,12 +768,12 @@ export const CirclePage: React.FC = () => {
                     </div>
                   </div>
                 </div>
-              </>
+              </div>
             )}
 
             {activeTab === 'vaults' && (
-              <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-5 pb-32 scrollbar-hide">
-                <span className="text-brand-muted font-black text-[11px] tracking-widest uppercase block text-center mt-2">כספות תוכן פרימיום</span>
+              <div className="flex-1 p-4 flex flex-col gap-5 bg-surface overflow-y-auto pb-[120px] relative scrollbar-hide">
+                <span className="text-brand-muted font-black text-[11px] tracking-widest uppercase block text-center mt-2">כספות תוכן</span>
                 {loadingVaults ? (
                   <Loader2 className="animate-spin text-accent-primary mx-auto my-20" />
                 ) : vaults.length === 0 ? (
@@ -769,6 +784,7 @@ export const CirclePage: React.FC = () => {
                 ) : (
                   vaults.map((vault) => <VaultCard key={vault.id} vault={vault} onUnlockSuccess={fetchVaults} />)
                 )}
+
                 {isOwner && (
                   <button onClick={() => navigate(`/circle/${slug}/vaults/create`)} className="fixed bottom-[100px] left-6 w-14 h-14 bg-accent-primary text-white rounded-full flex items-center justify-center shadow-[0_5px_20px_rgba(var(--color-accent-primary),0.5)] active:scale-90 transition-transform z-50">
                     <Plus size={28} />
@@ -778,8 +794,8 @@ export const CirclePage: React.FC = () => {
             )}
 
             {activeTab === 'members' && (
-              <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 pb-32 scrollbar-hide">
-                <span className="text-brand-muted font-black text-[11px] tracking-widest uppercase block text-center mt-2 mb-2">חברי מועדון ({memberCount})</span>
+              <div className="flex-1 p-4 flex flex-col gap-3 bg-surface overflow-y-auto pb-[120px] scrollbar-hide">
+                <span className="text-brand-muted font-black text-[11px] tracking-widest uppercase block text-center mb-2 mt-2">חברי מועדון ({memberCount})</span>
                 {membersList.map((m, idx) => (
                   <div key={m.profiles?.id} onClick={() => navigate(`/profile/${m.profiles?.id}`)} className="flex items-center justify-between bg-surface-card p-4 rounded-[28px] border border-surface-border cursor-pointer active:scale-95 transition-all shadow-sm hover:border-accent-primary/30 group">
                     <div className="flex items-center gap-4 min-w-0">
@@ -793,7 +809,7 @@ export const CirclePage: React.FC = () => {
                           {m.profiles?.full_name || 'אנונימי'}
                           {m.role === 'admin' && <ShieldAlert size={14} className="text-accent-primary shrink-0" />}
                         </span>
-                        <span className="text-brand-muted text-[11px] truncate mt-0.5" dir="ltr">@{m.profiles?.username}</span>
+                        <span className="text-brand-muted text-[11px] font-bold truncate mt-0.5" dir="ltr">@{m.profiles?.username}</span>
                       </div>
                     </div>
                   </div>
