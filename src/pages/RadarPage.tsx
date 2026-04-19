@@ -7,22 +7,20 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { FadeIn, Button } from '../components/ui';
 import { triggerFeedback } from '../lib/sound';
-import { apiFetch } from '../lib/api'; // הוספנו את החיבור לשרת שלנו
+import { apiFetch } from '../lib/api';
 import toast from 'react-hot-toast';
 
 export const RadarPage: React.FC = () => {
   const navigate = useNavigate();
   const { profile, reloadProfile } = useAuth();
-  
+
   const [activeTab, setActiveTab] = useState<'scanner' | 'queue'>('scanner');
-  
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(true);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [signalMessage, setSignalMessage] = useState('');
   const [sending, setSending] = useState(false);
-
   const [incomingSignals, setIncomingSignals] = useState<any[]>([]);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
@@ -42,22 +40,20 @@ export const RadarPage: React.FC = () => {
         .select('id, full_name, username, avatar_url, bio, level, role_label, signal_price')
         .neq('id', profile!.id)
         .limit(15);
-        
+
       if (error) throw error;
-      
       const positionedUsers = (data || []).map(u => ({
         ...u,
         x: Math.random() * 80 + 10,
         y: Math.random() * 70 + 15,
         delay: Math.random() * 2
       }));
-      
+
       setTimeout(() => {
         setUsers(positionedUsers);
         setScanning(false);
         triggerFeedback('success');
-      }, 2500); 
-      
+      }, 2500);
     } catch (err) {
       setScanning(false);
     } finally {
@@ -73,7 +69,7 @@ export const RadarPage: React.FC = () => {
         .eq('to_user_id', profile!.id)
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
-        
+
       if (error) throw error;
       setIncomingSignals(data || []);
     } catch (err) {
@@ -88,7 +84,7 @@ export const RadarPage: React.FC = () => {
       triggerFeedback('error');
       return toast.error('אין לך מספיק CRD בארנק');
     }
-
+    
     setSending(true);
     triggerFeedback('pop');
     const tid = toast.loading('מעביר תשלום לנאמנות ומשדר...');
@@ -101,7 +97,7 @@ export const RadarPage: React.FC = () => {
       });
 
       const expiresAt = new Date();
-      expiresAt.setHours(expiresAt.getHours() + 48); 
+      expiresAt.setHours(expiresAt.getHours() + 48);
 
       await supabase.from('signals').insert({
         from_user_id: profile!.id,
@@ -116,7 +112,6 @@ export const RadarPage: React.FC = () => {
         title: 'סיגנל חדש ממתין ברדאר! 📡', content: `קיבלת בקשת חיבור בשווי ${costNum} CRD.`, action_url: '/radar'
       });
 
-      // === פה הקסם החדש: שיגור פוש נוטיפיקציה דרך השרת שלנו ===
       try {
         await apiFetch('/notifications/send-push', 'POST', {
           targetUserId: selectedUser.id,
@@ -127,16 +122,15 @@ export const RadarPage: React.FC = () => {
       } catch (pushErr) {
         console.error('Push failed, but signal sent', pushErr);
       }
-      // ========================================================
 
       if (reloadProfile) reloadProfile();
       triggerFeedback('success');
       toast.success('הסיגנל נשלח! ממתין לאישור הצד השני.', { id: tid });
-      
+
       setUsers(prev => prev.filter(u => u.id !== selectedUser.id));
       setSelectedUser(null);
       setSignalMessage('');
-      
+
     } catch (err) {
       toast.error('שגיאה בשידור הסיגנל', { id: tid });
     } finally {
@@ -154,7 +148,7 @@ export const RadarPage: React.FC = () => {
       triggerFeedback('success');
       setIncomingSignals(prev => prev.filter(s => s.id !== signalId));
       if (reloadProfile) reloadProfile();
-      
+
       if (action === 'accept') {
         toast.success('הסיגנל אושר! הצ\'אט נפתח.', { icon: '🎉' });
         navigate(`/chat/${senderId}`);
@@ -167,13 +161,10 @@ export const RadarPage: React.FC = () => {
       setProcessingId(null);
     }
   };
-
   return (
     <FadeIn className="bg-[#030303] min-h-[100dvh] font-sans flex flex-col relative overflow-hidden" dir="rtl">
-      
       {/* HEADER & TABS */}
-      <div className="relative z-50 pt-[calc(env(safe-area-inset-top)+16px)] px-4 flex flex-col gap-4 bg-surface/90 backdrop-blur-2xl border-b border-surface-border pb-3 shadow-sm">
-        
+      <div className="relative z-50 pt-[calc(env(safe-area-inset-top)+16px)] px-4 flex flex-col gap-4 bg-surface/90 backdrop-blur-2xl border-b border-surface-border pb-3 shadow-sm">                                               
         <div className="flex items-center justify-between">
           <div className="w-16" />
           <div className="flex flex-col items-center">
@@ -189,7 +180,6 @@ export const RadarPage: React.FC = () => {
             </div>
           </div>
         </div>
-
         <div className="flex gap-2 bg-black/40 p-1.5 rounded-full border border-white/5">
           <button onClick={() => { triggerFeedback('pop'); setActiveTab('scanner'); }} className={`flex-1 py-2.5 rounded-full text-[12px] font-black uppercase tracking-widest transition-all ${activeTab === 'scanner' ? 'bg-white text-black shadow-md' : 'text-brand-muted'}`}>
             סריקת תדרים
@@ -208,7 +198,6 @@ export const RadarPage: React.FC = () => {
       {/* CONTENT AREA */}
       <div className="flex-1 relative flex flex-col overflow-hidden">
         <AnimatePresence mode="wait">
-          
           {/* TAB 1: THE SCANNER MAP */}
           {activeTab === 'scanner' && (
             <motion.div key="scanner" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 flex items-center justify-center overflow-hidden">
@@ -218,7 +207,6 @@ export const RadarPage: React.FC = () => {
                 <div className="w-[700px] h-[700px] rounded-full border border-accent-primary/10 absolute" />
                 <motion.div animate={{ rotate: 360 }} transition={{ duration: 4, repeat: Infinity, ease: "linear" }} className="w-[350px] h-[350px] absolute rounded-full" style={{ background: 'conic-gradient(from 0deg, transparent 70%, rgba(var(--color-accent-primary), 0.4) 100%)' }} />
               </div>
-
               <div className="absolute z-30 flex flex-col items-center justify-center">
                 <div className="w-14 h-14 rounded-full border-2 border-accent-primary bg-surface overflow-hidden shadow-[0_0_30px_rgba(var(--color-accent-primary),0.6)] z-20">
                   {profile?.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full text-brand-muted p-1" />}
@@ -246,7 +234,7 @@ export const RadarPage: React.FC = () => {
                   onClick={() => { triggerFeedback('pop'); setSelectedUser(u); }}
                 >
                   <div className="relative">
-                    <div className="w-12 h-12 rounded-full border-2 border-white/20 bg-surface overflow-hidden shadow-lg group-hover:border-accent-primary transition-colors group-hover:scale-110 duration-300">
+                    <div className="w-12 h-12 rounded-full border-[1.5px] border-white/20 bg-surface overflow-hidden shadow-lg group-hover:border-accent-primary transition-colors group-hover:scale-110 duration-300">
                       {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full text-brand-muted p-1" />}
                     </div>
                     {/* המחיר המדויק שמוגדר בפרופיל שלו */}
@@ -280,7 +268,7 @@ export const RadarPage: React.FC = () => {
                 incomingSignals.map((signal) => (
                   <div key={signal.id} className="bg-surface-card border border-surface-border rounded-[32px] p-5 shadow-lg flex flex-col gap-4">
                     <div className="flex items-start justify-between border-b border-surface-border pb-4">
-                      <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate(`/profile/${signal.sender?.id}`)}>
+                      <div className="flex items-center gap-3 cursor-pointer" onClick={() => { triggerFeedback('pop'); navigate(`/profile/${signal.sender?.id}`); }}>
                         <div className="w-12 h-12 rounded-full overflow-hidden bg-surface border border-surface-border">
                           {signal.sender?.avatar_url ? <img src={signal.sender.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full text-brand-muted p-1" />}
                         </div>
@@ -297,13 +285,13 @@ export const RadarPage: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    
+
                     <p className="text-brand text-[14px] font-medium leading-relaxed bg-surface/50 p-4 rounded-2xl border border-surface-border whitespace-pre-wrap">
                       {signal.message}
                     </p>
 
                     <div className="flex gap-2 pt-2">
-                      <Button onClick={() => handleProcessSignal(signal.id, signal.sender?.id, 'decline')} disabled={processingId === signal.id} className="flex-1 h-12 bg-surface border border-surface-border text-brand-muted hover:text-rose-500 hover:border-rose-500/50 rounded-xl text-[12px] font-black uppercase tracking-widest transition-all">
+                      <Button onClick={() => handleProcessSignal(signal.id, signal.sender?.id, 'decline')} disabled={processingId === signal.id} className="flex-1 h-12 bg-surface border border-surface-border text-brand-muted hover:text-rose-500 hover:border-rose-500/50 rounded-xl text-[12px] font-black uppercase tracking-widest transition-all active:scale-95">
                         {processingId === signal.id ? <Loader2 size={16} className="animate-spin mx-auto" /> : <><X size={16}/> דחה</>}
                       </Button>
                       <Button onClick={() => handleProcessSignal(signal.id, signal.sender?.id, 'accept')} disabled={processingId === signal.id} className="flex-1 h-12 bg-white text-black rounded-xl text-[12px] font-black uppercase tracking-widest shadow-md active:scale-95 transition-all">
@@ -342,7 +330,7 @@ export const RadarPage: React.FC = () => {
                     <span className="text-brand-muted text-[12px] font-bold tracking-widest mt-0.5" dir="ltr">@{selectedUser.username}</span>
                     <div className="flex items-center gap-2 mt-2">
                       <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-md border border-emerald-400/20">רמה {selectedUser.level || 1}</span>
-                      <button onClick={() => { setSelectedUser(null); navigate(`/profile/${selectedUser.id}`); }} className="text-[10px] font-black uppercase tracking-widest text-brand-muted hover:text-brand bg-white/5 px-2 py-1 rounded-md border border-white/10 transition-colors">
+                      <button onClick={() => { setSelectedUser(null); navigate(`/profile/${selectedUser.id}`); }} className="text-[10px] font-black uppercase tracking-widest text-brand-muted hover:text-brand bg-white/5 px-2 py-1 rounded-md border border-white/10 transition-colors active:scale-95">
                         פרופיל מלא
                       </button>
                     </div>
@@ -351,7 +339,7 @@ export const RadarPage: React.FC = () => {
 
                 <div className="flex flex-col gap-3 mb-6">
                   <label className="text-brand-muted text-[11px] font-black uppercase tracking-widest px-2">הודעת סיגנל</label>
-                  <textarea 
+                  <textarea
                     value={signalMessage} onChange={(e) => setSignalMessage(e.target.value)}
                     placeholder="היי, אשמח לדבר איתך..."
                     className="w-full h-24 bg-surface-card border border-surface-border rounded-[24px] p-4 text-brand font-medium outline-none focus:border-accent-primary/50 transition-all resize-none shadow-inner text-sm"
@@ -368,11 +356,10 @@ export const RadarPage: React.FC = () => {
                     <span className="text-accent-primary/60 text-[9px] font-black uppercase tracking-widest">CRD Required</span>
                   </div>
                 </div>
-
+                
                 <Button onClick={handleSendSignal} disabled={sending || !signalMessage.trim()} className="w-full h-16 bg-white text-black font-black text-[15px] uppercase tracking-widest rounded-[24px] shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2">
                   {sending ? <Loader2 size={24} className="animate-spin text-black" /> : <><Send size={18} className="rtl:-scale-x-100" /> הפקד תשלום ושדר</>}
                 </Button>
-
               </motion.div>
             </div>
           )}
