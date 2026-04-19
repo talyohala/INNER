@@ -94,7 +94,6 @@ export const CirclePage: React.FC = () => {
   const [joining, setJoining] = useState(false);
   const [contributingDrop, setContributingDrop] = useState(false);
   const [dropAmount, setDropAmount] = useState<number | ''>(50);
-  const [sealSelectorPost, setSealSelectorPost] = useState<any | null>(null);
 
   const sortedPosts = useMemo(() => {
     return [...(data?.posts || [])].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -199,7 +198,9 @@ export const CirclePage: React.FC = () => {
     try {
       let circleId = data?.circle?.id;
       if (!circleId) return;
+
       const { data: overviewData, error } = await supabase.rpc('get_circle_overview', { p_circle_id: circleId, p_user_id: uid && !uid.startsWith('guest_') ? uid : null });
+
       if (!error && overviewData) {
         setOverview(overviewData);
         if (!silent) localStorage.setItem(`inner_overview_${slug}_cache`, JSON.stringify(overviewData));
@@ -255,7 +256,9 @@ export const CirclePage: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) return toast.error('העלה תמונה או וידאו בלבד');
+    
     setUploadingStory(true); triggerFeedback('pop');
+    
     try {
       const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
       const fileName = `story_${Date.now()}_${Math.random().toString(36).slice(2, 6)}_${safeName}`;
@@ -266,12 +269,19 @@ export const CirclePage: React.FC = () => {
       const expiresAt = new Date(); expiresAt.setHours(expiresAt.getHours() + 24);
       const mediaType = file.type.startsWith('video/') ? 'video' : 'image';
 
-      await supabase.from('circle_stories').insert({ circle_id: data.circle.id, user_id: currentUserId, media_url: publicUrl, media_type: mediaType, expires_at: expiresAt.toISOString() });
-      await supabase.rpc('add_circle_xp', { p_circle_id: data.circle.id, p_user_id: currentUserId, p_amount: 20, p_reason: 'story_upload' });
+      const { error: dbError } = await supabase.from('circle_stories').insert({ circle_id: data.circle.id, user_id: currentUserId, media_url: publicUrl, media_type: mediaType, expires_at: expiresAt.toISOString() });
+      if (dbError) throw dbError;
+
+      supabase.rpc('add_circle_xp', { p_circle_id: data.circle.id, p_user_id: currentUserId, p_amount: 20, p_reason: 'story_upload' }).then();
 
       await fetchOverview(currentUserId, true);
       toast.success('הרגע עלה בהצלחה');
-    } catch { toast.error('שגיאה בהעלאת רגע'); } finally { setUploadingStory(false); if (storyInputRef.current) storyInputRef.current.value = ''; }
+    } catch (err: any) { 
+      toast.error('שגיאה בהעלאת רגע'); 
+    } finally { 
+      setUploadingStory(false); 
+      if (storyInputRef.current) storyInputRef.current.value = ''; 
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -325,19 +335,22 @@ export const CirclePage: React.FC = () => {
     } catch { toast.error('שגיאה בתרומה'); } finally { setContributingDrop(false); }
   };
 
-  const handleSeal = async (postId: string, sealType: string) => {
-    triggerFeedback('pop'); setSealSelectorPost(null);
+  const handleSealToggle = async (postId: string, sealType: string, isRemoving: boolean) => {
+    triggerFeedback('pop');
     try {
-      const { error } = await supabase.from('post_seals').insert({ post_id: postId, user_id: currentUserId, seal_type: sealType });
-      if (error) {
-        if (error.code === '23505') toast.error('כבר נתת חותם מסוג זה'); else throw error;
+      if (isRemoving) {
+        const { error } = await supabase.from('post_seals').delete().match({ post_id: postId, user_id: currentUserId, seal_type: sealType });
+        if (error) throw error;
       } else {
-        const xpAmount = SEAL_TYPES.find(s => s.id === sealType)?.xp || 10;
-        supabase.rpc('add_circle_xp', { p_circle_id: data.circle.id, p_user_id: currentUserId, p_amount: xpAmount, p_reason: 'gave_seal' }).then();
-        await fetchCircleData(currentUserId, true);
-        triggerFeedback('success');
+        const { error } = await supabase.from('post_seals').insert({ post_id: postId, user_id: currentUserId, seal_type: sealType });
+        if (error && error.code !== '23505') throw error;
+        if (!error) {
+          const xpAmount = SEAL_TYPES.find(s => s.id === sealType)?.xp || 10;
+          supabase.rpc('add_circle_xp', { p_circle_id: data.circle.id, p_user_id: currentUserId, p_amount: xpAmount, p_reason: 'gave_seal' }).then();
+        }
       }
-    } catch { toast.error('שגיאה בהענקת חותם'); }
+      await fetchCircleData(currentUserId, true);
+    } catch { toast.error('שגיאה בעדכון חותם'); }
   };
 
   if (loading || !data) {
@@ -360,52 +373,26 @@ export const CirclePage: React.FC = () => {
       {/* FULLSCREEN MEDIA MODAL */}
       <AnimatePresence>
         {fullScreenMedia && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9999999] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4" onClick={() => setFullScreenMedia(null)}>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9999999] bg-black flex items-center justify-center" onClick={() => setFullScreenMedia(null)}>
             {fullScreenMedia.type === 'video' ? (
-               <video src={fullScreenMedia.url} controls autoPlay className="max-w-full max-h-[85vh] rounded-[24px] shadow-2xl" onClick={(e) => e.stopPropagation()} />
+               <video src={fullScreenMedia.url} controls autoPlay className="w-full h-full object-contain" onClick={(e) => e.stopPropagation()} />
             ) : (
-               <img src={fullScreenMedia.url} className="max-w-full max-h-[85vh] object-contain rounded-[24px] shadow-2xl" onClick={(e) => e.stopPropagation()} />
+               <img src={fullScreenMedia.url} className="w-full h-full object-contain" onClick={(e) => e.stopPropagation()} />
             )}
-            <button className="absolute top-[env(safe-area-inset-top)] right-6 w-12 h-12 flex items-center justify-center bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full text-white transition-all shadow-lg">
-              <X size={24} />
+            
+            <button className="absolute top-[calc(env(safe-area-inset-top)+16px)] left-4 p-3 text-white/70 hover:text-white transition-all active:scale-90 z-50 drop-shadow-lg">
+              <X size={28} />
             </button>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* SEAL SELECTOR MODAL */}
-      <AnimatePresence>
-        {sealSelectorPost && (
-          <div className="fixed inset-0 z-[9999999] flex flex-col justify-end p-4" dir="rtl">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setSealSelectorPost(null)} />
-            <motion.div initial={{ y: '100%', scale: 0.95 }} animate={{ y: 0, scale: 1 }} exit={{ y: '100%', scale: 0.95 }} className="relative z-10 bg-surface-card border border-surface-border rounded-[32px] p-8 shadow-2xl flex flex-col items-center gap-6">
-              <div className="w-12 h-1.5 bg-white/10 rounded-full mb-2" />
-              <div className="text-center">
-                <h3 className="text-brand font-black text-xl tracking-tighter uppercase">הענק חותם יוקרה</h3>
-                <p className="text-brand-muted text-[13px] mt-2 font-medium">תן כבוד לתוכן איכותי. החותם מעניק XP ליוצר ולך.</p>
-              </div>
-              <div className="grid grid-cols-3 gap-4 w-full">
-                {SEAL_TYPES.map((type) => (
-                  <button key={type.id} onClick={() => handleSeal(sealSelectorPost.id, type.id)} className="flex flex-col items-center gap-3 p-5 rounded-[24px] bg-surface border border-surface-border hover:border-accent-primary/50 transition-all active:scale-95 shadow-sm">
-                    <div className={`p-3 rounded-full ${type.color} drop-shadow-lg`}>{type.icon}</div>
-                    <div className="flex flex-col items-center gap-1">
-                      <span className="text-brand font-black text-[12px] uppercase tracking-widest">{type.label}</span>
-                      <span className="text-brand-muted text-[10px] font-black tracking-widest">+{type.xp} XP</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* MAIN OVERLAY (Takes over entire screen) */}
-      <FadeIn className="fixed inset-0 z-[9999] bg-[#050505] font-sans flex flex-col overflow-hidden" dir="rtl">
+      {/* MAIN FULL-SCREEN PORTAL */}
+      <FadeIn className="fixed inset-0 z-[99999] bg-[#050505] font-sans flex flex-col overflow-hidden" dir="rtl">
         
         {/* BACK BUTTON */}
-        <button onClick={() => navigate(-1)} className="absolute top-[calc(env(safe-area-inset-top)+16px)] right-4 w-10 h-10 bg-black/40 border border-white/10 backdrop-blur-md rounded-full flex items-center justify-center text-white/70 hover:text-white z-50 transition-all active:scale-90 shadow-sm">
-          <ChevronLeft size={20} className="rtl:rotate-180" />
+        <button onClick={() => navigate(-1)} className="absolute top-[calc(env(safe-area-inset-top)+16px)] right-4 p-3 text-white/80 hover:text-white z-50 transition-all active:scale-90 drop-shadow-lg">
+          <ChevronLeft size={32} className="rtl:rotate-180" />
         </button>
 
         {/* HERO / BACKGROUND */}
@@ -595,7 +582,7 @@ export const CirclePage: React.FC = () => {
                       sortedPosts.map((post: any) => (
                         <div key={post.id} className={`flex flex-col gap-1 w-full ${post.user_id === currentUserId ? 'items-end' : 'items-start'}`}>
                           
-                          {/* Sender Info (Only if not me and no media) */}
+                          {/* Sender Info */}
                           {post.user_id !== currentUserId && !post.media_url && (
                             <div className="flex items-center gap-2 pl-2 mb-1" onClick={() => navigate(`/profile/${post.user_id}`)}>
                               <div className="w-5 h-5 rounded-full overflow-hidden bg-white/5">
@@ -605,10 +592,9 @@ export const CirclePage: React.FC = () => {
                             </div>
                           )}
 
-                          {/* Message Bubble (Edge-to-Edge Media OR Transparent Text) */}
+                          {/* BUBBLE: Edge-to-Edge Media OR Transparent Text */}
                           <div className={`relative flex flex-col max-w-[85%] rounded-[24px] ${post.user_id === currentUserId ? 'rounded-br-sm' : 'rounded-bl-sm'} overflow-hidden shadow-sm ${!post.media_url ? (post.user_id === currentUserId ? 'bg-accent-primary/20 border border-accent-primary/30 text-white' : 'bg-white/5 border border-white/5 text-white/90') : ''}`}>
                             
-                            {/* Media Full Edge-to-Edge */}
                             {post.media_url ? (
                               <div 
                                 className="relative w-full group min-w-[200px] cursor-pointer"
@@ -620,7 +606,7 @@ export const CirclePage: React.FC = () => {
                                   <img src={post.media_url} className="w-full h-auto max-h-[350px] object-cover" loading="lazy" />
                                 )}
 
-                                {/* Gradients for Text Overlay Visibility */}
+                                {/* Gradients for Text Overlay */}
                                 {(post.content || post.user_id !== currentUserId) && (
                                   <>
                                     {post.user_id !== currentUserId && <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-b from-black/80 to-transparent pointer-events-none" />}
@@ -628,17 +614,17 @@ export const CirclePage: React.FC = () => {
                                   </>
                                 )}
 
-                                {/* Floating Name ON Media */}
+                                {/* Floating Name */}
                                 {post.user_id !== currentUserId && (
                                   <span className="absolute top-3 left-4 text-white/90 text-[10px] font-black uppercase tracking-widest drop-shadow-md z-10" onClick={(e) => { e.stopPropagation(); navigate(`/profile/${post.user_id}`); }}>
                                     {post.profiles?.full_name || 'אנונימי'}
                                   </span>
                                 )}
 
-                                {/* Floating Text ON Media */}
+                                {/* Floating Text */}
                                 {post.content && (
-                                  <div className="absolute bottom-3 left-4 right-4 z-10">
-                                     <span className="text-white text-[14px] leading-relaxed font-medium whitespace-pre-wrap break-words drop-shadow-md">{post.content}</span>
+                                  <div className="absolute bottom-3 left-4 right-4 z-10 pointer-events-none">
+                                     <span className="text-white text-[14px] leading-relaxed font-medium whitespace-pre-wrap break-words drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">{post.content}</span>
                                   </div>
                                 )}
                               </div>
@@ -650,15 +636,18 @@ export const CirclePage: React.FC = () => {
                             )}
                           </div>
 
-                          {/* Seals Direct Under Bubble */}
-                          <div className={`flex items-center gap-1.5 px-1 mt-0.5 ${post.user_id === currentUserId ? 'justify-end' : 'justify-start'}`}>
+                          {/* DIRECT SEALS UI - Toggle Logic */}
+                          <div className={`flex items-center gap-1.5 px-2 mt-0.5 w-full ${post.user_id === currentUserId ? 'justify-end' : 'justify-start'}`}>
                             {SEAL_TYPES.map((sealDef) => {
-                              const count = post.post_seals?.filter((s:any) => s.seal_type === sealDef.id).length || 0;
+                              const sealsOfType = post.post_seals?.filter((s:any) => s.seal_type === sealDef.id) || [];
+                              const count = sealsOfType.length;
+                              const hasSealed = sealsOfType.some((s:any) => s.user_id === currentUserId);
+                              
                               return (
                                 <button
                                   key={sealDef.id}
-                                  onClick={() => handleSeal(post.id, sealDef.id)}
-                                  className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black border transition-all active:scale-95 ${count > 0 ? sealDef.color : 'bg-white/5 border-white/5 text-white/30 hover:text-white/60'}`}
+                                  onClick={() => handleSealToggle(post.id, sealDef.id, hasSealed)}
+                                  className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-black border transition-all active:scale-95 ${count > 0 ? (hasSealed ? sealDef.color : 'text-white/60 bg-white/5 border-white/10') : 'bg-white/5 border-white/5 text-white/30 hover:text-white/60'}`}
                                   title={sealDef.meaning}
                                 >
                                   {sealDef.icon}
@@ -678,9 +667,9 @@ export const CirclePage: React.FC = () => {
                   
                   <AnimatePresence>
                     {selectedFile && (
-                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute -top-24 right-6 w-20 h-20 rounded-[16px] overflow-hidden border border-white/10 shadow-2xl bg-black">
+                      <motion.div initial={{ opacity: 0, y: 10, height: 0 }} animate={{ opacity: 1, y: 0, height: 'auto' }} exit={{ opacity: 0, y: 10, height: 0 }} className="absolute -top-24 right-6 w-20 h-20 rounded-[16px] overflow-hidden border border-white/10 shadow-2xl bg-black ml-2">
                         {selectedFile.type.startsWith('video/') ? <video src={URL.createObjectURL(selectedFile)} className="w-full h-full object-cover" /> : <img src={URL.createObjectURL(selectedFile)} className="w-full h-full object-cover" />}
-                        <button onClick={() => setSelectedFile(null)} className="absolute top-1 right-1 bg-black/60 p-1 rounded-full text-white backdrop-blur-md"><X size={10} /></button>
+                        <button onClick={() => setSelectedFile(null)} className="absolute top-1.5 right-1.5 bg-black/60 p-1.5 rounded-full flex items-center justify-center text-white backdrop-blur-md hover:bg-black/80 transition-colors"><X size={12} /></button>
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -735,7 +724,7 @@ export const CirclePage: React.FC = () => {
           </div>
         )}
       </FadeIn>
-    </>,
+    </>, 
     document.body
   ) : null;
 };
