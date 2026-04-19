@@ -9,7 +9,7 @@ import {
   Loader2, Bell, Users, MessageSquare, Send, X, Paperclip,
   RefreshCw, UserCircle, Trash2, Edit2, Share2, MoreVertical,
   ChevronLeft, Reply, ChevronDown, ChevronUp, ArrowUp, Download,
-  Link as LinkIcon, Bookmark, Crown, Lock, Flame, Diamond, Handshake, Coins, PlusCircle
+  Link as LinkIcon, Bookmark, Crown, Lock, Flame, Diamond, Handshake, Coins, PlusCircle, ArrowRight
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -80,10 +80,11 @@ export const HomePage: React.FC = () => {
 
   const [userCirclesModal, setUserCirclesModal] = useState<any[] | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [postCirclesModal, setPostCirclesModal] = useState<any[] | null>(null); // NEW: Bottom sheet for >20 circles
 
   const stateRef = useRef({
     comments: false, options: false, desc: false, create: false,
-    fullscreen: false, commentAction: false, userCircles: false, contribute: false, seals: false
+    fullscreen: false, commentAction: false, userCircles: false, contribute: false, seals: false, postCircles: false
   });
 
   const mediaPosts = useMemo(() => posts.filter((p) => p.type === 'post' && !!p.media_url), [posts]);
@@ -106,15 +107,16 @@ export const HomePage: React.FC = () => {
     stateRef.current = {
       comments: !!activeCommentsPostId, options: !!optionsMenuPost, desc: !!activeDescPost,
       create: showCreatePost, fullscreen: !!fullScreenMedia, commentAction: !!commentActionModal,
-      userCircles: !!userCirclesModal, contribute: !!contributeModal, seals: !!sealSelectorPost
+      userCircles: !!userCirclesModal, contribute: !!contributeModal, seals: !!sealSelectorPost, postCircles: !!postCirclesModal
     };
-  }, [activeCommentsPostId, optionsMenuPost, activeDescPost, showCreatePost, fullScreenMedia, commentActionModal, userCirclesModal, contributeModal, sealSelectorPost]);
+  }, [activeCommentsPostId, optionsMenuPost, activeDescPost, showCreatePost, fullScreenMedia, commentActionModal, userCirclesModal, contributeModal, sealSelectorPost, postCirclesModal]);
 
   useEffect(() => {
     const handlePopState = () => {
       const s = stateRef.current;
       if (s.commentAction) setCommentActionModal(null);
       else if (s.userCircles) setUserCirclesModal(null);
+      else if (s.postCircles) setPostCirclesModal(null);
       else if (s.contribute) setContributeModal(null);
       else if (s.seals) setSealSelectorPost(null);
       else if (s.comments) { setActiveCommentsPostId(null); setActivePost(null); setReplyingTo(null); setEditingCommentId(null); setNewComment(''); }
@@ -447,6 +449,7 @@ export const HomePage: React.FC = () => {
       setContributing(false);
     }
   };
+
   const handleShare = async (post: AnyPost) => {
     triggerFeedback('pop');
     const publicUrl = `https://inner-app.com/post/${post.id}`;
@@ -492,7 +495,7 @@ export const HomePage: React.FC = () => {
       if (editingCommentId) {
         const updateRes = await supabase.from('comments').update({ content: newComment.trim() }).eq('id', editingCommentId);
         if (updateRes.error) throw updateRes.error;
-        setComments((prev) => prev.map((c) => (c.id === editingCommentId ? { ...c, content: newComment.trim() } : c)));
+        setComments((prev) => prev.map((c) => c.id === editingCommentId ? { ...c, content: newComment.trim() } : c));
         setEditingCommentId(null);
       } else {
         const parentIdToUse = replyingTo ? (replyingTo.parent_id || replyingTo.id) : null;
@@ -617,7 +620,6 @@ export const HomePage: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
-
       <FadeIn className="pt-[env(safe-area-inset-top)] pb-32 bg-surface min-h-screen relative overflow-x-hidden touch-pan-y" dir="rtl" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
         
         {!refreshing && pullY > 0 && (
@@ -794,17 +796,39 @@ export const HomePage: React.FC = () => {
 
                         {post.user_circles && post.user_circles.length > 0 && !isLockedDrop && (
                           <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">
-                            {post.user_circles.slice(0, 10).map((circle: any) => {
-                              const isOwnerOfThisCircle = circle.owner_id === post.user_id;
+                            {(() => {
+                              const sortedCircles = [...post.user_circles].sort((a, b) => {
+                                const aOwner = a.owner_id === post.user_id ? -1 : 1;
+                                const bOwner = b.owner_id === post.user_id ? -1 : 1;
+                                return aOwner - bOwner;
+                              });
+                              const displayCircles = sortedCircles.slice(0, 20);
+                              const hasMore = sortedCircles.length > 20;
+
                               return (
-                                <div key={circle.id} onClick={(e) => { e.stopPropagation(); navigate(`/circle/${circle.slug || circle.id}`); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
-                                  <div className={`w-8 h-8 rounded-full overflow-hidden shadow-sm bg-surface flex items-center justify-center ${isOwnerOfThisCircle ? 'border-2 border-accent-primary shadow-[0_0_10px_rgba(var(--color-accent-primary),0.3)]' : 'border border-white/20'}`}>
-                                    {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-4 h-4 text-white/70" />}
-                                  </div>
-                                  <span className="text-[9px] text-white drop-shadow-md font-bold max-w-[55px] truncate text-center uppercase tracking-wider">{circle.name}</span>
-                                </div>
+                                <>
+                                  {displayCircles.map((circle: any) => {
+                                    const isOwnerOfThisCircle = circle.owner_id === post.user_id;
+                                    return (
+                                      <div key={circle.id} onClick={(e) => { e.stopPropagation(); navigate(`/circle/${circle.slug || circle.id}`); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
+                                        <div className={`w-8 h-8 rounded-full overflow-hidden shadow-sm bg-surface flex items-center justify-center ${isOwnerOfThisCircle ? 'border-[1.5px] border-accent-primary shadow-[0_0_8px_rgba(var(--color-accent-primary),0.4)]' : 'border border-white/20'}`}>
+                                          {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-4 h-4 text-white/70" />}
+                                        </div>
+                                        <span className="text-[9px] text-white drop-shadow-md font-bold max-w-[55px] truncate text-center uppercase tracking-wider">{circle.name}</span>
+                                      </div>
+                                    );
+                                  })}
+                                  {hasMore && (
+                                    <div onClick={(e) => { e.stopPropagation(); openOverlay(() => setPostCirclesModal(sortedCircles)); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
+                                      <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white backdrop-blur-md">
+                                        <ArrowLeft size={14} />
+                                      </div>
+                                      <span className="text-[9px] text-white drop-shadow-md font-bold text-center uppercase tracking-wider">הכל</span>
+                                    </div>
+                                  )}
+                                </>
                               );
-                            })}
+                            })()}
                           </div>
                         )}
 
@@ -873,17 +897,39 @@ export const HomePage: React.FC = () => {
                         
                         {post.user_circles && post.user_circles.length > 0 && !isLockedDrop && (
                           <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">
-                            {post.user_circles.slice(0, 10).map((circle: any) => {
-                              const isOwnerOfThisCircle = circle.owner_id === post.user_id;
+                            {(() => {
+                              const sortedCircles = [...post.user_circles].sort((a, b) => {
+                                const aOwner = a.owner_id === post.user_id ? -1 : 1;
+                                const bOwner = b.owner_id === post.user_id ? -1 : 1;
+                                return aOwner - bOwner;
+                              });
+                              const displayCircles = sortedCircles.slice(0, 20);
+                              const hasMore = sortedCircles.length > 20;
+
                               return (
-                                <div key={circle.id} onClick={(e) => { e.stopPropagation(); navigate(`/circle/${circle.slug || circle.id}`); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
-                                  <div className={`w-8 h-8 rounded-full overflow-hidden shadow-sm bg-surface flex items-center justify-center ${isOwnerOfThisCircle ? 'border-2 border-accent-primary shadow-[0_0_10px_rgba(var(--color-accent-primary),0.3)]' : 'border border-white/20'}`}>
-                                    {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-4 h-4 text-white/70" />}
-                                  </div>
-                                  <span className="text-[9px] text-white drop-shadow-md font-bold max-w-[55px] truncate text-center uppercase tracking-wider">{circle.name}</span>
-                                </div>
+                                <>
+                                  {displayCircles.map((circle: any) => {
+                                    const isOwnerOfThisCircle = circle.owner_id === post.user_id;
+                                    return (
+                                      <div key={circle.id} onClick={(e) => { e.stopPropagation(); navigate(`/circle/${circle.slug || circle.id}`); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
+                                        <div className={`w-8 h-8 rounded-full overflow-hidden shadow-sm bg-surface flex items-center justify-center ${isOwnerOfThisCircle ? 'border-[1.5px] border-accent-primary shadow-[0_0_8px_rgba(var(--color-accent-primary),0.5)]' : 'border border-white/20'}`}>
+                                          {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-4 h-4 text-white/70" />}
+                                        </div>
+                                        <span className="text-[9px] text-white drop-shadow-md font-bold max-w-[55px] truncate text-center uppercase tracking-wider">{circle.name}</span>
+                                      </div>
+                                    );
+                                  })}
+                                  {hasMore && (
+                                    <div onClick={(e) => { e.stopPropagation(); openOverlay(() => setPostCirclesModal(sortedCircles)); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
+                                      <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white backdrop-blur-md">
+                                        <ArrowLeft size={14} />
+                                      </div>
+                                      <span className="text-[9px] text-white drop-shadow-md font-bold text-center uppercase tracking-wider">הכל</span>
+                                    </div>
+                                  )}
+                                </>
                               );
-                            })}
+                            })()}
                           </div>
                         )}
 
@@ -994,8 +1040,7 @@ export const HomePage: React.FC = () => {
                               setActivePost(vid); 
                               setActiveCommentsPostId(vid.id); 
                               setLoadingComments(true); 
-                              supabase.from('comments').select('*, profiles(*)').eq('post_id', vid.id).order('created_at', { ascending: true })
-                                .then((r) => { setComments(r.data || []); setLoadingComments(false); }); 
+                              supabase.from('comments').select('*, profiles(*)').eq('post_id', vid.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); 
                             }); 
                           }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                             <MessageSquare size={32} strokeWidth={1.5} />
@@ -1013,16 +1058,42 @@ export const HomePage: React.FC = () => {
                               {vid.content}
                             </p>
                           )}
+                          
                           {vid.user_circles && vid.user_circles.length > 0 && (
                             <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">
-                              {vid.user_circles.slice(0, 10).map((circle: any) => (
-                                <div key={circle.id} onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/circle/${circle.slug || circle.id}`), 50); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
-                                  <div className="w-8 h-8 rounded-full overflow-hidden border border-white/20 shadow-sm bg-surface flex items-center justify-center">
-                                    {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-4 h-4 text-white/70" />}
-                                  </div>
-                                  <span className="text-[9px] text-white drop-shadow-md font-bold max-w-[55px] truncate text-center uppercase tracking-wider">{circle.name}</span>
-                                </div>
-                              ))}
+                              {(() => {
+                                const sortedCircles = [...vid.user_circles].sort((a, b) => {
+                                  const aOwner = a.owner_id === vid.user_id ? -1 : 1;
+                                  const bOwner = b.owner_id === vid.user_id ? -1 : 1;
+                                  return aOwner - bOwner;
+                                });
+                                const displayCircles = sortedCircles.slice(0, 20);
+                                const hasMore = sortedCircles.length > 20;
+
+                                return (
+                                  <>
+                                    {displayCircles.map((circle: any) => {
+                                      const isOwnerOfThisCircle = circle.owner_id === vid.user_id;
+                                      return (
+                                        <div key={circle.id} onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/circle/${circle.slug || circle.id}`), 50); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
+                                          <div className={`w-8 h-8 rounded-full overflow-hidden shadow-sm bg-surface flex items-center justify-center ${isOwnerOfThisCircle ? 'border-[1.5px] border-accent-primary shadow-[0_0_8px_rgba(var(--color-accent-primary),0.5)]' : 'border border-white/20'}`}>
+                                            {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-4 h-4 text-white/70" />}
+                                          </div>
+                                          <span className="text-[9px] text-white drop-shadow-md font-bold max-w-[55px] truncate text-center uppercase tracking-wider">{circle.name}</span>
+                                        </div>
+                                      );
+                                    })}
+                                    {hasMore && (
+                                      <div onClick={(e) => { e.stopPropagation(); openOverlay(() => setPostCirclesModal(sortedCircles)); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
+                                        <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white backdrop-blur-md">
+                                          <ArrowLeft size={14} />
+                                        </div>
+                                        <span className="text-[9px] text-white drop-shadow-md font-bold text-center uppercase tracking-wider">הכל</span>
+                                      </div>
+                                    )}
+                                  </>
+                                );
+                              })()}
                             </div>
                           )}
                           <div className="flex items-center justify-start pointer-events-auto">
@@ -1172,23 +1243,29 @@ export const HomePage: React.FC = () => {
             )}
           </AnimatePresence>
 
-          {/* 5. USER CIRCLES MODAL */}
+          {/* 5. POST CIRCLES MODAL (For >20 Circles in Post) */}
           <AnimatePresence>
-            {userCirclesModal && (
+            {postCirclesModal && (
               <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
                 <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[32px] p-6 flex flex-col gap-3 pb-12 max-h-[70vh] shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border">
                   <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>
-                  <h2 className="text-brand font-black text-lg mb-4">מועדונים ({userCirclesModal.length})</h2>
+                  <h2 className="text-brand font-black text-lg mb-4">פורסם ב- ({postCirclesModal.length}) מועדונים</h2>
                   <div className="flex flex-col gap-3 overflow-y-auto pr-1" onPointerDown={stopPropagation} onTouchStart={stopPropagation}>
-                    {userCirclesModal.map((c: any) => (
-                      <div key={c.id} onClick={() => { closeOverlay(); navigate(`/circle/${c.slug || c.id}`); }} className="flex items-center gap-4 bg-surface-card p-4 rounded-2xl cursor-pointer border border-surface-border active:scale-[0.98] transition-transform shadow-sm hover:bg-white/5">
-                        <div className="w-12 h-12 rounded-full bg-surface overflow-hidden border border-surface-border shrink-0 flex items-center justify-center shadow-inner">
-                          {c.cover_url ? <img src={c.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users size={20} className="text-brand-muted" />}
+                    {postCirclesModal.map((c: any) => {
+                      const isOwnerOfThisCircle = c.owner_id === (activePost || optionsMenuPost)?.user_id;
+                      return (
+                        <div key={c.id} onClick={() => { closeOverlay(); navigate(`/circle/${c.slug || c.id}`); }} className={`flex items-center gap-4 bg-surface-card p-4 rounded-2xl cursor-pointer active:scale-[0.98] transition-transform shadow-sm hover:bg-white/5 ${isOwnerOfThisCircle ? 'border-[1.5px] border-accent-primary' : 'border border-surface-border'}`}>
+                          <div className={`w-12 h-12 rounded-full bg-surface overflow-hidden shrink-0 flex items-center justify-center shadow-inner ${isOwnerOfThisCircle ? 'border-none' : 'border border-surface-border'}`}>
+                            {c.cover_url ? <img src={c.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users size={20} className="text-brand-muted" />}
+                          </div>
+                          <div className="flex flex-col flex-1">
+                            <span className="text-brand font-black text-[15px]">{c.name}</span>
+                            {isOwnerOfThisCircle && <span className="text-[10px] text-accent-primary font-black uppercase tracking-widest mt-0.5">בניהולו</span>}
+                          </div>
                         </div>
-                        <span className="text-brand font-black text-[15px]">{c.name}</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </motion.div>
               </div>
@@ -1275,6 +1352,6 @@ export const HomePage: React.FC = () => {
         </>,
         document.body
       )}
-    </>
+    </div>
   );
 };
