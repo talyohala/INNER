@@ -493,7 +493,7 @@ export const HomePage: React.FC = () => {
       if (editingCommentId) {
         const updateRes = await supabase.from('comments').update({ content: newComment.trim() }).eq('id', editingCommentId);
         if (updateRes.error) throw updateRes.error;
-        setComments((prev) => prev.map((c) => c.id === editingCommentId ? { ...c, content: newComment.trim() } : c));
+        setComments((prev) => prev.map((c) => (c.id === editingCommentId ? { ...c, content: newComment.trim() } : c)));
         setEditingCommentId(null);
       } else {
         const parentIdToUse = replyingTo ? (replyingTo.parent_id || replyingTo.id) : null;
@@ -753,498 +753,530 @@ export const HomePage: React.FC = () => {
                 );
               }
 
-              // -- REGULAR POST RENDER --                                  
-              const hasMedia = !!post.media_url;                       
-              const isVideo = post.media_url?.match(/\.(mp4|webm|mov)$/i);                                                      
-              const isCore = post.profiles?.role_label === 'CORE';                                                              
-              const isLockedDrop = post.is_reveal_drop && post.reveal_status === 'locked';                                                                                               
-              
-              return (                                                   
-                <div key={post.id} className="flex flex-col rounded-[24px] bg-surface-card border border-surface-border overflow-hidden shadow-sm">                                                                                                   
-                  
-                  {hasMedia && (                                             
-                    <div className="w-full relative cursor-pointer bg-surface" onClick={() => { if (!isLockedDrop) handleOpenFullscreen(post); }}>                                               
-                      {isVideo ? (                                               
-                        <video src={post.media_url} autoPlay loop muted playsInline preload="metadata" className={`w-full max-h-[550px] object-cover ${isLockedDrop ? 'blur-xl grayscale' : ''}`} />                                                      
-                      ) : (                                                      
-                        <img src={post.media_url} onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Media+Unavailable'; }} className={`w-full max-h-[550px] object-cover ${isLockedDrop ? 'blur-xl grayscale' : ''}`} loading="lazy" decoding="async" />                          
-                      )}                                                                                                                
-                      
-                      {isLockedDrop && (                                         
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 z-20 gap-3 p-6" onClick={(e) => { e.stopPropagation(); openOverlay(()=>setContributeModal(post)); }}>                                          
-                          <div className="w-16 h-16 rounded-full bg-surface/80 backdrop-blur-md flex items-center justify-center border border-white/10 shadow-lg mb-2">                               
-                            <Lock size={28} className="text-white" />                                                                       
-                          </div>                                                   
-                          <span className="text-white font-black text-lg tracking-widest">דרופ נעול</span>                                                                                           
-                          <div className="w-full max-w-[200px] flex flex-col gap-1 mt-2">                                                     
-                            <div className="flex justify-between text-[11px] font-black text-white/80 tracking-widest uppercase">                                                                        
-                              <span>{post.current_crd} נאסף</span>                                                                              
-                              <span>{post.required_crd} יעד</span>                                                                            
-                            </div>                                                   
-                            <div className="w-full h-2 bg-surface/50 rounded-full overflow-hidden border border-white/10">                                                                               
-                              <div className="h-full bg-accent-primary" style={{ width: `${Math.min(100, (post.current_crd / post.required_crd) * 100)}%` }} />                                        
-                            </div>                                                 
-                          </div>                                                 
-                        </div>                                                 
-                      )}                                                                                                                
-                      
-                      <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-24 bg-gradient-to-t from-black/60 via-black/20 to-transparent flex flex-col justify-end pointer-events-none z-20">                                                                                                                    
-                        
-                        {post.content && (                                         
-                          <p onClick={(e) => { e.stopPropagation(); if(isLockedDrop) openOverlay(()=>setContributeModal(post)); else openOverlay(() => setActiveDescPost(post)); }} className={`text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] text-[15px] font-medium text-right line-clamp-2 pointer-events-auto cursor-pointer mb-3 ${isLockedDrop ? 'select-none blur-sm opacity-50' : ''}`}>                                      
-                            {post.content}                                         
-                          </p>                                                   
-                        )}                                                                                                                
-                        
-                        {post.user_circles && post.user_circles.length > 0 && !isLockedDrop && (                                            
-                          <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">                                                                            
-                            {post.user_circles.slice(0, 10).map((circle: any) => (                                                              
-                              <div key={circle.id} onClick={(e) => { e.stopPropagation(); navigate(`/circle/${circle.slug || circle.id}`); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">                                                                   
-                                <div className="w-8 h-8 rounded-full overflow-hidden border border-white/20 shadow-sm bg-surface flex items-center justify-center">                                          
-                                  {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-4 h-4 text-white/70" />}                                                                           
-                                </div>                                                   
-                                <span className="text-[9px] text-white drop-shadow-md font-bold max-w-[55px] truncate text-center uppercase tracking-wider">{circle.name}</span>                                                                                  
-                              </div>                                                 
-                            ))}                                                    
-                          </div>                                                 
-                        )}                                                                                                                
-                        
-                        <div className="flex items-center justify-between gap-2 mt-1 pointer-events-auto">                                                                                           
-                          <div className="flex items-center gap-2.5 cursor-pointer group" onClick={(e) => { e.stopPropagation(); navigate(`/profile/${post.user_id}`); }}>                             
-                            <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden shrink-0 shadow-sm bg-surface flex items-center justify-center">                               
-                              {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" loading="lazy" /> : <span className="text-white font-black text-lg flex items-center justify-center leading-none">{(post.profiles?.full_name || 'א')[0]}</span>}                                                                            
-                            </div>                                                   
-                            <div className="flex flex-col text-right">                                                                          
-                              <div className="flex items-center gap-1.5">                                                                         
-                                <span className="text-white font-black text-[14px] drop-shadow-md">{post.profiles?.full_name || 'אנונימי'}</span>                                                          
-                                {isCore && <Crown size={12} className="text-accent-primary drop-shadow-md" />}                                  
-                              </div>                                                   
-                              <span className="text-white/80 text-[10px] font-bold drop-shadow-md">{new Date(post.created_at).toLocaleDateString('he-IL')}</span>                                      
-                            </div>                                                 
-                          </div>                                                                                                            
-                          
-                          <div className="flex items-center gap-4 flex-row-reverse mr-auto">                                                  
-                            {!isLockedDrop && (                                        
-                              <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(post)); }} className="active:scale-90 text-white drop-shadow-md hover:text-white/80 transition-colors">                                           
-                                <MoreVertical size={20} />                                                                                      
-                              </button>                                              
-                            )}                                                       
-                            {!isLockedDrop && (                                        
-                              <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(post); setActiveCommentsPostId(post.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', post.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); }); }} className="flex items-center gap-1.5 active:scale-90 text-white drop-shadow-md hover:text-white/80 transition-colors">                                                       
-                                <MessageSquare size={20} />                                                                                       
-                                <span className="text-[13px] font-black">{post.comments_count}</span>                                           
-                              </button>                                              
-                            )}                                                       
-                            {!isLockedDrop && (                                        
-                              <button onClick={(e) => { e.stopPropagation(); if (post.has_sealed) handleRemoveSeal(post.id); else openOverlay(() => setSealSelectorPost(post)); }} className={`flex items-center gap-1.5 active:scale-90 transition-transform drop-shadow-md ${post.has_sealed ? 'text-orange-500' : 'text-white hover:text-orange-400'}`}>                                                                                
-                                <Flame size={22} fill={post.has_sealed ? 'currentColor' : 'none'} />                                              
-                                <span className="text-[13px] font-black">{post.seals_count || 0}</span>                                         
-                              </button>                                              
-                            )}                                                     
-                          </div>                                                 
-                        </div>                                                 
-                      </div>                                                 
-                    </div>                                                 
-                  )}                                                                                                                
-                  
-                  {!hasMedia && (                                            
-                    <div className="w-full relative bg-[#0a0a0a] min-h-[380px] max-h-[550px] flex flex-col justify-between cursor-pointer group rounded-[24px]" onClick={() => { if(isLockedDrop) openOverlay(()=>setContributeModal(post)); else openOverlay(() => setActiveDescPost(post)); }}>                             
-                      {isLockedDrop && (                                         
-                        <div className="absolute inset-0 bg-surface/80 backdrop-blur-md flex flex-col items-center justify-center z-30 gap-2 rounded-[24px]">                                                       
-                          <Lock size={24} className="text-brand-muted" />                                                                   
-                          <span className="text-[12px] font-black tracking-widest uppercase">דרופ נעול</span>                               
-                          <div className="w-[150px] bg-surface-card border border-surface-border rounded-full h-1.5 mt-1 overflow-hidden">                                                             
-                            <div className="h-full bg-accent-primary" style={{ width: `${Math.min(100, (post.current_crd / post.required_crd) * 100)}%` }} />                                        
-                          </div>                                                 
-                        </div>                                                 
-                      )}                                                       
+              const hasMedia = !!post.media_url;
+              const isVideo = post.media_url?.match(/\.(mp4|webm|mov)$/i);
+              const isCore = post.profiles?.role_label === 'CORE';
+              const isLockedDrop = post.is_reveal_drop && post.reveal_status === 'locked';
+
+              return (
+                <div key={post.id} className="flex flex-col rounded-[24px] bg-surface-card border border-surface-border overflow-hidden shadow-sm">
+                  {hasMedia && (
+                    <div className="w-full relative cursor-pointer bg-surface" onClick={() => { if (!isLockedDrop) handleOpenFullscreen(post); }}>
+                      {isVideo ? (
+                        <video src={post.media_url} autoPlay loop muted playsInline preload="metadata" className={`w-full max-h-[550px] object-cover ${isLockedDrop ? 'blur-xl grayscale' : ''}`} />
+                      ) : (
+                        <img src={post.media_url} onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Media+Unavailable'; }} className={`w-full max-h-[550px] object-cover ${isLockedDrop ? 'blur-xl grayscale' : ''}`} loading="lazy" decoding="async" />
+                      )}
+
+                      {isLockedDrop && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 z-20 gap-3 p-6" onClick={(e) => { e.stopPropagation(); openOverlay(()=>setContributeModal(post)); }}>
+                          <div className="w-16 h-16 rounded-full bg-surface/80 backdrop-blur-md flex items-center justify-center border border-white/10 shadow-lg mb-2">
+                            <Lock size={28} className="text-white" />
+                          </div>
+                          <span className="text-white font-black text-lg tracking-widest">דרופ נעול</span>
+                          <div className="w-full max-w-[200px] flex flex-col gap-1 mt-2">
+                            <div className="flex justify-between text-[11px] font-black text-white/80 tracking-widest uppercase">
+                              <span>{post.current_crd} נאסף</span>
+                              <span>{post.required_crd} יעד</span>
+                            </div>
+                            <div className="w-full h-2 bg-surface/50 rounded-full overflow-hidden border border-white/10">
+                              <div className="h-full bg-accent-primary" style={{ width: `${Math.min(100, (post.current_crd / post.required_crd) * 100)}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-24 bg-gradient-to-t from-black/60 via-black/20 to-transparent flex flex-col justify-end pointer-events-none z-20">
+                        {post.content && (
+                          <p onClick={(e) => { e.stopPropagation(); if(isLockedDrop) openOverlay(()=>setContributeModal(post)); else openOverlay(() => setActiveDescPost(post)); }} className={`text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] text-[15px] font-medium text-right line-clamp-2 pointer-events-auto cursor-pointer mb-3 ${isLockedDrop ? 'select-none blur-sm opacity-50' : ''}`}>
+                            {post.content}
+                          </p>
+                        )}
+
+                        {post.user_circles && post.user_circles.length > 0 && !isLockedDrop && (
+                          <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">
+                            {post.user_circles.slice(0, 10).map((circle: any) => {
+                              // הילה סביב המועדון אם המשתמש הוא הבעלים
+                              const isOwnerOfThisCircle = circle.owner_id === post.user_id;
+                              
+                              return (
+                                <div key={circle.id} onClick={(e) => { e.stopPropagation(); navigate(`/circle/${circle.slug || circle.id}`); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
+                                  <div className={`w-8 h-8 rounded-full overflow-hidden shadow-sm bg-surface flex items-center justify-center ${isOwnerOfThisCircle ? 'border-2 border-accent-primary' : 'border border-white/20'}`}>
+                                    {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-4 h-4 text-white/70" />}
+                                  </div>
+                                  <span className="text-[9px] text-white drop-shadow-md font-bold max-w-[55px] truncate text-center uppercase tracking-wider">{circle.name}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between gap-2 mt-1 pointer-events-auto">
+                          <div className="flex items-center gap-2.5 cursor-pointer group" onClick={(e) => { e.stopPropagation(); navigate(`/profile/${post.user_id}`); }}>
+                            <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden shrink-0 shadow-sm bg-surface flex items-center justify-center">
+                              {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" loading="lazy" /> : <span className="text-white font-black text-lg flex items-center justify-center leading-none">{(post.profiles?.full_name || 'א')[0]}</span>}
+                            </div>
+                            <div className="flex flex-col text-right">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-white font-black text-[14px] drop-shadow-md">{post.profiles?.full_name || 'אנונימי'}</span>
+                                {isCore && <Crown size={12} className="text-accent-primary drop-shadow-md" />}
+                              </div>
+                              <span className="text-white/80 text-[10px] font-bold drop-shadow-md">{new Date(post.created_at).toLocaleDateString('he-IL')}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-4 flex-row-reverse mr-auto">
+                            {!isLockedDrop && (
+                              <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(post)); }} className="active:scale-90 text-white drop-shadow-md hover:text-white/80 transition-colors">
+                                <MoreVertical size={20} />
+                              </button>
+                            )}
+                            {!isLockedDrop && (
+                              <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(post); setActiveCommentsPostId(post.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', post.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); }); }} className="flex items-center gap-1.5 active:scale-90 text-white drop-shadow-md hover:text-white/80 transition-colors">
+                                <MessageSquare size={20} />
+                                <span className="text-[13px] font-black">{post.comments_count}</span>
+                              </button>
+                            )}
+                            {!isLockedDrop && (
+                              <button onClick={(e) => { e.stopPropagation(); if (post.has_sealed) handleRemoveSeal(post.id); else openOverlay(() => setSealSelectorPost(post)); }} className={`flex items-center gap-1.5 active:scale-90 transition-transform drop-shadow-md ${post.has_sealed ? 'text-orange-500' : 'text-white hover:text-orange-400'}`}>
+                                <Flame size={22} fill={post.has_sealed ? 'currentColor' : 'none'} />
+                                <span className="text-[13px] font-black">{post.seals_count || 0}</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {!hasMedia && (
+                    <div className="w-full relative bg-[#0a0a0a] min-h-[380px] max-h-[550px] flex flex-col justify-between cursor-pointer group rounded-[24px]" onClick={() => { if(isLockedDrop) openOverlay(()=>setContributeModal(post)); else openOverlay(() => setActiveDescPost(post)); }}>
+                      {isLockedDrop && (
+                        <div className="absolute inset-0 bg-surface/80 backdrop-blur-md flex flex-col items-center justify-center z-30 gap-2 rounded-[24px]">
+                          <Lock size={24} className="text-brand-muted" />
+                          <span className="text-[12px] font-black tracking-widest uppercase">דרופ נעול</span>
+                          <div className="w-[150px] bg-surface-card border border-surface-border rounded-full h-1.5 mt-1 overflow-hidden">
+                            <div className="h-full bg-accent-primary" style={{ width: `${Math.min(100, (post.current_crd / post.required_crd) * 100)}%` }} />
+                          </div>
+                        </div>
+                      )}
                       
                       <div className={`p-6 pt-8 pb-32 flex-1 flex flex-col relative z-10 ${isLockedDrop ? 'blur-sm opacity-50' : ''}`}>
-                         <p className={`text-white/90 text-[17px] font-medium leading-relaxed text-right whitespace-pre-wrap break-words ${(post.content || '').length > 200 ? 'line-clamp-6' : ''}`}>
-                           {post.content}
-                         </p>
-                         {(post.content || '').length > 200 && (
-                           <div className="mt-2 flex items-center gap-1 text-accent-primary text-[12px] font-bold">
-                             קרא הכל <ChevronDown size={14} />
-                           </div>
-                         )}
+                        <p className={`text-white/90 text-[17px] font-medium leading-relaxed text-right whitespace-pre-wrap break-words ${(post.content || '').length > 200 ? 'line-clamp-6' : ''}`}>
+                          {post.content}
+                        </p>
+                        {(post.content || '').length > 200 && (
+                          <div className="mt-2 flex items-center gap-1 text-accent-primary text-[12px] font-bold">
+                            קרא הכל <ChevronDown size={14} />
+                          </div>
+                        )}
                       </div>
                       
                       <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-24 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end pointer-events-none z-20 rounded-b-[24px]">
                         
-                        {post.user_circles && post.user_circles.length > 0 && !isLockedDrop && (                                            
-                          <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">                                                                            
-                            {post.user_circles.slice(0, 10).map((circle: any) => (                                                              
-                              <div key={circle.id} onClick={(e) => { e.stopPropagation(); navigate(`/circle/${circle.slug || circle.id}`); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">                                                                   
-                                <div className="w-8 h-8 rounded-full overflow-hidden border border-white/20 shadow-sm bg-surface flex items-center justify-center">                                          
-                                  {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-4 h-4 text-white/70" />}                                                                           
-                                </div>                                                   
-                                <span className="text-[9px] text-white drop-shadow-md font-bold max-w-[55px] truncate text-center uppercase tracking-wider">{circle.name}</span>                                                                                  
-                              </div>                                                 
-                            ))}                                                    
-                          </div>                                                 
-                        )}                                                                                                                
-                        
-                        <div className="flex items-center justify-between gap-2 mt-1 pointer-events-auto">                                                                                           
-                          <div className="flex items-center gap-2.5 cursor-pointer group" onClick={(e) => { e.stopPropagation(); navigate(`/profile/${post.user_id}`); }}>                             
-                            <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden shrink-0 shadow-sm bg-surface flex items-center justify-center">                               
-                              {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" loading="lazy" /> : <span className="text-white font-black text-lg flex items-center justify-center leading-none">{(post.profiles?.full_name || 'א')[0]}</span>}                                                                            
-                            </div>                                                   
-                            <div className="flex flex-col text-right">                                                                          
-                              <div className="flex items-center gap-1.5">                                                                         
-                                <span className="text-white font-black text-[14px] drop-shadow-md">{post.profiles?.full_name || 'אנונימי'}</span>                                                          
-                                {isCore && <Crown size={12} className="text-accent-primary drop-shadow-md" />}                                  
-                              </div>                                                   
-                              <span className="text-white/80 text-[10px] font-bold drop-shadow-md">{new Date(post.created_at).toLocaleDateString('he-IL')}</span>                                      
-                            </div>                                                 
-                          </div>                                                                                                            
-                          
-                          <div className="flex items-center gap-4 flex-row-reverse mr-auto">                                                  
-                            {!isLockedDrop && (                                        
-                              <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(post)); }} className="active:scale-90 text-white drop-shadow-md hover:text-white/80 transition-colors">                                           
-                                <MoreVertical size={20} />                                                                                      
-                              </button>                                              
-                            )}                                                       
-                            {!isLockedDrop && (                                        
-                              <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(post); setActiveCommentsPostId(post.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', post.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); }); }} className="flex items-center gap-1.5 active:scale-90 text-white drop-shadow-md hover:text-white/80 transition-colors">                                                       
-                                <MessageSquare size={20} />                                                                                       
-                                <span className="text-[13px] font-black">{post.comments_count}</span>                                           
-                              </button>                                              
-                            )}                                                       
-                            {!isLockedDrop && (                                        
-                              <button onClick={(e) => { e.stopPropagation(); if (post.has_sealed) handleRemoveSeal(post.id); else openOverlay(() => setSealSelectorPost(post)); }} className={`flex items-center gap-1.5 active:scale-90 transition-transform drop-shadow-md ${post.has_sealed ? 'text-orange-500' : 'text-white hover:text-orange-400'}`}>                                                                                
-                                <Flame size={22} fill={post.has_sealed ? 'currentColor' : 'none'} />                                              
-                                <span className="text-[13px] font-black">{post.seals_count || 0}</span>                                         
-                              </button>                                              
-                            )}                                                     
-                          </div>                                                 
-                        </div>                                                 
-                      </div>                                                 
-                    </div>                                                 
-                  )}                                                     
-                </div>                                                 
-              );                                                     
-            })}                                                    
-          </div>                                                 
-        </div>                                                 
-      </FadeIn>                                                                                                         
-      
-      {mounted && typeof document !== 'undefined' && createPortal(                                                        
-        <AnimatePresence>                                                                                                   
-          
-          {sealSelectorPost && (                                     
-            <div className="fixed inset-0 z-[9999999] flex flex-col justify-end p-4" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                             
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                             
-              <motion.div initial={{ y: '100%', scale: 0.95 }} animate={{ y: 0, scale: 1 }} exit={{ y: '100%', scale: 0.95 }} transition={{ type: 'spring', damping: 25, stiffness: 400 }} className="relative z-10 bg-surface border border-surface-border rounded-[32px] p-8 shadow-2xl flex flex-col items-center gap-6">                                          
-                <div className="w-12 h-1.5 bg-white/10 rounded-full mb-2" />                                                      
-                <div className="text-center">                              
-                  <h3 className="text-brand font-black text-xl tracking-tighter uppercase">הענק חותם יוקרה</h3>                     
-                  <p className="text-brand-muted text-[13px] mt-2 font-medium">החותם יישאר לשבוע ויעניק ליוצר XP</p>                                                                       
-                </div>                                                                                                            
-                <div className="grid grid-cols-3 gap-4 w-full">                                                                     
-                  {SEAL_TYPES.map((type) => (                                
-                    <button                                                    
-                      key={type.id}                                            
-                      onClick={() => handleSeal(sealSelectorPost.id, type.id)}                                                          
-                      className="flex flex-col items-center gap-3 p-5 rounded-[24px] bg-surface-card border border-surface-border hover:bg-white/5 transition-all active:scale-95 shadow-sm"                                                            
-                    >                                                          
-                      <div className={`${type.color} drop-shadow-lg`}>{type.icon}</div>                                                 
-                      <div className="flex flex-col items-center gap-1">                                                                  
-                        <span className="text-brand font-black text-[12px] uppercase tracking-widest">{type.label}</span>                                                                          
-                        <span className="text-accent-primary bg-accent-primary/10 border border-accent-primary/20 px-2 py-0.5 rounded-md text-[10px] font-black tracking-widest">+{type.xp} XP</span>                                                     
-                      </div>                                                 
-                    </button>                                              
-                  ))}                                                    
-                </div>                                                 
-              </motion.div>                                          
-            </div>                                                 
-          )}                                                                                                                
-          
-          {fullScreenMedia && (                                      
-            <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed inset-0 z-[999999] bg-surface">                     
-              <div className="w-full h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide" onScroll={handleContainerScroll}>                                                      
-                {fullScreenMedia.map((vid, idx) => {                       
-                  const isVid = vid.media_url?.match(/\.(mp4|webm|mov)$/i);                                                         
-                  return (                                                   
-                    <div key={vid._uid || `${vid.id}-${idx}`} className="w-full h-screen snap-center relative bg-surface flex items-center justify-center">                                      
-                      {isVid ? (                                                 
-                        <video src={vid.media_url} loop playsInline className="w-full h-full object-cover full-media-item" onClick={(e) => (e.currentTarget.paused ? e.currentTarget.play() : e.currentTarget.pause())} />                                
-                      ) : (                                                      
-                        <img src={vid.media_url} className="w-full h-full object-contain full-media-item" onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Media+Unavailable'; }} loading="lazy" />                                                                              
-                      )}                                                                                                                
-                      
-                      <div className="absolute bottom-32 left-4 flex flex-col gap-6 items-center z-50 pointer-events-auto">                                                                        
-                        <button onClick={(e) => { e.stopPropagation(); if(vid.has_sealed) handleRemoveSeal(vid.id); else openOverlay(() => setSealSelectorPost(vid)); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform">                                                     
-                          <Flame size={32} className={vid.has_sealed ? 'text-orange-500' : 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]'} fill={vid.has_sealed ? 'currentColor' : 'none'} strokeWidth={1.5} />                                         
-                          <span className="text-white text-[13px] font-black drop-shadow-md">{vid.seals_count || 0}</span>                                                                         
-                        </button>                                                
-                        <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(vid); setActiveCommentsPostId(vid.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', vid.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); }); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">                                           
-                          <MessageSquare size={32} strokeWidth={1.5} />                                                                     
-                          <span className="text-white text-[13px] font-black drop-shadow-md">{vid.comments_count}</span>                                                                           
-                        </button>                                              
-                      </div>                                                                                                            
-                      
-                      <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }} className="absolute bottom-8 left-5 z-[60] active:scale-90 transition-transform drop-shadow-md pointer-events-auto">                                                          
-                        <MoreVertical size={28} className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />                       
-                      </button>
-
-                      <button onClick={(e) => { e.stopPropagation(); closeOverlay(); }} className="absolute top-10 right-4 z-[60] active:scale-90 transition-transform p-2 bg-black/40 backdrop-blur-md rounded-full text-white shadow-md">
-                        <X size={24} />
-                      </button>
-                      
-                      <div className="absolute bottom-0 left-0 right-0 px-5 pb-8 pt-32 bg-gradient-to-t from-black/60 via-black/20 to-transparent flex flex-col pointer-events-none">                                                                                                                                
-                        {vid.content && (                                          
-                          <p className="text-white drop-shadow-md text-[15px] font-medium text-right max-w-[85%] line-clamp-3 pointer-events-auto cursor-pointer mb-4" onClick={(e) => { e.stopPropagation(); openOverlay(() => setActiveDescPost(vid)); }}>                                                             
-                            {vid.content}                                          
-                          </p>                                                   
-                        )}                                                                                                                
-                        
-                        {vid.user_circles && vid.user_circles.length > 0 && (                                                               
-                          <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">                                                                            
-                            {vid.user_circles.slice(0, 10).map((circle: any) => (                                                               
-                              <div key={circle.id} onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/circle/${circle.slug || circle.id}`), 50); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">                                                                                      
-                                <div className="w-8 h-8 rounded-full overflow-hidden border border-white/20 shadow-sm bg-surface flex items-center justify-center">                                          
-                                  {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-4 h-4 text-white/70" />}                                                                           
-                                </div>                                                   
-                                <span className="text-[9px] text-white drop-shadow-md font-bold max-w-[55px] truncate text-center uppercase tracking-wider">{circle.name}</span>                                                                                  
-                              </div>                                                 
-                            ))}                                                    
-                          </div>                                                 
-                        )}                                                                                                                
-                        
-                        <div className="flex items-center justify-start pointer-events-auto">                                               
-                          <div className="flex items-center gap-3 cursor-pointer" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${vid.user_id}`), 50); }}>                                                         
-                            <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden shrink-0 shadow-sm bg-surface flex items-center justify-center">                               
-                              {vid.profiles?.avatar_url ? <img src={vid.profiles.avatar_url} className="w-full h-full object-cover" loading="lazy" /> : <span className="text-white font-black text-lg flex items-center justify-center leading-none">{(vid.profiles?.full_name || 'א')[0]}</span>}                                                                               
-                            </div>                                                   
-                            <div className="flex flex-col text-right">                                                                          
-                              <span className="text-white font-black text-[15px] drop-shadow-md">{vid.profiles?.full_name || 'אנונימי'}</span>                                                           
-                              <span className="text-white/80 text-[10px] font-bold drop-shadow-md">{new Date(vid.created_at).toLocaleDateString('he-IL')}</span>                                       
-                            </div>                                                 
-                          </div>                                                 
-                        </div>                                                 
-                      </div>                                                 
-                    </div>                                                 
-                  );                                                     
-                })}                                                    
-              </div>                                                 
-            </motion.div>                                          
-          )}                                                                                                                
-          
-          {activeCommentsPostId && (                                 
-            <div className="fixed inset-0 z-[9999999]" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                 
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                         
-              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 400 }} className="absolute bottom-0 w-full bg-surface rounded-t-[32px] h-[80vh] flex flex-col overflow-hidden pb-10 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border">                
-                <div className="w-full py-5 flex justify-center cursor-grab active:cursor-grabbing border-b border-surface-border"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>                                                                                                             
-                <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-6 scrollbar-hide">                                     
-                  {loadingComments ? (
-                    <Loader2 className="animate-spin mx-auto text-brand-muted mt-10" />
-                  ) : sortedParentComments.length === 0 ? (
-                    <div className="text-center text-brand-muted text-[13px] font-bold mt-10 tracking-widest uppercase">אין תגובות עדיין</div>
-                  ) : (
-                    sortedParentComments.map((c) => {                                                                            
-                      const replies = comments.filter((r) => r && r.parent_id === c.id).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());                                                
-                      const isThreadExpanded = expandedThreads[c.id];                                                                   
-                      
-                      return (                                                   
-                        <div key={c.id} className="flex flex-col gap-2 relative">                                                                    
-                          <div className="flex gap-3 relative z-10">                               
-                            <div className="w-10 h-10 min-w-[40px] rounded-full bg-surface-card shrink-0 overflow-hidden cursor-pointer border border-surface-border flex items-center justify-center shadow-inner" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${c.user_id}`), 50); }}>                                             
-                              {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover object-center" loading="lazy" /> : <span className="text-brand-muted font-black text-sm flex items-center justify-center leading-none">{(c.profiles?.full_name || 'א')[0]}</span>}                                                                 
-                            </div>                                                   
-                            <div className="flex flex-col flex-1">                                                                              
-                              <div className="bg-surface-card p-4 rounded-[20px] rounded-tr-sm cursor-pointer shadow-sm border border-surface-border w-fit max-w-[95%]" onClick={() => openOverlay(() => setCommentActionModal(c))}>                                                  
-                                <span className="text-brand font-black text-[13px] mb-1.5 inline-block uppercase tracking-widest" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${c.user_id}`), 50); }}>{c.profiles?.full_name || 'אנונימי'}</span>                                                                                      
-                                <p className="text-brand text-[14px] whitespace-pre-wrap leading-relaxed">{renderCommentText(c.content)}</p>                                                             
-                              </div>                                                   
-                              <div className="flex items-center gap-4 mt-2 px-2">                                                                 
-                                <span className="text-[11px] text-brand-muted cursor-pointer font-bold hover:text-brand transition-colors" onClick={() => { setReplyingTo(c); setNewComment(`@${c.profiles?.full_name} `); }}>השב</span>                                                                                     
-                                <button onClick={() => toggleCommentLike(c.id)} className={`ml-auto flex items-center gap-1 active:scale-90 transition-transform ${likedComments.has(c.id) ? 'text-orange-500' : 'text-brand-muted hover:text-orange-400'}`}>                                                                      
-                                  <Flame size={14} fill={likedComments.has(c.id) ? 'currentColor' : 'none'} />                                    
-                                </button>                                              
-                              </div>                                                   
+                        {post.user_circles && post.user_circles.length > 0 && !isLockedDrop && (
+                          <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">
+                            {post.user_circles.slice(0, 10).map((circle: any) => {
+                              // הילה סביב המועדון אם המשתמש הוא הבעלים
+                              const isOwnerOfThisCircle = circle.owner_id === post.user_id;
                               
-                              {replies.length > 0 && (                                   
-                                <button onClick={() => setExpandedThreads((prev) => ({ ...prev, [c.id]: !prev[c.id] }))} className="text-right text-[12px] font-black text-accent-primary hover:text-accent-primary/80 transition-colors mt-2 flex items-center gap-1.5 pr-1">                                                                      
-                                  {isThreadExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />} 
-                                  {isThreadExpanded ? 'הסתר שרשור' : `צפה ב-${replies.length} תגובות נוספות בשיחה`}                                                                                    
-                                </button>                                              
-                              )}                                                     
-                            </div>                                                 
-                          </div>                                                   
-                          
-                          {isThreadExpanded && (                                                                       
-                            <div className="pr-12 flex flex-col gap-4 mt-3 relative">                                                     
-                              <div className="absolute right-5 top-0 bottom-4 w-[1.5px] bg-surface-border z-0" />
-                              {replies.map((reply) => (
-                                <div key={reply.id} className="flex gap-3 relative z-10">
-                                  <div className="absolute right-[-28px] top-[-12px] w-[20px] h-6 border-r-[1.5px] border-b-[1.5px] border-surface-border rounded-br-[12px] z-0" />
-                                  <div className="w-8 h-8 min-w-[32px] rounded-full bg-surface-card shrink-0 overflow-hidden cursor-pointer border border-surface-border flex items-center justify-center shadow-inner relative z-10" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${reply.user_id}`), 50); }}>                                                   
-                                    {reply.profiles?.avatar_url ? <img src={reply.profiles.avatar_url} className="w-full h-full object-cover object-center" loading="lazy" /> : <span className="text-brand-muted font-black text-[10px] flex items-center justify-center leading-none">{(reply.profiles?.full_name || 'א')[0]}</span>}                                                 
-                                  </div>                                                   
-                                  <div className="flex flex-col flex-1">                                                                         
-                                    <div className="bg-surface/50 p-3 rounded-[16px] rounded-tr-sm cursor-pointer border border-surface-border shadow-sm w-fit max-w-[95%]" onClick={() => openOverlay(() => setCommentActionModal(reply))}>                                                
-                                      <span className="text-brand font-black text-[11px] mb-1.5 inline-block tracking-widest uppercase" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${reply.user_id}`), 50); }}>{reply.profiles?.full_name || 'אנונימי'}</span>                                                                              
-                                      <p className="text-brand text-[13px] whitespace-pre-wrap leading-relaxed">{renderCommentText(reply.content)}</p>                                                         
-                                    </div>                                                   
-                                    <div className="flex items-center gap-4 mt-2 px-2">                                                                 
-                                      <span className="text-[10px] text-brand-muted cursor-pointer font-bold hover:text-brand transition-colors" onClick={() => { setReplyingTo(c); setNewComment(`@${reply.profiles?.full_name} `); }}>השב</span>                                                                                 
-                                      <button onClick={() => toggleCommentLike(reply.id)} className={`ml-auto flex items-center gap-1 active:scale-90 transition-transform ${likedComments.has(reply.id) ? 'text-orange-500' : 'text-brand-muted hover:text-orange-400'}`}>                                                              
-                                        <Flame size={12} fill={likedComments.has(reply.id) ? 'currentColor' : 'none'} />                                
-                                      </button>                                              
-                                    </div>                                                 
-                                  </div>                                                 
+                              return (
+                                <div key={circle.id} onClick={(e) => { e.stopPropagation(); navigate(`/circle/${circle.slug || circle.id}`); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
+                                  <div className={`w-8 h-8 rounded-full overflow-hidden shadow-sm bg-surface flex items-center justify-center ${isOwnerOfThisCircle ? 'border-2 border-accent-primary' : 'border border-white/20'}`}>
+                                    {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-4 h-4 text-white/70" />}
+                                  </div>
+                                  <span className="text-[9px] text-white drop-shadow-md font-bold max-w-[55px] truncate text-center uppercase tracking-wider">{circle.name}</span>
                                 </div>
-                              ))}
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between gap-2 mt-1 pointer-events-auto">
+                          <div className="flex items-center gap-2.5 cursor-pointer group" onClick={(e) => { e.stopPropagation(); navigate(`/profile/${post.user_id}`); }}>
+                            <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden shrink-0 shadow-sm bg-surface flex items-center justify-center">
+                              {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" loading="lazy" /> : <span className="text-white font-black text-lg flex items-center justify-center leading-none">{(post.profiles?.full_name || 'א')[0]}</span>}
                             </div>
-                          )}                                                    
-                        </div>                                                 
-                      );                                                     
-                    })
-                  )}                                                    
-                </div>                                                                                                            
-                
-                <div className="p-4 border-t border-surface-border flex flex-col gap-2 bg-surface">                                 
-                  {replyingTo && !editingCommentId && (                      
-                    <div className="text-[11px] text-brand flex items-center justify-between px-4 py-2 bg-surface-card border border-surface-border rounded-[12px] w-fit mb-1 shadow-sm gap-2">                                                                 
-                      <span className="font-bold mr-1.5 flex items-center gap-2"><Reply size={12} className="rtl:-scale-x-100 text-brand-muted"/> משיב ל-@{replyingTo.profiles?.full_name}</span>                                                         
-                      <X size={14} className="cursor-pointer text-brand-muted hover:text-brand" onClick={() => { setReplyingTo(null); setNewComment(''); }} />                                 
-                    </div>                                                 
-                  )}                                                       
-                  {editingCommentId && (                                     
-                    <div className="text-[11px] text-accent-primary flex justify-between px-2 font-bold mb-1 uppercase tracking-widest">                                                         
-                      <span>עורך תגובה...</span>                               
-                      <span onClick={() => { setEditingCommentId(null); setNewComment(''); }} className="cursor-pointer text-brand-muted hover:text-brand">ביטול</span>                        
-                    </div>                                                 
-                  )}                                                       
-                  <div className="flex gap-2 items-center bg-surface-card rounded-[20px] p-1.5 pl-2 border border-surface-border shadow-inner">                                                
-                    <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="הוסף תגובה לדיון..." className="flex-1 bg-transparent px-4 text-brand text-[14px] outline-none placeholder:text-brand-muted" />                                                                 
-                    <button                                                    
-                      onClick={submitComment}                                  
-                      disabled={!newComment.trim()}                            
-                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md active:scale-95 disabled:opacity-30 ${newComment.trim() ? 'bg-accent-primary text-white opacity-100' : 'bg-surface-border text-brand-muted'}`}                                                                  
-                    >                                                          
-                      <Send size={16} className="rtl:-scale-x-100 -ml-0.5" />                                                         
-                    </button>                                              
-                  </div>                                                 
-                </div>                                                 
-              </motion.div>                                          
-            </div>                                                 
-          )}                                                                                                                
-          
-          {commentActionModal && (                                   
-            <div className="fixed inset-0 z-[99999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                         
-              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[32px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border">                                   
-                <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/10 rounded-full pointer-events-none" /></div>                          
-                <button onClick={() => { closeOverlay(); setReplyingTo(commentActionModal.parent_id ? comments.find((c) => c?.id === commentActionModal.parent_id) : commentActionModal); setNewComment(`@${commentActionModal.profiles?.full_name} `); }} className="w-full p-4 bg-surface-card border border-surface-border rounded-2xl text-brand font-black flex justify-between items-center text-[15px] active:scale-95 transition-all shadow-sm">                                  
-                  <span>השב לתגובה</span><Reply size={20} className="text-brand-muted" />                                         
-                </button>                                                
-                {commentActionModal.user_id === currentUserId && (                                                                  
-                  <>                                                         
-                    <button onClick={() => { closeOverlay(); setEditingCommentId(commentActionModal.id); setNewComment(commentActionModal.content); }} className="w-full p-4 bg-surface-card border border-surface-border rounded-2xl text-brand font-black flex justify-between items-center text-[15px] active:scale-95 transition-all shadow-sm mt-2">                                                                            
-                      <span>ערוך תגובה</span><Edit2 size={20} className="text-brand-muted" />                                         
-                    </button>                                                
-                    <button onClick={() => { if (window.confirm('למחוק תגובה?')) { closeOverlay(); deleteComment(commentActionModal.id); } }} className="w-full p-4 bg-surface-card border border-red-500/30 rounded-2xl text-red-500 font-black flex justify-between items-center text-[15px] active:scale-95 transition-all mt-2 shadow-sm">                              
-                      <span>מחק תגובה</span><Trash2 size={20} className="text-red-500" />                                             
-                    </button>                                              
-                  </>                                                    
-                )}                                                     
-              </motion.div>                                          
-            </div>                                                 
-          )}                                                                                                                
-          
-          {userCirclesModal && (                                     
-            <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                 
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                         
-              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[32px] p-6 flex flex-col gap-3 pb-12 max-h-[70vh] shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border">                      
-                <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>                          
-                <h2 className="text-brand font-black text-lg mb-4">מועדונים ({userCirclesModal.length})</h2>                      
-                <div className="flex flex-col gap-3 overflow-y-auto pr-1" onPointerDown={stopPropagation} onTouchStart={stopPropagation}>                                                    
-                  {userCirclesModal.map((c: any) => (                        
-                    <div key={c.id} onClick={() => { closeOverlay(); navigate(`/circle/${c.slug || c.id}`); }} className="flex items-center gap-4 bg-surface-card p-4 rounded-2xl cursor-pointer border border-surface-border active:scale-[0.98] transition-transform shadow-sm hover:bg-white/5">                                                                         
-                      <div className="w-12 h-12 rounded-full bg-surface overflow-hidden border border-surface-border shrink-0 flex items-center justify-center shadow-inner">                                                                               
-                        {c.cover_url ? <img src={c.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users size={20} className="text-brand-muted" />}                       
-                      </div>                                                   
-                      <span className="text-brand font-black text-[15px]">{c.name}</span>                                             
-                    </div>                                                 
-                  ))}                                                    
-                </div>                                                 
-              </motion.div>                                          
-            </div>                                                 
-          )}                                                                                                                
-          
-          {optionsMenuPost && (                                      
-            <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                 
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                         
-              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[32px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border text-center">                       
-                <div className="w-full py-2 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>                          
-                <button onClick={() => { closeOverlay(); setTimeout(() => handleShare(optionsMenuPost), 100); }} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>שתף פוסט</span><Share2 size={20} className="text-brand-muted" /></button>                           
-                {optionsMenuPost.media_url && <button onClick={() => handleDownloadMedia(optionsMenuPost.media_url)} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>שמור למכשיר</span><Download size={20} className="text-brand-muted" /></button>}                 
-                <button onClick={async () => { try { await supabase.from('saved_posts').insert({ user_id: currentUserId, post_id: optionsMenuPost.id }); toast.success('הפוסט נשמר במועדפים!'); } catch { toast.error('הפוסט כבר שמור אצלך'); } closeOverlay(); }} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>שמור במועדפים</span><Bookmark size={20} className="text-brand-muted" /></button>                                             
-                <button onClick={() => handleCopyLink(optionsMenuPost)} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>העתק קישור</span><LinkIcon size={20} className="text-brand-muted" /></button>                                                                                                                         
-                {optionsMenuPost.user_id === currentUserId && (                                                                     
-                  <>                                                         
-                    <button onClick={() => { closeOverlay(); setTimeout(() => { openOverlay(() => { setEditingPost(optionsMenuPost); setNewPost(optionsMenuPost.content || ''); setShowCreatePost(true); }); }, 100); }} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm mt-2"><span>ערוך פוסט</span><Edit2 size={20} className="text-brand-muted" /></button>                                    
-                    <button onClick={() => { if (window.confirm('למחוק פוסט?')) { deletePost(optionsMenuPost.id); } }} className="w-full p-4 bg-surface-card border border-rose-500/30 rounded-[20px] text-rose-500 font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all mt-2"><span>מחק פוסט</span><Trash2 size={20} className="text-rose-500" /></button>                               
-                  </>                                                    
-                )}                                                     
-              </motion.div>                                          
-            </div>                                                 
-          )}                                                                                                                
-          
-          {activeDescPost && (                                       
-            <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                 
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                         
-              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[32px] flex flex-col overflow-hidden pb-10 max-h-[75vh] shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border text-center">                                                             
-                <div className="w-full py-5 flex justify-center cursor-grab active:cursor-grabbing border-b border-surface-border"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>                                                    
-                <div className="p-6 overflow-y-auto" onPointerDown={stopPropagation} onTouchStart={stopPropagation}>                                                                         
-                  <p className="text-brand text-[15px] leading-relaxed whitespace-pre-wrap">{activeDescPost.content}</p>                                                                   
-                </div>                                                 
-              </motion.div>                                          
-            </div>                                                 
-          )}                                                                                                                
-          
-          {contributeModal && (                                      
-            <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                 
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                         
-              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[32px] p-6 flex flex-col gap-4 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border text-center">                       
-                <div className="w-full py-2 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>                                                                                   
-                <div className="flex flex-col items-center gap-2 mb-2">                                                             
-                  <div className="w-16 h-16 bg-surface-card border border-surface-border rounded-full flex items-center justify-center shadow-inner mb-2">                                     
-                    <Lock size={28} className="text-accent-primary" />                                                              
-                  </div>                                                   
-                  <h2 className="text-xl font-black text-brand tracking-widest uppercase">שחרר את הדרופ</h2>                        
-                  <p className="text-brand-muted text-[13px] font-medium leading-relaxed max-w-[250px]">                              
-                    השקע CRD כדי לעזור לחשוף את הפוסט הזה לכולם.                                                                    
-                  </p>                                                   
-                </div>                                                                                                            
-                <div className="bg-surface-card border border-surface-border p-4 rounded-[20px] flex flex-col gap-2">                  
-                  <div className="flex justify-between items-end mb-1">                                                               
-                    <span className="text-[11px] font-black text-brand-muted tracking-widest uppercase">התקדמות</span>                                                                         
-                    <span className="text-[13px] font-black text-brand">{contributeModal.current_crd} / {contributeModal.required_crd}</span>                                                
-                  </div>                                                   
-                  <div className="w-full h-2.5 bg-surface rounded-full overflow-hidden border border-surface-border">                                                                          
-                    <div className="h-full bg-accent-primary" style={{ width: `${Math.min(100, (contributeModal.current_crd / contributeModal.required_crd) * 100)}%` }} />                  
-                  </div>                                                 
-                </div>                                                                                                            
-                <div className="flex items-center gap-3 bg-surface-card border border-surface-border rounded-[20px] p-2 pl-4 mt-2">                                                             
-                  <div className="w-12 h-12 bg-surface rounded-xl flex items-center justify-center shrink-0">                         
-                    <Coins size={20} className="text-brand-muted" />                                                                
-                  </div>                                                   
-                  <input type="number" value={contributeAmount} onChange={(e) => setContributeAmount(e.target.value === '' ? '' : Number(e.target.value))} placeholder="50" className="flex-1 bg-transparent border-none text-xl font-black text-brand outline-none text-left" dir="ltr" />                                                 
-                  <span className="text-brand-muted font-bold text-[13px] tracking-widest">CRD</span>                             
-                </div>                                                                                                            
-                <Button onClick={handleContribute} disabled={contributing || !contributeAmount} className="h-14 bg-accent-primary text-white font-black text-[15px] uppercase tracking-widest rounded-full mt-2 shadow-md active:scale-95 transition-all">                                                     
-                  {contributing ? <Loader2 className="animate-spin text-white" /> : 'השקע בדרופ'}                                 
-                </Button>                                              
-              </motion.div>                                          
-            </div>                                                 
-          )}                                                                                                              
-          
-        </AnimatePresence>,                                                                                               
-        document.body                                          
-      )}                                                                                                              
-    </>                                                    
-  );                                                     
+                            <div className="flex flex-col text-right">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-white font-black text-[14px] drop-shadow-md">{post.profiles?.full_name || 'אנונימי'}</span>
+                                {isCore && <Crown size={12} className="text-accent-primary drop-shadow-md" />}
+                              </div>
+                              <span className="text-white/80 text-[10px] font-bold drop-shadow-md">{new Date(post.created_at).toLocaleDateString('he-IL')}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-4 flex-row-reverse mr-auto">
+                            {!isLockedDrop && (
+                              <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(post)); }} className="active:scale-90 text-white drop-shadow-md hover:text-white/80 transition-colors">
+                                <MoreVertical size={20} />
+                              </button>
+                            )}
+                            {!isLockedDrop && (
+                              <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(post); setActiveCommentsPostId(post.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', post.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); }); }} className="flex items-center gap-1.5 active:scale-90 text-white drop-shadow-md hover:text-white/80 transition-colors">
+                                <MessageSquare size={20} />
+                                <span className="text-[13px] font-black">{post.comments_count}</span>
+                              </button>
+                            )}
+                            {!isLockedDrop && (
+                              <button onClick={(e) => { e.stopPropagation(); if (post.has_sealed) handleRemoveSeal(post.id); else openOverlay(() => setSealSelectorPost(post)); }} className={`flex items-center gap-1.5 active:scale-90 transition-transform drop-shadow-md ${post.has_sealed ? 'text-orange-500' : 'text-white hover:text-orange-400'}`}>
+                                <Flame size={22} fill={post.has_sealed ? 'currentColor' : 'none'} />
+                                <span className="text-[13px] font-black">{post.seals_count || 0}</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </FadeIn>
+
+      {/* OVERLAYS / PORTALS */}
+      {mounted && typeof document !== 'undefined' && createPortal(
+        <>
+          {/* 1. SEAL SELECTOR MODAL */}
+          <AnimatePresence>
+            {sealSelectorPost && (
+              <div className="fixed inset-0 z-[9999999] flex flex-col justify-end p-4" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
+                <motion.div initial={{ y: '100%', scale: 0.95 }} animate={{ y: 0, scale: 1 }} exit={{ y: '100%', scale: 0.95 }} transition={{ type: 'spring', damping: 25, stiffness: 400 }} className="relative z-10 bg-surface border border-surface-border rounded-[32px] p-8 shadow-2xl flex flex-col items-center gap-6">
+                  <div className="w-12 h-1.5 bg-white/10 rounded-full mb-2" />
+                  <div className="text-center">
+                    <h3 className="text-brand font-black text-xl tracking-tighter uppercase">הענק חותם יוקרה</h3>
+                    <p className="text-brand-muted text-[13px] mt-2 font-medium">החותם יישאר לשבוע ויעניק ליוצר XP</p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4 w-full">
+                    {SEAL_TYPES.map((type) => (
+                      <button key={type.id} onClick={() => handleSeal(sealSelectorPost.id, type.id)} className="flex flex-col items-center gap-3 p-5 rounded-[24px] bg-surface-card border border-surface-border hover:bg-white/5 transition-all active:scale-95 shadow-sm">
+                        <div className={`${type.color} drop-shadow-lg`}>{type.icon}</div>
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-brand font-black text-[12px] uppercase tracking-widest">{type.label}</span>
+                          <span className="text-accent-primary bg-accent-primary/10 border border-accent-primary/20 px-2 py-0.5 rounded-md text-[10px] font-black tracking-widest">+{type.xp} XP</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+
+          {/* 2. FULL SCREEN MEDIA */}
+          <AnimatePresence>
+            {fullScreenMedia && (
+              <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed inset-0 z-[999999] bg-surface">
+                <div className="w-full h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide" onScroll={handleContainerScroll}>
+                  {fullScreenMedia.map((vid, idx) => {
+                    const isVid = vid.media_url?.match(/\.(mp4|webm|mov)$/i);
+                    return (
+                      <div key={vid._uid || `${vid.id}-${idx}`} className="w-full h-screen snap-center relative bg-surface flex items-center justify-center">
+                        {isVid ? (
+                          <video src={vid.media_url} loop playsInline className="w-full h-full object-cover full-media-item" onClick={(e) => (e.currentTarget.paused ? e.currentTarget.play() : e.currentTarget.pause())} />
+                        ) : (
+                          <img src={vid.media_url} className="w-full h-full object-contain full-media-item" onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Media+Unavailable'; }} loading="lazy" />
+                        )}
+                        
+                        <div className="absolute bottom-32 left-4 flex flex-col gap-6 items-center z-50 pointer-events-auto">
+                          <button onClick={(e) => { 
+                            e.stopPropagation(); 
+                            if (vid.has_sealed) {
+                              handleRemoveSeal(vid.id);
+                            } else {
+                              openOverlay(() => setSealSelectorPost(vid)); 
+                            }
+                          }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform">
+                            <Flame size={32} className={vid.has_sealed ? 'text-orange-500' : 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]'} fill={vid.has_sealed ? 'currentColor' : 'none'} strokeWidth={1.5} />
+                            <span className="text-white text-[13px] font-black drop-shadow-md">{vid.seals_count || 0}</span>
+                          </button>
+                          <button onClick={(e) => { 
+                            e.stopPropagation(); 
+                            openOverlay(() => { 
+                              setActivePost(vid); 
+                              setActiveCommentsPostId(vid.id); 
+                              setLoadingComments(true); 
+                              supabase.from('comments').select('*, profiles(*)').eq('post_id', vid.id).order('created_at', { ascending: true })
+                                .then((r) => { setComments(r.data || []); setLoadingComments(false); }); 
+                            }); 
+                          }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                            <MessageSquare size={32} strokeWidth={1.5} />
+                            <span className="text-white text-[13px] font-black drop-shadow-md">{vid.comments_count}</span>
+                          </button>
+                        </div>
+
+                        <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }} className="absolute bottom-8 left-5 z-[60] active:scale-90 transition-transform p-1 pointer-events-auto">
+                          <MoreVertical size={28} className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+                        </button>
+                        
+                        <div className="absolute bottom-0 left-0 right-0 px-5 pb-8 pt-32 bg-gradient-to-t from-black/60 via-black/20 to-transparent flex flex-col pointer-events-none">
+                          {vid.content && (
+                            <p className="text-white drop-shadow-md text-[15px] font-medium text-right max-w-[85%] line-clamp-3 pointer-events-auto cursor-pointer mb-4" onClick={(e) => { e.stopPropagation(); openOverlay(() => setActiveDescPost(vid)); }}>
+                              {vid.content}
+                            </p>
+                          )}
+                          {vid.user_circles && vid.user_circles.length > 0 && (
+                            <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">
+                              {vid.user_circles.slice(0, 10).map((circle: any) => {
+                                const isOwnerOfThisCircle = circle.owner_id === vid.user_id;
+                                return (
+                                  <div key={circle.id} onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/circle/${circle.slug || circle.id}`), 50); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
+                                    <div className={`w-8 h-8 rounded-full overflow-hidden shadow-sm bg-surface flex items-center justify-center ${isOwnerOfThisCircle ? 'border-2 border-accent-primary' : 'border border-white/20'}`}>
+                                      {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-4 h-4 text-white/70" />}
+                                    </div>
+                                    <span className="text-[9px] text-white drop-shadow-md font-bold max-w-[55px] truncate text-center uppercase tracking-wider">{circle.name}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          <div className="flex items-center justify-start pointer-events-auto">
+                            <div className="flex items-center gap-3 cursor-pointer" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${vid.user_id}`), 50); }}>
+                              <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden shrink-0 shadow-sm bg-surface flex items-center justify-center">
+                                {vid.profiles?.avatar_url ? <img src={vid.profiles.avatar_url} className="w-full h-full object-cover" loading="lazy" /> : <span className="text-white font-black text-lg flex items-center justify-center leading-none">{(vid.profiles?.full_name || 'א')[0]}</span>}
+                              </div>
+                              <div className="flex flex-col text-right">
+                                <span className="text-white font-black text-[15px] drop-shadow-md">{vid.profiles?.full_name || 'אנונימי'}</span>
+                                <span className="text-white/80 text-[10px] font-bold drop-shadow-md">{new Date(vid.created_at).toLocaleDateString('he-IL')}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* 3. COMMENTS MODAL */}
+          <AnimatePresence>
+            {activeCommentsPostId && (
+              <div className="fixed inset-0 z-[9999999]" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
+                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 400 }} className="absolute bottom-0 w-full bg-surface rounded-t-[32px] h-[80vh] flex flex-col overflow-hidden pb-10 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border">
+                  <div className="w-full py-5 flex justify-center cursor-grab active:cursor-grabbing border-b border-surface-border"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>
+                  <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-6 scrollbar-hide">
+                    {loadingComments ? (
+                      <Loader2 className="animate-spin mx-auto text-brand-muted mt-10" />
+                    ) : sortedParentComments.length === 0 ? (
+                      <div className="text-center text-brand-muted text-[13px] font-bold mt-10 tracking-widest uppercase">אין תגובות עדיין</div>
+                    ) : (
+                      sortedParentComments.map((c) => {
+                        const replies = comments.filter((r) => r && r.parent_id === c.id).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+                        const isThreadExpanded = expandedThreads[c.id];
+                        return (
+                          <div key={c.id} className="flex flex-col gap-2 relative">
+                            <div className="flex gap-3 relative z-10">
+                              <div className="w-10 h-10 min-w-[40px] rounded-full bg-surface-card shrink-0 overflow-hidden cursor-pointer border border-surface-border flex items-center justify-center shadow-inner" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${c.user_id}`), 50); }}>
+                                {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover object-center" loading="lazy" /> : <span className="text-brand-muted font-black text-sm flex items-center justify-center leading-none">{(c.profiles?.full_name || 'א')[0]}</span>}
+                              </div>
+                              <div className="flex flex-col flex-1">
+                                <div className="bg-surface-card p-4 rounded-[20px] rounded-tr-sm cursor-pointer shadow-sm border border-surface-border w-fit max-w-[95%]" onClick={() => openOverlay(() => setCommentActionModal(c))}>
+                                  <span className="text-brand font-black text-[13px] mb-1.5 inline-block uppercase tracking-widest" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${c.user_id}`), 50); }}>{c.profiles?.full_name || 'אנונימי'}</span>
+                                  <p className="text-brand text-[14px] whitespace-pre-wrap leading-relaxed">{renderCommentText(c.content)}</p>
+                                </div>
+                                <div className="flex items-center gap-4 mt-2 px-2">
+                                  <span className="text-[11px] text-brand-muted cursor-pointer font-bold hover:text-brand transition-colors" onClick={() => { setReplyingTo(c); setNewComment(`@${c.profiles?.full_name} `); }}>השב</span>
+                                  <button onClick={() => toggleCommentLike(c.id)} className={`ml-auto flex items-center gap-1 active:scale-90 transition-transform ${likedComments.has(c.id) ? 'text-orange-500' : 'text-brand-muted hover:text-orange-400'}`}>
+                                    <Flame size={14} fill={likedComments.has(c.id) ? 'currentColor' : 'none'} />
+                                  </button>
+                                </div>
+                                {replies.length > 0 && (
+                                  <button onClick={() => setExpandedThreads((prev) => ({ ...prev, [c.id]: !prev[c.id] }))} className="text-right text-[12px] font-black text-accent-primary hover:text-accent-primary/80 transition-colors mt-2 flex items-center gap-1.5 pr-1">
+                                    {isThreadExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                    {isThreadExpanded ? 'הסתר שרשור' : `צפה ב-${replies.length} תגובות נוספות בשיחה`}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            {isThreadExpanded && (
+                              <div className="pr-12 flex flex-col gap-4 mt-3 relative">
+                                <div className="absolute right-5 top-0 bottom-4 w-[1.5px] bg-surface-border z-0" />
+                                {replies.map((reply) => (
+                                  <div key={reply.id} className="flex gap-3 relative z-10">
+                                    <div className="absolute right-[-28px] top-[-12px] w-[20px] h-6 border-r-[1.5px] border-b-[1.5px] border-surface-border rounded-br-[12px] z-0" />
+                                    <div className="w-8 h-8 min-w-[32px] rounded-full bg-surface-card shrink-0 overflow-hidden cursor-pointer border border-surface-border flex items-center justify-center shadow-inner relative z-10" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${reply.user_id}`), 50); }}>
+                                      {reply.profiles?.avatar_url ? <img src={reply.profiles.avatar_url} className="w-full h-full object-cover object-center" loading="lazy" /> : <span className="text-brand-muted font-black text-[10px] flex items-center justify-center leading-none">{(reply.profiles?.full_name || 'א')[0]}</span>}
+                                    </div>
+                                    <div className="flex flex-col flex-1">
+                                      <div className="bg-surface/50 p-3 rounded-[16px] rounded-tr-sm cursor-pointer border border-surface-border shadow-sm w-fit max-w-[95%]" onClick={() => openOverlay(() => setCommentActionModal(reply))}>
+                                        <span className="text-brand font-black text-[11px] mb-1.5 inline-block tracking-widest uppercase" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${reply.user_id}`), 50); }}>{reply.profiles?.full_name || 'אנונימי'}</span>
+                                        <p className="text-brand text-[13px] whitespace-pre-wrap leading-relaxed">{renderCommentText(reply.content)}</p>
+                                      </div>
+                                      <div className="flex items-center gap-4 mt-2 px-2">
+                                        <span className="text-[10px] text-brand-muted cursor-pointer font-bold hover:text-brand transition-colors" onClick={() => { setReplyingTo(c); setNewComment(`@${reply.profiles?.full_name} `); }}>השב</span>
+                                        <button onClick={() => toggleCommentLike(reply.id)} className={`ml-auto flex items-center gap-1 active:scale-90 transition-transform ${likedComments.has(reply.id) ? 'text-orange-500' : 'text-brand-muted hover:text-orange-400'}`}>
+                                          <Flame size={12} fill={likedComments.has(reply.id) ? 'currentColor' : 'none'} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                  <div className="p-4 border-t border-surface-border flex flex-col gap-2 bg-surface">
+                    {replyingTo && !editingCommentId && (
+                      <div className="text-[11px] text-brand flex items-center justify-between px-4 py-2 bg-surface-card border border-surface-border rounded-[12px] w-fit mb-1 shadow-sm gap-2">
+                        <span className="font-bold mr-1.5 flex items-center gap-2"><Reply size={12} className="rtl:-scale-x-100 text-brand-muted"/> משיב ל-@{replyingTo.profiles?.full_name}</span>
+                        <X size={14} className="cursor-pointer text-brand-muted hover:text-brand" onClick={() => { setReplyingTo(null); setNewComment(''); }} />
+                      </div>
+                    )}
+                    {editingCommentId && (
+                      <div className="text-[11px] text-accent-primary flex justify-between px-2 font-bold mb-1 uppercase tracking-widest">
+                        <span>עורך תגובה...</span>
+                        <span onClick={() => { setEditingCommentId(null); setNewComment(''); }} className="cursor-pointer text-brand-muted hover:text-brand">ביטול</span>
+                      </div>
+                    )}
+                    <div className="flex gap-2 items-center bg-surface-card rounded-[20px] p-1.5 pl-2 border border-surface-border shadow-inner">
+                      <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="הוסף תגובה לדיון..." className="flex-1 bg-transparent px-4 text-brand text-[14px] outline-none placeholder:text-brand-muted" />
+                      <button onClick={submitComment} disabled={!newComment.trim()} className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md active:scale-95 disabled:opacity-30 ${newComment.trim() ? 'bg-accent-primary text-white opacity-100' : 'bg-surface-border text-brand-muted'}`} >
+                        <Send size={16} className="rtl:-scale-x-100 -ml-0.5" />
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+
+          {/* 4. COMMENT ACTION MODAL */}
+          <AnimatePresence>
+            {commentActionModal && (
+              <div className="fixed inset-0 z-[99999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
+                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[32px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border">
+                  <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/10 rounded-full pointer-events-none" /></div>
+                  <button onClick={() => { closeOverlay(); setReplyingTo(commentActionModal.parent_id ? comments.find((c) => c?.id === commentActionModal.parent_id) : commentActionModal); setNewComment(`@${commentActionModal.profiles?.full_name} `); }} className="w-full p-4 bg-surface-card border border-surface-border rounded-2xl text-brand font-black flex justify-between items-center text-[15px] active:scale-95 transition-all shadow-sm">
+                    <span>השב לתגובה</span><Reply size={20} className="text-brand-muted" />
+                  </button>
+                  {commentActionModal.user_id === currentUserId && (
+                    <>
+                      <button onClick={() => { closeOverlay(); setEditingCommentId(commentActionModal.id); setNewComment(commentActionModal.content); }} className="w-full p-4 bg-surface-card border border-surface-border rounded-2xl text-brand font-black flex justify-between items-center text-[15px] active:scale-95 transition-all shadow-sm mt-2">
+                        <span>ערוך תגובה</span><Edit2 size={20} className="text-brand-muted" />
+                      </button>
+                      <button onClick={() => { if (window.confirm('למחוק תגובה?')) { closeOverlay(); deleteComment(commentActionModal.id); } }} className="w-full p-4 bg-surface-card border border-red-500/30 rounded-2xl text-red-500 font-black flex justify-between items-center text-[15px] active:scale-95 transition-all mt-2 shadow-sm">
+                        <span>מחק תגובה</span><Trash2 size={20} className="text-red-500" />
+                      </button>
+                    </>
+                  )}
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+
+          {/* 5. USER CIRCLES MODAL */}
+          <AnimatePresence>
+            {userCirclesModal && (
+              <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
+                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[32px] p-6 flex flex-col gap-3 pb-12 max-h-[70vh] shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border">
+                  <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>
+                  <h2 className="text-brand font-black text-lg mb-4">מועדונים ({userCirclesModal.length})</h2>
+                  <div className="flex flex-col gap-3 overflow-y-auto pr-1" onPointerDown={stopPropagation} onTouchStart={stopPropagation}>
+                    {userCirclesModal.map((c: any) => (
+                      <div key={c.id} onClick={() => { closeOverlay(); navigate(`/circle/${c.slug || c.id}`); }} className="flex items-center gap-4 bg-surface-card p-4 rounded-2xl cursor-pointer border border-surface-border active:scale-[0.98] transition-transform shadow-sm hover:bg-white/5">
+                        <div className="w-12 h-12 rounded-full bg-surface overflow-hidden border border-surface-border shrink-0 flex items-center justify-center shadow-inner">
+                          {c.cover_url ? <img src={c.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users size={20} className="text-brand-muted" />}
+                        </div>
+                        <span className="text-brand font-black text-[15px]">{c.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+
+          {/* 6. OPTIONS MENU POST */}
+          <AnimatePresence>
+            {optionsMenuPost && (
+              <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
+                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[32px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border text-center">
+                  <div className="w-full py-2 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>
+                  <button onClick={() => { closeOverlay(); setTimeout(() => handleShare(optionsMenuPost), 100); }} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>שתף פוסט</span><Share2 size={20} className="text-brand-muted" /></button>
+                  {optionsMenuPost.media_url && <button onClick={() => handleDownloadMedia(optionsMenuPost.media_url)} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>שמור למכשיר</span><Download size={20} className="text-brand-muted" /></button>}
+                  <button onClick={async () => { try { await supabase.from('saved_posts').insert({ user_id: currentUserId, post_id: optionsMenuPost.id }); toast.success('הפוסט נשמר במועדפים!'); } catch { toast.error('הפוסט כבר שמור אצלך'); } closeOverlay(); }} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>שמור במועדפים</span><Bookmark size={20} className="text-brand-muted" /></button>
+                  <button onClick={() => handleCopyLink(optionsMenuPost)} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>העתק קישור</span><LinkIcon size={20} className="text-brand-muted" /></button>
+                  
+                  {optionsMenuPost.user_id === currentUserId && (
+                    <>
+                      <button onClick={() => { closeOverlay(); setTimeout(() => { openOverlay(() => { setEditingPost(optionsMenuPost); setEditPostText(optionsMenuPost.content || ''); setShowCreatePost(true); }); }, 100); }} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm mt-2"><span>ערוך פוסט</span><Edit2 size={20} className="text-brand-muted" /></button>
+                      <button onClick={() => { if (window.confirm('למחוק פוסט?')) { deletePost(optionsMenuPost.id); } }} className="w-full p-4 bg-surface-card border border-rose-500/30 rounded-[20px] text-rose-500 font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all mt-2"><span>מחק פוסט</span><Trash2 size={20} className="text-red-500" /></button>
+                    </>
+                  )}
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+
+          {/* 7. DESC POST FULL */}
+          <AnimatePresence>
+            {activeDescPost && (
+              <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
+                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[32px] flex flex-col overflow-hidden pb-10 max-h-[75vh] shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border text-center">
+                  <div className="w-full py-5 flex justify-center cursor-grab active:cursor-grabbing border-b border-surface-border"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>
+                  <div className="p-6 overflow-y-auto" onPointerDown={stopPropagation} onTouchStart={stopPropagation}>
+                    <p className="text-brand text-[15px] leading-relaxed whitespace-pre-wrap">{activeDescPost.content}</p>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+
+          {/* 8. CONTRIBUTE MODAL */}
+          <AnimatePresence>
+            {contributeModal && (
+              <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
+                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[32px] p-6 flex flex-col gap-4 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border text-center">
+                  <div className="w-full py-2 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>
+                  <div className="flex flex-col items-center gap-2 mb-2">
+                    <div className="w-16 h-16 bg-surface-card border border-surface-border rounded-full flex items-center justify-center shadow-inner mb-2">
+                      <Lock size={28} className="text-accent-primary" />
+                    </div>
+                    <h2 className="text-xl font-black text-brand tracking-widest uppercase">שחרר את הדרופ</h2>
+                    <p className="text-brand-muted text-[13px] font-medium leading-relaxed max-w-[250px]">
+                      השקע CRD כדי לעזור לחשוף את הפוסט הזה לכולם.
+                    </p>
+                  </div>
+                  <div className="bg-surface-card border border-surface-border p-4 rounded-[20px] flex flex-col gap-2">
+                    <div className="flex justify-between items-end mb-1">
+                      <span className="text-[11px] font-black text-brand-muted tracking-widest uppercase">התקדמות</span>
+                      <span className="text-[13px] font-black text-brand">{contributeModal.current_crd} / {contributeModal.required_crd}</span>
+                    </div>
+                    <div className="w-full h-2.5 bg-surface rounded-full overflow-hidden border border-surface-border">
+                      <div className="h-full bg-accent-primary" style={{ width: `${Math.min(100, (contributeModal.current_crd / contributeModal.required_crd) * 100)}%` }} />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 bg-surface-card border border-surface-border rounded-[20px] p-2 pl-4 mt-2">
+                    <div className="w-12 h-12 bg-surface rounded-xl flex items-center justify-center shrink-0">
+                      <Coins size={20} className="text-brand-muted" />
+                    </div>
+                    <input type="number" value={contributeAmount} onChange={(e) => setContributeAmount(e.target.value === '' ? '' : Number(e.target.value))} placeholder="50" className="flex-1 bg-transparent border-none text-xl font-black text-brand outline-none text-left" dir="ltr" />
+                    <span className="text-brand-muted font-bold text-[13px] tracking-widest">CRD</span>
+                  </div>
+                  <Button onClick={handleContribute} disabled={contributing || !contributeAmount} className="h-14 bg-accent-primary text-white font-black text-[15px] uppercase tracking-widest rounded-full mt-2 shadow-md active:scale-95 transition-all">
+                    {contributing ? <Loader2 className="animate-spin text-white" /> : 'השקע בדרופ'}
+                  </Button>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+        </>,
+        document.body
+      )}
+    </div>
+  );
 };
