@@ -4,12 +4,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { apiFetch } from '../lib/api';
-import { FadeIn, Button } from '../components/ui';
+import { Button } from '../components/ui';
 import { VaultCard } from '../components/VaultCard';
 import {
   Loader2, MessageSquare, Lock, ShieldAlert, Flame, Diamond, Handshake,
-  Plus, Send, X, Coins, Image as ImageIcon, Users, Archive, Sparkles, Trophy,
-  Pin, Calendar, BarChart3, Target, Crown, ChevronLeft, ChevronDown, Gift, Eye, Radio, BadgeCheck, Medal, Activity, Paperclip, Camera, Copy, Edit2, Trash2
+  Plus, Send, X, Coins, Users, Archive, Sparkles, Trophy,
+  Pin, BarChart3, Target, ChevronLeft, Eye, Activity, Paperclip, Camera, Copy, Edit2, Trash2
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -57,9 +57,11 @@ export const CirclePage: React.FC = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const storyInputRef = useRef<HTMLInputElement>(null);
-  const instantCameraRef = useRef<HTMLInputElement>(null);
+  const instantPhotoRef = useRef<HTMLInputElement>(null);
+  const instantVideoRef = useRef<HTMLInputElement>(null);
   const channelRef = useRef<any>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
+  const cameraPressTimer = useRef<NodeJS.Timeout | null>(null);
 
   const [mounted, setMounted] = useState(false);
   const [data, setData] = useState<any>(() => {
@@ -96,17 +98,23 @@ export const CirclePage: React.FC = () => {
   const [contributingDrop, setContributingDrop] = useState(false);
   const [dropAmount, setDropAmount] = useState<number | ''>(50);
 
-  // Action Sheet States
   const [actionPost, setActionPost] = useState<any | null>(null);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  let touchStartY = 0;
+  const [isCameraPressed, setIsCameraPressed] = useState(false);
 
+  // סדר כרונולוגי: הודעות ישנות למעלה, חדשות למטה
   const sortedPosts = useMemo(() => {
-    return [...(data?.posts || [])].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return [...(data?.posts || [])].sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
   }, [data?.posts]);
 
   useEffect(() => { setMounted(true); }, []);
+
+  // גלילה אוטומטית למטה כשנוספת הודעה
+  useEffect(() => {
+    if (activeTab === 'chat' && messagesRef.current) {
+      messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
+    }
+  }, [sortedPosts, activeTab]);
 
   useEffect(() => {
     let ch: any;
@@ -151,12 +159,6 @@ export const CirclePage: React.FC = () => {
   useEffect(() => {
     if (activeTab === 'vaults' && data?.circle?.id) fetchVaults();
   }, [activeTab, data?.circle?.id]);
-
-  useEffect(() => {
-    if (activeTab !== 'chat') return;
-    if (!messagesRef.current) return;
-    requestAnimationFrame(() => { if (messagesRef.current) messagesRef.current.scrollTop = 0; });
-  }, [activeTab, data?.posts?.length]);
 
   const fetchCircleData = async (uid: string, silent = false) => {
     if (!silent) setLoading(true);
@@ -288,7 +290,29 @@ export const CirclePage: React.FC = () => {
     } finally { 
       setUploadingStory(false); 
       if (storyInputRef.current) storyInputRef.current.value = ''; 
-      if (instantCameraRef.current) instantCameraRef.current.value = ''; 
+      if (instantPhotoRef.current) instantPhotoRef.current.value = '';
+      if (instantVideoRef.current) instantVideoRef.current.value = '';
+    }
+  };
+
+  // מנגנון לחיצה ארוכה למצלמה
+  const handleCameraStart = () => {
+    setIsCameraPressed(true);
+    cameraPressTimer.current = setTimeout(() => {
+      // עברה חצי שניה - לחיצה ארוכה -> פותח מצלמת וידאו
+      triggerFeedback('heavy');
+      instantVideoRef.current?.click();
+      setIsCameraPressed(false);
+    }, 500);
+  };
+
+  const handleCameraEnd = () => {
+    if (isCameraPressed) {
+      if (cameraPressTimer.current) clearTimeout(cameraPressTimer.current);
+      // שוחרר לפני חצי שניה - לחיצה קצרה -> פותח מצלמת תמונות
+      triggerFeedback('pop');
+      instantPhotoRef.current?.click();
+      setIsCameraPressed(false);
     }
   };
 
@@ -308,7 +332,6 @@ export const CirclePage: React.FC = () => {
       if (editingPostId) {
         const { error } = await supabase.from('posts').update({ content: newPost.trim() }).eq('id', editingPostId);
         if (error) throw error;
-        setData((curr: any) => ({ ...curr, posts: curr.posts.map((p:any) => p.id === editingPostId ? { ...p, content: newPost.trim() } : p) }));
         toast.success('הודעה עודכנה');
       } else {
         let media_url: string | null = null;
@@ -322,13 +345,11 @@ export const CirclePage: React.FC = () => {
           media_type = selectedFile.type.startsWith('video/') ? 'video' : 'image';
         }
 
-        const { data: post, error } = await supabase.from('posts').insert({
+        const { error } = await supabase.from('posts').insert({
           circle_id: data.circle.id, user_id: currentUserId, content: newPost.trim(), media_url, media_type, is_reveal_drop: false, reveal_status: 'revealed', required_crd: 0
-        }).select('*, profiles!user_id(*)').single();
+        });
 
         if (error) throw error;
-        setData((curr: any) => ({ ...curr, posts: [post, ...(curr.posts || [])] }));
-
         supabase.rpc('add_circle_xp', { p_circle_id: data.circle.id, p_user_id: currentUserId, p_amount: selectedFile ? 20 : 8, p_reason: 'post' }).then();
       }
 
@@ -367,14 +388,15 @@ export const CirclePage: React.FC = () => {
     } catch { toast.error('שגיאה בעדכון חותם'); }
   };
 
-  const handleTouchStart = (e: React.TouchEvent, post: any) => {
-    touchStartY = e.touches[0].clientY;
+  let touchStartActionY = 0;
+  const handleMessageTouchStart = (e: React.TouchEvent, post: any) => {
+    touchStartActionY = e.touches[0].clientY;
     timerRef.current = setTimeout(() => { triggerFeedback('pop'); setActionPost(post); }, 450);
   };
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (Math.abs(e.touches[0].clientY - touchStartY) > 10 && timerRef.current) clearTimeout(timerRef.current);
+  const handleMessageTouchMove = (e: React.TouchEvent) => {
+    if (Math.abs(e.touches[0].clientY - touchStartActionY) > 10 && timerRef.current) clearTimeout(timerRef.current);
   };
-  const handleTouchEnd = () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  const handleMessageTouchEnd = () => { if (timerRef.current) clearTimeout(timerRef.current); };
 
   const handleCopyText = () => {
     if (actionPost?.content) { navigator.clipboard.writeText(actionPost.content); toast.success('הועתק ללוח'); }
@@ -386,7 +408,6 @@ export const CirclePage: React.FC = () => {
     try {
       const { error } = await supabase.from('posts').delete().eq('id', actionPost.id);
       if (error) throw error;
-      setData((curr: any) => ({ ...curr, posts: curr.posts.filter((p: any) => p.id !== actionPost.id) }));
       toast.success('הודעה נמחקה');
     } catch { toast.error('שגיאה במחיקה'); } finally { setActionPost(null); }
   };
@@ -411,16 +432,19 @@ export const CirclePage: React.FC = () => {
   const xpProgress = Math.min(100, Math.round((myXP / xpToNext) * 100));
   const memberCount = membersList.length || circle.members_count || 0;
 
-  const content = (
-    <FadeIn className="fixed inset-0 z-[99999] bg-[#050505] font-sans flex flex-col overflow-hidden" dir="rtl">
+  return mounted && typeof document !== 'undefined' ? createPortal(
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[99999999] bg-[#050505] font-sans flex flex-col overflow-hidden" dir="rtl">
+      
+      {/* Hidden Inputs */}
       <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*" />
       <input type="file" ref={storyInputRef} onChange={handleStoryChange} className="hidden" accept="image/*,video/*" />
-      <input type="file" ref={instantCameraRef} onChange={handleStoryChange} className="hidden" accept="image/*,video/*" capture="environment" />
+      <input type="file" ref={instantPhotoRef} onChange={handleStoryChange} className="hidden" accept="image/*" capture="environment" />
+      <input type="file" ref={instantVideoRef} onChange={handleStoryChange} className="hidden" accept="video/*" capture="environment" />
 
       {/* FULLSCREEN MEDIA OVERLAY */}
       <AnimatePresence>
         {fullScreenMedia && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9999999] bg-black flex items-center justify-center" onClick={() => setFullScreenMedia(null)}>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[999999999] bg-black flex items-center justify-center" onClick={() => setFullScreenMedia(null)}>
             {fullScreenMedia.type === 'video' ? (
                <video src={fullScreenMedia.url} controls autoPlay className="w-full h-full object-contain" onClick={(e) => e.stopPropagation()} />
             ) : (
@@ -436,19 +460,21 @@ export const CirclePage: React.FC = () => {
       {/* BOTTOM SHEET: ACTION MENU */}
       <AnimatePresence>
         {actionPost && (
-          <div className="fixed inset-0 z-[999999] flex flex-col justify-end" dir="rtl">
+          <div className="fixed inset-0 z-[999999999] flex flex-col justify-end" dir="rtl">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setActionPost(null)} />
             <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="relative bg-[#111] rounded-t-[32px] p-6 pb-[calc(env(safe-area-inset-bottom)+32px)] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
               <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6" />
+              
               <div className="flex items-center gap-4 mb-6 pb-6 border-b border-white/10">
                 <div className="w-12 h-12 rounded-full overflow-hidden bg-white/5 border border-white/10 shrink-0">
-                  {actionPost.profiles?.avatar_url ? <img src={actionPost.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white/40">{(actionPost.profiles?.full_name || 'א')[0]}</div>}
+                  {actionPost.profiles?.avatar_url ? <img src={actionPost.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white/40 font-black text-[14px]">{(actionPost.profiles?.full_name || 'א')[0]}</div>}
                 </div>
                 <div className="flex flex-col">
                   <span className="text-white font-black text-[16px]">{actionPost.profiles?.full_name || 'אנונימי'}</span>
                   <span className="text-white/40 text-[11px] uppercase tracking-widest">{formatTime(actionPost.created_at)}</span>
                 </div>
               </div>
+
               <div className="flex flex-col gap-3">
                 {actionPost.content && (
                   <button onClick={handleCopyText} className="flex items-center gap-4 p-4 rounded-[20px] bg-white/5 hover:bg-white/10 text-white font-black text-[14px] transition-colors active:scale-95">
@@ -471,46 +497,75 @@ export const CirclePage: React.FC = () => {
         )}
       </AnimatePresence>
 
+      {/* BACK BUTTON */}
       <button onClick={() => navigate(-1)} className="absolute top-[calc(env(safe-area-inset-top)+16px)] right-4 p-2 text-white/80 hover:text-white z-50 transition-all active:scale-90 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
         <ChevronLeft size={32} className="rtl:rotate-180" />
       </button>
 
+      {/* HERO / BACKGROUND */}
       <div className="absolute top-0 left-0 right-0 h-[40vh] pointer-events-none z-0">
         {circle.cover_url && <img src={circle.cover_url} className="w-full h-full object-cover opacity-30 mix-blend-luminosity" />}
         <div className="absolute inset-0 bg-gradient-to-b from-[#050505]/40 via-[#050505]/80 to-[#050505]" />
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[300px] h-[300px] bg-accent-primary/20 blur-[100px] rounded-full" />
       </div>
 
+      {/* HEADER */}
       <div className="relative z-20 pt-[calc(env(safe-area-inset-top)+20px)] px-6 flex flex-col items-center text-center shrink-0">
         <h1 className="text-3xl font-black text-white tracking-widest drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mb-1">{circle.name}</h1>
-        <p className="text-white/50 text-[12px] font-medium tracking-wide max-w-[280px] leading-relaxed">{circle.description || 'מרחב פרימיום לחברי המועדון'}</p>
+        <p className="text-white/50 text-[12px] font-medium tracking-wide max-w-[280px] leading-relaxed">
+          {circle.description || 'מרחב פרימיום לחברי המועדון'}
+        </p>
+        
         {isMember && (
           <div className="flex items-center gap-4 mt-4">
-            <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-accent-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(var(--color-accent-primary),0.8)]" />{onlineCount} אונליין</span>
-            <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase">{membersList.length} חברים</span>
+            <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 bg-accent-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(var(--color-accent-primary),0.8)]" />
+              {onlineCount} אונליין
+            </span>
+            <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase">
+              {membersList.length} חברים
+            </span>
           </div>
         )}
       </div>
 
       {!isMember ? (
         <div className="flex-1 flex flex-col items-center justify-center p-6 relative z-10">
-          <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shadow-[0_0_30px_rgba(0,0,0,0.5)] backdrop-blur-2xl mb-8 relative"><Lock size={32} className="text-white/40" /></div>
-          <Button onClick={() => handleJoin('INNER')} disabled={joining} className="w-full max-w-[300px] h-14 bg-white/10 backdrop-blur-md border border-white/20 text-white font-black rounded-[20px] uppercase tracking-widest text-[13px] hover:bg-white/20 transition-all shadow-[0_10px_40px_rgba(0,0,0,0.3)]">בקשת גישה ({circle.join_price || 0} CRD)</Button>
+          <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shadow-[0_0_30px_rgba(0,0,0,0.5)] backdrop-blur-2xl mb-8 relative">
+            <Lock size={32} className="text-white/40" />
+          </div>
+          <Button onClick={() => handleJoin('INNER')} disabled={joining} className="w-full max-w-[300px] h-14 bg-white/10 backdrop-blur-md border border-white/20 text-white font-black rounded-[20px] uppercase tracking-widest text-[13px] hover:bg-white/20 transition-all shadow-[0_10px_40px_rgba(0,0,0,0.3)]">
+            בקשת גישה ({circle.join_price || 0} CRD)
+          </Button>
         </div>
       ) : (
         <div className="flex flex-col flex-1 overflow-hidden relative z-10 mt-6">
+          
+          {/* NAVIGATION */}
           <div className="flex items-center justify-center gap-8 px-6 mb-6 shrink-0 relative z-20">
-            {[{ id: 'chat', label: 'לייב' }, { id: 'overview', label: 'דשבורד' }, { id: 'vaults', label: 'כספות' }, { id: 'members', label: 'קהילה' }].map((t) => {
+            {[
+              { id: 'chat', label: 'לייב' },
+              { id: 'overview', label: 'דשבורד' },
+              { id: 'vaults', label: 'כספות' },
+              { id: 'members', label: 'קהילה' }
+            ].map((t) => {
               const isActive = activeTab === t.id;
               return (
-                <button key={t.id} onClick={() => setActiveTab(t.id as any)} className={`relative text-[12px] font-black uppercase tracking-widest transition-colors ${isActive ? 'text-white' : 'text-white/30 hover:text-white/60'}`}>
+                <button
+                  key={t.id}
+                  onClick={() => setActiveTab(t.id as any)}
+                  className={`relative text-[12px] font-black uppercase tracking-widest transition-colors ${isActive ? 'text-white' : 'text-white/30 hover:text-white/60'}`}
+                >
                   {t.label}
-                  {isActive && <motion.div layoutId="nav-indicator" className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-accent-primary shadow-[0_0_10px_rgba(var(--color-accent-primary),1)]" />}
+                  {isActive && (
+                    <motion.div layoutId="nav-indicator" className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-accent-primary shadow-[0_0_10px_rgba(var(--color-accent-primary),1)]" />
+                  )}
                 </button>
               );
             })}
           </div>
 
+          {/* TAB: OVERVIEW */}
           {activeTab === 'overview' && (
             <div className="flex-1 overflow-y-auto px-5 pb-[120px] flex flex-col gap-4 scrollbar-hide">
               <div className="bg-white/[0.03] backdrop-blur-3xl border border-white/5 rounded-[32px] p-6 relative overflow-hidden">
@@ -543,7 +598,9 @@ export const CirclePage: React.FC = () => {
                     <div className="h-full bg-accent-primary rounded-full" style={{ width: `${Math.min(100, Math.round(((overview.drop.current_crd || 0) / Math.max(1, overview.drop.target_crd || 1)) * 100))}%` }} />
                   </div>
                   <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full p-1.5 pl-4">
-                    <button onClick={handleContributeToDrop} disabled={contributingDrop || !dropAmount} className="h-10 px-6 bg-white text-black font-black text-[12px] uppercase tracking-widest rounded-full active:scale-95 transition-transform disabled:opacity-50">{contributingDrop ? '...' : 'תרום CRD'}</button>
+                    <button onClick={handleContributeToDrop} disabled={contributingDrop || !dropAmount} className="h-10 px-6 bg-white text-black font-black text-[12px] uppercase tracking-widest rounded-full active:scale-95 transition-transform disabled:opacity-50">
+                      {contributingDrop ? '...' : 'תרום CRD'}
+                    </button>
                     <input type="number" value={dropAmount} onChange={(e) => setDropAmount(Number(e.target.value))} className="flex-1 bg-transparent border-none outline-none text-white font-black text-left text-[16px]" placeholder="50" dir="ltr" />
                   </div>
                 </div>
@@ -592,17 +649,14 @@ export const CirclePage: React.FC = () => {
             </div>
           )}
 
+          {/* TAB: CHAT */}
           {activeTab === 'chat' && (
             <div className="flex-1 relative flex flex-col overflow-hidden">
+              
+              {/* STORIES ROW */}
               {overview.stories && overview.stories.length > 0 && (
                 <div className="shrink-0 pt-1 pb-3">
                   <div className="flex gap-4 overflow-x-auto scrollbar-hide px-5">
-                    <div className="flex flex-col items-center gap-1 shrink-0" onClick={() => storyInputRef.current?.click()}>
-                      <div className="w-14 h-14 rounded-full flex items-center justify-center bg-white/5 border border-white/10 text-white/60 cursor-pointer active:scale-95 transition-transform hover:bg-white/10 hover:text-white">
-                        {uploadingStory ? <Loader2 size={20} className="animate-spin text-accent-primary" /> : <Plus size={24} />}
-                      </div>
-                      <span className="text-[9px] font-black text-white/40 tracking-wider">רגע חדש</span>
-                    </div>
                     {overview.stories.map((story: any) => (
                       <div key={story.id} className="flex flex-col items-center gap-1 shrink-0" onClick={() => window.open(story.media_url, '_blank')}>
                         <div className="w-14 h-14 rounded-full p-[2px] bg-gradient-to-tr from-accent-primary via-white/20 to-transparent cursor-pointer active:scale-95 transition-transform">
@@ -617,25 +671,34 @@ export const CirclePage: React.FC = () => {
                 </div>
               )}
 
+              {/* MESSAGES LIST */}
               <div ref={messagesRef} className="flex-1 overflow-y-auto scrollbar-hide px-4 pt-2 pb-[100px]">
                 <div className="flex flex-col gap-6 min-h-full">
                   {sortedPosts.length === 0 ? (
-                    <div className="text-center py-20 flex flex-col items-center justify-center h-full"><span className="text-white/20 font-black text-[12px] tracking-[0.3em] uppercase">שקט כאן.</span></div>
+                    <div className="text-center py-20 flex flex-col items-center justify-center h-full">
+                      <span className="text-white/20 font-black text-[12px] tracking-[0.3em] uppercase">שקט כאן.</span>
+                    </div>
                   ) : (
                     sortedPosts.map((post: any) => (
-                      <div key={post.id} className={`flex flex-col gap-1 w-full select-none ${post.user_id === currentUserId ? 'items-end' : 'items-start'}`}>
+                      <div 
+                        key={post.id} 
+                        className={`flex flex-col gap-1 w-full select-none ${post.user_id === currentUserId ? 'items-end' : 'items-start'}`}
+                      >
+                        
                         {post.user_id !== currentUserId && !post.media_url && (
                           <div className="flex items-center gap-2 pl-2 mb-1" onClick={() => navigate(`/profile/${post.user_id}`)}>
-                            <div className="w-5 h-5 rounded-full overflow-hidden bg-white/5">{post.profiles?.avatar_url && <img src={post.profiles.avatar_url} className="w-full h-full object-cover" />}</div>
+                            <div className="w-5 h-5 rounded-full overflow-hidden bg-white/5">
+                              {post.profiles?.avatar_url && <img src={post.profiles.avatar_url} className="w-full h-full object-cover" />}
+                            </div>
                             <span className="text-white/40 text-[10px] font-black uppercase tracking-wider">{post.profiles?.full_name?.split(' ')[0]}</span>
                           </div>
                         )}
 
                         <div 
                           className={`relative flex flex-col max-w-[85%] rounded-[24px] ${post.user_id === currentUserId ? 'rounded-br-sm' : 'rounded-bl-sm'} overflow-hidden shadow-sm ${!post.media_url ? (post.user_id === currentUserId ? 'bg-accent-primary/20 border border-accent-primary/30 text-white' : 'bg-white/5 border border-white/5 text-white/90') : 'bg-black/20'}`}
-                          onTouchStart={(e) => handleTouchStart(e, post)}
-                          onTouchMove={handleTouchMove}
-                          onTouchEnd={handleTouchEnd}
+                          onTouchStart={(e) => handleMessageTouchStart(e, post)}
+                          onTouchMove={handleMessageTouchMove}
+                          onTouchEnd={handleMessageTouchEnd}
                           onMouseDown={(e) => { timerRef.current = setTimeout(() => { triggerFeedback('pop'); setActionPost(post); }, 450); }}
                           onMouseMove={() => { if(timerRef.current) clearTimeout(timerRef.current); }}
                           onMouseUp={() => { if(timerRef.current) clearTimeout(timerRef.current); }}
@@ -681,7 +744,7 @@ export const CirclePage: React.FC = () => {
                 </div>
               </div>
 
-              {/* INPUT BAR */}
+              {/* INPUT BAR WITH CAMERA BUTTON */}
               <div className="absolute bottom-0 left-0 right-0 px-4 z-[100] pb-[calc(env(safe-area-inset-bottom)+16px)] bg-gradient-to-t from-[#050505] via-[#050505]/90 to-transparent">
                 <AnimatePresence>
                   {selectedFile && (
@@ -696,7 +759,14 @@ export const CirclePage: React.FC = () => {
 
                 <div className="flex items-end gap-3 max-w-[600px] mx-auto">
                   {(!newPost.trim() && !selectedFile && !editingPostId) && (
-                    <button onClick={() => instantCameraRef.current?.click()} className="shrink-0 w-[54px] h-[54px] rounded-full bg-accent-primary text-white flex items-center justify-center shadow-[0_5px_20px_rgba(var(--color-accent-primary),0.4)] hover:bg-accent-primary/90 active:scale-90 transition-all" title="צלם סטורי עכשיו">
+                    <button 
+                      onTouchStart={handleCameraStart}
+                      onTouchEnd={handleCameraEnd}
+                      onMouseDown={handleCameraStart}
+                      onMouseUp={handleCameraEnd}
+                      className={`shrink-0 w-[54px] h-[54px] rounded-full bg-accent-primary text-white flex items-center justify-center shadow-[0_5px_20px_rgba(var(--color-accent-primary),0.4)] transition-all ${isCameraPressed ? 'scale-90 bg-accent-primary/80' : 'hover:bg-accent-primary/90'}`}
+                      title="לחיצה קצרה לתמונה, ארוכה לוידאו"
+                    >
                       {uploadingStory ? <Loader2 size={24} className="animate-spin text-white" /> : <Camera size={24} />}
                     </button>
                   )}
@@ -712,8 +782,8 @@ export const CirclePage: React.FC = () => {
                         <button onClick={() => fileInputRef.current?.click()} className="w-9 h-9 flex items-center justify-center rounded-full text-white/30 hover:text-white/70 transition-colors" title="צרף תמונה"><Paperclip size={18} /></button>
                       )}
                       {(newPost.trim() || selectedFile || editingPostId) && (
-                        <button onClick={handlePost} disabled={posting} className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center active:scale-90 disabled:opacity-30 transition-all shadow-[0_0_15px_rgba(255,255,255,0.2)]">
-                          {posting ? <Loader2 size={16} className="animate-spin text-black" /> : <Send size={16} className="rtl:-scale-x-100 -ml-0.5" />}
+                        <button onClick={handlePost} disabled={posting} className="w-10 h-10 rounded-full bg-accent-primary text-white flex items-center justify-center active:scale-90 disabled:opacity-30 transition-all shadow-[0_0_15px_rgba(var(--color-accent-primary),0.4)]">
+                          {posting ? <Loader2 size={16} className="animate-spin text-white" /> : <Send size={16} className="rtl:-scale-x-100 -ml-0.5" />}
                         </button>
                       )}
                     </div>
@@ -723,6 +793,7 @@ export const CirclePage: React.FC = () => {
             </div>
           )}
 
+          {/* TAB: VAULTS */}
           {activeTab === 'vaults' && (
             <div className="flex-1 p-5 flex flex-col gap-4 overflow-y-auto pb-[120px] scrollbar-hide">
               {loadingVaults ? (
@@ -735,6 +806,7 @@ export const CirclePage: React.FC = () => {
             </div>
           )}
 
+          {/* TAB: MEMBERS */}
           {activeTab === 'members' && (
             <div className="flex-1 p-5 flex flex-col gap-3 overflow-y-auto pb-[120px] scrollbar-hide">
               {membersList.map((m) => (
@@ -752,8 +824,7 @@ export const CirclePage: React.FC = () => {
           )}
         </div>
       )}
-    </FadeIn>
-  );
-
-  return mounted && typeof document !== 'undefined' ? createPortal(content, document.body) : null;
+    </motion.div>, 
+    document.body
+  ) : null;
 };
