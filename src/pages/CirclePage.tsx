@@ -7,8 +7,9 @@ import { FadeIn, Button } from '../components/ui';
 import { VaultCard } from '../components/VaultCard';
 import {
   Loader2, MessageSquare, Lock, ShieldAlert, Flame, Diamond, Handshake,
-  Plus, Send, X, Coins, Image as ImageIcon, Users, Archive, Sparkles, Trophy,
-  Pin, Calendar, BarChart3, Target, Crown, ChevronLeft, ChevronDown, Gift, Eye, Radio, BadgeCheck, Medal, Activity
+  Plus, Send, X, Coins, Paperclip, Users, ChevronLeft, ChevronDown,
+  Gift, Medal, Crown, UserCircle, Archive, Sparkles, Pin, Target, Radio,
+  BarChart3, Calendar, BadgeCheck, Eye, Activity, Trophy, Image as ImageIcon
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -32,9 +33,7 @@ const formatTime = (dateStr?: string | null) => {
 
 const formatRelative = (dateStr?: string | null) => {
   if (!dateStr) return '';
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diff = Math.max(1, Math.floor((now - then) / 1000));
+  const diff = Math.max(1, Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000));
   if (diff < 60) return 'הרגע';
   if (diff < 3600) return `לפני ${Math.floor(diff / 60)} דק׳`;
   if (diff < 86400) return `לפני ${Math.floor(diff / 3600)} ש׳`;
@@ -263,7 +262,7 @@ export const CirclePage: React.FC = () => {
     try {
       if (data.isMember) {
         await apiFetch(`/api/circles/${data.circle.slug}/upgrade`, { method: 'POST', body: JSON.stringify({ tier }) });
-        triggerFeedback('success'); toast.success(`שודרגת ל-${tier}! 👑`);
+        triggerFeedback('success'); toast.success(`שודרגת ל-${tier === 'CORE' ? 'ליבה' : 'מועדון'}! 👑`);
       } else {
         await apiFetch(`/api/circles/${data.circle.slug}/join`, { method: 'POST' });
         triggerFeedback('success'); toast.success('ברוך הבא למועדון! 🎉');
@@ -368,7 +367,7 @@ export const CirclePage: React.FC = () => {
       setNewPost(''); setSelectedFile(null);
       if (channelRef.current) channelRef.current.track({ isTyping: false });
       await fetchOverview(currentUserId, true);
-      triggerFeedback('success'); toast.success('פורסם בהצלחה');
+      triggerFeedback('success');
     } catch (err: any) {
       toast.error(err?.message || 'שגיאה בשליחת ההודעה');
     } finally {
@@ -422,37 +421,41 @@ export const CirclePage: React.FC = () => {
 
           <div className="relative z-10 px-5 text-center flex flex-col items-center">
             <div className="flex items-center gap-2 mb-2">
-              <span className="px-3 py-1 rounded-full bg-accent-primary/10 text-accent-primary text-[10px] font-black tracking-[0.2em] uppercase border border-accent-primary/20">
+              <span className="px-3 py-1 rounded-full bg-accent-primary/15 text-accent-primary text-[10px] font-black tracking-[0.2em] uppercase border border-accent-primary/20">
                 מועדון
               </span>
               {isCoreMember && (
-                <span className="px-3 py-1 rounded-full bg-amber-400/10 text-amber-400 text-[10px] font-black tracking-[0.2em] uppercase border border-amber-400/20">
+                <span className="px-3 py-1 rounded-full bg-amber-400/10 text-amber-300 text-[10px] font-black tracking-[0.2em] uppercase border border-amber-400/20">
                   ליבה
                 </span>
               )}
               {isOwner && (
-                <span className="px-3 py-1 rounded-full bg-emerald-400/10 text-emerald-400 text-[10px] font-black tracking-[0.2em] uppercase border border-emerald-400/20">
+                <span className="px-3 py-1 rounded-full bg-emerald-400/10 text-emerald-300 text-[10px] font-black tracking-[0.2em] uppercase border border-emerald-400/20">
                   מנהל
                 </span>
               )}
             </div>
 
             <h1 className="text-3xl font-black text-brand mb-2 drop-shadow-md">{circle.name}</h1>
-            <p className="text-[13px] text-brand-muted font-medium max-w-[320px] leading-relaxed mb-4 line-clamp-2">
-              {circle.description || 'מועדון סגור עם תוכן פרימיום, שיחות פנימיות, רגעים ואתגרי קהילה.'}
+            <p className="text-[13px] text-white/80 font-medium max-w-[320px] leading-relaxed mb-3">
+              {circle.description || 'מועדון סגור עם תוכן פרימיום, שיחות פנימיות, רגעים ואתגרי קהילה'}
             </p>
 
-            <div className="flex items-center justify-center gap-3 bg-surface-card/80 backdrop-blur-xl border border-white/5 px-5 py-2.5 rounded-full shadow-lg">
+            <div className="flex items-center justify-center gap-3 bg-surface-card/80 backdrop-blur-xl border border-white/10 px-5 py-2.5 rounded-full shadow-[0_5px_15px_rgba(0,0,0,0.3)]">
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_8px_#34d399]" />
-                <span className="text-[12px] font-black text-brand tracking-widest">{onlineCount} מחוברים</span>
+                <span className="text-[12px] font-black text-white tracking-widest">
+                  {onlineCount} מחוברים
+                </span>
               </div>
               {isMember && typingUsers.size > 0 && (
                 <>
-                  <div className="w-px h-3 bg-white/10" />
+                  <div className="w-px h-3 bg-white/20" />
                   <div className="flex items-center gap-1.5">
                     <MessageSquare size={14} className="text-brand-muted" />
-                    <span className="text-[11px] font-bold text-brand-muted">{typingUsers.size} מקלידים...</span>
+                    <span className="text-[11px] font-bold text-white/80">
+                      {typingUsers.size} מקלידים...
+                    </span>
                   </div>
                 </>
               )}
@@ -466,15 +469,17 @@ export const CirclePage: React.FC = () => {
               <div className="absolute inset-0 bg-accent-primary/5 rounded-full animate-pulse blur-xl" />
               <Lock size={40} className="text-brand-muted relative z-10" />
             </div>
+
             <div className="text-center">
               <h2 className="text-2xl font-black text-brand mb-2 uppercase tracking-widest">מועדון סגור</h2>
               <p className="text-brand-muted text-[13px] font-medium max-w-[250px] mx-auto">
-                הצטרף עכשיו כדי לקבל גישה לתוכן בלעדי, כספות, רגעים ואתגרי קהילה.
+                הצטרף עכשיו כדי לקבל גישה לתוכן בלעדי, כספות, רגעים ואתגרי קהילה
               </p>
             </div>
+
             <div className="grid grid-cols-1 gap-3 w-full max-w-[340px]">
               <Button onClick={() => handleJoin('INNER')} disabled={joining} className="w-full h-14 bg-white text-black font-black rounded-full uppercase tracking-widest text-[14px] shadow-lg active:scale-95 transition-all">
-                הצטרפות • {circle.join_price || 0} CRD
+                הצטרפות - {circle.join_price || 0} CRD
               </Button>
             </div>
           </div>
@@ -770,7 +775,7 @@ export const CirclePage: React.FC = () => {
 
             {activeTab === 'vaults' && (
               <div className="flex-1 p-4 flex flex-col gap-5 bg-surface overflow-y-auto pb-[120px] relative scrollbar-hide">
-                <span className="text-brand-muted font-black text-[11px] tracking-widest uppercase block text-center mt-2">כספות תוכן פרימיום</span>
+                <span className="text-brand-muted font-black text-[11px] tracking-widest uppercase block text-center mt-2">כספות תוכן</span>
                 {loadingVaults ? (
                   <Loader2 className="animate-spin text-accent-primary mx-auto my-20" />
                 ) : vaults.length === 0 ? (
