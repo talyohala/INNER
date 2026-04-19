@@ -1,592 +1,224 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { supabase } from '../lib/supabase';
-import { apiFetch } from '../lib/api';
-import { FadeIn, Button } from '../components/ui';
-import {
-  Loader2, Bell, Users, MessageSquare, Send, X, Paperclip,
-  RefreshCw, UserCircle, Trash2, Edit2, Share2, MoreVertical,
-  ChevronLeft, Reply, ChevronDown, ChevronUp, ArrowUp, Download,
-  Link as LinkIcon, Bookmark, Crown, Lock, Flame, Diamond, Handshake, Coins, PlusCircle
-} from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react'; import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom'; import { motion, AnimatePresence } from 'framer-motion'; import { supabase } from '../lib/supabase'; import { apiFetch } from '../lib/api'; import { FadeIn, Button } from '../components/ui';
+import { Loader2, Bell, Users, MessageSquare, Send, X, Paperclip, RefreshCw, UserCircle, Trash2, Edit2, Share2, MoreVertical,
+ChevronLeft, Reply, ChevronDown, ChevronUp, ArrowUp, Download, Link as LinkIcon, Bookmark, Crown, Lock, Flame, Diamond, Handshake, Coins, PlusCircle } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
-import toast from 'react-hot-toast';
-import { Share } from '@capacitor/share';
+import toast from 'react-hot-toast'; import { Share } from '@capacitor/share';
 import { useAuth } from '../context/AuthContext';
-
-type AnyPost = any;
-type AnyComment = any;
-
-const SEAL_TYPES = [
-  { id: 'fire', icon: <Flame size={24} />, label: 'אש', color: 'text-orange-500', xp: 15 },
-  { id: 'diamond', icon: <Diamond size={24} />, label: 'יהלום', color: 'text-blue-400', xp: 50 },
-  { id: 'alliance', icon: <Handshake size={24} />, label: 'ברית', color: 'text-emerald-400', xp: 100 }
-];
-
-export const HomePage: React.FC = () => {
-  const navigate = useNavigate();
-  const { profile } = useAuth();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const scrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pullStartY = useRef(0);
-  const lastScrollY = useRef(0);
-
-  const [mounted, setMounted] = useState(false);
-
-  const [posts, setPosts] = useState<AnyPost[]>(() => {
-    try {
-      const cached = localStorage.getItem('inner_feed_cache');
-      return cached ? JSON.parse(cached) : [];
-    } catch { return []; }
+type AnyPost = any; type AnyComment = any; const SEAL_TYPES = [ { id: 'fire', icon: <Flame size={24} />, label: 'אש', color: 'text-orange-500', xp: 15 }, { id: 'diamond', icon: <Diamond size={24} />, label: 'יהלום', color: 'text-blue-400', xp: 50 }, { id: 'alliance', icon: <Handshake size={24} />, label: 'ברית', color: 'text-emerald-400', xp: 100 }
+]; export const HomePage: React.FC = () => { const navigate = useNavigate(); const { profile } = useAuth(); const fileInputRef = useRef<HTMLInputElement>(null);
+const scrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+const pullStartY = useRef(0);
+const lastScrollY = useRef(0);
+const [mounted, setMounted] = useState(false); const [posts, setPosts] = useState<AnyPost[]>(() => {
+    try { const cached = localStorage.getItem('inner_feed_cache'); return cached ? JSON.parse(cached) : []; } catch { return []; }
   });
+const [loading, setLoading] = useState(posts.length === 0);
+const [newPost, setNewPost] = useState('');
+const [posting, setPosting] = useState(false); const [selectedFile, setSelectedFile] = useState<File | null>(null); const [editingPost, setEditingPost] = useState<AnyPost | null>(null); const [showCreatePost, setShowCreatePost] = useState(false);
+const [isDropMode, setIsDropMode] = useState(false); const [dropTarget, setDropTarget] = useState<number | ''>(500); const [contributeModal, setContributeModal] = useState<AnyPost | null>(null); const [contributeAmount, setContributeAmount] = useState<number | ''>(50); const [contributing, setContributing] = useState(false); const [activePost, setActivePost] = useState<AnyPost | null>(null);
+const [activeCommentsPostId, setActiveCommentsPostId] = useState<string | null>(null); const [comments, setComments] = useState<AnyComment[]>([]); const [newComment, setNewComment] = useState('');
+const [loadingComments, setLoadingComments] = useState(false); const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+const [replyingTo, setReplyingTo] = useState<AnyComment | null>(null); const [expandedThreads, setExpandedThreads] = useState<Record<string, boolean>>({}); const [commentActionModal, setCommentActionModal] = useState<AnyComment | null>(null); const [likedComments, setLikedComments] = useState<Set<string>>(new Set());
+const [optionsMenuPost, setOptionsMenuPost] = useState<AnyPost | null>(null); const [activeDescPost, setActiveDescPost] = useState<AnyPost | null>(null); const [fullScreenMedia, setFullScreenMedia] = useState<AnyPost[] | null>(null); const [currentMediaIndex, setCurrentMediaIndex] = useState(0); const [sealSelectorPost, setSealSelectorPost] = useState<AnyPost | null>(null);
+const [onlineUsers, setOnlineUsers] = useState(0);
+const [pullY, setPullY] = useState(0);
+const [refreshing, setRefreshing] = useState(false);
+const [unreadCount, setUnreadCount] = useState(0);
+const [currentUserId, setCurrentUserId] = useState('');
+const [userCirclesModal, setUserCirclesModal] = useState<any[] | null>(null); const [showScrollTop, setShowScrollTop] = useState(false); const stateRef = useRef({ comments: false, options: false, desc: false, create: false, fullscreen: false, commentAction: false, userCircles: false, contribute: false, seals: false
+});
+const mediaPosts = useMemo(() => posts.filter((p) => p.type === 'post' && !!p.media_url), [posts]);
+const getRandomMediaBatch = (size = 6, excludeId?: string) => { const pool = mediaPosts.filter((p) => (excludeId ? p.id !== excludeId : true)); if (pool.length === 0) return [];
+const batch: AnyPost[] = []; for (let i = 0; i < size; i += 1) { const picked = pool[Math.floor(Math.random() * pool.length)];
+batch.push({
+...picked, _uid: `${picked.id}-${Math.random().toString(36).slice(2, 9)}`,
+}); } return batch; };
+useEffect(() => { stateRef.current = { comments: !!activeCommentsPostId, options: !!optionsMenuPost, desc: !!activeDescPost,
+create: showCreatePost, fullscreen: !!fullScreenMedia, commentAction: !!commentActionModal, userCircles: !!userCirclesModal, contribute: !!contributeModal, seals: !!sealSelectorPost
+}; }, [activeCommentsPostId, optionsMenuPost, activeDescPost, showCreatePost, fullScreenMedia, commentActionModal, userCirclesModal, contributeModal, sealSelectorPost]);
+useEffect(() => {
+const handlePopState = () => {
+const s = stateRef.current; if (s.commentAction) setCommentActionModal(null); else if (s.userCircles) setUserCirclesModal(null); else if (s.contribute) setContributeModal(null); else if (s.seals) setSealSelectorPost(null);
+else if (s.comments) { setActiveCommentsPostId(null); setActivePost(null); setReplyingTo(null); setEditingCommentId(null); setNewComment(''); } else if (s.options) setOptionsMenuPost(null);
+else if (s.desc) setActiveDescPost(null);
+else if (s.create) { setShowCreatePost(false); setEditingPost(null); setSelectedFile(null); setNewPost(''); setIsDropMode(false); }
+else if (s.fullscreen) setFullScreenMedia(null); };
+window.addEventListener('popstate', handlePopState); return () => window.removeEventListener('popstate', handlePopState); }, []);
+useEffect(() => { const handleScroll = () => { const currentY = window.scrollY; if (currentY < lastScrollY.current && currentY > 300) setShowScrollTop(true); else setShowScrollTop(false); lastScrollY.current = currentY; }; window.addEventListener('scroll', handleScroll, { passive: true }); return () => window.removeEventListener('scroll', handleScroll); }, []);
+const openOverlay = (action: () => void) => { window.history.pushState({ overlay: true }, ''); action(); };
+const closeOverlay = () => { window.history.back(); };
+const isAnyModalOpen = () => Object.values(stateRef.current).some(Boolean); const scrollToTop = () => { window.scrollTo({ top: 0, behavior: 'smooth' }); };
+const checkUnreadNotifications = async () => { try {
+const { data: authData } = await supabase.auth.getUser(); if (!authData.user) return;
+const { count } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', authData.user.id).eq('is_read', false); setUnreadCount(count || 0); } catch {} };
+const fetchData = async (isSilentRefresh = false) => { if (!isSilentRefresh && posts.length === 0) setLoading(true);
+try { const { data: authData } = await supabase.auth.getUser(); const uid = authData.user?.id || null;
+if (uid) setCurrentUserId(uid);
+const [rawPosts, rawMembers, rawCircles] = await Promise.all([
+supabase.rpc('get_smart_feed', { p_user_id: uid, p_limit: 30, p_offset: 0 }).then((r) => r.data || []), supabase.from('circle_members').select('*').then((r) => r.data || []), supabase.from('circles').select('*').then((r) => r.data || []), ]); const myCircleIds = new Set(rawMembers.filter((m: any) => m.user_id === uid).map((m: any) => m.circle_id));
+const recommendedClubs = rawCircles .filter((c: any) => !myCircleIds.has(c.id))
+.map((c: any) => ({ ...c, memberCount: rawMembers.filter((m: any) => m.circle_id === c.id).length }));
+const fetchedPosts = rawPosts.map((p: any) => { const userCircles = rawCircles.filter((c: any) => rawMembers.some((m: any) => m.circle_id === c.id && m.user_id === p.user_id)); return { ...p,
+type: 'post', profiles: {
+id: p.user_id, full_name: p.author_name, avatar_url: p.author_avatar, role_label: p.author_role, username: p.author_name }, user_circles: userCircles, };
+});
+let mixedFeed: any[] = []; let clubIdx = 0;
+fetchedPosts.forEach((post: any, idx: number) => { mixedFeed.push(post);
+if ((idx + 1) % 4 === 0 && recommendedClubs[clubIdx]) { mixedFeed.push({
+...recommendedClubs[clubIdx], type: 'club_recommendation', _uid: `club-rec-${recommendedClubs[clubIdx].id}-${idx}` });
+clubIdx++; }
+}); setPosts(mixedFeed); localStorage.setItem('inner_feed_cache', JSON.stringify(mixedFeed)); } catch {
+if (posts.length === 0) toast.error('שגיאה בטעינת הפיד'); } finally { setLoading(false);
+setRefreshing(false); }
+};
+const handleQuickRefresh = async () => { if (refreshing) return;
+setRefreshing(true); setPullY(0);
+triggerFeedback('pop'); scrollToTop();
+await Promise.all([fetchData(true), checkUnreadNotifications()]); triggerFeedback('success'); };
+useEffect(() => {
+setMounted(true);
+fetchData(true); checkUnreadNotifications(); }, []);
+useEffect(() => {
+const presenceChannel = supabase.channel('global_online');
+presenceChannel.on('presence', { event: 'sync' }, () => { const state = presenceChannel.presenceState(); let activeCount = 0;
+for (const key in state) activeCount += state[key].length; setOnlineUsers(activeCount > 0 ? activeCount : 1); }).subscribe(async (status) => { if (status === 'SUBSCRIBED') {
+await presenceChannel.track({ online_at: new Date().toISOString(), user_id: currentUserId || 'guest' });
+}
+}); return () => { supabase.removeChannel(presenceChannel); }; }, [currentUserId]); useEffect(() => { if (!fullScreenMedia) return; const observer = new IntersectionObserver((entries) => { entries.forEach((entry) => { const vid = entry.target as HTMLVideoElement; if (vid.tagName !== 'VIDEO') return; if (entry.isIntersecting) { vid.muted = false; vid.play().catch(() => {}); } else { vid.pause(); vid.muted = true; vid.currentTime = 0; } }); }, { threshold: 0.7 }); document.querySelectorAll('.full-media-item').forEach((v) => observer.observe(v));
+return () => observer.disconnect();
+}, [fullScreenMedia, currentMediaIndex]);
+const handleContainerScroll = (e: React.UIEvent<HTMLDivElement>) => { const target = e.currentTarget;
+if (scrollTimeout.current) return;
+scrollTimeout.current = setTimeout(() => { scrollTimeout.current = null; const index = Math.round(target.scrollTop / target.clientHeight);
+if (index !== currentMediaIndex) setCurrentMediaIndex(index); if (target.scrollHeight - target.scrollTop <= target.clientHeight * 2 && fullScreenMedia) {
+const more = getRandomMediaBatch(4); if (more.length) setFullScreenMedia((prev) => [...(prev || []), ...more]);
+}
+}, 120); };
+const handleTouchStart = (e: React.TouchEvent) => {
+if (isAnyModalOpen() || refreshing) return;
+if (window.scrollY <= 5) pullStartY.current = e.touches[0].clientY;
+}; const handleTouchMove = (e: React.TouchEvent) => {
+if (isAnyModalOpen() || refreshing) return; if (pullStartY.current > 0 && window.scrollY <= 0) { const y = e.touches[0].clientY - pullStartY.current;
+if (y > 0) { setPullY(Math.min(Math.pow(y, 0.85), 100)); } }
+}; const handleTouchEnd = async () => { if (isAnyModalOpen() || refreshing) return; if (pullY > 60) {
+handleQuickRefresh(); } else { setPullY(0); } pullStartY.current = 0; }; const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) { setSelectedFile(file); } else if (file) {
+toast.error('אנא בחר קובץ תמונה או וידאו תקין'); }
+if (fileInputRef.current) fileInputRef.current.value = ''; };
+const handlePost = async () => { if (!newPost.trim() && !selectedFile && !editingPost) return; if (isDropMode && (!dropTarget || dropTarget < 50)) return toast.error('יעד מינימלי לדרופ: 50 CRD');
+setPosting(true);
+triggerFeedback('pop'); try { if (editingPost) { await supabase.from('posts').update({ content: newPost.trim() }).eq('id', editingPost.id); setPosts((curr) => curr.map((p) => p.id === editingPost.id ? { ...p, content: newPost.trim() } : p)); toast.success('עודכן בהצלחה'); closeOverlay(); return;
+}
+let media_url: string | null = null; let media_type = 'text';
+if (selectedFile) { const safeName = selectedFile.name.replace(/[^a-zA-Z0-9.\-_]/g, '_'); const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}_${safeName}`;
+const { data: uploadData, error: uploadError } = await supabase.storage.from('feed_images').upload(fileName, selectedFile, { cacheControl: '3600', upsert: false
+}); if (uploadError) throw new Error("שגיאה בהעלאת הקובץ: " + uploadError.message);
+if (!uploadData?.path) throw new Error("בעיה בקבלת נתיב הקובץ מהשרת");
+const { data: { publicUrl } } = supabase.storage.from('feed_images').getPublicUrl(uploadData.path);
+if (!publicUrl) throw new Error("לא הצלחנו לייצר קישור לקובץ");
+media_url = publicUrl; media_type = selectedFile.type.startsWith('video/') ? 'video' : 'image';
+} const expiresAt = new Date(); expiresAt.setHours(expiresAt.getHours() + 24);
+const insertRes = await supabase.from('posts').insert({
+user_id: currentUserId, content: newPost.trim(), media_url, media_type,
+circle_id: null, is_reveal_drop: isDropMode, required_crd: isDropMode ? dropTarget : 0, drop_expires_at: isDropMode ? expiresAt.toISOString() : null,
+reveal_status: isDropMode ? 'locked' : 'revealed'
+});
+if (insertRes.error) throw insertRes.error;
+setNewPost('');
+setSelectedFile(null);
+setEditingPost(null);
+setIsDropMode(false);
+triggerFeedback('success');
+await fetchData(true);
+} catch (e: any) {
+console.error(e); toast.error(e.message || 'שגיאה בשמירה'); } finally {
+setPosting(false);
+} };
+const handleJoinCircle = async (circleId: string) => {
+triggerFeedback('pop'); try { const { error } = await supabase.from('circle_members').insert({ circle_id: circleId, user_id: currentUserId, role: 'member' }); if (error) throw error;
+toast.success('הצטרפת למועדון! 🎉');
+setPosts((prev) => prev.filter((item) => item.id !== circleId || item.type !== 'club_recommendation'));
+triggerFeedback('success');
+} catch (err) { toast.error('שגיאה בהצטרפות למועדון');
+}
+};
 
-  const [loading, setLoading] = useState(posts.length === 0);
-  const [newPost, setNewPost] = useState('');
-  const [posting, setPosting] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [editingPost, setEditingPost] = useState<AnyPost | null>(null);
-  const [showCreatePost, setShowCreatePost] = useState(false);
+const handleRemoveSeal = async (postId: string) => {
+triggerFeedback('pop'); const update = (list: AnyPost[]) => list.map((p) => p.id === postId ? { ...p, has_sealed: false, seals_count: Math.max(0, p.seals_count - 1) } : p);
+setPosts((prev) => update(prev));
+if (fullScreenMedia) setFullScreenMedia((prev) => (prev ? update(prev) : prev));
+try { await supabase.from('post_seals').delete().match({ post_id: postId, user_id: currentUserId }); } catch (err) { toast.error('שגיאה בהסרת חותם'); } 
+};
+const handleSeal = async (postId: string, sealType: string) => {
+triggerFeedback('pop'); closeOverlay(); const update = (list: AnyPost[]) => list.map((p) => p.id === postId ? { ...p, has_sealed: true, seals_count: p.seals_count + 1 } : p);
+setPosts((prev) => update(prev));
+if (fullScreenMedia) setFullScreenMedia((prev) => (prev ? update(prev) : prev));
 
-  const [isDropMode, setIsDropMode] = useState(false);
-  const [dropTarget, setDropTarget] = useState<number | ''>(500);
-  const [contributeModal, setContributeModal] = useState<AnyPost | null>(null);
-  const [contributeAmount, setContributeAmount] = useState<number | ''>(50);
-  const [contributing, setContributing] = useState(false);
+try { const { error } = await supabase.from('post_seals').insert({ post_id: postId, user_id: currentUserId, seal_type: sealType }); if (error) { if (error.code === '23505') toast.error('כבר נתת חותם לפוסט זה'); else throw error; const revert = (list: AnyPost[]) => list.map((p) => p.id === postId ? { ...p, has_sealed: false, seals_count: Math.max(0, p.seals_count - 1) } : p); setPosts((prev) => revert(prev)); } else { triggerFeedback('success'); } } catch (err) { toast.error('שגיאה בהענקת חותם'); } 
+};
+const handleContribute = async () => {
+if (!contributeModal || !contributeAmount || contributeAmount <= 0) return; setContributing(true); triggerFeedback('pop'); try { const { error } = await supabase.rpc('contribute_to_drop', {
+p_post_id: contributeModal.id,
+p_amount: contributeAmount });
+if (error) throw error; toast.success('תרומתך התקבלה! 🎉'); closeOverlay(); await fetchData(true); triggerFeedback('coin');
+} catch (err: any) { triggerFeedback('error');
+toast.error(err.message || 'שגיאה בתרומה. בדוק יתרה בארנק.'); } finally { setContributing(false); } };
+const handleShare = async (post: AnyPost) => { triggerFeedback('pop'); const publicUrl = `https://inner-app.com/post/${post.id}`;
+const textToShare = `${post.content ? `${post.content}\n\n` : ''}צפה בפוסט הזה ב-INNER!`; try { const isNative = typeof window !== 'undefined' && !!(window as any).Capacitor && (window as any).Capacitor.isNativePlatform?.();
+if (isNative) { await Share.share({ title: 'INNER', text: textToShare, url: publicUrl, dialogTitle: 'שתף עם חברים' });
+} else if (navigator.share && window.isSecureContext) { await navigator.share({ title: 'INNER', text: textToShare, url: publicUrl });
+} else { await navigator.clipboard.writeText(`${textToShare}\n${publicUrl}`); toast.success('הקישור הועתק ללוח'); } } catch {} }; const handleCopyLink = async (post: AnyPost) => { const publicUrl = `https://inner-app.com/post/${post.id}`; try { await navigator.clipboard.writeText(publicUrl); toast.success('הקישור הועתק ללוח', { icon: '🔗' }); } catch { toast.error('שגיאה בהעתקה'); } closeOverlay(); };
+const handleDownloadMedia = async (mediaUrl: string) => {
+try {
+toast.loading('מוריד קובץ...', { id: 'dl' });
+const response = await fetch(mediaUrl); const blob = await response.blob(); const url = window.URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `INNER_Media_${Date.now()}`; document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url); document.body.removeChild(a); toast.success('הקובץ נשמר בהצלחה', { id: 'dl' }); } catch { toast.error('לא ניתן להוריד את הקובץ', { id: 'dl' }); } closeOverlay(); };
+const handleSavePost = async (post: AnyPost) => { try {
+await supabase.from('saved_posts').insert({ user_id: currentUserId, post_id: post.id }); toast.success('הפוסט נשמר במועדפים!', { icon: '⭐' }); } catch (e: any) { if (e?.code === '23505') toast.success('הפוסט כבר שמור אצלך', { icon: '⭐' }); else toast.error('שגיאה בשמירה'); }
+}; const submitComment = async () => { if (!newComment.trim() || !activePost) return; try { if (editingCommentId) { const updateRes = await supabase.from('comments').update({ content: newComment.trim() }).eq('id', editingCommentId); if (updateRes.error) throw updateRes.error; setComments((prev) => prev.map((c) => c.id === editingCommentId ? { ...c, content: newComment.trim() } : c));
+setEditingCommentId(null); } else {
+const parentIdToUse = replyingTo ? (replyingTo.parent_id || replyingTo.id) : null;
+const data = await apiFetch(`/api/posts/${activePost.id}/comments`, { method: 'POST', headers: { 'x-user-id': currentUserId },
+body: JSON.stringify({ content: newComment.trim(), parent_id: parentIdToUse }), }); if (data) {
+const newCommentObj = { ...data, parent_id: parentIdToUse, profiles: {
+full_name: profile?.full_name || 'משתמש', avatar_url: profile?.avatar_url }
+};
+setComments((prev) => [...prev, newCommentObj]); const update = (list: AnyPost[]) => list.map((p) => p.id === activePost.id ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p);
+setPosts((prev) => update(prev)); if (fullScreenMedia) setFullScreenMedia((prev) => (prev ? update(prev) : prev)); if (parentIdToUse) setExpandedThreads((prev) => ({ ...prev, [parentIdToUse]: true })); triggerFeedback('coin'); }
+} setNewComment(''); setReplyingTo(null); } catch { toast.error('שגיאה בשרת'); }
+};
+const toggleCommentLike = (id: string) => { setLikedComments(prev => { const next = new Set(prev);
+if (next.has(id)) next.delete(id);
+else next.add(id); return next;
+}); triggerFeedback('pop');
+};
+const deletePost = async (postId: string) => { triggerFeedback('error'); closeOverlay();
+setPosts((curr) => curr.filter((p) => p.id !== postId));
+await supabase.from('posts').delete().eq('id', postId);
+};
 
-  const [activePost, setActivePost] = useState<AnyPost | null>(null);
-  const [activeCommentsPostId, setActiveCommentsPostId] = useState<string | null>(null);
-  const [comments, setComments] = useState<AnyComment[]>([]);
-  const [newComment, setNewComment] = useState('');
-  const [loadingComments, setLoadingComments] = useState(false);
-  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
-  const [replyingTo, setReplyingTo] = useState<AnyComment | null>(null);
-  const [expandedThreads, setExpandedThreads] = useState<Record<string, boolean>>({});
-  const [commentActionModal, setCommentActionModal] = useState<AnyComment | null>(null);
-  const [likedComments, setLikedComments] = useState<Set<string>>(new Set());
+const deleteComment = async (commentId: string) => {
+triggerFeedback('error');
+setComments((curr) => curr.filter((c) => c && c.id !== commentId && c.parent_id !== commentId));
+const update = (list: AnyPost[]) => list.map((p) => p.id === activePost?.id ? { ...p, comments_count: Math.max(0, (p.comments_count || 0) - 1) } : p);
+setPosts((prev) => update(prev));
+if (fullScreenMedia) setFullScreenMedia((prev) => (prev ? update(prev) : prev)); try { await supabase.from('comments').delete().eq('id', commentId); } catch {}
+}; const handleOpenFullscreen = (post: AnyPost) => {
+if (post.is_reveal_drop && post.reveal_status === 'locked') { openOverlay(() => setContributeModal(post)); return; } openOverlay(() => {
+setFullScreenMedia([
+{ ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2, 9)}` }, ...getRandomMediaBatch(10, post.id), ]);
+setCurrentMediaIndex(0); }); }; 
+const renderCommentText = (text: string) => { if (!text) return null; const parts = text.split(/(@[\wא-ת]+)/g); return parts.map((part, i) => part.startsWith('@') ? <span key={i} className="text-accent-primary font-bold">{part}</span> : <span key={i}>{part}</span>); };
+const stopPropagation = (e: React.SyntheticEvent) => e.stopPropagation(); 
+const sortedParentComments = useMemo(() => {
+return comments .filter((c) => c && !c.parent_id)
+.sort((a, b) => { const repliesA = comments.filter((r) => r && r.parent_id === a.id).length; const repliesB = comments.filter((r) => r && r.parent_id === b.id).length; if (repliesB !== repliesA) return repliesB - repliesA; return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+});
+}, [comments]);
+if (loading && posts.length === 0) {
+return <div className="min-h-screen bg-surface flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div>;
+}
 
-  const [optionsMenuPost, setOptionsMenuPost] = useState<AnyPost | null>(null);
-  const [activeDescPost, setActiveDescPost] = useState<AnyPost | null>(null);
-  const [fullScreenMedia, setFullScreenMedia] = useState<AnyPost[] | null>(null);
-  const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
-  const [sealSelectorPost, setSealSelectorPost] = useState<AnyPost | null>(null);
-
-  const [onlineUsers, setOnlineUsers] = useState(0);
-  const [pullY, setPullY] = useState(0);
-  const [refreshing, setRefreshing] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [currentUserId, setCurrentUserId] = useState('');
-
-  const [userCirclesModal, setUserCirclesModal] = useState<any[] | null>(null);
-  const [showScrollTop, setShowScrollTop] = useState(false);
-
-  const stateRef = useRef({
-    comments: false, options: false, desc: false, create: false,
-    fullscreen: false, commentAction: false, userCircles: false, contribute: false, seals: false
-  });
-
-  const mediaPosts = useMemo(() => posts.filter((p) => p.type === 'post' && !!p.media_url), [posts]);
-
-  const getRandomMediaBatch = (size = 6, excludeId?: string) => {
-    const pool = mediaPosts.filter((p) => (excludeId ? p.id !== excludeId : true));
-    if (pool.length === 0) return [];
-    const batch: AnyPost[] = [];
-    for (let i = 0; i < size; i += 1) {
-      const picked = pool[Math.floor(Math.random() * pool.length)];
-      batch.push({
-        ...picked,
-        _uid: `${picked.id}-${Math.random().toString(36).slice(2, 9)}`,
-      });
-    }
-    return batch;
-  };
-
-  useEffect(() => {
-    stateRef.current = {
-      comments: !!activeCommentsPostId, options: !!optionsMenuPost, desc: !!activeDescPost,
-      create: showCreatePost, fullscreen: !!fullScreenMedia, commentAction: !!commentActionModal,
-      userCircles: !!userCirclesModal, contribute: !!contributeModal, seals: !!sealSelectorPost
-    };
-  }, [activeCommentsPostId, optionsMenuPost, activeDescPost, showCreatePost, fullScreenMedia, commentActionModal, userCirclesModal, contributeModal, sealSelectorPost]);
-
-  useEffect(() => {
-    const handlePopState = () => {
-      const s = stateRef.current;
-      if (s.commentAction) setCommentActionModal(null);
-      else if (s.userCircles) setUserCirclesModal(null);
-      else if (s.contribute) setContributeModal(null);
-      else if (s.seals) setSealSelectorPost(null);
-      else if (s.comments) { setActiveCommentsPostId(null); setActivePost(null); setReplyingTo(null); setEditingCommentId(null); setNewComment(''); }
-      else if (s.options) setOptionsMenuPost(null);
-      else if (s.desc) setActiveDescPost(null);
-      else if (s.create) { setShowCreatePost(false); setEditingPost(null); setSelectedFile(null); setNewPost(''); setIsDropMode(false); }
-      else if (s.fullscreen) setFullScreenMedia(null);
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentY = window.scrollY;
-      if (currentY < lastScrollY.current && currentY > 300) setShowScrollTop(true);
-      else setShowScrollTop(false);
-      lastScrollY.current = currentY;
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  const openOverlay = (action: () => void) => { window.history.pushState({ overlay: true }, ''); action(); };
-  const closeOverlay = () => { window.history.back(); };
-  const isAnyModalOpen = () => Object.values(stateRef.current).some(Boolean);
-  const scrollToTop = () => { window.scrollTo({ top: 0, behavior: 'smooth' }); };
-
-  const checkUnreadNotifications = async () => {
-    try {
-      const { data: authData } = await supabase.auth.getUser();
-      if (!authData.user) return;
-      const { count } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', authData.user.id).eq('is_read', false);
-      setUnreadCount(count || 0);
-    } catch {}
-  };
-
-  const fetchData = async (isSilentRefresh = false) => {
-    if (!isSilentRefresh && posts.length === 0) setLoading(true);
-    try {
-      const { data: authData } = await supabase.auth.getUser();
-      const uid = authData.user?.id || null;
-      if (uid) setCurrentUserId(uid);
-
-      const [rawPosts, rawMembers, rawCircles] = await Promise.all([
-        supabase.rpc('get_smart_feed', { p_user_id: uid, p_limit: 30, p_offset: 0 }).then((r) => r.data || []),
-        supabase.from('circle_members').select('*').then((r) => r.data || []),
-        supabase.from('circles').select('*').then((r) => r.data || []),
-      ]);
-
-      const myCircleIds = new Set(rawMembers.filter((m: any) => m.user_id === uid).map((m: any) => m.circle_id));
-
-      const recommendedClubs = rawCircles
-        .filter((c: any) => !myCircleIds.has(c.id))
-        .map((c: any) => ({
-          ...c,
-          memberCount: rawMembers.filter((m: any) => m.circle_id === c.id).length
-        }));
-
-      const fetchedPosts = rawPosts.map((p: any) => {
-        const userCircles = rawCircles.filter((c: any) => rawMembers.some((m: any) => m.circle_id === c.id && m.user_id === p.user_id));
-        return {
-          ...p,
-          type: 'post',
-          profiles: {
-            id: p.user_id,
-            full_name: p.author_name,
-            avatar_url: p.author_avatar,
-            role_label: p.author_role,
-            username: p.author_name
-          },
-          user_circles: userCircles,
-        };
-      });
-
-      let mixedFeed: any[] = [];
-      let clubIdx = 0;
-
-      fetchedPosts.forEach((post: any, idx: number) => {
-        mixedFeed.push(post);
-        if ((idx + 1) % 4 === 0 && recommendedClubs[clubIdx]) {
-          mixedFeed.push({
-            ...recommendedClubs[clubIdx],
-            type: 'club_recommendation',
-            _uid: `club-rec-${recommendedClubs[clubIdx].id}-${idx}`
-          });
-          clubIdx++;
-        }
-      });
-
-      setPosts(mixedFeed);
-      localStorage.setItem('inner_feed_cache', JSON.stringify(mixedFeed));
-    } catch {
-      if (posts.length === 0) toast.error('שגיאה בטעינת הפיד');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  const handleQuickRefresh = async () => {
-    if (refreshing) return;
-    setRefreshing(true);
-    setPullY(0);
-    triggerFeedback('pop');
-    scrollToTop();
-    await Promise.all([fetchData(true), checkUnreadNotifications()]);
-    triggerFeedback('success');
-  };
-
-  useEffect(() => {
-    setMounted(true);
-    fetchData(true);
-    checkUnreadNotifications();
-  }, []);
-
-  useEffect(() => {
-    const presenceChannel = supabase.channel('global_online');
-    presenceChannel.on('presence', { event: 'sync' }, () => {
-      const state = presenceChannel.presenceState();
-      let activeCount = 0;
-      for (const key in state) activeCount += state[key].length;
-      setOnlineUsers(activeCount > 0 ? activeCount : 1);
-    }).subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        await presenceChannel.track({ online_at: new Date().toISOString(), user_id: currentUserId || 'guest' });
-      }
-    });
-    return () => { supabase.removeChannel(presenceChannel); };
-  }, [currentUserId]);
-
-  const handleContainerScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const target = e.currentTarget;
-    if (scrollTimeout.current) return;
-    scrollTimeout.current = setTimeout(() => {
-      scrollTimeout.current = null;
-      const index = Math.round(target.scrollTop / target.clientHeight);
-      if (index !== currentMediaIndex) setCurrentMediaIndex(index);
-      if (target.scrollHeight - target.scrollTop <= target.clientHeight * 2 && fullScreenMedia) {
-        const more = getRandomMediaBatch(4);
-        if (more.length) setFullScreenMedia((prev) => [...(prev || []), ...more]);
-      }
-    }, 120);
-  };
-
-  useEffect(() => {
-    if (!fullScreenMedia) return;
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        const vid = entry.target as HTMLVideoElement;
-        if (vid.tagName !== 'VIDEO') return;
-        if (entry.isIntersecting) { vid.muted = false; vid.play().catch(() => {}); }
-        else { vid.pause(); vid.muted = true; vid.currentTime = 0; }
-      });
-    }, { threshold: 0.7 });
-    document.querySelectorAll('.full-media-item').forEach((v) => observer.observe(v));
-    return () => observer.disconnect();
-  }, [fullScreenMedia, currentMediaIndex]);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (isAnyModalOpen() || refreshing) return;
-    if (window.scrollY <= 5) pullStartY.current = e.touches[0].clientY;
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (isAnyModalOpen() || refreshing) return;
-    if (pullStartY.current > 0 && window.scrollY <= 0) {
-      const y = e.touches[0].clientY - pullStartY.current;
-      if (y > 0) {
-        setPullY(Math.min(Math.pow(y, 0.85), 100));
-      }
-    }
-  };
-
-  const handleTouchEnd = async () => {
-    if (isAnyModalOpen() || refreshing) return;
-    if (pullY > 60) {
-      handleQuickRefresh();
-    } else {
-      setPullY(0);
-    }
-    pullStartY.current = 0;
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) {
-      setSelectedFile(file);
-    } else if (file) {
-      toast.error('אנא בחר קובץ תמונה או וידאו תקין');
-    }
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  const handlePost = async () => {
-    if (!newPost.trim() && !selectedFile && !editingPost) return;
-    if (isDropMode && (!dropTarget || dropTarget < 50)) return toast.error('יעד מינימלי לדרופ: 50 CRD');
-
-    setPosting(true);
-    triggerFeedback('pop');
-    try {
-      if (editingPost) {
-        await supabase.from('posts').update({ content: newPost.trim() }).eq('id', editingPost.id);
-        setPosts((curr) => curr.map((p) => p.id === editingPost.id ? { ...p, content: newPost.trim() } : p));
-        toast.success('עודכן בהצלחה');
-        closeOverlay();
-        return;
-      }
-
-      let media_url: string | null = null;
-      let media_type = 'text';
-
-      if (selectedFile) {
-        const safeName = selectedFile.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
-        const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}_${safeName}`;
-
-        const { data: uploadData, error: uploadError } = await supabase.storage.from('feed_images').upload(fileName, selectedFile, {
-          cacheControl: '3600',
-          upsert: false
-        });
-
-        if (uploadError) throw new Error("שגיאה בהעלאת הקובץ: " + uploadError.message);
-        if (!uploadData?.path) throw new Error("בעיה בקבלת נתיב הקובץ מהשרת");
-
-        const { data: { publicUrl } } = supabase.storage.from('feed_images').getPublicUrl(uploadData.path);
-        if (!publicUrl) throw new Error("לא הצלחנו לייצר קישור לקובץ");
-
-        media_url = publicUrl;
-        media_type = selectedFile.type.startsWith('video/') ? 'video' : 'image';
-      }
-
-      const expiresAt = new Date();
-      expiresAt.setHours(expiresAt.getHours() + 24);
-
-      const insertRes = await supabase.from('posts').insert({
-        user_id: currentUserId,
-        content: newPost.trim(),
-        media_url,
-        media_type,
-        circle_id: null,
-        is_reveal_drop: isDropMode,
-        required_crd: isDropMode ? dropTarget : 0,
-        drop_expires_at: isDropMode ? expiresAt.toISOString() : null,
-        reveal_status: isDropMode ? 'locked' : 'revealed'
-      });
-
-      if (insertRes.error) throw insertRes.error;
-
-      setNewPost('');
-      setSelectedFile(null);
-      setEditingPost(null);
-      setIsDropMode(false);
-      triggerFeedback('success');
-      await fetchData(true);
-    } catch (e: any) {
-      console.error(e);
-      toast.error(e.message || 'שגיאה בשמירה');
-    } finally {
-      setPosting(false);
-    }
-  };
-
-  const handleJoinCircle = async (circleId: string) => {
-    triggerFeedback('pop');
-    try {
-      const { error } = await supabase.from('circle_members').insert({ circle_id: circleId, user_id: currentUserId, role: 'member' });
-      if (error) throw error;
-      toast.success('הצטרפת למועדון! 🎉');
-      setPosts((prev) => prev.filter((item) => item.id !== circleId || item.type !== 'club_recommendation'));
-      triggerFeedback('success');
-    } catch (err) {
-      toast.error('שגיאה בהצטרפות למועדון');
-    }
-  };
-
-  const handleRemoveSeal = async (postId: string) => {
-    triggerFeedback('pop');
-    const update = (list: AnyPost[]) => list.map((p) => p.id === postId ? { ...p, has_sealed: false, seals_count: Math.max(0, p.seals_count - 1) } : p);
-    setPosts((prev) => update(prev));
-    if (fullScreenMedia) setFullScreenMedia((prev) => (prev ? update(prev) : prev));
-
-    try {
-      await supabase.from('post_seals').delete().match({ post_id: postId, user_id: currentUserId });
-    } catch (err) {
-      toast.error('שגיאה בהסרת חותם');
-    }
-  };
-
-  const handleSeal = async (postId: string, sealType: string) => {
-    triggerFeedback('pop');
-    closeOverlay();
-    const update = (list: AnyPost[]) => list.map((p) => p.id === postId ? { ...p, has_sealed: true, seals_count: p.seals_count + 1 } : p);
-    setPosts((prev) => update(prev));
-    if (fullScreenMedia) setFullScreenMedia((prev) => (prev ? update(prev) : prev));
-
-    try {
-      const { error } = await supabase.from('post_seals').insert({ post_id: postId, user_id: currentUserId, seal_type: sealType });
-      if (error) {
-        if (error.code === '23505') toast.error('כבר נתת חותם לפוסט זה');
-        else throw error;
-        const revert = (list: AnyPost[]) => list.map((p) => p.id === postId ? { ...p, has_sealed: false, seals_count: Math.max(0, p.seals_count - 1) } : p);
-        setPosts((prev) => revert(prev));
-      } else {
-        triggerFeedback('success');
-      }
-    } catch (err) {
-      toast.error('שגיאה בהענקת חותם');
-    }
-  };
-
-  const handleContribute = async () => {
-    if (!contributeModal || !contributeAmount || contributeAmount <= 0) return;
-    setContributing(true);
-    triggerFeedback('pop');
-    try {
-      const { error } = await supabase.rpc('contribute_to_drop', {
-        p_post_id: contributeModal.id,
-        p_amount: contributeAmount
-      });
-
-      if (error) throw error;
-      toast.success('תרומתך התקבלה! 🎉');
-      closeOverlay();
-      await fetchData(true);
-      triggerFeedback('coin');
-    } catch (err: any) {
-      triggerFeedback('error');
-      toast.error(err.message || 'שגיאה בתרומה. בדוק יתרה בארנק.');
-    } finally {
-      setContributing(false);
-    }
-  };
-
-  const handleShare = async (post: AnyPost) => {
-    triggerFeedback('pop');
-    const publicUrl = `https://inner-app.com/post/${post.id}`;
-    const textToShare = `${post.content ? `${post.content}\n\n` : ''}צפה בפוסט הזה ב-INNER!`;
-    try {
-      const isNative = typeof window !== 'undefined' && !!(window as any).Capacitor && (window as any).Capacitor.isNativePlatform?.();
-      if (isNative) {
-        await Share.share({ title: 'INNER', text: textToShare, url: publicUrl, dialogTitle: 'שתף עם חברים' });
-      } else if (navigator.share && window.isSecureContext) {
-        await navigator.share({ title: 'INNER', text: textToShare, url: publicUrl });
-      } else {
-        await navigator.clipboard.writeText(`${textToShare}\n${publicUrl}`);
-        toast.success('הקישור הועתק ללוח');
-      }
-    } catch {}
-  };
-
-  const handleCopyLink = async (post: AnyPost) => {
-    const publicUrl = `https://inner-app.com/post/${post.id}`;
-    try {
-      await navigator.clipboard.writeText(publicUrl);
-      toast.success('הקישור הועתק ללוח', { icon: '🔗' });
-    } catch { toast.error('שגיאה בהעתקה'); }
-    closeOverlay();
-  };
-
-  const handleDownloadMedia = async (mediaUrl: string) => {
-    try {
-      toast.loading('מוריד קובץ...', { id: 'dl' });
-      const response = await fetch(mediaUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `INNER_Media_${Date.now()}`;
-      document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url); document.body.removeChild(a);
-      toast.success('הקובץ נשמר בהצלחה', { id: 'dl' });
-    } catch { toast.error('לא ניתן להוריד את הקובץ', { id: 'dl' }); }
-    closeOverlay();
-  };
-
-  const submitComment = async () => {
-    if (!newComment.trim() || !activePost) return;
-    try {
-      if (editingCommentId) {
-        const updateRes = await supabase.from('comments').update({ content: newComment.trim() }).eq('id', editingCommentId);
-        if (updateRes.error) throw updateRes.error;
-        setComments((prev) => prev.map((c) => (c.id === editingCommentId ? { ...c, content: newComment.trim() } : c)));
-        setEditingCommentId(null);
-      } else {
-        const parentIdToUse = replyingTo ? (replyingTo.parent_id || replyingTo.id) : null;
-        const data = await apiFetch(`/api/posts/${activePost.id}/comments`, {
-          method: 'POST',
-          headers: { 'x-user-id': currentUserId },
-          body: JSON.stringify({ content: newComment.trim(), parent_id: parentIdToUse }),
-        });
-        if (data) {
-          const newCommentObj = {
-            ...data,
-            parent_id: parentIdToUse,
-            profiles: {
-              full_name: profile?.full_name || 'משתמש',
-              avatar_url: profile?.avatar_url
-            }
-          };
-          setComments((prev) => [...prev, newCommentObj]);
-          const update = (list: AnyPost[]) => list.map((p) => p.id === activePost.id ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p);
-          setPosts((prev) => update(prev));
-          if (fullScreenMedia) setFullScreenMedia((prev) => (prev ? update(prev) : prev));
-          if (parentIdToUse) setExpandedThreads((prev) => ({ ...prev, [parentIdToUse]: true }));
-          triggerFeedback('coin');
-        }
-      }
-      setNewComment(''); setReplyingTo(null);
-    } catch { toast.error('שגיאה בשרת'); }
-  };
-
-  const toggleCommentLike = (id: string) => {
-    setLikedComments(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-    triggerFeedback('pop');
-  };
-
-  const deletePost = async (postId: string) => {
-    triggerFeedback('error'); closeOverlay();
-    setPosts((curr) => curr.filter((p) => p.id !== postId));
-    await supabase.from('posts').delete().eq('id', postId);
-  };
-
-  const deleteComment = async (commentId: string) => {
-    triggerFeedback('error');
-    setComments((curr) => curr.filter((c) => c && c.id !== commentId && c.parent_id !== commentId));
-    const update = (list: AnyPost[]) => list.map((p) => p.id === activePost?.id ? { ...p, comments_count: Math.max(0, (p.comments_count || 0) - 1) } : p);
-    setPosts((prev) => update(prev));
-    if (fullScreenMedia) setFullScreenMedia((prev) => (prev ? update(prev) : prev));
-    try { await supabase.from('comments').delete().eq('id', commentId); } catch {}
-  };
-
-  const handleOpenFullscreen = (post: AnyPost) => {
-    if (post.is_reveal_drop && post.reveal_status === 'locked') {
-      openOverlay(() => setContributeModal(post));
-      return;
-    }
-    openOverlay(() => {
-      setFullScreenMedia([
-        { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2, 9)}` },
-        ...getRandomMediaBatch(10, post.id),
-      ]);
-      setCurrentMediaIndex(0);
-    });
-  };
-
-  const renderCommentText = (text: string) => {
-    if (!text) return null;
-    const parts = text.split(/(@[\wא-ת]+)/g);
-    return parts.map((part, i) => part.startsWith('@') ? <span key={i} className="text-accent-primary font-bold">{part}</span> : <span key={i}>{part}</span>);
-  };
-
-  const stopPropagation = (e: React.SyntheticEvent) => e.stopPropagation();
-
-  const sortedParentComments = useMemo(() => {
-    return comments
-      .filter((c) => c && !c.parent_id)
-      .sort((a, b) => {
-        const repliesA = comments.filter((r) => r && r.parent_id === a.id).length;
-        const repliesB = comments.filter((r) => r && r.parent_id === b.id).length;
-        if (repliesB !== repliesA) return repliesB - repliesA; 
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      });
-  }, [comments]);
-
-  if (loading && posts.length === 0) {
-    return <div className="min-h-screen bg-surface flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div>;
-  }
-
-  return (
-    <>
+return ( <>
       <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*" />
 
       <AnimatePresence>
@@ -1056,7 +688,7 @@ export const HomePage: React.FC = () => {
             {activeCommentsPostId && (
               <div className="fixed inset-0 z-[9999999]" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
-                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 400 }} className="absolute bottom-0 w-full bg-surface rounded-t-[32px] h-[80vh] flex flex-col overflow-hidden pb-10 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border">
+                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="absolute bottom-0 w-full bg-surface rounded-t-[32px] h-[80vh] flex flex-col overflow-hidden pb-10 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border">
                   <div className="w-full py-5 flex justify-center cursor-grab active:cursor-grabbing border-b border-surface-border"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>
                   <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-6 scrollbar-hide">
                     {loadingComments ? (
