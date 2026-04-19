@@ -9,7 +9,7 @@ import {
   Loader2, Bell, Users, MessageSquare, Send, X, Paperclip, RefreshCw,
   UserCircle, Trash2, Edit2, Share2, MoreVertical, ChevronLeft, Reply,
   ChevronDown, ChevronUp, ArrowUp, Download, Link as LinkIcon, Bookmark,
-  Crown, Lock, Flame, Diamond, Handshake, Coins, Gift, ArrowLeft
+  Crown, Lock, Flame, Diamond, Handshake, Coins, Megaphone, Gift, ArrowLeft
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -60,15 +60,20 @@ export const HomePage: React.FC = () => {
 
   const [mounted, setMounted] = useState(false);
   const [posts, setPosts] = useState<AnyPost[]>(() => {
-    try { const cached = localStorage.getItem('inner_feed_cache'); return cached ? JSON.parse(cached) : []; } catch { return []; }
+    try {
+      const cached = localStorage.getItem('inner_feed_cache');
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
   });
 
+  // Campaigns State
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [claimedCampaigns, setClaimedCampaigns] = useState<Set<string>>(() => {
-    try { return new Set(JSON.parse(localStorage.getItem('inner_claimed_camps') || '[]')); } catch { return new Set(); }
+    try { return new Set(JSON.parse(localStorage.getItem('inner_claimed_camps') || '[]')); }
+    catch { return new Set(); }
   });
-  const [showConfetti, setShowConfetti] = useState(false);
 
+  const [showConfetti, setShowConfetti] = useState(false);
   const [loading, setLoading] = useState(posts.length === 0);
   const [newPost, setNewPost] = useState('');
   const [posting, setPosting] = useState(false);
@@ -231,18 +236,25 @@ export const HomePage: React.FC = () => {
 
   const handleClaimCampaign = (camp: any) => {
     triggerFeedback('pop');
-    setShowConfetti(true);
-    setTimeout(() => setShowConfetti(false), 3000);
 
+    // קודם כל נסגור את הקמפיין ללקוח ב-Cache
     const newSet = new Set(claimedCampaigns).add(camp.id);
     setClaimedCampaigns(newSet);
     localStorage.setItem('inner_claimed_camps', JSON.stringify(Array.from(newSet)));
 
+    // הפעלת האפקט והודעה
     if (camp.reward > 0) {
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 3000);
       toast.success(`איזה כיף! קיבלת ${camp.reward} CRD מתנה 🎉`);
       triggerFeedback('coin');
-    } else {
-      toast.success('תודה רבה!');
+    } 
+    
+    // הפניה לכתובת במידה ויש URL
+    if (camp.action_url) {
+      setTimeout(() => {
+        window.open(camp.action_url, '_blank');
+      }, 300);
     }
   };
 
@@ -397,6 +409,7 @@ export const HomePage: React.FC = () => {
       triggerFeedback('success');
       await fetchData(true);
     } catch (e: any) {
+      console.error(e);
       toast.error(e.message || 'שגיאה בשמירה');
     } finally {
       setPosting(false);
@@ -667,74 +680,99 @@ export const HomePage: React.FC = () => {
             {campaigns.filter(c => !claimedCampaigns.has(c.id)).map(camp => {
               
               if (camp.style === 'hero') {
-                // Hero Style: Edge-to-edge media with overlay text
                 return (
-                  <motion.div key={camp.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, height: 0 }} className="-mx-4 mb-4 relative min-h-[300px] flex flex-col justify-end overflow-hidden group shadow-lg cursor-pointer" onClick={() => handleClaimCampaign(camp)}>
+                  <motion.div key={camp.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, height: 0 }} className="-mx-4 mb-4 relative min-h-[350px] flex flex-col justify-end overflow-hidden group shadow-lg cursor-pointer" onClick={() => handleClaimCampaign(camp)}>
                     {camp.media_url ? (
                       camp.media_type === 'video' ? 
                         <video src={camp.media_url} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover" /> :
                         <img src={camp.media_url} className="absolute inset-0 w-full h-full object-cover" />
                     ) : <div className="absolute inset-0 bg-accent-primary" />}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-                    <button onClick={(e) => { e.stopPropagation(); handleClaimCampaign(camp); }} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white/70 hover:text-white border border-white/20 z-20">
+                    <button onClick={(e) => { e.stopPropagation(); handleClaimCampaign(camp); }} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white/70 hover:text-white border border-white/20 z-20 transition-colors">
                       <X size={16} />
                     </button>
                     <div className="relative z-10 p-6 flex flex-col gap-2">
                       <span className="text-white/80 font-black text-[10px] uppercase tracking-[0.2em]">{camp.reward > 0 ? 'מתנה מיוחדת' : 'הודעת מערכת'}</span>
                       <h3 className="text-white font-black text-2xl leading-tight">{camp.title}</h3>
-                      <p className="text-white/90 text-sm font-medium">{camp.body}</p>
-                      {camp.reward > 0 && (
-                        <div className="mt-2 w-full h-12 bg-white text-black font-black text-[13px] uppercase tracking-widest rounded-full shadow-[0_5px_20px_rgba(255,255,255,0.3)] flex items-center justify-center gap-2">
-                          <Gift size={16} /> קבל {camp.reward} CRD
-                        </div>
-                      )}
+                      <p className="text-white/90 text-[13px] font-medium line-clamp-3">{camp.body}</p>
+                      
+                      <div className="mt-2 flex">
+                        {camp.reward > 0 ? (
+                          <div className="h-12 px-6 bg-white text-black font-black text-[13px] uppercase tracking-widest rounded-full shadow-[0_5px_20px_rgba(255,255,255,0.3)] flex items-center justify-center gap-2">
+                            <Gift size={16} /> קבל {camp.reward} CRD
+                          </div>
+                        ) : camp.action_url ? (
+                           <div className="h-12 px-6 bg-blue-500 text-white font-black text-[13px] uppercase tracking-widest rounded-full flex items-center justify-center gap-2 shadow-sm">
+                            <LinkIcon size={16} /> פתח קישור
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                   </motion.div>
                 );
               } 
               
               else if (camp.style === 'compact') {
-                // Compact Style: Small banner
                 return (
-                  <motion.div key={camp.id} initial={{ opacity: 0, y: -20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.9, height: 0, marginBottom: 0 }} className="mb-4 relative bg-surface-card border border-surface-border rounded-[20px] p-3 flex items-center gap-4 shadow-sm" onClick={() => handleClaimCampaign(camp)}>
+                  <motion.div key={camp.id} initial={{ opacity: 0, y: -20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.9, height: 0, marginBottom: 0 }} className="mb-4 relative bg-surface-card border border-surface-border rounded-[20px] p-2 pr-2.5 flex items-center gap-3 shadow-sm cursor-pointer active:scale-[0.98] transition-transform" onClick={() => handleClaimCampaign(camp)}>
                     {camp.media_url && (
-                      <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-surface-border">
+                      <div className="w-12 h-12 rounded-[14px] overflow-hidden shrink-0 border border-surface-border bg-surface">
                         {camp.media_type === 'video' ? <video src={camp.media_url} autoPlay loop muted playsInline className="w-full h-full object-cover" /> : <img src={camp.media_url} className="w-full h-full object-cover" />}
                       </div>
                     )}
-                    <div className="flex-1 min-w-0 flex flex-col justify-center">
-                      <h3 className="text-brand font-black text-[14px] truncate">{camp.title}</h3>
-                      <span className="text-accent-primary font-bold text-[11px] uppercase tracking-widest truncate">{camp.reward > 0 ? `קבל ${camp.reward} CRD` : camp.body}</span>
+                    <div className="flex-1 min-w-0 flex flex-col justify-center py-1">
+                      <h3 className="text-brand font-black text-[13px] truncate">{camp.title}</h3>
+                      {camp.body && <span className="text-brand-muted font-medium text-[11px] truncate">{camp.body}</span>}
                     </div>
-                    <button onClick={(e) => { e.stopPropagation(); handleClaimCampaign(camp); }} className="w-8 h-8 flex items-center justify-center shrink-0 bg-surface border border-surface-border rounded-full text-brand-muted hover:text-brand">
-                      <X size={14} />
-                    </button>
+                    
+                    <div className="flex items-center gap-2 pl-1">
+                      {camp.reward > 0 ? (
+                        <div className="bg-accent-primary/10 text-accent-primary font-black text-[10px] px-3 py-1.5 rounded-full whitespace-nowrap">
+                          +{camp.reward} CRD
+                        </div>
+                      ) : camp.action_url ? (
+                        <div className="bg-blue-500/10 text-blue-500 font-black text-[10px] px-3 py-1.5 rounded-full whitespace-nowrap">
+                          פתיחה
+                        </div>
+                      ) : null}
+                      <button onClick={(e) => { e.stopPropagation(); handleClaimCampaign(camp); }} className="w-6 h-6 flex items-center justify-center shrink-0 text-brand-muted hover:text-brand bg-surface rounded-full">
+                        <X size={14} />
+                      </button>
+                    </div>
                   </motion.div>
                 );
               }
 
               // Standard Style
               return (
-                <motion.div key={camp.id} initial={{ opacity: 0, y: -20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.9, height: 0, marginBottom: 0 }} className="mb-4 relative bg-surface-card border border-surface-border hover:border-accent-primary/30 rounded-[28px] overflow-hidden shadow-sm flex flex-col group cursor-pointer" onClick={() => handleClaimCampaign(camp)}>
-                  <div className="absolute top-4 right-4 z-20">
-                    <button onClick={(e) => { e.stopPropagation(); handleClaimCampaign(camp); }} className="w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/80 hover:text-white">
+                <motion.div key={camp.id} initial={{ opacity: 0, y: -20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.9, height: 0, marginBottom: 0 }} className="mb-4 relative bg-surface-card border border-surface-border hover:border-accent-primary/30 rounded-[28px] overflow-hidden shadow-sm flex flex-col group cursor-pointer active:scale-[0.98] transition-all" onClick={() => handleClaimCampaign(camp)}>
+                  <div className="absolute top-3 right-3 z-20">
+                    <button onClick={(e) => { e.stopPropagation(); handleClaimCampaign(camp); }} className="w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/80 hover:text-white transition-colors">
                       <X size={14} />
                     </button>
                   </div>
                   {camp.media_url && (
-                    <div className="w-full h-48 bg-surface">
+                    <div className="w-full h-36 bg-surface relative">
                       {camp.media_type === 'video' ? <video src={camp.media_url} autoPlay loop muted playsInline className="w-full h-full object-cover" /> : <img src={camp.media_url} className="w-full h-full object-cover" />}
+                      <div className="absolute inset-0 bg-gradient-to-t from-surface-card to-transparent opacity-50" />
                     </div>
                   )}
-                  <div className="p-5 flex flex-col gap-2">
+                  <div className="p-5 pt-4 flex flex-col gap-1.5">
                     <span className="text-accent-primary font-black text-[10px] uppercase tracking-widest">{camp.reward > 0 ? 'מתנה מחכה לך' : 'הודעת מערכת'}</span>
-                    <h3 className="text-brand font-black text-lg">{camp.title}</h3>
-                    <p className="text-brand-muted text-[13px] leading-relaxed">{camp.body}</p>
-                    {camp.reward > 0 && (
-                      <div className="w-full mt-3 h-12 rounded-xl bg-accent-primary text-white font-black text-[13px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-[0_5px_15px_rgba(var(--color-accent-primary),0.3)]">
-                        <Gift size={16} /> לחץ לקבלת {camp.reward} CRD
-                      </div>
-                    )}
+                    <h3 className="text-brand font-black text-[16px] leading-tight">{camp.title}</h3>
+                    {camp.body && <p className="text-brand-muted text-[12px] leading-relaxed line-clamp-2">{camp.body}</p>}
+                    
+                    <div className="mt-3">
+                      {camp.reward > 0 ? (
+                        <div className="w-full h-12 rounded-[16px] bg-accent-primary text-white font-black text-[13px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-[0_5px_15px_rgba(var(--color-accent-primary),0.3)]">
+                          <Gift size={16} /> קבל {camp.reward} CRD
+                        </div>
+                      ) : camp.action_url ? (
+                         <div className="w-full h-12 rounded-[16px] bg-blue-500 text-white font-black text-[13px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-sm">
+                          <LinkIcon size={16} /> פתח קישור
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 </motion.div>
               );
