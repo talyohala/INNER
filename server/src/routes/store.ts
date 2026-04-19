@@ -9,7 +9,6 @@ const createNotification = async (userId: string, type: string, title: string, c
   } catch (err) {}
 };
 
-// רכישת בוסט מחנות הסטטוס
 router.post('/buy', async (req: Request, res: Response) => {
   const userId = req.headers['x-user-id'] as string;
   const { boost_id, price } = req.body;
@@ -17,14 +16,11 @@ router.post('/buy', async (req: Request, res: Response) => {
   if (!userId || !boost_id || !price) return res.status(400).json({ error: 'Missing data' });
 
   try {
-    // בדיקת יתרה
-    const { data: profile } = await supabase.from('profiles').select('credits').eq('id', userId).single();
-    if (!profile || profile.credits < price) return res.status(400).json({ error: 'אין לך מספיק CRD' });
+    const { data: profile } = await supabase.from('profiles').select('crd_balance').eq('id', userId).single();
+    if (!profile || profile.crd_balance < price) return res.status(400).json({ error: 'אין לך מספיק CRD' });
 
-    // ניכוי מהארנק
-    await supabase.from('profiles').update({ credits: profile.credits - price }).eq('id', userId);
+    await supabase.from('profiles').update({ crd_balance: profile.crd_balance - price }).eq('id', userId);
     
-    // רישום בארנק
     await supabase.from('transactions').insert({
       user_id: userId,
       amount: -price,
@@ -32,10 +28,9 @@ router.post('/buy', async (req: Request, res: Response) => {
       description: `רכישת שדרוג: ${boost_id}`
     });
 
-    // התראה למשתמש על הרכישה
     await createNotification(userId, 'store', 'רכישה בוצעה בהצלחה! 🛍️', `רכשת בוסט סטטוס חדש במחיר ${price} CRD.`, `/wallet`);
 
-    res.json({ success: true, newBalance: profile.credits - price });
+    res.json({ success: true, newBalance: profile.crd_balance - price });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

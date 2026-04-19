@@ -9,7 +9,7 @@ import {
   Loader2, Bell, Users, MessageSquare, Send, X, Paperclip,                                                          
   RefreshCw, UserCircle, Trash2, Edit2, Share2, MoreVertical,                                                       
   ChevronLeft, Reply, ChevronDown, ChevronUp, ArrowUp, Download,                                                    
-  Link as LinkIcon, Bookmark, Crown, Lock, Flame, Diamond, Handshake, Coins, PlusCircle                                       
+  Link as LinkIcon, Bookmark, Crown, Lock, Flame, Diamond, Handshake, Coins                                       
 } from 'lucide-react';                                   
 import { triggerFeedback } from '../lib/sound';          
 import toast from 'react-hot-toast';                     
@@ -33,9 +33,17 @@ export const HomePage: React.FC = () => {
   const pullStartY = useRef(0);                            
   const lastScrollY = useRef(0);                                                                                    
   
-  const [mounted, setMounted] = useState(false);           
-  const [posts, setPosts] = useState<AnyPost[]>([]);       
-  const [loading, setLoading] = useState(true);            
+  const [mounted, setMounted] = useState(false);
+  
+  // SWR CACHE MAGIC: טעינת נתונים ישירות מהזיכרון כדי למנוע המתנה
+  const [posts, setPosts] = useState<AnyPost[]>(() => {
+    try {
+      const cached = localStorage.getItem('inner_feed_cache');
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
+  
+  const [loading, setLoading] = useState(posts.length === 0);            
   const [newPost, setNewPost] = useState('');              
   const [posting, setPosting] = useState(false);           
   const [selectedFile, setSelectedFile] = useState<File | null>(null);                                              
@@ -146,7 +154,7 @@ export const HomePage: React.FC = () => {
   };                                                                                                                
   
   const fetchData = async (isSilentRefresh = false) => {     
-    if (!isSilentRefresh) setLoading(true);                  
+    if (!isSilentRefresh && posts.length === 0) setLoading(true);                  
     try {                                                      
       const { data: authData } = await supabase.auth.getUser();                                                         
       const uid = authData.user?.id || null;                     
@@ -198,9 +206,10 @@ export const HomePage: React.FC = () => {
         }
       });
 
-      setPosts(mixedFeed);                                
+      setPosts(mixedFeed);
+      localStorage.setItem('inner_feed_cache', JSON.stringify(mixedFeed));
     } catch {                                                  
-      toast.error('שגיאה בטעינת הפיד');                      
+      if (posts.length === 0) toast.error('שגיאה בטעינת הפיד');                      
     } finally {                                                
       setLoading(false);                                       
       setRefreshing(false);                                  
@@ -219,7 +228,7 @@ export const HomePage: React.FC = () => {
 
   useEffect(() => {                                          
     setMounted(true);                                        
-    fetchData(false);                                        
+    fetchData(true);                                        
     checkUnreadNotifications();                            
   }, []);                                                                                                           
   
@@ -237,20 +246,6 @@ export const HomePage: React.FC = () => {
     });                                                      
     return () => { supabase.removeChannel(presenceChannel); };                                                      
   }, [currentUserId]);                                                                                              
-  
-  useEffect(() => {                                          
-    if (!fullScreenMedia) return;                            
-    const observer = new IntersectionObserver((entries) => {                                                            
-      entries.forEach((entry) => {                               
-        const vid = entry.target as HTMLVideoElement;            
-        if (vid.tagName !== 'VIDEO') return;                     
-        if (entry.isIntersecting) { vid.muted = false; vid.play().catch(() => {}); }                                      
-        else { vid.pause(); vid.muted = true; vid.currentTime = 0; }                                                    
-      });                                                    
-    }, { threshold: 0.7 });                                  
-    document.querySelectorAll('.full-media-item').forEach((v) => observer.observe(v));                                
-    return () => observer.disconnect();                    
-  }, [fullScreenMedia, currentMediaIndex]);                                                                         
   
   const handleTouchStart = (e: React.TouchEvent) => {        
     if (isAnyModalOpen() || refreshing) return;                            
@@ -348,7 +343,6 @@ export const HomePage: React.FC = () => {
       triggerFeedback('success');                              
       await fetchData(true);                                 
     } catch (e: any) {                                         
-      console.error(e);
       toast.error(e.message || 'שגיאה בשמירה');              
     } finally {                                                
       setPosting(false);                                     
@@ -469,7 +463,6 @@ export const HomePage: React.FC = () => {
         setComments((prev) => prev.map((c) => c.id === editingCommentId ? { ...c, content: newComment.trim() } : c));                                                              
         setEditingCommentId(null);                             
       } else {
-        // --- FIX: Ensure parent_id is sent and recorded properly so it threads! ---
         const parentIdToUse = replyingTo ? (replyingTo.parent_id || replyingTo.id) : null;                                                   
         const data = await apiFetch(`/api/posts/${activePost.id}/comments`, {                                               
           method: 'POST',                                          
@@ -479,7 +472,7 @@ export const HomePage: React.FC = () => {
         if (data) {
           const newCommentObj = {
             ...data,
-            parent_id: parentIdToUse, // CRITICAL FIX: Ensure local state immediately knows it's a child reply
+            parent_id: parentIdToUse,
             profiles: {
               full_name: profile?.full_name || 'משתמש',
               avatar_url: profile?.avatar_url
@@ -489,7 +482,7 @@ export const HomePage: React.FC = () => {
           const update = (list: AnyPost[]) => list.map((p) => p.id === activePost.id ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p);                                   
           setPosts((prev) => update(prev));                        
           if (fullScreenMedia) setFullScreenMedia((prev) => (prev ? update(prev) : prev));                                  
-          if (parentIdToUse) setExpandedThreads((prev) => ({ ...prev, [parentIdToUse]: true })); // Auto-expand thread to show new reply                              
+          if (parentIdToUse) setExpandedThreads((prev) => ({ ...prev, [parentIdToUse]: true }));
           triggerFeedback('coin');                               
         }                                                      
       }                                                        
@@ -536,20 +529,6 @@ export const HomePage: React.FC = () => {
     });                                                    
   };                                                                                                                
   
-  const handleContainerScroll = (e: React.UIEvent<HTMLDivElement>) => {                                               
-    const target = e.currentTarget;                          
-    if (scrollTimeout.current) return;                       
-    scrollTimeout.current = setTimeout(() => {                 
-      scrollTimeout.current = null;                            
-      const index = Math.round(target.scrollTop / target.clientHeight);                                                 
-      if (index !== currentMediaIndex) setCurrentMediaIndex(index);                                                     
-      if (target.scrollHeight - target.scrollTop <= target.clientHeight * 2) {                                            
-        const more = getRandomMediaBatch(6);                     
-        if (more.length) setFullScreenMedia((prev) => [...(prev || []), ...more]);                                      
-      }                                                      
-    }, 120);                                               
-  };                                                                                                                
-  
   const renderCommentText = (text: string) => {              
     if (!text) return null;                                  
     const parts = text.split(/(@[\wא-ת]+)/g);                
@@ -558,21 +537,16 @@ export const HomePage: React.FC = () => {
   
   const stopPropagation = (e: React.SyntheticEvent) => e.stopPropagation();
 
-  // --- SMART THREAD SORTING ---
   const sortedParentComments = useMemo(() => {
     return comments
       .filter((c) => c && !c.parent_id)
       .sort((a, b) => {
         const repliesA = comments.filter((r) => r && r.parent_id === a.id).length;
         const repliesB = comments.filter((r) => r && r.parent_id === b.id).length;
-        if (repliesB !== repliesA) return repliesB - repliesA; // Hottest threads jump to top!
+        if (repliesB !== repliesA) return repliesB - repliesA; 
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
   }, [comments]);                                                                                                  
-  
-  if (loading && posts.length === 0) {                       
-    return <div className="min-h-screen bg-surface flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div>;               
-  }                                                                                                                 
   
   return (                                                   
     <>                                                         
@@ -592,7 +566,6 @@ export const HomePage: React.FC = () => {
         )}                                                     
       </AnimatePresence>                                                                                                
       
-      {/* CAPSULE LOADING OVERLAY (CENTERED) */}
       <AnimatePresence>
         {refreshing && (
           <motion.div
@@ -611,7 +584,6 @@ export const HomePage: React.FC = () => {
 
       <FadeIn className="pt-[env(safe-area-inset-top)] pb-32 bg-surface min-h-screen relative overflow-x-hidden touch-pan-y" dir="rtl" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>                                                                    
         
-        {/* Pull to refresh drag indicator */}                                  
         {!refreshing && pullY > 0 && (
           <div 
             className="fixed top-0 left-0 right-0 flex justify-center z-[100] pointer-events-none"
@@ -625,7 +597,6 @@ export const HomePage: React.FC = () => {
         
         <div className="relative z-10 px-4">                                                                                
           
-          {/* STICKY HEADER */}                                    
           <div className="sticky top-0 z-[60] bg-surface/80 backdrop-blur-xl pt-4 pb-3 flex justify-between items-center -mx-4 px-6 mb-4">                                                             
             <div className="w-10" />
             <div className="flex flex-col items-center absolute left-1/2 -translate-x-1/2">                                     
@@ -641,7 +612,6 @@ export const HomePage: React.FC = () => {
             </button>                                              
           </div>                                                                                                            
           
-          {/* CREATE POST */}                                      
           <div className="mb-4">                                     
             <div className="p-3 px-4 rounded-[20px] border border-surface-border bg-surface-card shadow-sm relative z-10 flex flex-col gap-2">                                                
               
@@ -693,10 +663,14 @@ export const HomePage: React.FC = () => {
             </div>                                                 
           </div>                                                                                                            
           
-          {/* 📰 FEED */}                                          
-          <div className="flex flex-col gap-2 relative z-10 pb-10">                                                           
-            {posts.map((post) => {   
-
+          <div className="flex flex-col gap-2 relative z-10 pb-10">
+            {loading && posts.length === 0 ? (
+               <div className="flex flex-col gap-4 w-full opacity-60">
+                 {[1,2,3].map(i => (
+                    <div key={i} className="w-full h-48 bg-surface-card border border-surface-border rounded-[24px] animate-pulse"></div>
+                 ))}
+               </div>
+            ) : posts.map((post) => {   
               if (post.type === 'club_recommendation') {
                 const price = Number(post.entry_crd_price || post.price || post.crd_price || post.entry_price || 0);
                 const isPremium = price > 0;
@@ -759,7 +733,6 @@ export const HomePage: React.FC = () => {
                         <img src={post.media_url} onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Media+Unavailable'; }} className={`w-full max-h-[550px] object-cover ${isLockedDrop ? 'blur-xl grayscale' : ''}`} loading="lazy" decoding="async" />                          
                       )}                                                                                                                
                       
-                      {/* Lock Overlay for Drops */}                           
                       {isLockedDrop && (                                         
                         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 z-20 gap-3 p-6" onClick={(e) => { e.stopPropagation(); openOverlay(()=>setContributeModal(post)); }}>                                          
                           <div className="w-16 h-16 rounded-full bg-surface/80 backdrop-blur-md flex items-center justify-center border border-white/10 shadow-lg mb-2">                               
@@ -778,17 +751,14 @@ export const HomePage: React.FC = () => {
                         </div>                                                 
                       )}                                                                                                                
                       
-                      {/* Overlay Bottom Content */}                           
                       <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-24 bg-gradient-to-t from-black/60 via-black/20 to-transparent flex flex-col justify-end pointer-events-none z-20">                                                                                                                    
                         
-                        {/* Content */}                                          
                         {post.content && (                                         
                           <p onClick={(e) => { e.stopPropagation(); if(isLockedDrop) openOverlay(()=>setContributeModal(post)); else openOverlay(() => setActiveDescPost(post)); }} className={`text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] text-[15px] font-medium text-right line-clamp-2 pointer-events-auto cursor-pointer mb-3 ${isLockedDrop ? 'select-none blur-sm opacity-50' : ''}`}>                                      
                             {post.content}                                         
                           </p>                                                   
                         )}                                                                                                                
                         
-                        {/* Circles */}                                          
                         {post.user_circles && post.user_circles.length > 0 && !isLockedDrop && (                                            
                           <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">                                                                            
                             {post.user_circles.slice(0, 10).map((circle: any) => (                                                              
@@ -802,9 +772,7 @@ export const HomePage: React.FC = () => {
                           </div>                                                 
                         )}                                                                                                                
                         
-                        {/* Footer: User Right, Actions Left */}                                                                          
                         <div className="flex items-center justify-between gap-2 mt-1 pointer-events-auto">                                                                                           
-                          {/* User Info */}                                        
                           <div className="flex items-center gap-2.5 cursor-pointer group" onClick={(e) => { e.stopPropagation(); navigate(`/profile/${post.user_id}`); }}>                             
                             <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden shrink-0 shadow-sm bg-surface flex items-center justify-center">                               
                               {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" loading="lazy" /> : <span className="text-white font-black text-lg flex items-center justify-center leading-none">{(post.profiles?.full_name || 'א')[0]}</span>}                                                                            
@@ -818,7 +786,6 @@ export const HomePage: React.FC = () => {
                             </div>                                                 
                           </div>                                                                                                            
                           
-                          {/* Actions */}                                          
                           <div className="flex items-center gap-4 flex-row-reverse mr-auto">                                                  
                             {!isLockedDrop && (                                        
                               <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(post)); }} className="active:scale-90 text-white drop-shadow-md hover:text-white/80 transition-colors">                                           
@@ -843,7 +810,6 @@ export const HomePage: React.FC = () => {
                     </div>                                                 
                   )}                                                                                                                
                   
-                  {/* Text Only Post (PREMIUM REDESIGN MATCHING MEDIA) */}                                   
                   {!hasMedia && (                                            
                     <div className="w-full relative bg-[#0a0a0a] min-h-[380px] max-h-[550px] flex flex-col justify-between cursor-pointer group rounded-[24px]" onClick={() => { if(isLockedDrop) openOverlay(()=>setContributeModal(post)); else openOverlay(() => setActiveDescPost(post)); }}>                             
                       {isLockedDrop && (                                         
@@ -856,7 +822,6 @@ export const HomePage: React.FC = () => {
                         </div>                                                 
                       )}                                                       
                       
-                      {/* Top Text Content */}
                       <div className={`p-6 pt-8 pb-32 flex-1 flex flex-col relative z-10 ${isLockedDrop ? 'blur-sm opacity-50' : ''}`}>
                          <p className={`text-white/90 text-[17px] font-medium leading-relaxed text-right whitespace-pre-wrap break-words ${(post.content || '').length > 200 ? 'line-clamp-6' : ''}`}>
                            {post.content}
@@ -868,7 +833,6 @@ export const HomePage: React.FC = () => {
                          )}
                       </div>
                       
-                      {/* Bottom Overlay Matching Media Posts */}
                       <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-24 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end pointer-events-none z-20 rounded-b-[24px]">
                         
                         {post.user_circles && post.user_circles.length > 0 && !isLockedDrop && (                                            
@@ -884,9 +848,7 @@ export const HomePage: React.FC = () => {
                           </div>                                                 
                         )}                                                                                                                
                         
-                        {/* Footer: User Right, Actions Left */}                                                                          
                         <div className="flex items-center justify-between gap-2 mt-1 pointer-events-auto">                                                                                           
-                          {/* User Info */}                                        
                           <div className="flex items-center gap-2.5 cursor-pointer group" onClick={(e) => { e.stopPropagation(); navigate(`/profile/${post.user_id}`); }}>                             
                             <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden shrink-0 shadow-sm bg-surface flex items-center justify-center">                               
                               {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" loading="lazy" /> : <span className="text-white font-black text-lg flex items-center justify-center leading-none">{(post.profiles?.full_name || 'א')[0]}</span>}                                                                            
@@ -900,7 +862,6 @@ export const HomePage: React.FC = () => {
                             </div>                                                 
                           </div>                                                                                                            
                           
-                          {/* Actions */}                                          
                           <div className="flex items-center gap-4 flex-row-reverse mr-auto">                                                  
                             {!isLockedDrop && (                                        
                               <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(post)); }} className="active:scale-90 text-white drop-shadow-md hover:text-white/80 transition-colors">                                           
@@ -932,11 +893,9 @@ export const HomePage: React.FC = () => {
       </FadeIn>                                                                                                         
       
       {/* ---------------- OVERLAYS / PORTALS ---------------- */}
-      {/* All modals are declared EXACTLY ONCE here to prevent duplication bugs */}
       {mounted && typeof document !== 'undefined' && createPortal(                                                        
         <AnimatePresence>                                                                                                   
           
-          {/* 1. SEAL SELECTOR MODAL */}                              
           {sealSelectorPost && (                                     
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end p-4" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                             
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                             
@@ -965,7 +924,6 @@ export const HomePage: React.FC = () => {
             </div>                                                 
           )}                                                                                                                
           
-          {/* 2. FULL SCREEN MEDIA */}                                
           {fullScreenMedia && (                                      
             <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed inset-0 z-[999999] bg-surface">                     
               <div className="w-full h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide" onScroll={handleContainerScroll}>                                                      
@@ -1033,11 +991,10 @@ export const HomePage: React.FC = () => {
             </motion.div>                                          
           )}                                                                                                                
           
-          {/* 3. COMMENTS MODAL (SMART SORTING & THREADS) */}                                   
           {activeCommentsPostId && (                                 
-            <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                 
+            <div className="fixed inset-0 z-[9999999]" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                 
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                         
-              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 400 }} className="relative z-10 bg-surface rounded-t-[32px] h-[80vh] flex flex-col overflow-hidden pb-10 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border">                
+              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 400 }} className="absolute bottom-0 w-full bg-surface rounded-t-[32px] h-[80vh] flex flex-col overflow-hidden pb-10 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border">                
                 <div className="w-full py-5 flex justify-center cursor-grab active:cursor-grabbing border-b border-surface-border"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>                                                                                                             
                 <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-6 scrollbar-hide">                                     
                   {loadingComments ? (
@@ -1067,7 +1024,6 @@ export const HomePage: React.FC = () => {
                                 </button>                                              
                               </div>                                                   
                               
-                              {/* כפתור פתיחת השרשור */}
                               {replies.length > 0 && (                                   
                                 <button onClick={() => setExpandedThreads((prev) => ({ ...prev, [c.id]: !prev[c.id] }))} className="text-right text-[12px] font-black text-accent-primary hover:text-accent-primary/80 transition-colors mt-2 flex items-center gap-1.5 pr-1">                                                                      
                                   {isThreadExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />} 
@@ -1077,7 +1033,6 @@ export const HomePage: React.FC = () => {
                             </div>                                                 
                           </div>                                                   
                           
-                          {/* התגובות המאונסטות בתוך העץ */}
                           {isThreadExpanded && (                                                                       
                             <div className="pr-12 flex flex-col gap-4 mt-3 relative">                                                     
                               <div className="absolute right-5 top-0 bottom-4 w-[1.5px] bg-surface-border z-0" />
@@ -1109,7 +1064,6 @@ export const HomePage: React.FC = () => {
                   )}                                                    
                 </div>                                                                                                            
                 
-                {/* Input Area (Blue Accent) */}                                       
                 <div className="p-4 border-t border-surface-border flex flex-col gap-2 bg-surface">                                 
                   {replyingTo && !editingCommentId && (                      
                     <div className="text-[11px] text-brand flex items-center justify-between px-4 py-2 bg-surface-card border border-surface-border rounded-[12px] w-fit mb-1 shadow-sm gap-2">                                                                 
@@ -1138,7 +1092,6 @@ export const HomePage: React.FC = () => {
             </div>                                                 
           )}                                                                                                                
           
-          {/* 4. COMMENT ACTION MODAL */}                             
           {commentActionModal && (                                   
             <div className="fixed inset-0 z-[99999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                         
@@ -1161,7 +1114,6 @@ export const HomePage: React.FC = () => {
             </div>                                                 
           )}                                                                                                                
           
-          {/* 5. USER CIRCLES MODAL */}                               
           {userCirclesModal && (                                     
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                 
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                         
@@ -1182,7 +1134,6 @@ export const HomePage: React.FC = () => {
             </div>                                                 
           )}                                                                                                                
           
-          {/* 6. OPTIONS MENU POST */}                                
           {optionsMenuPost && (                                      
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                 
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                         
@@ -1202,7 +1153,6 @@ export const HomePage: React.FC = () => {
             </div>                                                 
           )}                                                                                                                
           
-          {/* 7. DESC POST FULL */}                                   
           {activeDescPost && (                                       
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                 
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                         
@@ -1215,7 +1165,6 @@ export const HomePage: React.FC = () => {
             </div>                                                 
           )}                                                                                                                
           
-          {/* 8. CONTRIBUTE MODAL */}                                 
           {contributeModal && (                                      
             <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">                                 
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />                                                         
