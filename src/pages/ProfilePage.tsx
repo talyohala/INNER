@@ -2,10 +2,10 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence, useDragControls, useScroll, useTransform } from 'framer-motion';
-import { 
-  UserCircle, Loader2, MessageSquare, MoreVertical, MoreHorizontal, Share2, Reply, Trash2, X, Send, Download, 
-  Link as LinkIcon, Edit2, Bookmark, MapPin, GraduationCap, ChevronDown, ChevronUp, Briefcase, Calendar, 
-  Sparkles, LogOut, Crown, Flame, Diamond, Handshake, ShieldCheck, Heart, Lock, Coins, Users, Moon 
+import {
+  UserCircle, Loader2, MessageSquare, MoreVertical, MoreHorizontal, Share2, Reply, Trash2, X, Send, Download,
+  Link as LinkIcon, Edit2, Bookmark, MapPin, GraduationCap, ChevronDown, ChevronUp, Briefcase, Calendar,
+  Sparkles, LogOut, Crown, Flame, Diamond, Handshake, ShieldCheck, Heart, Lock, Coins, Users, Moon, ArrowLeft, ArrowUp
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
@@ -91,6 +91,7 @@ export const ProfilePage: React.FC = () => {
   const [gridActionModal, setGridActionModal] = useState<{ item: any, type: 'post' | 'saved' | 'circle' } | null>(null);
 
   const [sealSelectorPost, setSealSelectorPost] = useState<any | null>(null);
+  const [postCirclesModal, setPostCirclesModal] = useState<{ circles: any[], userId: string } | null>(null);
 
   const [currentUserId, setCurrentUserId] = useState('');
   const [showCreatePost, setShowCreatePost] = useState(false);
@@ -98,11 +99,11 @@ export const ProfilePage: React.FC = () => {
   const [editPostText, setEditPostText] = useState('');
 
   const [extraInfoOpen, setExtraInfoOpen] = useState(false);
-  const [isBioExpanded, setIsBioExpanded] = useState(false); // BIO EXPAND STATE
+  const [isBioExpanded, setIsBioExpanded] = useState(false);
 
   const stateRef = useRef({
     comments: false, options: false, desc: false, fullscreen: false, commentAction: false,
-    followers: false, following: false, create: false, gridAction: false, seals: false
+    followers: false, following: false, create: false, gridAction: false, seals: false, postCircles: false
   });
 
   const openOverlay = (action: () => void) => {
@@ -123,14 +124,15 @@ export const ProfilePage: React.FC = () => {
     stateRef.current = {
       comments: !!activeCommentsPostId, options: !!optionsMenuPost, desc: !!activeDescPost,
       fullscreen: !!fullScreenMedia, commentAction: !!commentActionModal, followers: showFollowersList,
-      following: showFollowingList, create: showCreatePost, gridAction: !!gridActionModal, seals: !!sealSelectorPost
+      following: showFollowingList, create: showCreatePost, gridAction: !!gridActionModal, seals: !!sealSelectorPost, postCircles: !!postCirclesModal
     };
-  }, [activeCommentsPostId, optionsMenuPost, activeDescPost, fullScreenMedia, commentActionModal, showFollowersList, showFollowingList, showCreatePost, gridActionModal, sealSelectorPost]);
+  }, [activeCommentsPostId, optionsMenuPost, activeDescPost, fullScreenMedia, commentActionModal, showFollowersList, showFollowingList, showCreatePost, gridActionModal, sealSelectorPost, postCirclesModal]);
 
   useEffect(() => {
     const handlePopState = () => {
       const s = stateRef.current;
-      if (s.gridAction) setGridActionModal(null);
+      if (s.postCircles) setPostCirclesModal(null);
+      else if (s.gridAction) setGridActionModal(null);
       else if (s.commentAction) setCommentActionModal(null);
       else if (s.seals) setSealSelectorPost(null);
       else if (s.followers) setShowFollowersList(false);
@@ -283,7 +285,11 @@ export const ProfilePage: React.FC = () => {
       if (!map.has(c.id)) map.set(c.id, { ...c, isOwner: false });
     });
     
-    return Array.from(map.values());
+    return Array.from(map.values()).sort((a, b) => {
+      if (a.isOwner && !b.isOwner) return -1;
+      if (!a.isOwner && b.isOwner) return 1;
+      return 0;
+    });
   }, [data.ownedCircles, data.memberships]);
 
   const getRandomMediaBatch = (size = 4) => {
@@ -720,10 +726,10 @@ export const ProfilePage: React.FC = () => {
               {activeTab === 'joined' && (
                 <motion.div key="joined" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-1 -mx-3.5">
                   {allMyCircles.map((circle: any) => (
-                    <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className={`aspect-[2/3] bg-surface-card relative overflow-hidden cursor-pointer rounded-[16px] group shadow-sm transition-all ${circle.isOwner ? 'border-2 border-accent-primary shadow-[0_0_15px_rgba(var(--color-accent-primary),0.15)]' : 'border border-white/[0.05]'}`}>
+                    <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className={`aspect-[2/3] bg-surface-card relative overflow-hidden cursor-pointer rounded-[16px] group shadow-sm transition-all ${circle.isOwner ? 'border border-accent-primary shadow-[0_0_6px_rgba(var(--color-accent-primary),0.6)]' : 'border border-white/[0.05]'}`}>
                       
                       {circle.isOwner && (
-                        <div className="absolute top-2 right-2 z-20 bg-accent-primary text-white text-[9px] font-black px-2 py-0.5 rounded-md shadow-md uppercase tracking-widest">
+                        <div className="absolute top-2 right-2 z-20 text-white drop-shadow-md text-[10px] font-black uppercase tracking-widest">
                           בניהולי
                         </div>
                       )}
@@ -870,14 +876,40 @@ export const ProfilePage: React.FC = () => {
                           
                           {vid.user_circles && vid.user_circles.length > 0 && (
                             <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">
-                              {vid.user_circles.slice(0, 10).map((circle: any) => (
-                                <div key={circle.id} onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/circle/${circle.slug || circle.id}`), 50); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
-                                  <div className="w-8 h-8 rounded-full overflow-hidden border border-white/20 shadow-sm bg-surface flex items-center justify-center">
-                                    {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-4 h-4 text-white/70" />}
-                                  </div>
-                                  <span className="text-[9px] text-white drop-shadow-md font-bold max-w-[55px] truncate text-center uppercase tracking-wider">{circle.name}</span>
-                                </div>
-                              ))}
+                              {(() => {
+                                const sortedCircles = [...vid.user_circles].sort((a, b) => {
+                                  const aOwner = a.owner_id === vid.user_id ? -1 : 1;
+                                  const bOwner = b.owner_id === vid.user_id ? -1 : 1;
+                                  return aOwner - bOwner;
+                                });
+                                const displayCircles = sortedCircles.slice(0, 20);
+                                const hasMore = sortedCircles.length > 20;
+
+                                return (
+                                  <>
+                                    {displayCircles.map((circle: any) => {
+                                      const isOwnerOfThisCircle = circle.owner_id === vid.user_id;
+                                      return (
+                                        <div key={circle.id} onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/circle/${circle.slug || circle.id}`), 50); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
+                                          <div className={`w-8 h-8 rounded-full overflow-hidden shadow-sm bg-surface flex items-center justify-center ${isOwnerOfThisCircle ? 'border border-accent-primary shadow-[0_0_6px_rgba(var(--color-accent-primary),0.8)]' : 'border border-white/20'}`}>
+                                            {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-4 h-4 text-white/70" />}
+                                          </div>
+                                          <span className="text-[9px] text-white drop-shadow-md font-bold max-w-[55px] truncate text-center uppercase tracking-wider">{circle.name}</span>
+                                          {isOwnerOfThisCircle && <span className="text-white font-black text-[8px] uppercase tracking-widest drop-shadow-md -mt-1">בניהולי</span>}
+                                        </div>
+                                      );
+                                    })}
+                                    {hasMore && (
+                                      <div onClick={(e) => { e.stopPropagation(); openOverlay(() => setPostCirclesModal({ circles: sortedCircles, userId: vid.user_id })); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
+                                        <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white backdrop-blur-md shadow-sm">
+                                          <ArrowLeft size={14} />
+                                        </div>
+                                        <span className="text-[9px] text-white drop-shadow-md font-bold text-center uppercase tracking-wider">הכל</span>
+                                      </div>
+                                    )}
+                                  </>
+                                );
+                              })()}
                             </div>
                           )}
                           
@@ -1044,6 +1076,35 @@ export const ProfilePage: React.FC = () => {
                   <div className="w-full py-5 flex justify-center cursor-grab active:cursor-grabbing border-b border-surface-border"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>
                   <div className="p-6 overflow-y-auto" onPointerDown={stopPropagation} onTouchStart={stopPropagation}>
                     <p className="text-brand text-[15px] leading-relaxed whitespace-pre-wrap">{activeDescPost.content}</p>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+
+          {/* POST CIRCLES MODAL (For >20 Circles in Post) */}
+          <AnimatePresence>
+            {postCirclesModal && (
+              <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
+                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[32px] p-6 flex flex-col gap-3 pb-12 max-h-[70vh] shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border">
+                  <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>
+                  <h2 className="text-brand font-black text-lg mb-4">פורסם ב- ({postCirclesModal.circles.length}) מועדונים</h2>
+                  <div className="flex flex-col gap-3 overflow-y-auto pr-1 scrollbar-hide" onPointerDown={stopPropagation} onTouchStart={stopPropagation}>
+                    {postCirclesModal.circles.map((c: any) => {
+                      const isOwnerOfThisCircle = c.owner_id === postCirclesModal.userId;
+                      return (
+                        <div key={c.id} onClick={() => { closeOverlay(); navigate(`/circle/${c.slug || c.id}`); }} className={`flex items-center gap-4 bg-surface-card p-4 rounded-2xl cursor-pointer active:scale-[0.98] transition-transform shadow-sm hover:bg-white/5 ${isOwnerOfThisCircle ? 'border-[1px] border-accent-primary shadow-[0_0_6px_rgba(var(--color-accent-primary),0.2)]' : 'border border-surface-border'}`}>
+                          <div className={`w-12 h-12 rounded-full bg-surface overflow-hidden shrink-0 flex items-center justify-center shadow-inner ${isOwnerOfThisCircle ? 'border-none' : 'border border-surface-border'}`}>
+                            {c.cover_url ? <img src={c.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users size={20} className="text-brand-muted" />}
+                          </div>
+                          <div className="flex flex-col flex-1">
+                            <span className="text-brand font-black text-[15px]">{c.name}</span>
+                            {isOwnerOfThisCircle && <span className="text-white font-black text-[10px] uppercase tracking-widest mt-0.5">בניהולי</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </motion.div>
               </div>

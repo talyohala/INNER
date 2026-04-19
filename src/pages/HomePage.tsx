@@ -1352,6 +1352,6 @@ export const HomePage: React.FC = () => {
         </>,
         document.body
       )}
-    </div>
+    </>
   );
 };
