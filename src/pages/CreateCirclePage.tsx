@@ -8,11 +8,12 @@ import { FadeIn, Button } from '../components/ui';
 import { triggerFeedback } from '../lib/sound';
 
 const CATEGORY_TREE = [
-  { id: 'venture_capital', name: 'הון סיכון', sub: ['קריפטו', 'נדל"ן', 'סטארטאפים'] },
-  { id: 'lifestyle', name: 'לייף סטייל', sub: ['חיי לילה', 'אופנה', 'טיולים'] },
-  { id: 'tech_alpha', name: 'טק', sub: ['בינה מלאכותית', 'פיתוח', 'סייבר'] },
-  { id: 'creators', name: 'יוצרים', sub: ['מדיה', 'פודקאסטים', 'אמנות'] },
-  { id: 'sanctum', name: 'The Sanctum', sub: ['לחברים בלבד'] }
+  { id: 'business', name: 'עסקים ויזמות', sub: ['סטארטאפים', 'שיווק', 'מסחר אלקטרוני', 'הון סיכון', 'נדל"ן'] },
+  { id: 'tech', name: 'טכנולוגיה', sub: ['בינה מלאכותית', 'פיתוח תוכנה', 'סייבר', 'חומרה', 'גיימינג'] },
+  { id: 'finance', name: 'פיננסים', sub: ['קריפטו', 'שוק ההון', 'השקעות', 'כלכלה אישית'] },
+  { id: 'lifestyle', name: 'לייף סטייל', sub: ['כושר ותזונה', 'אופנה', 'טיולים', 'חיי לילה', 'רכב'] },
+  { id: 'creators', name: 'יוצרים ואמנות', sub: ['צילום ווידאו', 'עיצוב גרפי', 'מוזיקה', 'כתיבה', 'פודקאסטים'] },
+  { id: 'exclusive', name: 'המעגל הסגור', sub: ['לחברים בלבד', 'VIP', 'הזמנה בלבד'] }
 ];
 
 export const CreateCirclePage: React.FC = () => {
@@ -112,12 +113,12 @@ export const CreateCirclePage: React.FC = () => {
 
   return (
     <FadeIn className="bg-surface min-h-screen font-sans flex flex-col" dir="rtl">
-      {/* HEADER */}
-      <div className="sticky top-0 z-50 bg-surface/90 backdrop-blur-xl pt-[calc(env(safe-area-inset-top)+20px)] pb-4 px-4 flex items-center justify-center border-b border-surface-border">
+      {/* HEADER - הוסר הפס התחתון והורם מעט למעלה */}
+      <div className="sticky top-0 z-50 bg-surface/90 backdrop-blur-xl pt-[calc(env(safe-area-inset-top)+12px)] pb-2 px-4 flex items-center justify-center">
         <h1 className="text-xl font-black text-brand tracking-widest uppercase">הקמת מועדון</h1>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 pt-6 pb-32 flex flex-col gap-6 scrollbar-hide">
+      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-32 flex flex-col gap-6 scrollbar-hide">
         <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept="image/*" />
         
         {/* Cover Picker */}
@@ -147,7 +148,7 @@ export const CreateCirclePage: React.FC = () => {
             <label className="text-[10px] font-black text-brand-muted uppercase tracking-widest px-2">שם המועדון</label>
             <input 
               value={name} onChange={(e) => setName(e.target.value)} 
-              placeholder="לדוגמה: יזמי הייטק תל אביב..." 
+              placeholder="לדוגמה: קהילת מפתחי AI..." 
               className="w-full h-14 bg-surface border border-surface-border rounded-[20px] px-5 text-brand font-black outline-none focus:border-accent-primary/50 transition-all shadow-inner placeholder:text-brand-muted/50" 
             />
           </div>
@@ -162,7 +163,7 @@ export const CreateCirclePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Category Picker */}
+        {/* Category Picker - בעברית מלאה */}
         <div className="flex flex-col gap-3">
           <label className="text-[10px] font-black text-brand-muted uppercase tracking-widest px-2 flex items-center gap-2"><Hash size={12}/> בחירת קטגוריה</label>
           <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2">
