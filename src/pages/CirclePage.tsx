@@ -9,7 +9,7 @@ import { VaultCard } from '../components/VaultCard';
 import {
   Loader2, MessageSquare, Crown, Send, Lock, UserCircle, Trash2, Edit2, MoreVertical,
   Paperclip, Share2, Download, Link as LinkIcon, Bookmark, ShieldAlert, Gift, Flame,
-  Eye, ChevronDown, ChevronUp, Reply, X, Diamond, Handshake, Coins, Plus, CheckCircle2
+  Eye, ChevronDown, ChevronUp, Reply, X, Diamond, Handshake, Coins, Plus, CheckCircle2, Image as ImageIcon
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -195,6 +195,17 @@ export const CirclePage: React.FC = () => {
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) {
+      setSelectedFile(file);
+      triggerFeedback('pop');
+    } else if (file) {
+      toast.error('אנא בחר קובץ תמונה או וידאו תקין');
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setNewPost(val);
@@ -205,17 +216,38 @@ export const CirclePage: React.FC = () => {
     if (!newPost.trim() && !selectedFile) return;
     setPosting(true);
     triggerFeedback('pop');
+    
     try {
+      let media_url = null;
+      let media_type = 'text';
+
+      if (selectedFile) {
+        const safeName = selectedFile.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+        const fileName = `circle_${Date.now()}_${Math.random().toString(36).slice(2, 6)}_${safeName}`;
+        
+        const { data: uploadData, error: uploadError } = await supabase.storage.from('feed_images').upload(fileName, selectedFile, {
+          cacheControl: '3600',
+          upsert: false
+        });
+        
+        if (uploadError) throw new Error("שגיאה בהעלאת הקובץ");
+        
+        const { data: { publicUrl } } = supabase.storage.from('feed_images').getPublicUrl(uploadData.path);
+        media_url = publicUrl;
+        media_type = selectedFile.type.startsWith('video/') ? 'video' : 'image';
+      }
+
       const postData = {
         circle_id: data.circle.id,
         user_id: currentUserId,
         content: newPost.trim(),
-        media_url: null,
-        media_type: 'text',
+        media_url,
+        media_type,
         is_reveal_drop: false,
         reveal_status: 'revealed',
         required_crd: 0
       };
+      
       const { data: insertedPost, error } = await supabase.from('posts').insert(postData).select('*, profiles!user_id(*)').single();
       
       if (error) throw error;
@@ -229,7 +261,7 @@ export const CirclePage: React.FC = () => {
       if (channelRef.current) channelRef.current.track({ isTyping: false });
       triggerFeedback('success');
     } catch (err: any) {
-      toast.error(err.message);
+      toast.error(err.message || 'שגיאה בשליחת ההודעה');
     } finally {
       setPosting(false);
     }
@@ -242,10 +274,12 @@ export const CirclePage: React.FC = () => {
 
   return (
     <>
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*" />
+      
       <FadeIn className="bg-surface h-[100dvh] font-sans flex flex-col relative overflow-hidden" dir="rtl">
         
         {/* HERO SECTION */}
-        <div className="relative w-full h-[200px] shrink-0 bg-surface overflow-hidden flex flex-col justify-end pb-5">
+        <div className="relative w-full h-[200px] shrink-0 bg-surface overflow-hidden flex flex-col justify-end pb-5 z-20">
           {circle.cover_url ? <img src={circle.cover_url} className="absolute inset-0 w-full h-full object-cover opacity-60" /> : <div className="absolute inset-0 bg-gradient-to-br from-accent-primary/20 to-surface"></div>}
           <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/80 to-transparent"></div>
           
@@ -309,23 +343,37 @@ export const CirclePage: React.FC = () => {
 
             {/* TAB: CHAT */}
             {activeTab === 'chat' && (
-              <div className="flex-1 flex flex-col bg-surface relative h-full">
-                <div className="absolute inset-0 overflow-y-auto scrollbar-hide p-4 flex flex-col-reverse gap-4 pb-[100px]">
+              <>
+                {/* Scrollable Messages Area - Added extra pb to not overlap with floating input */}
+                <div className="flex-1 overflow-y-auto scrollbar-hide p-4 flex flex-col-reverse gap-4 pb-[180px] z-0">
                   {posts?.map((post: any) => (
                     <div key={post.id} className="flex flex-col gap-1 w-full">
                       <div className={`flex gap-3 w-full ${post.user_id === currentUserId ? 'flex-row-reverse' : ''}`}>
                         <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-surface-border bg-surface-card flex items-center justify-center shadow-sm cursor-pointer mt-auto" onClick={() => navigate(`/profile/${post.user_id}`)}>
                           {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <span className="text-brand-muted font-black text-[10px]">{(post.profiles?.full_name || 'א')[0]}</span>}
                         </div>
-                        <div className={`p-4 rounded-[24px] max-w-[75%] text-[14px] font-medium shadow-sm leading-relaxed ${
-                          post.user_id === currentUserId 
-                            ? 'bg-accent-primary/10 border border-accent-primary/20 text-brand rounded-br-sm' 
-                            : 'bg-surface-card border border-surface-border text-brand-muted rounded-bl-sm'
-                        }`}>
-                          {post.user_id !== currentUserId && (
-                            <span className="text-accent-primary text-[10px] font-black block mb-1 uppercase tracking-widest">{post.profiles?.full_name || 'אנונימי'}</span>
-                          )}
-                          {post.content}
+                        <div className="flex flex-col gap-1.5 max-w-[75%]">
+                          <div className={`p-3.5 rounded-[24px] text-[14px] font-medium shadow-sm leading-relaxed ${
+                            post.user_id === currentUserId 
+                              ? 'bg-accent-primary/10 border border-accent-primary/20 text-brand rounded-br-sm' 
+                              : 'bg-surface-card border border-surface-border text-brand-muted rounded-bl-sm'
+                          }`}>
+                            {post.user_id !== currentUserId && (
+                              <span className="text-accent-primary text-[10px] font-black block mb-1.5 uppercase tracking-widest">{post.profiles?.full_name || 'אנונימי'}</span>
+                            )}
+                            
+                            {post.media_url && (
+                              <div className={`mb-2 rounded-[16px] overflow-hidden border border-surface-border bg-surface ${!post.content ? 'mb-0' : ''}`}>
+                                {post.media_type === 'video' ? (
+                                  <video src={post.media_url} controls playsInline preload="metadata" className="w-full h-auto max-h-[300px] object-cover" />
+                                ) : (
+                                  <img src={post.media_url} className="w-full h-auto max-h-[300px] object-cover" loading="lazy" />
+                                )}
+                              </div>
+                            )}
+                            
+                            {post.content && <span>{post.content}</span>}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -340,19 +388,44 @@ export const CirclePage: React.FC = () => {
                   )}
                 </div>
 
-                {/* Floating Input Area */}
-                <div className="absolute bottom-[calc(env(safe-area-inset-bottom)+24px)] left-4 right-4 z-50 pointer-events-auto">
-                  <div className="w-full bg-surface-card/90 backdrop-blur-xl border border-surface-border rounded-full flex items-center px-2 py-1.5 h-[60px] shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
+                {/* Floating Input Area (Positioned above the bottom navigation) */}
+                <div className="absolute bottom-[90px] left-4 right-4 z-[60] pointer-events-auto flex flex-col justify-end">
+                  
+                  {/* Media Preview Box (Floats right above the input) */}
+                  <AnimatePresence>
+                    {selectedFile && (
+                      <motion.div initial={{ opacity: 0, y: 10, height: 0 }} animate={{ opacity: 1, y: 0, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="relative mb-3 w-28 h-28 rounded-[20px] overflow-hidden border border-surface-border shadow-lg self-start ml-2">
+                        {selectedFile.type.startsWith('video/') ? (
+                          <video src={URL.createObjectURL(selectedFile)} className="w-full h-full object-cover" />
+                        ) : (
+                          <img src={URL.createObjectURL(selectedFile)} className="w-full h-full object-cover" />
+                        )}
+                        <button onClick={() => setSelectedFile(null)} className="absolute top-2 right-2 w-7 h-7 bg-black/60 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-black/80 transition-colors">
+                          <X size={14}/>
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Input Pill */}
+                  <div className="w-full bg-surface-card/95 backdrop-blur-xl border border-surface-border rounded-full flex items-center pr-4 pl-1.5 py-1.5 min-h-[60px] shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
                     <input
                       type="text" value={newPost} onChange={handleInputChange} onKeyDown={(e) => e.key === 'Enter' && handlePost()}
-                      placeholder="הקלד הודעה..." className="flex-1 bg-transparent px-4 border-none outline-none text-brand font-medium text-[15px] placeholder:text-brand-muted/60"
+                      placeholder="הקלד הודעה, תמונה או וידאו..." className="flex-1 bg-transparent border-none outline-none text-brand font-medium text-[14px] placeholder:text-brand-muted/60"
                     />
-                    <button onClick={handlePost} disabled={posting || !newPost.trim()} className="w-12 h-12 shrink-0 rounded-full bg-accent-primary text-white flex items-center justify-center active:scale-95 disabled:opacity-30 transition-all shadow-[0_0_15px_rgba(var(--color-accent-primary),0.4)]">
-                      {posting ? <Loader2 size={20} className="animate-spin text-white" /> : <Send size={20} className="rtl:-scale-x-100 -ml-0.5" />}
-                    </button>
+                    
+                    <div className="flex items-center gap-1.5 shrink-0 mr-2">
+                      <button onClick={() => fileInputRef.current?.click()} className="w-11 h-11 flex items-center justify-center text-brand-muted hover:text-brand bg-surface rounded-full shadow-inner border border-surface-border active:scale-95 transition-all">
+                        <ImageIcon size={18} />
+                      </button>
+                      
+                      <button onClick={handlePost} disabled={posting || (!newPost.trim() && !selectedFile)} className="w-11 h-11 rounded-full bg-accent-primary text-white flex items-center justify-center active:scale-95 disabled:opacity-30 transition-all shadow-[0_0_15px_rgba(var(--color-accent-primary),0.4)]">
+                        {posting ? <Loader2 size={18} className="animate-spin text-white" /> : <Send size={18} className="rtl:-scale-x-100 -ml-0.5" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </>
             )}
 
             {/* TAB: VAULTS */}
