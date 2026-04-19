@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import {
   CheckCircle, XCircle, Loader2, Users, Search, Gift, Ban, MessageSquare, 
-  Trash2, Activity, UserCircle, ShieldAlert, Zap, Megaphone, Target, Send, Coins
+  Trash2, Activity, UserCircle, ShieldAlert, Zap, Coins
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -51,6 +51,18 @@ const BottomSheet: React.FC<BottomSheetProps> = ({ open, onClose, children }) =>
   );
 };
 
+const PLACEMENTS = [
+  { id: 'feed', label: 'פיד ראשי' },
+  { id: 'explore', label: 'חיפוש וגילוי' },
+  { id: 'wallet', label: 'ארנק' },
+  { id: 'business', label: 'עסקים ויזמות' },
+  { id: 'tech', label: 'טכנולוגיה' },
+  { id: 'finance', label: 'פיננסים' },
+  { id: 'lifestyle', label: 'לייף סטייל' },
+  { id: 'creators', label: 'יוצרים ואמנות' },
+  { id: 'exclusive', label: 'המעגל הסגור' }
+];
+
 export const AdminPage: React.FC = () => {
   const navigate = useNavigate();
   const { profile } = useAuth();
@@ -67,8 +79,7 @@ export const AdminPage: React.FC = () => {
   const [grantAmount, setGrantAmount] = useState<number | ''>('');
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Campaign State
-  const [campPlacement, setCampPlacement] = useState<'feed' | 'explore' | 'wallet'>('feed');
+  const [campPlacement, setCampPlacement] = useState(PLACEMENTS[0].id);
   const [campTitle, setCampTitle] = useState('');
   const [campBody, setCampBody] = useState('');
   const [campReward, setCampReward] = useState<number | ''>('');
@@ -157,14 +168,19 @@ export const AdminPage: React.FC = () => {
     triggerFeedback('pop');
     const tid = toast.loading('משגר קמפיין למערכת...');
     try {
-      // כאן בעתיד יתחבר לטבלת campaigns ב-Supabase
-      // await supabase.from('campaigns').insert({ placement: campPlacement, title: campTitle, body: campBody, reward: Number(campReward)||0 });
-      await new Promise(r => setTimeout(r, 1800)); // סופר-אפקט של טעינה
+      const { error } = await supabase.from('campaigns').insert({
+        placement: campPlacement,
+        title: campTitle,
+        body: campBody,
+        reward: Number(campReward) || 0,
+        active: true
+      });
+      if (error) throw error;
       toast.success('הקמפיין באוויר! 🚀', { id: tid });
       triggerFeedback('success');
       setCampTitle(''); setCampBody(''); setCampReward('');
-    } catch (err) {
-      toast.error('שגיאה בשיגור', { id: tid });
+    } catch (err: any) {
+      toast.error(`שגיאה בשיגור: ${err.message}`, { id: tid });
     } finally {
       setCampDeploying(false);
     }
@@ -206,14 +222,13 @@ export const AdminPage: React.FC = () => {
           {activeTab === 'dashboard' && (
             <motion.div key="dash" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
               
-              {/* Premium Total Economy Card */}
               <div className="bg-surface-card border border-surface-border pt-10 pb-8 rounded-[40px] flex flex-col items-center text-center shadow-[0_20px_50px_rgba(0,0,0,0.4)] relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-accent-primary/5 via-transparent to-transparent opacity-60" />
                 <div className="absolute -top-20 -right-20 w-40 h-40 bg-accent-primary/20 blur-[80px] rounded-full pointer-events-none" />
                 <span className="text-brand-muted text-[11px] font-black uppercase tracking-[0.2em] mb-1 z-10 drop-shadow-md flex items-center gap-1.5"><Coins size={14} className="text-accent-primary"/> כלכלת CRD באפליקציה</span>
                 <div className="flex flex-col items-center justify-center mt-2 z-10 relative">
                   <span className="text-[56px] font-black text-brand tracking-tighter leading-none drop-shadow-[0_0_20px_rgba(var(--color-accent-primary),0.3)]">{adminData.total_crd.toLocaleString()}</span>
-                  <span className="text-[11px] font-black text-accent-primary uppercase tracking-[0.4em] mt-3 drop-shadow-md">TOTAL CIRCULATION</span>
+                  <span className="text-[11px] font-black text-accent-primary uppercase tracking-[0.4em] mt-3 drop-shadow-md">סה״כ במחזור</span>
                 </div>
               </div>
 
@@ -228,7 +243,6 @@ export const AdminPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* GRAPH SECTION */}
               <div className="bg-surface-card border border-surface-border rounded-[32px] p-6 shadow-sm">
                 <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5 mb-6"><Activity size={14} className="text-accent-primary"/> הרשמות השבוע</span>
                 <div className="flex items-end justify-between h-32 gap-2">
@@ -257,35 +271,30 @@ export const AdminPage: React.FC = () => {
           {activeTab === 'campaigns' && (
             <motion.div key="campaigns" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-5">
               <div className="bg-surface-card border border-surface-border rounded-[32px] p-6 shadow-sm flex flex-col gap-6">
-                <div className="flex items-center gap-3 border-b border-surface-border pb-4">
-                  <div className="w-12 h-12 rounded-full bg-accent-primary/10 border border-accent-primary/30 flex items-center justify-center shadow-inner">
-                    <Megaphone size={20} className="text-accent-primary" />
-                  </div>
-                  <div className="flex flex-col">
-                    <h2 className="text-brand font-black text-[16px] uppercase tracking-widest">שיגור קמפיין</h2>
-                    <span className="text-brand-muted text-[11px] font-medium">הזרק מתנות ומבצעים ישירות למשתמשים</span>
-                  </div>
+                <div className="flex flex-col gap-1 border-b border-surface-border pb-4">
+                  <h2 className="text-brand font-black text-[16px] uppercase tracking-widest">שיגור קמפיין</h2>
+                  <span className="text-brand-muted text-[11px] font-medium">הזרק מתנות ומבצעים ישירות למשתמשים</span>
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <label className="text-brand-muted text-[10px] font-black uppercase tracking-widest px-2"><Target size={12} className="inline mr-1 mb-0.5"/> מיקום הקמפיין</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[{ id:'feed', l:'פיד ראשי' }, { id:'explore', l:'חיפוש/גילוי' }, { id:'wallet', l:'בתוך הארנק' }].map(pos => (
-                      <button key={pos.id} onClick={() => { triggerFeedback('pop'); setCampPlacement(pos.id as any); }} className={`h-12 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all active:scale-95 border ${campPlacement === pos.id ? 'bg-accent-primary/10 border-accent-primary/40 text-accent-primary shadow-sm' : 'bg-surface border-surface-border text-brand-muted hover:text-brand'}`}>
-                        {pos.l}
+                  <label className="text-brand-muted text-[10px] font-black uppercase tracking-widest px-2">מיקום הקמפיין</label>
+                  <div className="flex flex-wrap gap-2">
+                    {PLACEMENTS.map(pos => (
+                      <button key={pos.id} onClick={() => { triggerFeedback('pop'); setCampPlacement(pos.id); }} className={`px-4 py-2.5 rounded-full font-black text-[11px] uppercase tracking-widest transition-all active:scale-95 border ${campPlacement === pos.id ? 'bg-accent-primary/10 border-accent-primary/40 text-accent-primary shadow-sm' : 'bg-surface border-surface-border text-brand-muted hover:text-brand'}`}>
+                        {pos.label}
                       </button>
                     ))}
                   </div>
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <label className="text-brand-muted text-[10px] font-black uppercase tracking-widest px-2">כותרת (Messege Title)</label>
-                  <input type="text" value={campTitle} onChange={e=>setCampTitle(e.target.value)} placeholder="לדוגמה: דרופ ממומן • Nike" className="w-full bg-surface border border-surface-border h-14 rounded-[20px] px-5 text-brand font-black outline-none focus:border-accent-primary/50 transition-all shadow-inner" />
+                  <label className="text-brand-muted text-[10px] font-black uppercase tracking-widest px-2">כותרת הודעה</label>
+                  <input type="text" value={campTitle} onChange={e=>setCampTitle(e.target.value)} placeholder="לדוגמה: מתנה לחג" className="w-full bg-surface border border-surface-border h-14 rounded-[20px] px-5 text-brand font-black outline-none focus:border-accent-primary/50 transition-all shadow-inner" />
                 </div>
 
                 <div className="flex flex-col gap-2">
                   <label className="text-brand-muted text-[10px] font-black uppercase tracking-widest px-2">תוכן הקמפיין</label>
-                  <textarea value={campBody} onChange={e=>setCampBody(e.target.value)} placeholder="קבל 50 CRD עכשיו!" className="w-full bg-surface border border-surface-border h-24 rounded-[24px] p-5 text-brand font-medium outline-none focus:border-accent-primary/50 transition-all resize-none shadow-inner" />
+                  <textarea value={campBody} onChange={e=>setCampBody(e.target.value)} placeholder="קבלו 50 CRD עכשיו!" className="w-full bg-surface border border-surface-border h-24 rounded-[24px] p-5 text-brand font-medium outline-none focus:border-accent-primary/50 transition-all resize-none shadow-inner" />
                 </div>
 
                 <div className="flex flex-col gap-2">
@@ -297,7 +306,7 @@ export const AdminPage: React.FC = () => {
                 </div>
 
                 <Button onClick={handleDeployCampaign} disabled={campDeploying || !campTitle.trim()} className="h-16 w-full mt-2 rounded-[24px] bg-accent-primary text-white font-black text-[15px] uppercase tracking-widest shadow-[0_5px_20px_rgba(var(--color-accent-primary),0.3)] active:scale-95 transition-all flex items-center justify-center gap-2">
-                  {campDeploying ? <Loader2 size={24} className="animate-spin text-white" /> : <><Send size={18} className="rtl:-scale-x-100" /> שגר לאוויר</>}
+                  {campDeploying ? <Loader2 size={24} className="animate-spin text-white" /> : 'שגר לאוויר'}
                 </Button>
               </div>
             </motion.div>
@@ -383,8 +392,8 @@ export const AdminPage: React.FC = () => {
                       </div>
                       <span className="text-brand font-black text-[13px]">{p.full_name}</span>
                     </div>
-                    <button onClick={() => handleDeletePost(p.id)} className="w-10 h-10 flex items-center justify-center bg-rose-500/10 text-rose-500 rounded-full border border-rose-500/20 active:scale-90 transition-transform">
-                      <Trash2 size={16} />
+                    <button onClick={() => handleDeletePost(p.id)} className="p-2 text-brand-muted hover:text-rose-500 active:scale-90 transition-colors">
+                      <Trash2 size={18} />
                     </button>
                   </div>
                   {p.media_url && <img src={p.media_url} className="w-full h-40 object-cover rounded-[20px] border border-surface-border" />}
