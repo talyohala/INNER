@@ -50,7 +50,6 @@ export const ProfilePage: React.FC = () => {
 
   const isMyProfile = !routeId || routeId === authProfile?.username || routeId === user?.id;
 
-  // SWR CACHE MAGIC: נטען מיד מזיכרון המטמון (Cache)
   const [data, setData] = useState<any>(() => {
     if (isMyProfile) {
       try {
@@ -99,6 +98,7 @@ export const ProfilePage: React.FC = () => {
   const [editPostText, setEditPostText] = useState('');
 
   const [extraInfoOpen, setExtraInfoOpen] = useState(false);
+  const [isBioExpanded, setIsBioExpanded] = useState(false);
 
   const stateRef = useRef({
     comments: false, options: false, desc: false, fullscreen: false, commentAction: false,
@@ -151,7 +151,7 @@ export const ProfilePage: React.FC = () => {
 
     const loadProfileData = async () => {
       try {
-        if (!data.profile?.id) setLoadingData(true); // מראה ספינר רק אם אין שום נתון במטמון
+        if (!data.profile?.id) setLoadingData(true);
         const { data: authData } = await supabase.auth.getUser();
         const me = authData.user?.id || '';
         if (me) setCurrentUserId(me);
@@ -163,7 +163,6 @@ export const ProfilePage: React.FC = () => {
           const result = await apiFetch<any>('/api/profile/collection', { headers }).catch(() => ({ profile: authProfile }));
           targetId = result.profile?.id || authProfile?.id || me;
 
-          // FETCH FRESH PROFILE DATA DIRECTLY FROM DB (Bypass Cache)
           const [{ data: memberships }, { data: ownedCircles }, { data: myPosts }, { data: freshProfile }] = await Promise.all([
             supabase.from('circle_members').select('circle:circles(*)').eq('user_id', targetId).neq('role', 'admin'),
             supabase.from('circles').select('*').eq('owner_id', targetId),
@@ -196,7 +195,7 @@ export const ProfilePage: React.FC = () => {
           if (isMounted) {
             const freshData = { profile: freshProfile || result.profile || authProfile, memberships: memberships || result.memberships || [], ownedCircles: ownedCircles || result.ownedCircles || [], posts: formattedPosts, savedPosts: mySavedPosts };
             setData(freshData);
-            localStorage.setItem('inner_profile_cache', JSON.stringify(freshData)); // שמירה למטמון!
+            localStorage.setItem('inner_profile_cache', JSON.stringify(freshData));
           }
         } else {
           const identifier = routeId || '';
@@ -259,7 +258,6 @@ export const ProfilePage: React.FC = () => {
     return () => { isMounted = false; };
   }, [user, routeId, isMyProfile, authLoading, navigate, authProfile]);
 
-  // --- REALTIME PROFILE SYNC ---
   useEffect(() => {
     if (!data.profile?.id) return;
     const channel = supabase.channel(`profile_sync_${data.profile.id}`)
@@ -274,6 +272,20 @@ export const ProfilePage: React.FC = () => {
     const pool = activeTab === 'saved' && isMyProfile ? data.savedPosts || [] : data.posts || [];
     return pool.filter((p: any) => p.media_url);
   }, [data.posts, data.savedPosts, activeTab, isMyProfile]);
+
+  // מיזוג המועדונים: אלו שבבעלותי ואלו שאני חבר בהם
+  const allMyCircles = useMemo(() => {
+    const owned = data.ownedCircles || [];
+    const joined = data.memberships?.map((m: any) => m?.circle).filter(Boolean) || [];
+    const map = new Map();
+    
+    owned.forEach((c: any) => map.set(c.id, { ...c, isOwner: true }));
+    joined.forEach((c: any) => {
+      if (!map.has(c.id)) map.set(c.id, { ...c, isOwner: false });
+    });
+    
+    return Array.from(map.values());
+  }, [data.ownedCircles, data.memberships]);
 
   const getRandomMediaBatch = (size = 4) => {
     if (!mediaPosts.length) return [];
@@ -481,7 +493,6 @@ export const ProfilePage: React.FC = () => {
 
   const stopPropagation = (e: any) => e.stopPropagation();
 
-  // במקום חסימת מסך, מראים טעינה רק אם אין נתונים בכלל.
   if ((authLoading || loadingData) && !data.profile?.id) {
     return <div className="min-h-screen bg-surface flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div>;
   }
@@ -493,7 +504,6 @@ export const ProfilePage: React.FC = () => {
   const xpProgress = Math.min((currentXP / xpToNextLevel) * 100, 100);
   const trueReputation = Math.floor(currentXP / 10) + currentLevel * 5;
 
-  const joinedCircles = data.memberships?.map((m: any) => m?.circle).filter(Boolean) || [];
   const userPosts = data.posts || [];
   const userSavedPosts = data.savedPosts || [];
   const displayLink = userProfile?.social_link ? userProfile.social_link.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '') : '';
@@ -581,19 +591,27 @@ export const ProfilePage: React.FC = () => {
               </div>
             )}
 
-            {/* About Section */}
+            {/* About Section - Structured & Collapsible */}
             <div className="flex flex-col items-center gap-4 mb-6 w-full max-w-[400px]">
-              {userProfile?.bio && (
-                <p className="text-brand text-[14px] leading-relaxed text-center font-medium px-4 whitespace-pre-wrap">
-                  {userProfile.bio}
-                </p>
-              )}
-
+              
               {userProfile?.social_link && (
-                 <a href={userProfile.social_link.startsWith('http') ? userProfile.social_link : `https://${userProfile.social_link}`} target="_blank" rel="noopener noreferrer" className="text-white text-[13px] font-bold flex items-center gap-2 hover:opacity-80 transition-opacity mt-1">
+                 <a href={userProfile.social_link.startsWith('http') ? userProfile.social_link : `https://${userProfile.social_link}`} target="_blank" rel="noopener noreferrer" className="text-white text-[13px] font-bold flex items-center gap-2 hover:opacity-80 transition-opacity mt-1 bg-white/5 px-4 py-1.5 rounded-full border border-white/10">
                    <LinkIcon size={14} className="text-white/80" />
                    <span dir="ltr" className="tracking-wide">{displayLink}</span>
                  </a>
+              )}
+
+              {userProfile?.bio && (
+                <div className="flex flex-col items-center gap-1 w-full px-4">
+                  <p className="text-brand text-[14px] leading-relaxed text-center font-medium whitespace-pre-wrap">
+                    {(userProfile.bio.length > 100 && !isBioExpanded) ? userProfile.bio.slice(0, 100) + '...' : userProfile.bio}
+                  </p>
+                  {userProfile.bio.length > 100 && (
+                    <button onClick={() => setIsBioExpanded(!isBioExpanded)} className="text-accent-primary text-[12px] font-bold flex items-center gap-1 mt-1 transition-all active:scale-95">
+                      {isBioExpanded ? 'הצג פחות' : 'קרא עוד'} {isBioExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </button>
+                  )}
+                </div>
               )}
 
               {visibleChips.length > 0 && (
@@ -699,14 +717,22 @@ export const ProfilePage: React.FC = () => {
                 </motion.div>
               )}
 
-              {/* JOINED CIRCLES TAB */}
+              {/* JOINED CIRCLES TAB (Includes Owned Circles) */}
               {activeTab === 'joined' && (
                 <motion.div key="joined" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-1 -mx-3.5">
-                  {joinedCircles.map((circle: any) => (
-                    <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className="aspect-[2/3] bg-surface-card relative overflow-hidden cursor-pointer border border-white/[0.05] rounded-[16px] group">
+                  {allMyCircles.map((circle: any) => (
+                    <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className={`aspect-[2/3] bg-surface-card relative overflow-hidden cursor-pointer rounded-[16px] group shadow-sm transition-all ${circle.isOwner ? 'border-2 border-accent-primary shadow-[0_0_15px_rgba(var(--color-accent-primary),0.15)]' : 'border border-white/[0.05]'}`}>
+                      
+                      {circle.isOwner && (
+                        <div className="absolute top-2 right-2 z-20 bg-accent-primary text-white text-[9px] font-black px-2 py-0.5 rounded-md shadow-md uppercase tracking-widest">
+                          בניהולי
+                        </div>
+                      )}
+
                       <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: circle, type: 'circle' })); }} className="absolute top-2 left-2 z-20 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] hover:text-white/70 transition-colors opacity-0 group-hover:opacity-100 touch-manipulation">
                         <MoreHorizontal size={24} strokeWidth={2.5} />
                       </button>
+                      
                       {circle.cover_url ? (
                         <img src={circle.cover_url} className="w-full h-full object-cover opacity-80" />
                       ) : (
@@ -826,15 +852,48 @@ export const ProfilePage: React.FC = () => {
                               supabase.from('comments').select('*, profiles!user_id(*)').eq('post_id', vid.id).order('created_at', { ascending: true })
                                 .then((r) => { setComments(r.data || []); setLoadingComments(false); }); 
                             }); 
-                          }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform">
-                            <MessageSquare size={32} className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" strokeWidth={1.5} />
+                          }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                            <MessageSquare size={32} strokeWidth={1.5} />
                             <span className="text-white text-[13px] font-black drop-shadow-md">{vid.comments_count}</span>
                           </button>
                         </div>
-
+                        
                         <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }} className="absolute bottom-8 left-5 z-[60] active:scale-90 transition-transform p-1">
                           <MoreVertical size={28} strokeWidth={2} className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
                         </button>
+                        
+                        <div className="absolute bottom-0 left-0 right-0 px-5 pb-8 pt-32 bg-gradient-to-t from-black/60 via-black/20 to-transparent flex flex-col pointer-events-none">
+                          {vid.content && (
+                            <p className="text-white drop-shadow-md text-[15px] font-medium text-right max-w-[85%] line-clamp-3 pointer-events-auto cursor-pointer mb-4" onClick={(e) => { e.stopPropagation(); openOverlay(() => setActiveDescPost(vid)); }}>
+                              {vid.content}
+                            </p>
+                          )}
+                          
+                          {vid.user_circles && vid.user_circles.length > 0 && (
+                            <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">
+                              {vid.user_circles.slice(0, 10).map((circle: any) => (
+                                <div key={circle.id} onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/circle/${circle.slug || circle.id}`), 50); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
+                                  <div className="w-8 h-8 rounded-full overflow-hidden border border-white/20 shadow-sm bg-surface flex items-center justify-center">
+                                    {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-4 h-4 text-white/70" />}
+                                  </div>
+                                  <span className="text-[9px] text-white drop-shadow-md font-bold max-w-[55px] truncate text-center uppercase tracking-wider">{circle.name}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          
+                          <div className="flex items-center justify-start pointer-events-auto">
+                            <div className="flex items-center gap-3 cursor-pointer" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${vid.user_id}`), 50); }}>
+                              <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden shrink-0 shadow-sm bg-surface flex items-center justify-center">
+                                {vid.profiles?.avatar_url ? <img src={vid.profiles.avatar_url} className="w-full h-full object-cover" loading="lazy" /> : <span className="text-white font-black text-lg flex items-center justify-center leading-none">{(vid.profiles?.full_name || 'א')[0]}</span>}
+                              </div>
+                              <div className="flex flex-col text-right">
+                                <span className="text-white font-black text-[15px] drop-shadow-md">{vid.profiles?.full_name || 'אנונימי'}</span>
+                                <span className="text-white/80 text-[10px] font-bold drop-shadow-md">{new Date(vid.created_at).toLocaleDateString('he-IL')}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     );
                   })}
@@ -959,8 +1018,8 @@ export const ProfilePage: React.FC = () => {
             {optionsMenuPost && (
               <div className="fixed inset-0 z-[99900] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
-                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[40px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border">
-                  <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>
+                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[40px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border text-center">
+                  <div className="w-full py-2 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>
                   <button onClick={() => { closeOverlay(); setTimeout(() => handleShare(optionsMenuPost), 100); }} className="w-full p-4 bg-surface-card rounded-[24px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>שתף פוסט</span><Share2 size={20} className="text-brand-muted" /></button>
                   {optionsMenuPost.media_url && <button onClick={() => handleDownloadMedia(optionsMenuPost.media_url)} className="w-full p-4 bg-surface-card rounded-[24px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>שמור למכשיר</span><Download size={20} className="text-brand-muted" /></button>}
                   <button onClick={async () => { try { await supabase.from('saved_posts').insert({ user_id: currentUserId, post_id: optionsMenuPost.id }); toast.success('הפוסט נשמר במועדפים!'); } catch { toast.error('הפוסט כבר שמור אצלך'); } closeOverlay(); }} className="w-full p-4 bg-surface-card rounded-[24px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>שמור במועדפים</span><Bookmark size={20} className="text-brand-muted" /></button>
@@ -975,50 +1034,8 @@ export const ProfilePage: React.FC = () => {
                 </motion.div>
               </div>
             )}
-
-            {/* USERS LIST (Followers/Following) */}
-            {(showFollowersList || showFollowingList) && (
-              <div className="fixed inset-0 z-[100000] flex flex-col justify-end" dir="rtl" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
-                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="relative z-10 bg-surface rounded-t-[40px] h-[75vh] flex flex-col overflow-hidden pb-10 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border">
-                  <div className="w-full py-5 flex justify-center cursor-grab active:cursor-grabbing border-b border-surface-border" onPointerDown={(e) => (showFollowersList ? followersDragControls.start(e) : followingDragControls.start(e))} style={{ touchAction: 'none' }}><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>
-                  <div className="text-center py-2 mb-2"><h3 className="text-brand font-black text-lg">{showFollowersList ? 'עוקבים' : 'נעקבים'}</h3></div>
-                  <div className="flex-1 overflow-y-auto px-4 flex flex-col gap-3 scrollbar-hide">
-                    {loadingUsersList ? <Loader2 className="animate-spin mx-auto text-accent-primary mt-10" /> : usersListData.length === 0 ? <div className="text-center text-brand-muted mt-10 text-[14px]">אין נתונים להצגה</div> : usersListData.map((item) => (
-                      <div key={item.id} onClick={() => { closeOverlay(); setTimeout(() => navigate(`/profile/${item.username || item.id}`), 50); }} className="flex items-center gap-4 bg-surface-card p-4 rounded-[24px] border border-surface-border cursor-pointer active:scale-[0.98] transition-all shadow-sm">
-                        <div className="w-10 h-10 rounded-full overflow-hidden bg-surface border border-surface-border shrink-0 flex items-center justify-center">
-                          {item.avatar_url ? <img src={item.avatar_url} className="w-full h-full object-cover" /> : <span className="text-brand-muted font-black text-sm flex items-center justify-center leading-none">{(item.full_name || 'א')[0]}</span>}
-                        </div>
-                        <div className="flex flex-col flex-1">
-                          <span className="text-brand font-black text-[15px] flex items-center gap-1.5">{item.full_name || 'אנונימי'}</span>
-                          <span className="text-brand-muted text-[12px] font-medium" dir="ltr">@{item.username || 'user'}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-              </div>
-            )}
-
-            {/* COMMENT ACTION MODAL */}
-            {commentActionModal && (
-              <div className="fixed inset-0 z-[99900] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
-                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-surface rounded-t-[40px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border">
-                  <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>
-                  <button onClick={() => { closeOverlay(); setReplyingTo(commentActionModal.parent_id ? comments.find((c) => c?.id === commentActionModal.parent_id) : commentActionModal); setNewComment(`@${commentActionModal.profiles?.full_name} `); document.getElementById('comment-input')?.focus(); }} className="w-full p-4 bg-surface-card rounded-[24px] text-brand font-black flex justify-between items-center text-[15px] hover:bg-white/5 transition-all border border-surface-border shadow-sm"><span>השב לתגובה</span><Reply size={20} className="text-brand-muted" /></button>
-                  
-                  {commentActionModal.user_id === currentUserId && (
-                    <>
-                      <button onClick={() => { closeOverlay(); setEditingCommentId(commentActionModal.id); setNewComment(commentActionModal.content); document.getElementById('comment-input')?.focus(); }} className="w-full p-4 bg-surface-card rounded-[24px] text-brand font-black flex justify-between items-center text-[15px] hover:bg-white/5 transition-all border border-surface-border shadow-sm"><span>ערוך תגובה</span><Edit2 size={20} className="text-brand-muted" /></button>
-                      <button onClick={() => { if (window.confirm('למחוק תגובה?')) { closeOverlay(); deleteComment(commentActionModal.id); } }} className="w-full p-4 bg-surface-card border border-red-500/30 rounded-[24px] text-red-500 font-black flex justify-between items-center text-[15px] mt-2 active:scale-[0.98] transition-all"><span>מחק תגובה</span><Trash2 size={20} className="text-red-500" /></button>
-                    </>
-                  )}
-                </motion.div>
-              </div>
-            )}
-
           </AnimatePresence>
+
         </>,
         portalNode
       )}
