@@ -7,9 +7,8 @@ import { FadeIn, Button } from '../components/ui';
 import { VaultCard } from '../components/VaultCard';
 import {
   Loader2, MessageSquare, Lock, ShieldAlert, Flame, Diamond, Handshake,
-  Plus, Send, X, Coins, Paperclip, Users, ChevronLeft, ChevronDown,
-  Gift, Medal, Crown, UserCircle, Archive, Sparkles, Pin, Target, Radio,
-  BarChart3, Calendar, BadgeCheck, Eye, Activity, Trophy, Image as ImageIcon
+  Plus, Send, X, Coins, Image as ImageIcon, Users, Archive, Sparkles, Trophy,
+  Pin, Calendar, BarChart3, Target, Crown, ChevronLeft, ChevronDown, Gift, Eye, Radio, BadgeCheck, Medal, Activity
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -33,7 +32,9 @@ const formatTime = (dateStr?: string | null) => {
 
 const formatRelative = (dateStr?: string | null) => {
   if (!dateStr) return '';
-  const diff = Math.max(1, Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000));
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diff = Math.max(1, Math.floor((now - then) / 1000));
   if (diff < 60) return 'הרגע';
   if (diff < 3600) return `לפני ${Math.floor(diff / 60)} דק׳`;
   if (diff < 86400) return `לפני ${Math.floor(diff / 3600)} ש׳`;
@@ -45,7 +46,7 @@ const getLevelName = (level: number) => {
   if (level >= 10) return 'ליבה';
   if (level >= 6) return 'מקורב';
   if (level >= 3) return 'פעיל';
-  return 'חדש';
+  return 'מצטרף חדש';
 };
 
 const getActivityLabel = (type: string, payload: any) => {
@@ -97,8 +98,10 @@ export const CirclePage: React.FC = () => {
   const [newPost, setNewPost] = useState('');
   const [posting, setPosting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
   const [selectedStoryFile, setSelectedStoryFile] = useState<File | null>(null);
   const [uploadingStory, setUploadingStory] = useState(false);
+
   const [joining, setJoining] = useState(false);
   const [contributingDrop, setContributingDrop] = useState(false);
   const [dropAmount, setDropAmount] = useState<number | ''>(50);
@@ -214,8 +217,7 @@ export const CirclePage: React.FC = () => {
       if (!circleId) return;
 
       const { data: overviewData, error } = await supabase.rpc('get_circle_overview', {
-        p_circle_id: circleId,
-        p_user_id: uid && !uid.startsWith('guest_') ? uid : null
+        p_circle_id: circleId, p_user_id: uid && !uid.startsWith('guest_') ? uid : null
       });
 
       if (!error && overviewData) {
@@ -224,7 +226,7 @@ export const CirclePage: React.FC = () => {
           events: overviewData.events || [], activity: overviewData.activity || [], leaderboard: overviewData.leaderboard || [],
           my_stats: overviewData.my_stats || null, tasks: overviewData.tasks || [], trust_rules: overviewData.trust_rules || null
         });
-        if (!silent) localStorage.setItem(`inner_overview_${slug}_cache`, JSON.stringify(overviewData));
+        if (!silent) localStorage.setItem(`inner_overview_${slug}_cache`, JSON.stringify(overviewData || {}));
       }
     } catch {}
   };
@@ -253,11 +255,15 @@ export const CirclePage: React.FC = () => {
 
   const handleJoin = async (tier: 'INNER' | 'CORE') => {
     if (!currentUserId || currentUserId.startsWith('guest_')) return toast.error('יש להתחבר תחילה');
+    const reqLevel = data.circle.min_level || 1;
+    const curLevel = myProfile?.level || 1;
+    if (curLevel < reqLevel) { triggerFeedback('error'); return toast.error(`דרושה רמה ${reqLevel} להצטרפות.`); }
+
     setJoining(true); triggerFeedback('pop');
     try {
       if (data.isMember) {
         await apiFetch(`/api/circles/${data.circle.slug}/upgrade`, { method: 'POST', body: JSON.stringify({ tier }) });
-        triggerFeedback('success'); toast.success(`שודרגת ל-${tier === 'CORE' ? 'ליבה' : 'מועדון'}! 👑`);
+        triggerFeedback('success'); toast.success(`שודרגת ל-${tier}! 👑`);
       } else {
         await apiFetch(`/api/circles/${data.circle.slug}/join`, { method: 'POST' });
         triggerFeedback('success'); toast.success('ברוך הבא למועדון! 🎉');
@@ -362,7 +368,7 @@ export const CirclePage: React.FC = () => {
       setNewPost(''); setSelectedFile(null);
       if (channelRef.current) channelRef.current.track({ isTyping: false });
       await fetchOverview(currentUserId, true);
-      triggerFeedback('success');
+      triggerFeedback('success'); toast.success('פורסם בהצלחה');
     } catch (err: any) {
       toast.error(err?.message || 'שגיאה בשליחת ההודעה');
     } finally {
@@ -412,47 +418,41 @@ export const CirclePage: React.FC = () => {
           ) : (
             <div className="absolute inset-0 bg-gradient-to-br from-accent-primary/20 via-surface-card to-surface" />
           )}
-
           <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/80 to-transparent" />
 
           <div className="relative z-10 px-5 text-center flex flex-col items-center">
             <div className="flex items-center gap-2 mb-2">
-              <span className="px-3 py-1 rounded-full bg-accent-primary/15 text-accent-primary text-[10px] font-black tracking-[0.2em] uppercase border border-accent-primary/20">
+              <span className="px-3 py-1 rounded-full bg-accent-primary/10 text-accent-primary text-[10px] font-black tracking-[0.2em] uppercase border border-accent-primary/20">
                 מועדון
               </span>
               {isCoreMember && (
-                <span className="px-3 py-1 rounded-full bg-amber-400/10 text-amber-300 text-[10px] font-black tracking-[0.2em] uppercase border border-amber-400/20">
+                <span className="px-3 py-1 rounded-full bg-amber-400/10 text-amber-400 text-[10px] font-black tracking-[0.2em] uppercase border border-amber-400/20">
                   ליבה
                 </span>
               )}
               {isOwner && (
-                <span className="px-3 py-1 rounded-full bg-emerald-400/10 text-emerald-300 text-[10px] font-black tracking-[0.2em] uppercase border border-emerald-400/20">
+                <span className="px-3 py-1 rounded-full bg-emerald-400/10 text-emerald-400 text-[10px] font-black tracking-[0.2em] uppercase border border-emerald-400/20">
                   מנהל
                 </span>
               )}
             </div>
 
             <h1 className="text-3xl font-black text-brand mb-2 drop-shadow-md">{circle.name}</h1>
-
-            <p className="text-[13px] text-white/80 font-medium max-w-[320px] leading-relaxed mb-3">
-              {circle.description || 'מועדון סגור עם תוכן פרימיום, שיחות פנימיות, רגעים ואתגרי קהילה'}
+            <p className="text-[13px] text-brand-muted font-medium max-w-[320px] leading-relaxed mb-4 line-clamp-2">
+              {circle.description || 'מועדון סגור עם תוכן פרימיום, שיחות פנימיות, רגעים ואתגרי קהילה.'}
             </p>
 
-            <div className="flex items-center justify-center gap-3 bg-surface-card/80 backdrop-blur-xl border border-white/10 px-5 py-2.5 rounded-full shadow-[0_5px_15px_rgba(0,0,0,0.3)]">
+            <div className="flex items-center justify-center gap-3 bg-surface-card/80 backdrop-blur-xl border border-white/5 px-5 py-2.5 rounded-full shadow-lg">
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_8px_#34d399]" />
-                <span className="text-[12px] font-black text-white tracking-widest">
-                  {onlineCount} מחוברים
-                </span>
+                <span className="text-[12px] font-black text-brand tracking-widest">{onlineCount} מחוברים</span>
               </div>
               {isMember && typingUsers.size > 0 && (
                 <>
-                  <div className="w-px h-3 bg-white/20" />
+                  <div className="w-px h-3 bg-white/10" />
                   <div className="flex items-center gap-1.5">
                     <MessageSquare size={14} className="text-brand-muted" />
-                    <span className="text-[11px] font-bold text-white/80">
-                      {typingUsers.size} מקלידים...
-                    </span>
+                    <span className="text-[11px] font-bold text-brand-muted">{typingUsers.size} מקלידים...</span>
                   </div>
                 </>
               )}
@@ -466,17 +466,15 @@ export const CirclePage: React.FC = () => {
               <div className="absolute inset-0 bg-accent-primary/5 rounded-full animate-pulse blur-xl" />
               <Lock size={40} className="text-brand-muted relative z-10" />
             </div>
-
             <div className="text-center">
               <h2 className="text-2xl font-black text-brand mb-2 uppercase tracking-widest">מועדון סגור</h2>
               <p className="text-brand-muted text-[13px] font-medium max-w-[250px] mx-auto">
-                הצטרף עכשיו כדי לקבל גישה לתוכן בלעדי, כספות, רגעים ואתגרי קהילה
+                הצטרף עכשיו כדי לקבל גישה לתוכן בלעדי, כספות, רגעים ואתגרי קהילה.
               </p>
             </div>
-
             <div className="grid grid-cols-1 gap-3 w-full max-w-[340px]">
               <Button onClick={() => handleJoin('INNER')} disabled={joining} className="w-full h-14 bg-white text-black font-black rounded-full uppercase tracking-widest text-[14px] shadow-lg active:scale-95 transition-all">
-                הצטרפות - {circle.join_price || 0} CRD
+                הצטרפות • {circle.join_price || 0} CRD
               </Button>
             </div>
           </div>
@@ -489,7 +487,7 @@ export const CirclePage: React.FC = () => {
                     key={t}
                     onClick={() => { triggerFeedback('pop'); setActiveTab(t as any); }}
                     className={`flex-1 min-w-[70px] py-2.5 text-[12px] font-black tracking-widest transition-all rounded-full flex items-center justify-center ${
-                      activeTab === t ? 'bg-accent-primary text-white shadow-md' : 'bg-transparent text-brand-muted hover:text-brand'
+                      activeTab === t ? 'border border-accent-primary text-accent-primary bg-accent-primary/5 shadow-sm' : 'border border-transparent text-brand-muted hover:text-brand'
                     }`}
                   >
                     {t === 'overview' ? 'הבית' : t === 'chat' ? 'צ׳אט' : t === 'vaults' ? 'כספות' : 'חברים'}
@@ -509,7 +507,7 @@ export const CirclePage: React.FC = () => {
                     <div className="text-brand text-[18px] font-black">{getLevelName(myLevel)}</div>
                     <div className="text-brand-muted text-[12px] mt-1">רמה {myLevel}</div>
                     <div className="mt-3 w-full h-1.5 rounded-full bg-surface overflow-hidden">
-                      <div className="h-full bg-accent-primary rounded-full" style={{ width: `${xpProgress}%` }} />
+                      <div className="h-full bg-accent-primary rounded-full shadow-[0_0_8px_rgba(var(--color-accent-primary),0.5)]" style={{ width: `${xpProgress}%` }} />
                     </div>
                     <div className="text-brand-muted text-[11px] mt-2 font-bold">{myXP} / {xpToNext} XP</div>
                   </div>
@@ -521,7 +519,7 @@ export const CirclePage: React.FC = () => {
                     </div>
                     <div className="text-brand text-[18px] font-black">{memberCount} חברים</div>
                     <div className="text-brand-muted text-[11px] mt-0.5">{onlineCount} אונליין עכשיו</div>
-                    <div className="text-accent-primary text-[10px] font-black mt-4 uppercase tracking-widest bg-accent-primary/10 w-fit px-2 py-1 rounded-md">
+                    <div className="text-accent-primary text-[10px] font-black mt-4 uppercase tracking-widest bg-accent-primary/10 w-fit px-2 py-1 rounded-md border border-accent-primary/20">
                       {overview?.activity?.length || 0} פעילויות לאחרונה
                     </div>
                   </div>
@@ -558,7 +556,7 @@ export const CirclePage: React.FC = () => {
                   {overview?.stories?.length ? (
                     <div className="flex gap-3 overflow-x-auto scrollbar-hide">
                       {overview.stories.map((story: any) => (
-                        <div key={story.id} className="w-[90px] shrink-0" onClick={() => window.open(story.media_url, '_blank')}>
+                        <div key={story.id} className="w-[88px] shrink-0" onClick={() => window.open(story.media_url, '_blank')}>
                           <div className="relative w-full h-[130px] rounded-[20px] overflow-hidden border border-surface-border bg-surface cursor-pointer active:scale-95 transition-transform">
                             {story.media_type === 'video' ? <video src={story.media_url} className="w-full h-full object-cover" /> : <img src={story.media_url} className="w-full h-full object-cover" />}
                             <div className="absolute inset-x-0 bottom-0 p-2 pt-6 bg-gradient-to-t from-black/80 to-transparent">
@@ -577,7 +575,7 @@ export const CirclePage: React.FC = () => {
                   <div className="rounded-[28px] bg-surface-card border border-surface-border p-5 shadow-sm">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-brand-muted font-black text-[11px] tracking-widest uppercase">דרופ קהילתי</span>
-                      <span className="text-accent-primary text-[10px] font-black bg-accent-primary/10 px-2 py-0.5 rounded-md">{overview.drop?.expires_at ? formatTime(overview.drop.expires_at) : 'ללא הגבלת זמן'}</span>
+                      <span className="text-accent-primary text-[10px] font-black bg-accent-primary/10 px-2 py-0.5 rounded-md border border-accent-primary/20">{overview.drop?.expires_at ? formatTime(overview.drop.expires_at) : 'ללא הגבלת זמן'}</span>
                     </div>
 
                     <div className="text-brand text-[18px] font-black mb-1">{overview.drop.title || 'דרופ פתוח'}</div>
@@ -738,7 +736,6 @@ export const CirclePage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* FLOATING CHAT INPUT */}
                 <div className="fixed left-4 right-4 z-[80]" style={{ bottom: 'calc(env(safe-area-inset-bottom) + 90px)' }}>
                   <div className="flex flex-col items-start w-full">
                     <AnimatePresence>
@@ -773,7 +770,7 @@ export const CirclePage: React.FC = () => {
 
             {activeTab === 'vaults' && (
               <div className="flex-1 p-4 flex flex-col gap-5 bg-surface overflow-y-auto pb-[120px] relative scrollbar-hide">
-                <span className="text-brand-muted font-black text-[11px] tracking-widest uppercase block text-center mt-2">כספות תוכן</span>
+                <span className="text-brand-muted font-black text-[11px] tracking-widest uppercase block text-center mt-2">כספות תוכן פרימיום</span>
                 {loadingVaults ? (
                   <Loader2 className="animate-spin text-accent-primary mx-auto my-20" />
                 ) : vaults.length === 0 ? (
