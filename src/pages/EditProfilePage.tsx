@@ -148,7 +148,7 @@ export const EditProfilePage: React.FC = () => {
   const selectedGender = GENDER_OPTIONS.find(s => s.name === formData.gender);
   
   return (
-    <FadeIn className="bg-[#0d0d0f] min-h-[100dvh] font-sans text-white overflow-x-hidden relative pb-32" dir="rtl">
+    <FadeIn className="bg-[#0d0d0f] min-h-[100dvh] font-sans text-white overflow-x-hidden relative pb-40" dir="rtl">
       
       {/* 🌌 Minimalist Cover & Avatar Area */}
       <div className="relative w-full h-[240px]">
@@ -181,7 +181,7 @@ export const EditProfilePage: React.FC = () => {
                 <div className="w-full h-full flex items-center justify-center"><UserCircle size={40} className="text-white/20" /></div>
               )}
               {/* Avatar Edit Overlay */}
-              <button onClick={() => avatarInputRef.current?.click()} disabled={uploadingAvatar} className="absolute inset-0 bg-black/50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity">
+              <button onClick={() => avatarInputRef.current?.click()} disabled={uploadingAvatar} className="absolute inset-0 bg-black/50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-100">
                 {uploadingAvatar ? <Loader2 size={24} className="animate-spin text-white" /> : <Camera size={24} />}
               </button>
             </div>
@@ -202,35 +202,57 @@ export const EditProfilePage: React.FC = () => {
         <span>{data.profile?.xp || 0} XP</span>
       </div>
 
-      {/* 📝 Borderless Form Container */}
-      <div className="px-8 mt-10 flex flex-col gap-2">
+      {/* 📝 OS Data Cells Container */}
+      <div className="px-6 mt-10 flex flex-col gap-3">
 
-        <InputField label="תעריף סיגנל (CRD)" icon={Zap} value={formData.signal_price} onChange={v => setFormData(p=>({...p, signal_price: Number(v)}))} placeholder="50" type="number" dir="ltr" />
-        <InputField label="שם מלא" icon={UserCheck} value={formData.full_name} onChange={v => setFormData(p=>({...p, full_name: v}))} placeholder="השם שלך" />
-        <InputField label="שם משתמש" icon={AtSign} value={formData.username} onChange={v => setFormData(p=>({...p, username: v.toLowerCase().replace(/[^a-zA-Z0-9_]/g, '')}))} placeholder="username" dir="ltr" />
+        {/* Signal Price Cell */}
+        <div className="bg-white/[0.03] border border-white/[0.05] rounded-2xl p-4 flex items-center justify-between shadow-sm">
+          <div className="flex flex-col">
+            <span className="text-white font-black text-[13px]">תעריף סיגנל</span>
+            <span className="text-white/40 text-[10px] font-bold mt-0.5">עלות שליחת הודעה אליך</span>
+          </div>
+          <div className="flex items-center gap-2 bg-[#0a0a0a] border border-white/10 px-3 py-1.5 rounded-xl">
+            <input type="number" value={formData.signal_price} onChange={(e) => setFormData(p => ({...p, signal_price: Number(e.target.value)}))} className="w-10 bg-transparent text-accent-primary font-black text-[15px] outline-none text-center" dir="ltr" />
+            <Zap size={14} className="text-amber-400 fill-amber-400 drop-shadow-[0_0_5px_rgba(251,191,36,0.4)]" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 mt-2">
+          <InputField label="שם מלא" icon={UserCheck} value={formData.full_name} onChange={v => setFormData(p=>({...p, full_name: v}))} placeholder="השם שלך" />
+          <InputField label="שם משתמש" icon={AtSign} value={formData.username} onChange={v => setFormData(p=>({...p, username: v.toLowerCase().replace(/[^a-zA-Z0-9_]/g, '')}))} placeholder="username" dir="ltr" />
+        </div>
         
-        {/* Minimal Bio Textarea */}
-        <div className="flex flex-col gap-1 py-4 border-b border-white/5 focus-within:border-accent-primary/50 transition-colors relative">
-          <label className="text-white/40 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5"><MessageSquare size={12} className="text-white/20"/>אודות (Bio)</label>
-          <textarea value={formData.bio} onChange={e => setFormData(p=>({...p, bio: e.target.value}))} className="bg-transparent text-white text-[15px] font-medium outline-none placeholder:text-white/20 w-full h-20 resize-none leading-relaxed mt-1" placeholder="ספר על עצמך..." />
+        {/* Bio Cell */}
+        <div className="bg-white/[0.03] border border-white/[0.05] rounded-2xl p-4 flex flex-col gap-1.5 focus-within:border-accent-primary/40 focus-within:bg-white/[0.05] transition-all relative shadow-sm">
+          <label className="text-white/30 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 pointer-events-none">
+            <MessageSquare size={12} className="text-white/20"/>אודות (Bio)
+          </label>
+          <textarea value={formData.bio} onChange={e => setFormData(p=>({...p, bio: e.target.value}))} className="bg-transparent text-white text-[14px] font-medium outline-none placeholder:text-white/20 w-full h-20 resize-none leading-relaxed mt-1" placeholder="ספר על עצמך..." />
         </div>
 
         <InputField label="קישור חברתי" icon={LinkIcon} value={formData.social_link} onChange={v => setFormData(p=>({...p, social_link: v}))} placeholder="instagram.com/user" dir="ltr" />
         <InputField label="עיסוק / מקצוע" icon={Briefcase} value={formData.job_title} onChange={v => setFormData(p=>({...p, job_title: v}))} placeholder="מעצב מוצר, משקיע..." />
         
-        <SelectField label="מין" icon={Users} value={selectedGender ? selectedGender.name : ''} placeholder="בחר מין" onClick={() => setShowGenderPicker(true)} />
-        <SelectField label="מזל" icon={Sparkles} value={selectedZodiac ? `${selectedZodiac.icon} ${selectedZodiac.name}` : ''} placeholder="בחר מזל" onClick={() => setShowZodiacPicker(true)} />
-        
-        <InputField label="מיקום" icon={MapPin} value={formData.location} onChange={v => setFormData(p=>({...p, location: v}))} placeholder="תל אביב" />
-        <InputField label="תאריך לידה" icon={Calendar} value={formData.birth_date} onChange={v => setFormData(p=>({...p, birth_date: v}))} placeholder="" type="date" />
-        
-        <SelectField label="מצב משפחתי" icon={HeartHandshake} value={selectedRelationship ? selectedRelationship.name : ''} placeholder="בחר מצב" onClick={() => setShowRelationshipPicker(true)} />
-        <InputField label="השכלה" icon={GraduationCap} value={formData.education} onChange={v => setFormData(p=>({...p, education: v}))} placeholder="מוסד לימודים..." />
+        <div className="grid grid-cols-2 gap-3">
+          <SelectField label="מין" icon={Users} value={selectedGender ? selectedGender.name : ''} placeholder="בחר מין" onClick={() => setShowGenderPicker(true)} />
+          <SelectField label="מזל" icon={Sparkles} value={selectedZodiac ? `${selectedZodiac.icon} ${selectedZodiac.name}` : ''} placeholder="בחר מזל" onClick={() => setShowZodiacPicker(true)} />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <InputField label="מיקום" icon={MapPin} value={formData.location} onChange={v => setFormData(p=>({...p, location: v}))} placeholder="תל אביב" />
+          <InputField label="תאריך לידה" icon={Calendar} value={formData.birth_date} onChange={v => setFormData(p=>({...p, birth_date: v}))} placeholder="" type="date" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <SelectField label="מצב משפחתי" icon={HeartHandshake} value={selectedRelationship ? selectedRelationship.name : ''} placeholder="בחר מצב" onClick={() => setShowRelationshipPicker(true)} />
+          <InputField label="השכלה" icon={GraduationCap} value={formData.education} onChange={v => setFormData(p=>({...p, education: v}))} placeholder="מוסד לימודים..." />
+        </div>
+
       </div>
 
-      {/* 🚀 Floating Save Button */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-48px)] max-w-sm z-50">
-        <button onClick={handleSaveDetails} disabled={savingDetails} className="w-full h-14 bg-white text-black rounded-full font-black text-[14px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-[0_10px_40px_rgba(255,255,255,0.15)] active:scale-95 disabled:opacity-50 transition-transform">
+      {/* 🚀 Floating Save Button - Clear and Fixed */}
+      <div className="fixed bottom-0 left-0 w-full px-6 pb-[calc(env(safe-area-inset-bottom)+24px)] pt-8 bg-gradient-to-t from-[#0d0d0f] via-[#0d0d0f]/95 to-transparent z-50 pointer-events-none">
+        <button onClick={handleSaveDetails} disabled={savingDetails} className="w-full h-14 bg-white text-black rounded-full font-black text-[14px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-[0_10px_40px_rgba(255,255,255,0.15)] active:scale-95 disabled:opacity-50 transition-transform pointer-events-auto">
           {savingDetails ? <Loader2 size={20} className="animate-spin text-black" /> : <><Save size={18} strokeWidth={2.5} /> שמור שינויים</>}
         </button>
       </div>
@@ -248,7 +270,7 @@ export const EditProfilePage: React.FC = () => {
                   <h3 className="text-white font-black text-[15px] uppercase tracking-widest text-center mb-6">בחר מזל אסטרולוגי</h3>
                   <div className="flex-1 overflow-y-auto grid grid-cols-2 gap-2 scrollbar-hide">
                     {ZODIAC_SIGNS.map((sign) => (
-                      <button key={sign.name} onClick={() => { setFormData(p => ({ ...p, zodiac: sign.name })); triggerFeedback('pop'); setShowZodiacPicker(false); }} className={`flex items-center justify-center gap-2 p-4 rounded-[20px] transition-all border ${formData.zodiac === sign.name ? 'bg-accent-primary/20 border-accent-primary/50 text-accent-primary shadow-[0_0_15px_rgba(var(--color-accent-primary),0.2)]' : 'bg-transparent border-white/5 text-white/60 hover:bg-white/5 hover:text-white'}`}>
+                      <button key={sign.name} onClick={() => { setFormData(p => ({ ...p, zodiac: sign.name })); triggerFeedback('pop'); setShowZodiacPicker(false); }} className={`flex items-center justify-center gap-2 p-4 rounded-[20px] transition-all border ${formData.zodiac === sign.name ? 'bg-accent-primary/20 border-accent-primary/50 text-accent-primary shadow-[0_0_15px_rgba(var(--color-accent-primary),0.2)]' : 'bg-white/5 border-white/5 text-white/60 hover:bg-white/10 hover:text-white'}`}>
                         <span className="text-xl drop-shadow-md">{sign.icon}</span>
                         <span className="font-black text-[13px]">{sign.name}</span>
                       </button>
@@ -269,7 +291,7 @@ export const EditProfilePage: React.FC = () => {
                   <h3 className="text-white font-black text-[15px] uppercase tracking-widest text-center mb-6">מצב משפחתי</h3>
                   <div className="flex-1 overflow-y-auto flex flex-col gap-2 scrollbar-hide">
                     {RELATIONSHIP_STATUSES.map((status) => (
-                      <button key={status.name} onClick={() => { setFormData(p => ({ ...p, relationship_status: status.name })); triggerFeedback('pop'); setShowRelationshipPicker(false); }} className={`flex items-center justify-center p-4 rounded-[20px] transition-all border ${formData.relationship_status === status.name ? 'bg-accent-primary/20 border-accent-primary/50 text-accent-primary shadow-[0_0_15px_rgba(var(--color-accent-primary),0.2)]' : 'bg-transparent border-white/5 text-white/60 hover:bg-white/5 hover:text-white'}`}>
+                      <button key={status.name} onClick={() => { setFormData(p => ({ ...p, relationship_status: status.name })); triggerFeedback('pop'); setShowRelationshipPicker(false); }} className={`flex items-center justify-center p-4 rounded-[20px] transition-all border ${formData.relationship_status === status.name ? 'bg-accent-primary/20 border-accent-primary/50 text-accent-primary shadow-[0_0_15px_rgba(var(--color-accent-primary),0.2)]' : 'bg-white/5 border-white/5 text-white/60 hover:bg-white/10 hover:text-white'}`}>
                         <span className="font-black text-[14px]">{status.name}</span>
                       </button>
                     ))}
@@ -289,7 +311,7 @@ export const EditProfilePage: React.FC = () => {
                   <h3 className="text-white font-black text-[15px] uppercase tracking-widest text-center mb-6">מגדר אישי</h3>
                   <div className="flex-1 overflow-y-auto flex flex-col gap-2 scrollbar-hide">
                     {GENDER_OPTIONS.map((gender) => (
-                      <button key={gender.name} onClick={() => { setFormData(p => ({ ...p, gender: gender.name })); triggerFeedback('pop'); setShowGenderPicker(false); }} className={`flex items-center justify-center gap-3 p-4 rounded-[20px] transition-all border ${formData.gender === gender.name ? 'bg-accent-primary/20 border-accent-primary/50 text-accent-primary shadow-[0_0_15px_rgba(var(--color-accent-primary),0.2)]' : 'bg-transparent border-white/5 text-white/60 hover:bg-white/5 hover:text-white'}`}>
+                      <button key={gender.name} onClick={() => { setFormData(p => ({ ...p, gender: gender.name })); triggerFeedback('pop'); setShowGenderPicker(false); }} className={`flex items-center justify-center gap-3 p-4 rounded-[20px] transition-all border ${formData.gender === gender.name ? 'bg-accent-primary/20 border-accent-primary/50 text-accent-primary shadow-[0_0_15px_rgba(var(--color-accent-primary),0.2)]' : 'bg-white/5 border-white/5 text-white/60 hover:bg-white/10 hover:text-white'}`}>
                         {formData.gender === gender.name ? <span className="text-white">{gender.icon}</span> : gender.icon}
                         <span className="font-black text-[14px]">{gender.name}</span>
                       </button>
@@ -306,26 +328,26 @@ export const EditProfilePage: React.FC = () => {
   );
 };
 
-// 🌌 Minimalist Borderless Input
+// 🌌 Minimal Glass Input Cell
 interface InputFieldProps { label: string; icon: React.ElementType; value: string | number; onChange: (value: string) => void; placeholder: string; type?: string; dir?: string;}
 const InputField: React.FC<InputFieldProps> = ({ label, icon: Icon, value, onChange, placeholder, type = 'text', dir = 'rtl' }) => (
-  <div className="flex flex-col gap-1 py-4 border-b border-white/5 focus-within:border-accent-primary/50 transition-colors relative">
-    <label className="text-white/40 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 pointer-events-none">
+  <div className="bg-white/[0.03] border border-white/[0.05] rounded-2xl p-3.5 flex flex-col gap-1 focus-within:border-accent-primary/40 focus-within:bg-white/[0.05] transition-all shadow-sm">
+    <label className="text-white/30 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 pointer-events-none">
       <Icon size={12} className="text-white/20" /> {label}
     </label>
-    <input type={type} value={value} onChange={e => onChange(e.target.value)} className="bg-transparent text-white text-[16px] font-medium outline-none placeholder:text-white/20 w-full mt-1" placeholder={placeholder} dir={dir} style={{ colorScheme: 'dark' }} />
+    <input type={type} value={value} onChange={e => onChange(e.target.value)} className="bg-transparent text-white text-[14px] font-medium outline-none placeholder:text-white/20 w-full" placeholder={placeholder} dir={dir} style={{ colorScheme: 'dark' }} />
   </div>
 );
 
-// 🌌 Minimalist Borderless Select
+// 🌌 Minimal Glass Select Cell
 interface SelectFieldProps { label: string; icon: React.ElementType; value: string; placeholder: string; onClick: () => void; }
 const SelectField: React.FC<SelectFieldProps> = ({ label, icon: Icon, value, placeholder, onClick }) => (
-  <div className="flex flex-col gap-1 py-4 border-b border-white/5 cursor-pointer active:opacity-70 transition-opacity" onClick={onClick}>
-    <label className="text-white/40 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 pointer-events-none">
+  <div className="bg-white/[0.03] border border-white/[0.05] rounded-2xl p-3.5 flex flex-col gap-1 cursor-pointer active:opacity-70 transition-opacity shadow-sm" onClick={onClick}>
+    <label className="text-white/30 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 pointer-events-none">
       <Icon size={12} className="text-white/20" /> {label}
     </label>
-    <div className="flex justify-between items-center mt-1 pointer-events-none">
-      <span className={`text-[16px] font-medium truncate ${value ? 'text-white' : 'text-white/20'}`}>{value || placeholder}</span>
+    <div className="flex justify-between items-center mt-0.5 pointer-events-none">
+      <span className={`text-[14px] font-medium truncate ${value ? 'text-white' : 'text-white/20'}`}>{value || placeholder}</span>
       <ChevronDown size={14} className="text-white/20" />
     </div>
   </div>
