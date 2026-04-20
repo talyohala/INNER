@@ -28,7 +28,7 @@ const InnerCodedLogo: React.FC = () => {
         <path d="M12.16 0.380001H13.66V6.30005H12.16V0.380001Z" fill="white"/>
         {/* חיבור אלכסוני קטן מתחת לחיתוך */}
         <path d="M25.508 11.232H15.658L25.508 21V11.232Z" fill="white"/>
-      </svg>
+      </motion.svg>
       {/* טקסט "INNER" נקי למטה, פונט סנס-סריף, מרווח אותיות רחב */}
       <span className="font-sans font-extrabold text-[12px] text-white/95 uppercase tracking-[0.25em]">
         INNER
@@ -79,7 +79,7 @@ const InnerCodedBackground: React.FC = () => {
         animate={{ opacity: [0.4, 0.6, 0.4] }}
         transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
         className="absolute inset-0 bg-white/5 blur-[120px]"
-        style={{ background: 'conic-gradient(from 180deg at 50% 50%, #FF0077 0deg, #accent-primary 120deg, #00DDFF 240deg, #FF0077 360deg)'}}
+        style={{ background: 'conic-gradient(from 180deg at 50% 50%, #FF0077 0deg, var(--color-accent-primary) 120deg, #00DDFF 240deg, #FF0077 360deg)'}}
       />
     </div>
   );
