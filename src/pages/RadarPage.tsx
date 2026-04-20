@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Aperture, Send, Zap, UserCircle, Loader2, Crown, Inbox, Check, X, ChevronLeft } from 'lucide-react';
+import { Radar, Send, Zap, UserCircle, Loader2, Crown, Inbox, Check, X, ChevronLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { FadeIn, Button } from '../components/ui';
@@ -231,16 +231,16 @@ export const RadarPage: React.FC = () => {
           {activeTab === 'scanner' && (
             <motion.div key="scanner" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 flex items-center justify-center">
               
-              {/* Radar Rings */}
+              {/* Radar Rings (Restored Original Animation with accent-primary) */}
               <div className="absolute inset-0 flex items-center justify-center opacity-40 pointer-events-none">
-                <div className="w-[200px] h-[200px] rounded-full border border-accent-primary/30 absolute" />
-                <div className="w-[350px] h-[350px] rounded-full border border-accent-primary/20 absolute border-dashed" />
-                <div className="w-[550px] h-[550px] rounded-full border border-accent-primary/10 absolute" />
+                <div className="w-[300px] h-[300px] rounded-full border border-accent-primary/40 absolute" />
+                <div className="w-[500px] h-[500px] rounded-full border border-accent-primary/20 absolute" />
+                <div className="w-[700px] h-[700px] rounded-full border border-accent-primary/10 absolute" />
                 <motion.div 
                   animate={{ rotate: 360 }} 
-                  transition={{ duration: 6, repeat: Infinity, ease: "linear" }} 
+                  transition={{ duration: 4, repeat: Infinity, ease: "linear" }} 
                   className="w-[800px] h-[800px] absolute rounded-full" 
-                  style={{ background: 'conic-gradient(from 0deg, transparent 70%, rgba(var(--color-accent-primary), 0.15) 100%)' }} 
+                  style={{ background: 'conic-gradient(from 0deg, transparent 70%, rgba(var(--color-accent-primary), 0.3) 100%)' }} 
                 />
               </div>
 
@@ -252,12 +252,12 @@ export const RadarPage: React.FC = () => {
                 <div className="w-4 h-4 bg-accent-primary rounded-full absolute animate-ping opacity-50 z-10" />
               </div>
 
-              {/* Scanning State */}
+              {/* Scanning State (Restored Radar Icon) */}
               <AnimatePresence>
                 {scanning && (
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute z-40 flex flex-col items-center gap-3 bg-black/60 backdrop-blur-md px-8 py-5 rounded-[32px] border border-white/10 shadow-2xl">
-                    <Aperture size={36} className="text-accent-primary animate-spin" strokeWidth={1.5} />
-                    <span className="text-white font-black tracking-widest uppercase text-[11px] drop-shadow-md">מאתר חיבורים חדשים...</span>
+                    <Radar size={36} className="text-accent-primary animate-spin" strokeWidth={1.5} />
+                    <span className="text-white font-black tracking-widest uppercase text-[11px] drop-shadow-md">סורק תדרים...</span>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -290,7 +290,7 @@ export const RadarPage: React.FC = () => {
               {/* Refresh Button */}
               <div className="absolute bottom-6 left-0 right-0 flex justify-center z-30 pointer-events-none">
                 <button onClick={() => { triggerFeedback('pop'); fetchRadarUsers(); }} className="pointer-events-auto bg-white/5 backdrop-blur-3xl border border-white/10 px-6 py-3.5 rounded-full text-white font-black text-[11px] uppercase tracking-widest flex items-center gap-2 shadow-[0_10px_40px_rgba(0,0,0,0.5)] active:scale-95 transition-all hover:bg-white/10 hover:border-white/20">
-                  <Aperture size={16} className="text-accent-primary" /> רענן סריקה
+                  <Radar size={16} className="text-accent-primary" /> רענן סריקה
                 </button>
               </div>
             </motion.div>
@@ -399,7 +399,7 @@ export const RadarPage: React.FC = () => {
                   </div>
                 </div>
 
-                <button onClick={handleSendSignal} disabled={sending || !signalMessage.trim()} className="w-full h-14 bg-accent-primary hover:bg-accent-primary/90 disabled:opacity-50 text-white font-black text-[14px] uppercase tracking-widest rounded-[20px] shadow-[0_0_20px_rgba(var(--color-accent-primary),0.4)] active:scale-95 transition-all flex items-center justify-center gap-2">
+                <button onClick={handleSendSignal} disabled={sending || !signalMessage.trim()} className="w-full h-14 bg-accent-primary hover:bg-accent-primary/90 disabled:opacity-50 text-white font-black text-[14px] uppercase tracking-widest rounded-[20px] shadow-[0_0_20px_rgba(var(--color-accent-primary),0.3)] active:scale-95 transition-all flex items-center justify-center gap-2">
                   {sending ? <Loader2 size={24} className="animate-spin text-white" /> : <><Send size={18} className="rtl:-scale-x-100" /> הפקד תשלום ושדר תדר</>}
                 </button>
               </motion.div>
