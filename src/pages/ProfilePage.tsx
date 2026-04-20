@@ -5,7 +5,7 @@ import { motion, AnimatePresence, useDragControls, useScroll, useTransform } fro
 import { 
   UserCircle, Loader2, MessageSquare, MoreVertical, MoreHorizontal, Share2, Reply, Trash2, X, Send, Download, 
   Link as LinkIcon, Edit2, Bookmark, MapPin, GraduationCap, ChevronDown, ChevronUp, Briefcase, Calendar, 
-  Sparkles, LogOut, Crown, Flame, Diamond, Handshake, Heart, Users, ArrowLeft
+  Sparkles, LogOut, Crown, Flame, Diamond, Handshake, Heart, Users, ArrowLeft, Shield, Zap
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
@@ -33,7 +33,7 @@ const getZodiacIcon = (zodiac: string) => {
 export const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
   const { username: routeId } = useParams<{ username?: string }>();
-  const { user, profile: authProfile, loading: authLoading } = useAuth();
+  const { user, profile: authProfile, loading: authLoading, signOut } = useAuth() as any;
 
   const [mounted, setMounted] = useState(false);
   const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
@@ -68,7 +68,7 @@ export const ProfilePage: React.FC = () => {
   const [usersListData, setUsersListData] = useState<any[]>([]);
   const [loadingUsersList, setLoadingUsersList] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'posts' | 'joined' | 'saved'>('posts');
+  const [activeTab, setActiveTab] = useState<'posts' | 'circles' | 'saved'>('posts');
   
   const [fullScreenMedia, setFullScreenMedia] = useState<any[] | null>(null);
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
@@ -135,7 +135,7 @@ export const ProfilePage: React.FC = () => {
 
   useEffect(() => {
     let isMounted = true;
-    const loadProfileData = async () => {
+    const loadFullProfile = async () => {
       try {
         if (!data.profile?.id) setLoadingData(true);
         const { data: authData } = await supabase.auth.getUser();
@@ -226,7 +226,7 @@ export const ProfilePage: React.FC = () => {
       }
     };
 
-    if (!authLoading) loadProfileData();
+    if (!authLoading) loadFullProfile();
     return () => { isMounted = false; };
   }, [user, routeId, isMyProfile, authLoading, navigate, authProfile]);
 
@@ -595,48 +595,25 @@ export const ProfilePage: React.FC = () => {
         </div>
 
         {/* ⚡ Action Buttons */}
-        {!isMyProfile && (
+        {!isMyProfile ? (
           <div className="flex items-center gap-3 mt-6 w-full max-w-[340px] px-2">
-            <button onClick={handleFollowToggle} disabled={followLoading} className={`flex-1 h-14 rounded-full font-black text-[13px] tracking-widest uppercase transition-all active:scale-95 flex items-center justify-center ${isFollowing ? 'bg-white/5 border border-white/10 text-white/50' : 'bg-accent-primary text-white shadow-[0_0_20px_rgba(var(--color-accent-primary),0.4)]'}`}>
-              {followLoading ? <Loader2 size={18} className="animate-spin" /> : isFollowing ? 'נעקב' : 'עקוב'}
+            <button 
+              onClick={() => { triggerFeedback('pop'); setIsFollowing(!isFollowing); }}
+              className={`flex-1 h-14 rounded-[22px] font-black text-[14px] tracking-widest uppercase transition-all active:scale-95 flex items-center justify-center ${
+                isFollowing ? 'bg-white/5 border border-white/10 text-white/40' : 'bg-accent-primary text-white shadow-[0_10px_30px_rgba(var(--color-accent-primary),0.3)]'
+              }`}
+            >
+              {isFollowing ? 'נעקב' : 'עקוב'}
             </button>
-            <button onClick={() => navigate(`/chat/${userProfile.id}`)} className="w-14 h-14 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white active:scale-95 transition-transform">
+            <button onClick={() => navigate(`/chat/${userProfile.id}`)} className="w-14 h-14 rounded-[22px] bg-white/5 border border-white/10 flex items-center justify-center active:scale-95">
               <MessageSquare size={20} />
             </button>
           </div>
+        ) : (
+          <button onClick={() => navigate('/edit-profile')} className="mt-6 flex items-center gap-2 bg-white/5 border border-white/10 px-6 py-3 rounded-full text-[12px] font-black uppercase tracking-widest hover:bg-white/10 transition-all">
+            <Edit2 size={14} /> ערוך פרופיל
+          </button>
         )}
-
-        {/* 🏷️ Info Chips */}
-        <div className="mt-6 flex flex-col items-center w-full px-6">
-          {visibleChips.length > 0 && (
-            <div className="flex flex-wrap justify-center gap-2">
-              {visibleChips.map((c: any) => (
-                <div key={c.key} className="bg-black/40 border border-white/10 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-1.5">
-                  {c.icon} <span className="text-white/80 text-[11px] font-bold">{c.value}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          {hiddenChips.length > 0 && (
-            <div className="w-full mt-2 flex flex-col items-center">
-              <button onClick={() => setExtraInfoOpen(!extraInfoOpen)} className="flex items-center gap-1 text-white/30 hover:text-white/60 text-[9px] font-black uppercase tracking-widest py-2 transition-colors">
-                מידע נוסף <motion.div animate={{ rotate: extraInfoOpen ? 180 : 0 }}><ChevronDown size={12} /></motion.div>
-              </button>
-              <AnimatePresence>
-                {extraInfoOpen && (
-                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden w-full flex flex-wrap justify-center gap-2 pt-1">
-                    {hiddenChips.map((c: any) => (
-                      <div key={c.key} className="bg-black/40 border border-white/10 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-1.5">
-                        {c.icon} <span className="text-white/60 text-[11px] font-medium">{c.value}</span>
-                      </div>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
-        </div>
-
       </div>
 
       {/* 🚀 Holographic Tab Navigation */}
@@ -644,7 +621,7 @@ export const ProfilePage: React.FC = () => {
         <div className="bg-[#111]/80 backdrop-blur-2xl border border-white/10 p-1.5 rounded-full flex items-center gap-1 shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
           {[
             { id: 'posts', label: 'פוסטים' },
-            { id: 'joined', label: 'מועדונים' },
+            { id: 'circles', label: 'מועדונים' },
             ...(isMyProfile ? [{ id: 'saved', label: 'שמורים' }] : [])
           ].map((tab) => (
             <button
@@ -669,11 +646,11 @@ export const ProfilePage: React.FC = () => {
           
           {/* POSTS */}
           {activeTab === 'posts' && (
-            <motion.div key="posts" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-1.5">
-              {userPosts.length === 0 ? (
+            <motion.div key="posts" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="grid grid-cols-3 gap-1.5">
+              {data.posts.length === 0 ? (
                 <div className="col-span-3 py-16 text-center text-white/30 text-[12px] font-bold uppercase tracking-widest">אין עדיין דגימות מידע</div>
               ) : (
-                userPosts.map((post: any) => (
+                data.posts.map((post: any) => (
                   <div key={post.id} onClick={() => { openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = mediaPosts.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[3/4] bg-[#0a0a0a] rounded-[20px] overflow-hidden relative cursor-pointer active:scale-[0.98] transition-transform border border-white/5 group shadow-sm">
                     {isMyProfile && (
                       <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'post' })); }} className="absolute top-2 left-2 z-20 text-white/80 hover:text-white bg-black/40 backdrop-blur-md rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -698,24 +675,24 @@ export const ProfilePage: React.FC = () => {
           )}
 
           {/* JOINED CIRCLES */}
-          {activeTab === 'joined' && (
-            <motion.div key="joined" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col gap-2">
-              {allMyCircles.length === 0 ? (
+          {activeTab === 'circles' && (
+            <motion.div key="circles" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-2">
+              {data.memberships.length === 0 ? (
                 <div className="py-16 text-center text-white/30 text-[12px] font-bold uppercase tracking-widest">לא חבר במועדונים</div>
               ) : (
-                allMyCircles.map((circle: any) => (
-                  <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className={`flex items-center gap-4 bg-white/5 backdrop-blur-md p-3.5 rounded-[24px] cursor-pointer active:scale-[0.98] transition-transform ${circle.isOwner ? 'border border-accent-primary/30 shadow-[0_0_15px_rgba(var(--color-accent-primary),0.1)]' : 'border border-white/5'}`}>
+                data.memberships.map((m: any) => (
+                  <div key={m.circle.id} onClick={() => navigate(`/circle/${m.circle.slug}`)} className={`flex items-center gap-4 bg-white/5 backdrop-blur-md p-3.5 rounded-[24px] cursor-pointer active:scale-[0.98] transition-transform ${m.circle.owner_id === userProfile.id ? 'border border-accent-primary/30 shadow-[0_0_15px_rgba(var(--color-accent-primary),0.1)]' : 'border border-white/5'}`}>
                     <div className="w-12 h-12 rounded-[18px] bg-[#111] overflow-hidden shrink-0 border border-white/10">
-                      {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" /> : <Users size={20} className="text-white/20 m-auto mt-3" />}
+                      {m.circle.cover_url ? <img src={m.circle.cover_url} className="w-full h-full object-cover" /> : <Users size={20} className="text-white/20 m-auto mt-3" />}
                     </div>
                     <div className="flex flex-col flex-1">
                       <span className="font-black text-[15px] flex items-center gap-2">
-                        {circle.name}
-                        {circle.isOwner && <span className="text-accent-primary text-[8px] uppercase tracking-widest bg-accent-primary/10 px-1.5 py-0.5 rounded">בניהולי</span>}
+                        {m.circle.name}
+                        {m.circle.owner_id === userProfile.id && <span className="text-accent-primary text-[8px] uppercase tracking-widest bg-accent-primary/10 px-1.5 py-0.5 rounded">בניהולי</span>}
                       </span>
-                      <span className="text-white/40 text-[11px] font-medium mt-0.5">{circle.member_count || 0} חברים</span>
+                      <span className="text-white/40 text-[11px] font-medium mt-0.5">{m.circle.member_count || 0} חברים</span>
                     </div>
-                    <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: circle, type: 'circle' })); }} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/40 hover:text-white">
+                    <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: m.circle, type: 'circle' })); }} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/40 hover:text-white">
                       <MoreVertical size={16} />
                     </button>
                   </div>
@@ -726,12 +703,12 @@ export const ProfilePage: React.FC = () => {
 
           {/* SAVED */}
           {activeTab === 'saved' && isMyProfile && (
-            <motion.div key="saved" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-2 gap-2">
-              {userSavedPosts.length === 0 ? (
+            <motion.div key="saved" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="grid grid-cols-2 gap-2">
+              {data.savedPosts.length === 0 ? (
                 <div className="col-span-2 py-16 text-center text-white/30 text-[12px] font-bold uppercase tracking-widest">אין פריטים שמורים</div>
               ) : (
-                userSavedPosts.map((post: any) => (
-                  <div key={post.id} onClick={() => { const savedMedia = userSavedPosts.filter((p: any) => p.media_url); openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = savedMedia.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="bg-white/5 backdrop-blur-md rounded-[24px] p-2 aspect-square flex flex-col gap-2 overflow-hidden border border-white/5 active:scale-[0.98] transition-transform relative group">
+                data.savedPosts.map((post: any) => (
+                  <div key={post.id} onClick={() => { const savedMedia = data.savedPosts.filter((p: any) => p.media_url); openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = savedMedia.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="bg-white/5 backdrop-blur-md rounded-[24px] p-2 aspect-square flex flex-col gap-2 overflow-hidden border border-white/5 active:scale-[0.98] transition-transform relative group">
                     <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'saved' })); }} className="absolute top-3 left-3 z-20 text-white/80 hover:text-white bg-black/60 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <MoreHorizontal size={14} />
                     </button>
@@ -899,7 +876,7 @@ export const ProfilePage: React.FC = () => {
             </div>
           )}
 
-          {/* FULL SCREEN MEDIA (TikTok Style with dark glass icons) */}
+          {/* FULL SCREEN MEDIA */}
           {fullScreenMedia && (
             <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed inset-0 z-[90000] bg-[#050505]">
               <div className="w-full h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide" onScroll={handleContainerScroll}>
@@ -914,7 +891,6 @@ export const ProfilePage: React.FC = () => {
                         <img src={vid.media_url} className="w-full h-full object-contain full-media-item" onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Unavailable'; }} />
                       )}
                       
-                      {/* Floating Dark Glass Overlay (Right Side) */}
                       <div className="absolute bottom-28 right-4 flex flex-col gap-4 items-center z-50 pointer-events-auto">
                         <button onClick={(e) => { e.stopPropagation(); if (vid.has_sealed) handleRemoveSeal(vid.id); else openOverlay(() => setSealSelectorPost(vid)); }} className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex flex-col items-center justify-center gap-0.5 active:scale-90 transition-transform">
                           <Flame size={20} className={vid.has_sealed ? 'text-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.8)]' : 'text-white'} fill={vid.has_sealed ? 'currentColor' : 'none'} />
@@ -929,7 +905,6 @@ export const ProfilePage: React.FC = () => {
                         </button>
                       </div>
 
-                      {/* Bottom Info Area */}
                       <div className="absolute bottom-0 left-0 w-full px-5 pb-8 pt-32 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col pointer-events-none">
                         {vid.content && (
                           <p className="text-white text-[13px] font-medium text-right max-w-[80%] line-clamp-2 pointer-events-auto cursor-pointer mb-4 drop-shadow-md" onClick={(e) => { e.stopPropagation(); openOverlay(() => setActiveDescPost(vid)); }}>
@@ -985,7 +960,8 @@ export const ProfilePage: React.FC = () => {
             </div>
           )}
 
-        </AnimatePresence>
+        </AnimatePresence>,
+        portalNode
       )}
     </FadeIn>
   );
