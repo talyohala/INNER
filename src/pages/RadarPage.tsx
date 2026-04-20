@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Aperture, Send, Zap, UserCircle, Loader2, Crown, Inbox, Check, X, ChevronLeft, Radar } from 'lucide-react';
+import { Radio, Send, Zap, UserCircle, Loader2, Crown, Inbox, Check, X, ChevronLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { FadeIn, Button } from '../components/ui';
@@ -34,6 +34,7 @@ export const RadarPage: React.FC = () => {
   const fetchRadarUsers = async () => {
     setLoading(true);
     setScanning(true);
+    setUsers([]); // Clear users when scanning again
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -168,7 +169,7 @@ export const RadarPage: React.FC = () => {
   return (
     <FadeIn className="bg-[#050505] min-h-[100dvh] font-sans flex flex-col relative overflow-x-hidden pb-32" dir="rtl">
       
-      {/* 🌌 BACKGROUND HERO (Accent Style) */}
+      {/* 🌌 BACKGROUND HERO */}
       <div className="absolute top-0 left-0 right-0 h-[45vh] pointer-events-none z-0">
         <div className="absolute inset-0 bg-gradient-to-b from-accent-primary/20 via-[#050505]/80 to-[#050505]" />
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[350px] h-[350px] bg-accent-primary/10 blur-[120px] rounded-full" />
@@ -191,7 +192,7 @@ export const RadarPage: React.FC = () => {
         </div>
       </div>
 
-      {/* TABS (Clean Text Style) */}
+      {/* TABS */}
       <div className="flex items-center justify-center gap-8 px-6 mt-8 mb-6 shrink-0 relative z-20">
         {[
           { id: 'scanner', label: 'סריקת תדרים' },
@@ -231,7 +232,7 @@ export const RadarPage: React.FC = () => {
           {activeTab === 'scanner' && (
             <motion.div key="scanner" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 flex items-center justify-center">
               
-              {/* Sci-Fi Radar Rings & Crosshairs */}
+              {/* Sci-Fi Radar Rings & Wide Sweep */}
               <div className="absolute inset-0 flex items-center justify-center opacity-50 pointer-events-none">
                 {/* Crosshairs */}
                 <div className="absolute w-[800px] h-[1px] bg-accent-primary/20" />
@@ -242,14 +243,16 @@ export const RadarPage: React.FC = () => {
                 <div className="w-[350px] h-[350px] rounded-full border border-accent-primary/20 absolute border-dashed" />
                 <div className="w-[550px] h-[550px] rounded-full border border-accent-primary/10 absolute" />
                 
-                {/* Advanced Sweep Animation */}
+                {/* Advanced Wide Sweep Animation */}
                 <motion.div 
                   animate={{ rotate: 360 }} 
                   transition={{ duration: 4, repeat: Infinity, ease: "linear" }} 
                   className="w-[800px] h-[800px] absolute rounded-full overflow-hidden" 
                 >
-                  <div className="absolute inset-0" style={{ background: 'conic-gradient(from 0deg, transparent 65%, rgba(var(--color-accent-primary), 0.15) 95%, rgba(var(--color-accent-primary), 0.6) 100%)' }} />
-                  <div className="absolute top-0 left-1/2 w-[2px] h-[400px] bg-accent-primary shadow-[0_0_20px_rgba(var(--color-accent-primary),1)] origin-bottom" />
+                  <div className="absolute inset-0" style={{ background: 'conic-gradient(from 0deg, transparent 40%, rgba(var(--color-accent-primary), 0.1) 75%, rgba(var(--color-accent-primary), 0.5) 98%, rgba(var(--color-accent-primary), 0.8) 100%)' }} />
+                  {/* Glowing wide edge */}
+                  <div className="absolute top-0 left-1/2 w-[60px] h-[400px] bg-accent-primary/40 blur-[15px] origin-bottom -translate-x-full" />
+                  <div className="absolute top-0 left-1/2 w-[10px] h-[400px] bg-accent-primary shadow-[0_0_20px_rgba(var(--color-accent-primary),1)] origin-bottom -translate-x-full" />
                 </motion.div>
               </div>
 
@@ -286,29 +289,24 @@ export const RadarPage: React.FC = () => {
                 </motion.div>
               ))}
 
-              {/* Elegant Scanning Pill Indicator */}
-              <AnimatePresence>
-                {scanning && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} 
-                    className="absolute bottom-28 z-40 flex items-center gap-3 bg-accent-primary/10 backdrop-blur-md px-6 py-2.5 rounded-full border border-accent-primary/30 shadow-[0_0_20px_rgba(var(--color-accent-primary),0.3)]"
+              {/* Clean Radar Refresh Button */}
+              <div className="absolute bottom-10 left-0 right-0 flex justify-center z-30 pointer-events-none">
+                <button 
+                  onClick={() => { triggerFeedback('pop'); fetchRadarUsers(); }} 
+                  className="pointer-events-auto flex items-center justify-center p-3 text-accent-primary drop-shadow-[0_0_15px_rgba(var(--color-accent-primary),0.8)] active:scale-90 transition-transform"
+                >
+                  <motion.div
+                    animate={{ scale: scanning ? [1, 1.2, 1] : 1 }}
+                    transition={{ duration: 1.5, repeat: scanning ? Infinity : 0, ease: "easeInOut" }}
                   >
-                    <Radar size={16} className="text-accent-primary animate-spin" strokeWidth={2} />
-                    <span className="text-accent-primary font-black tracking-widest uppercase text-[10px]">מאתר תדרים...</span>
+                    <Radio size={44} strokeWidth={1.5} />
                   </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Sci-Fi Refresh Button */}
-              <div className="absolute bottom-8 left-0 right-0 flex justify-center z-30 pointer-events-none">
-                <button onClick={() => { triggerFeedback('pop'); fetchRadarUsers(); }} className="pointer-events-auto bg-[#0a0a0a]/80 backdrop-blur-xl border border-accent-primary/40 px-8 py-3 rounded-full text-accent-primary font-black text-[11px] uppercase tracking-widest flex items-center gap-2 shadow-[0_0_20px_rgba(var(--color-accent-primary),0.2)] active:scale-95 transition-all hover:bg-accent-primary/10">
-                  <Aperture size={14} className="text-accent-primary" /> סרוק מחדש
                 </button>
               </div>
             </motion.div>
           )}
 
-          {/* TAB 2: INCOMING QUEUE (Glassmorphism Accent Style) */}
+          {/* TAB 2: INCOMING QUEUE */}
           {activeTab === 'queue' && (
             <motion.div key="queue" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 flex flex-col overflow-y-auto px-4 gap-4 scrollbar-hide pt-4">
               {incomingSignals.length === 0 ? (
