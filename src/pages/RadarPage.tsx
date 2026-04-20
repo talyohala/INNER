@@ -168,10 +168,10 @@ export const RadarPage: React.FC = () => {
   return (
     <FadeIn className="bg-[#050505] min-h-[100dvh] font-sans flex flex-col relative overflow-x-hidden pb-32" dir="rtl">
       
-      {/* 🌌 BACKGROUND HERO (Circle Style) */}
+      {/* 🌌 BACKGROUND HERO */}
       <div className="absolute top-0 left-0 right-0 h-[45vh] pointer-events-none z-0">
-        <div className="absolute inset-0 bg-gradient-to-b from-indigo-900/20 via-[#050505]/80 to-[#050505]" />
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[350px] h-[350px] bg-indigo-500/10 blur-[120px] rounded-full" />
+        <div className="absolute inset-0 bg-gradient-to-b from-accent-primary/20 via-[#050505]/80 to-[#050505]" />
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[350px] h-[350px] bg-accent-primary/10 blur-[120px] rounded-full" />
       </div>
 
       {/* HEADER */}
@@ -191,7 +191,7 @@ export const RadarPage: React.FC = () => {
         </div>
       </div>
 
-      {/* TABS (Clean Text Style) */}
+      {/* TABS */}
       <div className="flex items-center justify-center gap-8 px-6 mt-8 mb-6 shrink-0 relative z-20">
         {[
           { id: 'scanner', label: 'סריקת תדרים' },
@@ -208,14 +208,14 @@ export const RadarPage: React.FC = () => {
             >
               {t.label}
               {t.count > 0 && (
-                <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${isActive ? 'bg-indigo-500 text-white' : 'bg-white/10 text-white/50'}`}>
+                <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${isActive ? 'bg-accent-primary text-white' : 'bg-white/10 text-white/50'}`}>
                   {t.count}
                 </span>
               )}
               {isActive && (
                 <motion.div
                   layoutId="radar-indicator"
-                  className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-indigo-400 shadow-[0_0_10px_rgba(99,102,241,1)]"
+                  className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-accent-primary shadow-[0_0_10px_rgba(var(--color-accent-primary),1)]"
                 />
               )}
             </button>
@@ -233,30 +233,30 @@ export const RadarPage: React.FC = () => {
               
               {/* Radar Rings */}
               <div className="absolute inset-0 flex items-center justify-center opacity-40 pointer-events-none">
-                <div className="w-[200px] h-[200px] rounded-full border border-indigo-400/30 absolute" />
-                <div className="w-[350px] h-[350px] rounded-full border border-indigo-400/20 absolute border-dashed" />
-                <div className="w-[550px] h-[550px] rounded-full border border-indigo-400/10 absolute" />
+                <div className="w-[200px] h-[200px] rounded-full border border-accent-primary/30 absolute" />
+                <div className="w-[350px] h-[350px] rounded-full border border-accent-primary/20 absolute border-dashed" />
+                <div className="w-[550px] h-[550px] rounded-full border border-accent-primary/10 absolute" />
                 <motion.div 
                   animate={{ rotate: 360 }} 
                   transition={{ duration: 6, repeat: Infinity, ease: "linear" }} 
                   className="w-[800px] h-[800px] absolute rounded-full" 
-                  style={{ background: 'conic-gradient(from 0deg, transparent 70%, rgba(99, 102, 241, 0.15) 100%)' }} 
+                  style={{ background: 'conic-gradient(from 0deg, transparent 70%, rgba(var(--color-accent-primary), 0.15) 100%)' }} 
                 />
               </div>
 
               {/* Center User Avatar */}
               <div className="absolute z-30 flex flex-col items-center justify-center">
-                <div className="w-16 h-16 rounded-full border-2 border-indigo-500 bg-[#050505] overflow-hidden shadow-[0_0_30px_rgba(99,102,241,0.5)] z-20">
+                <div className="w-16 h-16 rounded-full border-2 border-accent-primary bg-[#050505] overflow-hidden shadow-[0_0_30px_rgba(var(--color-accent-primary),0.5)] z-20">
                   {profile?.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full text-brand-muted p-1" />}
                 </div>
-                <div className="w-4 h-4 bg-indigo-500 rounded-full absolute animate-ping opacity-50 z-10" />
+                <div className="w-4 h-4 bg-accent-primary rounded-full absolute animate-ping opacity-50 z-10" />
               </div>
 
               {/* Scanning State */}
               <AnimatePresence>
                 {scanning && (
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute z-40 flex flex-col items-center gap-3 bg-black/60 backdrop-blur-md px-8 py-5 rounded-[32px] border border-white/10 shadow-2xl">
-                    <Aperture size={36} className="text-indigo-400 animate-spin" strokeWidth={1.5} />
+                    <Aperture size={36} className="text-accent-primary animate-spin" strokeWidth={1.5} />
                     <span className="text-white font-black tracking-widest uppercase text-[11px] drop-shadow-md">מאתר חיבורים חדשים...</span>
                   </motion.div>
                 )}
@@ -274,7 +274,7 @@ export const RadarPage: React.FC = () => {
                   onClick={() => { triggerFeedback('pop'); setSelectedUser(u); }}
                 >
                   <div className="relative">
-                    <div className="w-12 h-12 rounded-full border border-white/20 bg-[#111] overflow-hidden shadow-lg group-hover:border-indigo-400 transition-all group-hover:scale-110 duration-300 group-hover:shadow-[0_0_15px_rgba(99,102,241,0.6)]">
+                    <div className="w-12 h-12 rounded-full border border-white/20 bg-[#111] overflow-hidden shadow-lg group-hover:border-accent-primary transition-all group-hover:scale-110 duration-300 group-hover:shadow-[0_0_15px_rgba(var(--color-accent-primary),0.6)]">
                       {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full text-brand-muted p-1" />}
                     </div>
                     <div className="absolute -bottom-2 -right-2 bg-black/80 border border-white/10 px-1.5 py-0.5 rounded-md text-[9px] font-black text-amber-400 backdrop-blur-md shadow-sm">
@@ -290,7 +290,7 @@ export const RadarPage: React.FC = () => {
               {/* Refresh Button */}
               <div className="absolute bottom-6 left-0 right-0 flex justify-center z-30 pointer-events-none">
                 <button onClick={() => { triggerFeedback('pop'); fetchRadarUsers(); }} className="pointer-events-auto bg-white/5 backdrop-blur-3xl border border-white/10 px-6 py-3.5 rounded-full text-white font-black text-[11px] uppercase tracking-widest flex items-center gap-2 shadow-[0_10px_40px_rgba(0,0,0,0.5)] active:scale-95 transition-all hover:bg-white/10 hover:border-white/20">
-                  <Aperture size={16} className="text-indigo-400" /> רענן סריקה
+                  <Aperture size={16} className="text-accent-primary" /> רענן סריקה
                 </button>
               </div>
             </motion.div>
@@ -309,18 +309,18 @@ export const RadarPage: React.FC = () => {
                   <div key={signal.id} className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[28px] p-5 shadow-lg flex flex-col gap-4 transition-all hover:border-white/20">
                     <div className="flex items-start justify-between border-b border-white/5 pb-4">
                       <div className="flex items-center gap-3 cursor-pointer group" onClick={() => { triggerFeedback('pop'); navigate(`/profile/${signal.sender?.id}`); }}>
-                        <div className="w-12 h-12 rounded-full overflow-hidden bg-[#111] border border-white/10 group-hover:border-indigo-400 transition-colors">
+                        <div className="w-12 h-12 rounded-full overflow-hidden bg-[#111] border border-white/10 group-hover:border-accent-primary transition-colors">
                           {signal.sender?.avatar_url ? <img src={signal.sender.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full text-brand-muted p-1" />}
                         </div>
                         <div className="flex flex-col">
-                          <span className="text-white font-black text-[15px] flex items-center gap-1.5">{signal.sender?.full_name} {signal.sender?.role_label === 'CORE' && <Crown size={12} className="text-indigo-400" />}</span>
+                          <span className="text-white font-black text-[15px] flex items-center gap-1.5">{signal.sender?.full_name} {signal.sender?.role_label === 'CORE' && <Crown size={12} className="text-accent-primary" />}</span>
                           <span className="text-white/40 text-[11px] font-bold tracking-widest" dir="ltr">@{signal.sender?.username}</span>
                         </div>
                       </div>
                       <div className="flex flex-col items-end">
                         <span className="text-[9px] font-black uppercase tracking-widest text-white/40 mb-1">שווי הבקשה</span>
-                        <div className="bg-indigo-500/10 border border-indigo-500/20 px-3 py-1 rounded-full flex items-center gap-1.5">
-                          <span className="text-indigo-400 font-black text-[14px]">{signal.crd_cost}</span>
+                        <div className="bg-accent-primary/10 border border-accent-primary/20 px-3 py-1 rounded-full flex items-center gap-1.5">
+                          <span className="text-accent-primary font-black text-[14px]">{signal.crd_cost}</span>
                           <Zap size={14} className="text-amber-400 fill-amber-400" />
                         </div>
                       </div>
@@ -334,7 +334,7 @@ export const RadarPage: React.FC = () => {
                       <Button onClick={() => handleProcessSignal(signal.id, signal.sender?.id, 'decline')} disabled={processingId === signal.id} className="flex-1 h-12 bg-white/5 border border-white/10 text-white/50 hover:text-rose-500 hover:border-rose-500/30 hover:bg-rose-500/10 rounded-2xl text-[12px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-none">
                         {processingId === signal.id ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'דחה תדר'}
                       </Button>
-                      <Button onClick={() => handleProcessSignal(signal.id, signal.sender?.id, 'accept')} disabled={processingId === signal.id} className="flex-1 h-12 bg-indigo-500 hover:bg-indigo-400 text-white rounded-2xl text-[12px] font-black uppercase tracking-widest shadow-[0_0_20px_rgba(99,102,241,0.4)] active:scale-95 transition-all border-none">
+                      <Button onClick={() => handleProcessSignal(signal.id, signal.sender?.id, 'accept')} disabled={processingId === signal.id} className="flex-1 h-12 bg-accent-primary hover:bg-accent-primary/90 text-white rounded-2xl text-[12px] font-black uppercase tracking-widest shadow-[0_0_20px_rgba(var(--color-accent-primary),0.4)] active:scale-95 transition-all border-none">
                         {processingId === signal.id ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'אשר ופתח צ\'אט'}
                       </Button>
                     </div>
@@ -366,13 +366,13 @@ export const RadarPage: React.FC = () => {
                   <div className="flex flex-col flex-1">
                     <div className="flex items-center justify-between">
                       <div className="flex flex-col">
-                        <h3 className="text-white font-black text-[18px] flex items-center gap-1.5">{selectedUser.full_name} {selectedUser.role_label === 'CORE' && <Crown size={14} className="text-indigo-400" />}</h3>
+                        <h3 className="text-white font-black text-[18px] flex items-center gap-1.5">{selectedUser.full_name} {selectedUser.role_label === 'CORE' && <Crown size={14} className="text-accent-primary" />}</h3>
                         <span className="text-white/40 text-[12px] font-bold tracking-widest mt-0.5" dir="ltr">@{selectedUser.username}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 mt-3">
                       <span className="text-[10px] font-black uppercase tracking-widest text-white/70 bg-white/10 px-2 py-1 rounded-md">רמה {selectedUser.level || 1}</span>
-                      <button onClick={() => { setSelectedUser(null); navigate(`/profile/${selectedUser.id}`); }} className="text-[10px] font-black uppercase tracking-widest text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 px-2 py-1 rounded-md transition-colors active:scale-95 flex items-center gap-1">
+                      <button onClick={() => { setSelectedUser(null); navigate(`/profile/${selectedUser.id}`); }} className="text-[10px] font-black uppercase tracking-widest text-accent-primary hover:text-accent-primary/80 bg-accent-primary/10 px-2 py-1 rounded-md transition-colors active:scale-95 flex items-center gap-1">
                         פרופיל מלא <ChevronLeft size={12} />
                       </button>
                     </div>
@@ -384,22 +384,22 @@ export const RadarPage: React.FC = () => {
                   <textarea
                     value={signalMessage} onChange={(e) => setSignalMessage(e.target.value)}
                     placeholder="היי, אשמח לדבר איתך..."
-                    className="w-full h-24 bg-[#050505] border border-white/10 rounded-[20px] p-4 text-white font-medium outline-none focus:border-indigo-500/50 transition-all resize-none shadow-inner text-[14px]"
+                    className="w-full h-24 bg-[#050505] border border-white/10 rounded-[20px] p-4 text-white font-medium outline-none focus:border-accent-primary/50 transition-all resize-none shadow-inner text-[14px]"
                   />
                 </div>
 
-                <div className="flex items-center justify-between bg-indigo-500/10 border border-indigo-500/20 rounded-[24px] p-5 mb-6">
+                <div className="flex items-center justify-between bg-accent-primary/10 border border-accent-primary/20 rounded-[24px] p-5 mb-6">
                   <div className="flex flex-col">
-                    <span className="text-indigo-100 font-black text-[14px] mb-1">דמי רצינות (Escrow)</span>
-                    <span className="text-indigo-300/60 text-[10px] font-bold leading-relaxed max-w-[200px]">הסכום יישמר בנאמנות. אם התדר ידחה - הכסף יחזור אליך אוטומטית.</span>
+                    <span className="text-white font-black text-[14px] mb-1">דמי רצינות (Escrow)</span>
+                    <span className="text-white/60 text-[10px] font-bold leading-relaxed max-w-[200px]">הסכום יישמר בנאמנות. אם התדר ידחה - הכסף יחזור אליך אוטומטית.</span>
                   </div>
                   <div className="flex flex-col items-end">
-                    <span className="text-indigo-400 font-black text-2xl flex items-center gap-1.5">{selectedUser.signal_price || 50} <Zap size={18} className="fill-indigo-400" /></span>
-                    <span className="text-indigo-400/50 text-[9px] font-black uppercase tracking-widest mt-0.5">CRD Required</span>
+                    <span className="text-accent-primary font-black text-2xl flex items-center gap-1.5">{selectedUser.signal_price || 50} <Zap size={18} className="fill-accent-primary" /></span>
+                    <span className="text-accent-primary/50 text-[9px] font-black uppercase tracking-widest mt-0.5">CRD Required</span>
                   </div>
                 </div>
 
-                <button onClick={handleSendSignal} disabled={sending || !signalMessage.trim()} className="w-full h-14 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white font-black text-[14px] uppercase tracking-widest rounded-[20px] shadow-[0_0_20px_rgba(99,102,241,0.3)] active:scale-95 transition-all flex items-center justify-center gap-2">
+                <button onClick={handleSendSignal} disabled={sending || !signalMessage.trim()} className="w-full h-14 bg-accent-primary hover:bg-accent-primary/90 disabled:opacity-50 text-white font-black text-[14px] uppercase tracking-widest rounded-[20px] shadow-[0_0_20px_rgba(var(--color-accent-primary),0.4)] active:scale-95 transition-all flex items-center justify-center gap-2">
                   {sending ? <Loader2 size={24} className="animate-spin text-white" /> : <><Send size={18} className="rtl:-scale-x-100" /> הפקד תשלום ושדר תדר</>}
                 </button>
               </motion.div>
