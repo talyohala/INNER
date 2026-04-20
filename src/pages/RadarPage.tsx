@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Radio, Send, Zap, UserCircle, Loader2, Crown, Inbox, Check, X, ChevronLeft } from 'lucide-react';
+import { Radio, Send, Zap, UserCircle, Loader2, Crown, Inbox, Check, X, ChevronLeft, Aperture } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { FadeIn, Button } from '../components/ui';
@@ -34,7 +34,7 @@ export const RadarPage: React.FC = () => {
   const fetchRadarUsers = async () => {
     setLoading(true);
     setScanning(true);
-    setUsers([]); // Clear users when scanning again
+    setUsers([]); 
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -234,11 +234,8 @@ export const RadarPage: React.FC = () => {
               
               {/* Sci-Fi Radar Rings & Wide Sweep */}
               <div className="absolute inset-0 flex items-center justify-center opacity-50 pointer-events-none">
-                {/* Crosshairs */}
-                <div className="absolute w-[800px] h-[1px] bg-accent-primary/20" />
-                <div className="absolute h-[800px] w-[1px] bg-accent-primary/20" />
                 
-                {/* Rings */}
+                {/* Rings ONLY */}
                 <div className="w-[200px] h-[200px] rounded-full border border-accent-primary/40 absolute" />
                 <div className="w-[350px] h-[350px] rounded-full border border-accent-primary/20 absolute border-dashed" />
                 <div className="w-[550px] h-[550px] rounded-full border border-accent-primary/10 absolute" />
@@ -249,10 +246,12 @@ export const RadarPage: React.FC = () => {
                   transition={{ duration: 4, repeat: Infinity, ease: "linear" }} 
                   className="w-[800px] h-[800px] absolute rounded-full overflow-hidden" 
                 >
-                  <div className="absolute inset-0" style={{ background: 'conic-gradient(from 0deg, transparent 40%, rgba(var(--color-accent-primary), 0.1) 75%, rgba(var(--color-accent-primary), 0.5) 98%, rgba(var(--color-accent-primary), 0.8) 100%)' }} />
-                  {/* Glowing wide edge */}
-                  <div className="absolute top-0 left-1/2 w-[60px] h-[400px] bg-accent-primary/40 blur-[15px] origin-bottom -translate-x-full" />
-                  <div className="absolute top-0 left-1/2 w-[10px] h-[400px] bg-accent-primary shadow-[0_0_20px_rgba(var(--color-accent-primary),1)] origin-bottom -translate-x-full" />
+                  {/* זרימת אור רחבה יותר שמתחילה מוקדם ונבנית בהדרגה */}
+                  <div className="absolute inset-0" style={{ background: 'conic-gradient(from 0deg, transparent 15%, rgba(var(--color-accent-primary), 0.1) 60%, rgba(var(--color-accent-primary), 0.4) 95%, rgba(var(--color-accent-primary), 0.8) 100%)' }} />
+                  {/* הילה (Glow) רחבה במיוחד */}
+                  <div className="absolute top-0 left-1/2 w-[100px] h-[400px] bg-accent-primary/30 blur-[20px] origin-bottom -translate-x-full" />
+                  {/* קו חיתוך סריקה דק ואלגנטי */}
+                  <div className="absolute top-0 left-1/2 w-[2px] h-[400px] bg-accent-primary shadow-[0_0_15px_rgba(var(--color-accent-primary),1)] origin-bottom -translate-x-full" />
                 </motion.div>
               </div>
 
