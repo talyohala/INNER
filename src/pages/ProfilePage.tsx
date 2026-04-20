@@ -464,6 +464,8 @@ export const ProfilePage: React.FC = () => {
   const xpToNextLevel = currentLevel * 1000;
   const xpProgress = Math.min((currentXP / xpToNextLevel) * 100, 100);
   const trueReputation = Math.floor(currentXP / 10) + currentLevel * 5;
+  const streakDays = userProfile.streak_days || 1;
+  const streakProgress = Math.min((streakDays % 30) / 30 * 100, 100);
 
   const userPosts = data.posts || [];
   const userSavedPosts = data.savedPosts || [];
@@ -485,7 +487,7 @@ export const ProfilePage: React.FC = () => {
   return (
     <FadeIn className="bg-[#0d0d0f] min-h-[100dvh] relative font-sans text-white overflow-x-hidden pb-24" dir="rtl">
       
-      {/* 🌌 Hero Backdrop */}
+      {/* 🌌 Hero Backdrop - Seamless Masked Gradient */}
       <div className="absolute top-0 left-0 w-full h-[350px] z-0 pointer-events-none">
         {userProfile.cover_url ? (
           <motion.div style={{ y: coverY, opacity: coverOpacity }} className="w-full h-full relative">
@@ -497,10 +499,18 @@ export const ProfilePage: React.FC = () => {
         )}
       </div>
 
-      <div className="relative z-10 flex flex-col items-center mt-8">
+      <div className="relative z-10 flex flex-col items-center mt-4">
         
+        {/* 🛡️ Top Fixed Back Button */}
+        <div className="w-full px-6 flex justify-between pt-[calc(env(safe-area-inset-top)+10px)] relative z-50">
+          <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/80 active:scale-90 transition-transform">
+            <ArrowLeft size={20} />
+          </button>
+        </div>
+
         {/* 🧬 Identity Core (Avatar & Level Ring) */}
-        <div className="relative group mt-8">
+        <div className="relative group mt-2">
+          {/* Neon Level Ring */}
           <div className="absolute -inset-2 rounded-full border border-white/5" />
           <svg className="absolute -inset-2 w-[calc(100%+16px)] h-[calc(100%+16px)] -rotate-90 pointer-events-none" viewBox="0 0 100 100">
             <motion.circle 
@@ -511,6 +521,7 @@ export const ProfilePage: React.FC = () => {
             />
           </svg>
 
+          {/* Avatar Glass Orb */}
           <div className="w-28 h-28 rounded-full p-1 bg-black/40 backdrop-blur-xl border border-white/10 shadow-[0_0_40px_rgba(0,0,0,0.8)] relative z-10">
             <div className="w-full h-full rounded-full overflow-hidden bg-[#111] relative">
               {userProfile.avatar_url ? (
@@ -523,6 +534,7 @@ export const ProfilePage: React.FC = () => {
             </div>
           </div>
 
+          {/* Core Badge */}
           <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-[#111] border border-white/10 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black tracking-widest flex items-center gap-1.5 shadow-xl z-20">
             <span className="text-white/50">LVL</span>
             <span className="text-accent-primary drop-shadow-[0_0_5px_rgba(var(--color-accent-primary),0.8)]">{currentLevel}</span>
@@ -530,32 +542,39 @@ export const ProfilePage: React.FC = () => {
         </div>
 
         {/* 📝 Name & Identity */}
-        <div className="mt-8 flex flex-col items-center text-center px-6">
+        <div className="mt-8 flex flex-col items-center text-center px-6 w-full max-w-[340px]">
           <h2 className="text-2xl font-black tracking-tight flex items-center gap-2">
             {userProfile.full_name}
             {userProfile.role_label === 'CORE' && <Crown size={16} className="text-accent-primary drop-shadow-[0_0_5px_rgba(var(--color-accent-primary),0.5)]" />}
           </h2>
           <span className="text-white/40 text-[12px] font-bold tracking-[0.1em] mt-1" dir="ltr">@{userProfile.username}</span>
 
-          {/* Clean Bio & Link */}
-          <div className="mt-4 flex flex-col items-center gap-1 max-w-[320px]">
-            {userProfile.bio && (
+          {/* Clean Bio Without Border */}
+          {userProfile.bio && (
+            <div className="mt-4 max-w-[320px] flex flex-col items-center">
               <p className="text-white/80 text-[14px] leading-relaxed font-medium whitespace-pre-wrap text-center">
-                {(userProfile.bio.length > 100 && !isBioExpanded) ? userProfile.bio.slice(0, 100) + '...' : userProfile.bio}
-                {userProfile.bio.length > 100 && (
-                  <button onClick={() => setIsBioExpanded(!isBioExpanded)} className="text-accent-primary font-black text-[12px] mx-2">
-                    {isBioExpanded ? 'פחות' : 'עוד'}
-                  </button>
-                )}
+                {(userProfile.bio.length > 80 && !isBioExpanded) ? userProfile.bio.slice(0, 80) + '...' : userProfile.bio}
               </p>
-            )}
-            
-            {userProfile.social_link && (
-              <a href={userProfile.social_link.startsWith('http') ? userProfile.social_link : `https://${userProfile.social_link}`} target="_blank" rel="noopener noreferrer" className="mt-2 text-white font-bold text-[13px] hover:text-white/70 transition-colors flex items-center gap-1.5">
-                <LinkIcon size={14} /> <span dir="ltr">{displayLink}</span>
-              </a>
-            )}
-          </div>
+              {userProfile.bio.length > 80 && (
+                <button onClick={() => setIsBioExpanded(!isBioExpanded)} className="text-accent-primary text-[10px] font-black uppercase tracking-widest mt-2 active:scale-95 transition-transform">
+                  {isBioExpanded ? 'פחות' : 'קרא עוד'}
+                </button>
+              )}
+            </div>
+          )}
+
+          {userProfile.social_link && (
+            <a href={userProfile.social_link.startsWith('http') ? userProfile.social_link : `https://${userProfile.social_link}`} target="_blank" rel="noopener noreferrer" className="mt-4 flex items-center gap-1.5 text-white font-bold text-[13px] hover:text-white/70 transition-colors">
+              <LinkIcon size={14} className="text-white/50" /> <span dir="ltr">{displayLink}</span>
+            </a>
+          )}
+
+          {/* Edit Profile Button Floating Smoothly */}
+          {isMyProfile && (
+            <button onClick={() => navigate('/edit-profile')} className="mt-5 flex items-center gap-2 bg-white/5 border border-white/10 px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest hover:bg-white/10 active:scale-95 transition-all text-white shadow-sm">
+              <Edit2 size={14} className="text-white/40" /> ערוך פרופיל
+            </button>
+          )}
         </div>
 
         {/* 🏷️ Info Chips (About section) */}
@@ -589,26 +608,58 @@ export const ProfilePage: React.FC = () => {
           )}
         </div>
 
-        {/* 📊 Data Pods (Stats) */}
-        <div className="grid grid-cols-3 gap-3 mt-8 w-full max-w-[340px] px-2">
-          <div onClick={() => openUsersListSheet('followers')} className="bg-white/5 border border-white/5 backdrop-blur-xl rounded-[24px] p-4 flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform">
-            <span className="text-white text-xl font-black">{followersCount}</span>
+        {/* 📊 4 Circular Data Pods (Followers, Following, Streak, Reputation) */}
+        <div className="flex flex-wrap justify-center gap-3 mt-8 w-full max-w-[340px] px-2">
+          
+          {/* Followers Orb */}
+          <div onClick={() => openUsersListSheet('followers')} className="w-[76px] h-[76px] bg-white/5 border border-white/5 backdrop-blur-xl rounded-full flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform shadow-sm">
+            <span className="text-white text-lg font-black leading-none">{followersCount}</span>
             <span className="text-white/30 text-[9px] font-black uppercase tracking-widest mt-1">עוקבים</span>
           </div>
-          <div onClick={() => openUsersListSheet('following')} className="bg-white/5 border border-white/5 backdrop-blur-xl rounded-[24px] p-4 flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform">
-            <span className="text-white text-xl font-black">{followingCount}</span>
+
+          {/* Following Orb */}
+          <div onClick={() => openUsersListSheet('following')} className="w-[76px] h-[76px] bg-white/5 border border-white/5 backdrop-blur-xl rounded-full flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform shadow-sm">
+            <span className="text-white text-lg font-black leading-none">{followingCount}</span>
             <span className="text-white/30 text-[9px] font-black uppercase tracking-widest mt-1">נעקבים</span>
           </div>
-          <div className="bg-accent-primary/10 border border-accent-primary/20 backdrop-blur-xl rounded-[24px] p-4 flex flex-col items-center justify-center relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-t from-accent-primary/20 to-transparent" />
-            <span className="text-accent-primary text-xl font-black drop-shadow-md relative z-10">{trueReputation}</span>
-            <span className="text-accent-primary/50 text-[9px] font-black uppercase tracking-widest mt-1 relative z-10">מוניטין</span>
+
+          {/* Streak Orb (Animated Orange Ring) */}
+          <div className="w-[76px] h-[76px] relative flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform group">
+            <div className="absolute inset-0 bg-white/5 border border-white/5 backdrop-blur-xl rounded-full shadow-sm" />
+            <svg className="absolute -inset-1.5 w-[calc(100%+12px)] h-[calc(100%+12px)] -rotate-90 pointer-events-none" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="46" stroke="rgba(255,255,255,0.05)" strokeWidth="3" fill="none" />
+              <motion.circle 
+                cx="50" cy="50" r="46" stroke="#f97316" strokeWidth="3" fill="none" strokeLinecap="round"
+                strokeDasharray="289" initial={{ strokeDashoffset: 289 }} animate={{ strokeDashoffset: 289 - (289 * (streakProgress || 100)) / 100 }}
+                transition={{ duration: 1.5, ease: "easeOut", delay: 0.2 }}
+                style={{ filter: 'drop-shadow(0 0 4px rgba(249,115,22, 0.6))' }}
+              />
+            </svg>
+            <span className="text-orange-500 text-lg font-black drop-shadow-md relative z-10 leading-none">{streakDays}</span>
+            <span className="text-orange-500/50 text-[9px] font-black uppercase tracking-widest mt-1 relative z-10 text-center leading-tight">רצף<br/>ימים</span>
           </div>
+
+          {/* Reputation Orb (Animated Accent Ring) */}
+          <div className="w-[76px] h-[76px] relative flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform group">
+            <div className="absolute inset-0 bg-accent-primary/5 border border-accent-primary/10 backdrop-blur-xl rounded-full shadow-sm" />
+            <svg className="absolute -inset-1.5 w-[calc(100%+12px)] h-[calc(100%+12px)] -rotate-90 pointer-events-none" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="46" stroke="rgba(var(--color-accent-primary), 0.1)" strokeWidth="3" fill="none" />
+              <motion.circle 
+                cx="50" cy="50" r="46" stroke="var(--color-accent-primary)" strokeWidth="3" fill="none" strokeLinecap="round"
+                strokeDasharray="289" initial={{ strokeDashoffset: 289 }} animate={{ strokeDashoffset: 289 - (289 * xpProgress) / 100 }}
+                transition={{ duration: 1.5, ease: "easeOut", delay: 0.4 }}
+                style={{ filter: 'drop-shadow(0 0 4px rgba(var(--color-accent-primary), 0.6))' }}
+              />
+            </svg>
+            <span className="text-accent-primary text-lg font-black drop-shadow-md relative z-10 leading-none">{trueReputation}</span>
+            <span className="text-accent-primary/50 text-[9px] font-black uppercase tracking-widest mt-1 relative z-10 text-center leading-tight">מוניטין<br/>כולל</span>
+          </div>
+
         </div>
 
         {/* ⚡ Action Buttons (Follow/Message) */}
         {!isMyProfile && (
-          <div className="flex items-center gap-3 mt-6 w-full max-w-[340px] px-2">
+          <div className="flex items-center gap-3 mt-8 w-full max-w-[340px] px-2">
             <button 
               onClick={() => { triggerFeedback('pop'); setIsFollowing(!isFollowing); }}
               className={`flex-1 h-14 rounded-full font-black text-[13px] tracking-widest uppercase transition-all active:scale-95 flex items-center justify-center ${
@@ -687,9 +738,9 @@ export const ProfilePage: React.FC = () => {
                 <div className="col-span-3 py-16 text-center text-white/30 text-[12px] font-bold uppercase tracking-widest">לא חבר במועדונים</div>
               ) : (
                 allMyCircles.map((circle: any) => (
-                  <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className={`aspect-[3/4] bg-[#111] relative overflow-hidden cursor-pointer group shadow-sm transition-all ${circle.isOwner ? 'border border-accent-primary shadow-[0_0_6px_rgba(var(--color-accent-primary),0.6)]' : ''}`}>
+                  <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className={`aspect-[3/4] bg-[#111] relative overflow-hidden cursor-pointer group shadow-sm transition-all ${circle.isOwner ? 'border-b-2 border-accent-primary' : ''}`}>
                     {circle.isOwner && (
-                      <div className="absolute top-2 right-2 z-20 text-white drop-shadow-md text-[9px] font-black uppercase tracking-widest">
+                      <div className="absolute top-2 right-2 z-20 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] text-[9px] font-black uppercase tracking-widest">
                         בניהולי
                       </div>
                     )}
