@@ -7,6 +7,19 @@ import { useAuth } from '../context/AuthContext';
 import { triggerFeedback } from '../lib/sound';
 import { supabase } from '../lib/supabase';
 
+// סגנון נקי ללא אייקונים, תואם למראה האפליקציה (Dark Glassmorphism)
+const cleanToastStyle = {
+  background: 'rgba(28, 28, 30, 0.8)',
+  backdropFilter: 'blur(10px)',
+  color: '#fff',
+  border: '1px solid rgba(255,255,255,0.1)',
+  borderRadius: '100px',
+  fontSize: '14px',
+  fontWeight: 500,
+  padding: '12px 24px',
+  boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+};
+
 export const AuthPage: React.FC = () => {
   const navigate = useNavigate();
   const { signIn } = useAuth();
@@ -25,17 +38,18 @@ export const AuthPage: React.FC = () => {
 
     if (!email || !password) {
       triggerFeedback('error');
-      return toast.error('נא למלא את כל הפרטים');
+      // שימוש ב-toast רגיל ללא סמל שגיאה
+      return toast('נא למלא את כל הפרטים', { style: cleanToastStyle });
     }
 
     setLoading(true);
-    const tid = toast.loading(isLogin ? 'מתחבר...' : 'יוצר חשבון...');
+    const tid = toast(isLogin ? 'מתחבר למערכת...' : 'יוצר חשבון...', { style: cleanToastStyle });
 
     try {
       if (isLogin) {
         await signIn(email, password);
         triggerFeedback('success');
-        toast.success('ברוך הבא! 🍸', { id: tid });
+        toast('התחברת בהצלחה', { id: tid, style: cleanToastStyle });
         navigate('/');
       } else {
         if (!fullName || !username) {
@@ -63,12 +77,12 @@ export const AuthPage: React.FC = () => {
         }
 
         triggerFeedback('success');
-        toast.success('ההרשמה הצליחה! 👑 קיבלת 100 CRD במתנה.', { id: tid });
+        toast('החשבון נוצר בהצלחה', { id: tid, style: cleanToastStyle });
         navigate('/');
       }
     } catch (err: any) {
       triggerFeedback('error');
-      toast.error(err.message || 'שגיאה באימות', { id: tid });
+      toast(err.message || 'שגיאה באימות', { id: tid, style: cleanToastStyle });
     } finally {
       setLoading(false);
     }
@@ -79,11 +93,8 @@ export const AuthPage: React.FC = () => {
       
       {/* רקע גרדיאנט סטטי וחלק מבוסס על צבע האקסנט של האפליקציה (ללא ריצודים) */}
       <div className="absolute inset-0 pointer-events-none z-0">
-        {/* אקסנט פרימרי (הצבע הראשי של האפליקציה) */}
         <div className="absolute bottom-[-20%] right-[-10%] w-[80%] h-[70%] bg-accent-primary rounded-full mix-blend-screen opacity-40 blur-[100px]" />
-        {/* צבע משלים בהיר (טורקיז/ציאן) להוספת עומק */}
         <div className="absolute bottom-[-10%] left-[-10%] w-[70%] h-[60%] bg-[#00DDFF] rounded-full mix-blend-screen opacity-20 blur-[100px]" />
-        {/* צבע משלים כהה (סגול/כחול כהה) ליצירת מעבר חלק */}
         <div className="absolute bottom-[-30%] left-[20%] w-[60%] h-[60%] bg-[#4f46e5] rounded-full mix-blend-screen opacity-30 blur-[120px]" />
       </div>
 
@@ -100,11 +111,9 @@ export const AuthPage: React.FC = () => {
           <div className="absolute inset-0 bg-white/5 blur-[30px] rounded-full scale-110" />
           
           <h1 className="text-[42px] font-black tracking-[0.25em] uppercase mb-8 select-none pl-3 relative group">
-            {/* הטקסט הלבן הבסיסי */}
             <span className="text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.15)]">
               INNER
             </span>
-            {/* שכבת האור המסתובבת - Shimmer */}
             <motion.span 
               className="absolute inset-0 text-transparent bg-clip-text"
               style={{
@@ -185,7 +194,7 @@ export const AuthPage: React.FC = () => {
             />
           </div>
 
-          {/* כפתור אישור לבן נקי (כמו בתמונה) */}
+          {/* כפתור אישור */}
           <div className="flex justify-center mt-6">
             <button
               type="submit"
