@@ -5,7 +5,7 @@ import { motion, AnimatePresence, useDragControls, useScroll, useTransform } fro
 import { 
   UserCircle, Loader2, MessageSquare, MoreVertical, MoreHorizontal, Share2, Reply, Trash2, X, Send, Download, 
   Link as LinkIcon, Edit2, Bookmark, MapPin, GraduationCap, ChevronDown, ChevronUp, Briefcase, Calendar, 
-  Sparkles, Crown, Flame, Diamond, Handshake, Heart, Users
+  Sparkles, LogOut, Crown, Flame, Diamond, Handshake, Heart, Users, ArrowLeft
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
@@ -485,7 +485,7 @@ export const ProfilePage: React.FC = () => {
   return (
     <FadeIn className="bg-[#0d0d0f] min-h-[100dvh] relative font-sans text-white overflow-x-hidden pb-24" dir="rtl">
       
-      {/* 🌌 Hero Backdrop - Seamless Masked Gradient */}
+      {/* 🌌 Hero Backdrop */}
       <div className="absolute top-0 left-0 w-full h-[350px] z-0 pointer-events-none">
         {userProfile.cover_url ? (
           <motion.div style={{ y: coverY, opacity: coverOpacity }} className="w-full h-full relative">
@@ -497,11 +497,10 @@ export const ProfilePage: React.FC = () => {
         )}
       </div>
 
-      <div className="relative z-10 flex flex-col items-center mt-12">
+      <div className="relative z-10 flex flex-col items-center mt-8">
         
         {/* 🧬 Identity Core (Avatar & Level Ring) */}
         <div className="relative group mt-8">
-          {/* Neon Level Ring */}
           <div className="absolute -inset-2 rounded-full border border-white/5" />
           <svg className="absolute -inset-2 w-[calc(100%+16px)] h-[calc(100%+16px)] -rotate-90 pointer-events-none" viewBox="0 0 100 100">
             <motion.circle 
@@ -512,7 +511,6 @@ export const ProfilePage: React.FC = () => {
             />
           </svg>
 
-          {/* Avatar Glass Orb */}
           <div className="w-28 h-28 rounded-full p-1 bg-black/40 backdrop-blur-xl border border-white/10 shadow-[0_0_40px_rgba(0,0,0,0.8)] relative z-10">
             <div className="w-full h-full rounded-full overflow-hidden bg-[#111] relative">
               {userProfile.avatar_url ? (
@@ -523,14 +521,8 @@ export const ProfilePage: React.FC = () => {
                 </div>
               )}
             </div>
-            {isMyProfile && (
-              <button onClick={() => navigate('/edit-profile')} className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-accent-primary text-white flex items-center justify-center shadow-[0_0_15px_rgba(var(--color-accent-primary),0.5)] border-2 border-[#0d0d0f] active:scale-90 transition-transform">
-                <Edit2 size={12} />
-              </button>
-            )}
           </div>
 
-          {/* Core Badge */}
           <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-[#111] border border-white/10 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black tracking-widest flex items-center gap-1.5 shadow-xl z-20">
             <span className="text-white/50">LVL</span>
             <span className="text-accent-primary drop-shadow-[0_0_5px_rgba(var(--color-accent-primary),0.8)]">{currentLevel}</span>
@@ -545,24 +537,25 @@ export const ProfilePage: React.FC = () => {
           </h2>
           <span className="text-white/40 text-[12px] font-bold tracking-[0.1em] mt-1" dir="ltr">@{userProfile.username}</span>
 
-          {userProfile.bio && (
-            <div className="mt-4 bg-white/5 border border-white/5 backdrop-blur-md px-5 py-3 rounded-[20px] max-w-[320px] shadow-inner">
-              <p className="text-white/80 text-[13px] leading-relaxed font-medium whitespace-pre-wrap">
-                {(userProfile.bio.length > 80 && !isBioExpanded) ? userProfile.bio.slice(0, 80) + '...' : userProfile.bio}
+          {/* Clean Bio & Link */}
+          <div className="mt-4 flex flex-col items-center gap-1 max-w-[320px]">
+            {userProfile.bio && (
+              <p className="text-white/80 text-[14px] leading-relaxed font-medium whitespace-pre-wrap text-center">
+                {(userProfile.bio.length > 100 && !isBioExpanded) ? userProfile.bio.slice(0, 100) + '...' : userProfile.bio}
+                {userProfile.bio.length > 100 && (
+                  <button onClick={() => setIsBioExpanded(!isBioExpanded)} className="text-accent-primary font-black text-[12px] mx-2">
+                    {isBioExpanded ? 'פחות' : 'עוד'}
+                  </button>
+                )}
               </p>
-              {userProfile.bio.length > 80 && (
-                <button onClick={() => setIsBioExpanded(!isBioExpanded)} className="text-accent-primary text-[10px] font-black uppercase tracking-widest mt-2 active:scale-95 transition-transform">
-                  {isBioExpanded ? 'פחות' : 'קרא עוד'}
-                </button>
-              )}
-            </div>
-          )}
-
-          {userProfile.social_link && (
-            <a href={userProfile.social_link.startsWith('http') ? userProfile.social_link : `https://${userProfile.social_link}`} target="_blank" rel="noopener noreferrer" className="mt-4 flex items-center gap-2 text-white text-[13px] font-bold hover:text-white/80 transition-colors">
-              <LinkIcon size={14} className="text-white/60" /> <span dir="ltr">{displayLink}</span>
-            </a>
-          )}
+            )}
+            
+            {userProfile.social_link && (
+              <a href={userProfile.social_link.startsWith('http') ? userProfile.social_link : `https://${userProfile.social_link}`} target="_blank" rel="noopener noreferrer" className="mt-2 text-white font-bold text-[13px] hover:text-white/70 transition-colors flex items-center gap-1.5">
+                <LinkIcon size={14} /> <span dir="ltr">{displayLink}</span>
+              </a>
+            )}
+          </div>
         </div>
 
         {/* 🏷️ Info Chips (About section) */}
@@ -632,7 +625,7 @@ export const ProfilePage: React.FC = () => {
       </div>
 
       {/* 🚀 Holographic Tab Navigation */}
-      <div className="sticky top-4 z-40 flex items-center justify-center gap-8 px-6 mt-10 mb-6 shrink-0 bg-[#0d0d0f]/80 backdrop-blur-xl py-3 rounded-full border border-white/5 shadow-md mx-4">
+      <div className="sticky top-0 z-40 flex items-center justify-center gap-8 mt-10 shrink-0 bg-[#0d0d0f]/90 backdrop-blur-xl py-4 border-b border-white/5 w-full">
         {[
           { id: 'posts', label: 'פוסטים' },
           { id: 'circles', label: 'מועדונים' },
@@ -651,7 +644,7 @@ export const ProfilePage: React.FC = () => {
               {isActive && (
                 <motion.div
                   layoutId="profileTabIndicator"
-                  className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-accent-primary shadow-[0_0_10px_rgba(var(--color-accent-primary),1)]"
+                  className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-accent-primary shadow-[0_0_10px_rgba(var(--color-accent-primary),1)]"
                 />
               )}
             </button>
@@ -659,33 +652,27 @@ export const ProfilePage: React.FC = () => {
         })}
       </div>
 
-      {/* 🔳 Borderless Grid Content */}
-      <div className="px-4">
+      {/* 🔳 Edge-to-Edge Grid Content */}
+      <div className="w-full">
         <AnimatePresence mode="wait">
           
           {/* POSTS */}
           {activeTab === 'posts' && (
-            <motion.div key="posts" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="grid grid-cols-3 gap-1.5">
+            <motion.div key="posts" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-0.5">
               {data.posts.length === 0 ? (
                 <div className="col-span-3 py-16 text-center text-white/30 text-[12px] font-bold uppercase tracking-widest">אין עדיין דגימות מידע</div>
               ) : (
                 data.posts.map((post: any) => (
-                  <div key={post.id} onClick={() => { openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = mediaPosts.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[3/4] bg-[#0a0a0a] rounded-[20px] overflow-hidden relative cursor-pointer active:scale-[0.98] transition-transform border border-white/5 group shadow-sm">
+                  <div key={post.id} onClick={() => { openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = mediaPosts.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[3/4] bg-[#111] relative cursor-pointer active:opacity-70 group overflow-hidden">
                     {isMyProfile && (
-                      <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'post' })); }} className="absolute top-2 left-2 z-20 text-white/80 hover:text-white bg-black/40 backdrop-blur-md rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <MoreHorizontal size={16} />
+                      <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'post' })); }} className="absolute top-2 left-2 z-20 text-white/80 hover:text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] opacity-0 group-hover:opacity-100 transition-opacity">
+                        <MoreHorizontal size={20} strokeWidth={2.5} />
                       </button>
                     )}
                     {post.media_url ? (
-                      post.media_type === 'video' ? <video src={post.media_url} className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" /> : <img src={post.media_url} className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
+                      post.media_type === 'video' ? <video src={post.media_url} className="w-full h-full object-cover" /> : <img src={post.media_url} className="w-full h-full object-cover" />
                     ) : (
-                      <div className="w-full h-full p-3 flex items-center justify-center text-center text-white/40 text-[10px] font-medium leading-relaxed bg-white/5">{post.content}</div>
-                    )}
-                    {post.seals_count > 0 && (
-                      <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded flex items-center gap-1 border border-white/5">
-                        <Flame size={10} className="text-orange-500" />
-                        <span className="text-[9px] font-black">{post.seals_count}</span>
-                      </div>
+                      <div className="w-full h-full flex items-center justify-center p-2 text-center text-white/40 text-[10px] font-medium leading-relaxed">{post.content}</div>
                     )}
                   </div>
                 ))
@@ -695,25 +682,28 @@ export const ProfilePage: React.FC = () => {
 
           {/* JOINED CIRCLES */}
           {activeTab === 'circles' && (
-            <motion.div key="circles" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-2">
+            <motion.div key="circles" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-0.5">
               {data.memberships.length === 0 ? (
-                <div className="py-16 text-center text-white/30 text-[12px] font-bold uppercase tracking-widest">לא חבר במועדונים</div>
+                <div className="col-span-3 py-16 text-center text-white/30 text-[12px] font-bold uppercase tracking-widest">לא חבר במועדונים</div>
               ) : (
-                data.memberships.map((m: any) => (
-                  <div key={m.circle.id} onClick={() => navigate(`/circle/${m.circle.slug}`)} className={`flex items-center gap-4 bg-white/5 backdrop-blur-md p-3.5 rounded-[24px] cursor-pointer active:scale-[0.98] transition-transform ${m.circle.owner_id === userProfile.id ? 'border border-accent-primary/30 shadow-[0_0_15px_rgba(var(--color-accent-primary),0.1)]' : 'border border-white/5'}`}>
-                    <div className="w-12 h-12 rounded-[18px] bg-[#111] overflow-hidden shrink-0 border border-white/10">
-                      {m.circle.cover_url ? <img src={m.circle.cover_url} className="w-full h-full object-cover" /> : <Users size={20} className="text-white/20 m-auto mt-3" />}
-                    </div>
-                    <div className="flex flex-col flex-1">
-                      <span className="font-black text-[15px] flex items-center gap-2">
-                        {m.circle.name}
-                        {m.circle.owner_id === userProfile.id && <span className="text-accent-primary text-[8px] uppercase tracking-widest bg-accent-primary/10 px-1.5 py-0.5 rounded">בניהולי</span>}
-                      </span>
-                      <span className="text-white/40 text-[11px] font-medium mt-0.5">{m.circle.member_count || 0} חברים</span>
-                    </div>
-                    <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: m.circle, type: 'circle' })); }} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/40 hover:text-white">
-                      <MoreVertical size={16} />
+                allMyCircles.map((circle: any) => (
+                  <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className={`aspect-[3/4] bg-[#111] relative overflow-hidden cursor-pointer group shadow-sm transition-all ${circle.isOwner ? 'border border-accent-primary shadow-[0_0_6px_rgba(var(--color-accent-primary),0.6)]' : ''}`}>
+                    {circle.isOwner && (
+                      <div className="absolute top-2 right-2 z-20 text-white drop-shadow-md text-[9px] font-black uppercase tracking-widest">
+                        בניהולי
+                      </div>
+                    )}
+                    <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: circle, type: 'circle' })); }} className="absolute top-2 left-2 z-20 text-white/80 hover:text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] opacity-0 group-hover:opacity-100 transition-opacity">
+                      <MoreHorizontal size={20} strokeWidth={2.5} />
                     </button>
+                    {circle.cover_url ? (
+                      <img src={circle.cover_url} className="w-full h-full object-cover opacity-80" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-white/30 font-black text-2xl">{circle.name?.charAt(0)}</div>
+                    )}
+                    <div className="absolute bottom-0 w-full p-2 bg-[#0d0d0f]/80 backdrop-blur-sm text-center border-t border-white/5">
+                      <span className="text-white text-[10px] font-bold line-clamp-1">{circle.name}</span>
+                    </div>
                   </div>
                 ))
               )}
@@ -722,24 +712,20 @@ export const ProfilePage: React.FC = () => {
 
           {/* SAVED */}
           {activeTab === 'saved' && isMyProfile && (
-            <motion.div key="saved" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="grid grid-cols-2 gap-2">
+            <motion.div key="saved" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-0.5">
               {data.savedPosts.length === 0 ? (
-                <div className="col-span-2 py-16 text-center text-white/30 text-[12px] font-bold uppercase tracking-widest">אין פריטים שמורים</div>
+                <div className="col-span-3 py-16 text-center text-white/30 text-[12px] font-bold uppercase tracking-widest">אין פריטים שמורים</div>
               ) : (
                 data.savedPosts.map((post: any) => (
-                  <div key={post.id} onClick={() => { const savedMedia = data.savedPosts.filter((p: any) => p.media_url); openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = savedMedia.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="bg-white/5 backdrop-blur-md rounded-[24px] p-2 aspect-square flex flex-col gap-2 overflow-hidden border border-white/5 active:scale-[0.98] transition-transform relative group">
-                    <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'saved' })); }} className="absolute top-3 left-3 z-20 text-white/80 hover:text-white bg-black/60 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <MoreHorizontal size={14} />
+                  <div key={post.id} onClick={() => { const savedMedia = data.savedPosts.filter((p: any) => p.media_url); openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = savedMedia.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[3/4] bg-[#111] relative overflow-hidden cursor-pointer active:opacity-70 group">
+                    <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'saved' })); }} className="absolute top-2 left-2 z-20 text-white/80 hover:text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] opacity-0 group-hover:opacity-100 transition-opacity">
+                      <MoreHorizontal size={20} strokeWidth={2.5} />
                     </button>
-                    <div className="flex-1 rounded-[16px] overflow-hidden bg-[#0a0a0a]">
-                      {post.media_url ? <img src={post.media_url} className="w-full h-full object-cover opacity-90" /> : <div className="p-3 text-[9px] text-white/30 leading-relaxed bg-white/5 h-full">{post.content}</div>}
-                    </div>
-                    <div className="flex items-center gap-2 px-2 pb-1 shrink-0">
-                      <div className="w-5 h-5 rounded-full overflow-hidden bg-[#111] border border-white/10">
-                        {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={20} className="text-white/30" />}
-                      </div>
-                      <span className="text-[10px] font-bold text-white/50 truncate">{post.profiles?.full_name || 'אנונימי'}</span>
-                    </div>
+                    {post.media_url ? (
+                      post.media_type === 'video' ? <video src={post.media_url} className="w-full h-full object-cover" /> : <img src={post.media_url} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center p-2 text-center text-white/40 text-[10px] font-medium leading-relaxed">{post.content}</div>
+                    )}
                   </div>
                 ))
               )}
