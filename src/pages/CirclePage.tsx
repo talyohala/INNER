@@ -21,6 +21,7 @@ import {
   Trash2,
   Paperclip,
   ChevronLeft,
+  Plus
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -507,6 +508,37 @@ export const CirclePage: React.FC = () => {
     setIsRecordingStory(false);
   };
 
+  const openSelfieCamera = async () => {
+    if (!currentUserId || currentUserId.startsWith('guest_')) {
+      toast.error('יש להתחבר תחילה');
+      return;
+    }
+
+    try {
+      setCapturedStoryBlob(null);
+      setCapturedMediaType('image'); 
+      setIsStoryCaptureOpen(true);
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user' },
+        audio: true,
+      });
+
+      storyStreamRef.current = stream;
+
+      if (storyVideoRef.current) {
+        storyVideoRef.current.srcObject = stream;
+        try {
+          await storyVideoRef.current.play();
+        } catch {}
+      }
+    } catch {
+      cleanupStoryCapture();
+      setIsStoryCaptureOpen(false);
+      toast.error('אין גישה למצלמה הקדמית');
+    }
+  };
+
   const openQuickStoryCapture = async () => {
     if (!currentUserId || currentUserId.startsWith('guest_')) {
       toast.error('יש להתחבר תחילה');
@@ -591,9 +623,7 @@ export const CirclePage: React.FC = () => {
       storyIgnoreClickRef.current = false;
       return;
     }
-    toast('לחץ לחיצה ארוכה כדי להעלות סטורי', {
-      icon: '📸',
-    });
+    openSelfieCamera();
   };
 
   const cancelStoryPreview = () => {
@@ -629,8 +659,8 @@ export const CirclePage: React.FC = () => {
     try {
       const file = new File(
         [capturedStoryBlob],
-        `story_${Date.now()}.webm`,
-        { type: 'video/webm' }
+        `story_${Date.now()}.${capturedMediaType === 'video' ? 'webm' : 'jpg'}`,
+        { type: capturedMediaType === 'video' ? 'video/webm' : 'image/jpeg' }
       );
 
       const { data: uploadData, error } = await supabase.storage
@@ -650,7 +680,7 @@ export const CirclePage: React.FC = () => {
         circle_id: data.circle.id,
         user_id: currentUserId,
         media_url: publicUrl,
-        media_type: 'video',
+        media_type: capturedMediaType,
         expires_at: expiresAt.toISOString(),
       });
 
@@ -994,7 +1024,7 @@ export const CirclePage: React.FC = () => {
                   autoPlay
                   playsInline
                   muted
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover scale-x-[-1]"
                 />
                 <div className="absolute inset-x-0 top-0 p-6 pt-[calc(env(safe-area-inset-top)+18px)] flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent">
                   <button
@@ -1007,16 +1037,41 @@ export const CirclePage: React.FC = () => {
                     <X size={22} />
                   </button>
 
-                  <div className="px-4 py-2 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 text-[12px] font-black tracking-widest flex items-center gap-2 animate-pulse">
-                    <span className="w-2 h-2 rounded-full bg-red-500" />
-                    מקליט עכשיו
-                  </div>
+                  {isRecordingStory && (
+                    <div className="px-4 py-2 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 text-[12px] font-black tracking-widest flex items-center gap-2 animate-pulse">
+                      <span className="w-2 h-2 rounded-full bg-red-500" />
+                      מקליט עכשיו
+                    </div>
+                  )}
                 </div>
 
-                <div className="absolute inset-x-0 bottom-0 pb-[calc(env(safe-area-inset-bottom)+28px)] px-6">
-                  <div className="text-center text-white/80 text-[13px] font-black tracking-wide">
-                    שחרר את הלחיצה כדי לעצור ולבחור אם להעלות
-                  </div>
+                <div className="absolute inset-x-0 bottom-0 pb-[calc(env(safe-area-inset-bottom)+28px)] px-6 flex justify-center">
+                  {isRecordingStory ? (
+                    <div className="text-center text-white/80 text-[13px] font-black tracking-wide bg-black/50 px-4 py-2 rounded-full backdrop-blur-md">
+                      שחרר את הלחיצה כדי לעצור
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        triggerFeedback('pop');
+                        if (storyVideoRef.current) {
+                          const canvas = document.createElement('canvas');
+                          canvas.width = storyVideoRef.current.videoWidth;
+                          canvas.height = storyVideoRef.current.videoHeight;
+                          canvas.getContext('2d')?.drawImage(storyVideoRef.current, 0, 0);
+                          canvas.toBlob((b) => {
+                            if (b) {
+                              setCapturedStoryBlob(b);
+                              setCapturedMediaType('image');
+                            }
+                          }, 'image/jpeg', 0.9);
+                        }
+                      }}
+                      className="w-20 h-20 rounded-full border-4 border-white bg-white/20 flex items-center justify-center active:scale-95 transition-transform"
+                    >
+                      <div className="w-16 h-16 rounded-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)]" />
+                    </button>
+                  )}
                 </div>
               </div>
             ) : (
@@ -1029,12 +1084,12 @@ export const CirclePage: React.FC = () => {
                       loop
                       controls
                       playsInline
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover scale-x-[-1]"
                     />
                   ) : (
                     <img
                       src={URL.createObjectURL(capturedStoryBlob)}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover scale-x-[-1]"
                     />
                   )}
 
@@ -1370,13 +1425,30 @@ export const CirclePage: React.FC = () => {
               {!!overview.stories?.length && (
                 <div className="shrink-0 px-5 pt-1 pb-4">
                   <div className="flex gap-4 overflow-x-auto scrollbar-hide">
+                    <div
+                      className="flex flex-col items-center gap-2 shrink-0 cursor-pointer active:scale-95 transition-transform"
+                      onClick={openSelfieCamera}
+                    >
+                      <div className="w-[74px] h-[74px] rounded-full bg-white/5 flex items-center justify-center text-white/60 border border-white/10 hover:bg-white/10 hover:text-white">
+                        <Plus size={24} />
+                      </div>
+                      <span className="text-[10px] font-black text-white/50 tracking-wider text-center mt-1">
+                        רגע חדש
+                      </span>
+                    </div>
+
                     {overview.stories.map((story: any) => (
                       <div
                         key={story.id}
-                        className="flex flex-col items-center gap-2 shrink-0"
-                        onClick={() => window.open(story.media_url, '_blank')}
+                        className="flex flex-col items-center gap-2 shrink-0 cursor-pointer active:scale-95 transition-transform"
+                        onClick={() =>
+                          setFullScreenMedia({
+                            url: story.media_url,
+                            type: story.media_type,
+                          })
+                        }
                       >
-                        <div className="w-[74px] h-[74px] rounded-full p-[3px] bg-gradient-to-tr from-accent-primary via-white/30 to-transparent cursor-pointer active:scale-95 transition-transform shadow-[0_0_25px_rgba(var(--color-accent-primary),0.18)]">
+                        <div className="w-[74px] h-[74px] rounded-full p-[3px] bg-gradient-to-tr from-accent-primary via-white/30 to-transparent shadow-[0_0_25px_rgba(var(--color-accent-primary),0.18)]">
                           <div className="w-full h-full rounded-full overflow-hidden border-[3px] border-[#050505] bg-white/5">
                             {story.media_type === 'video' ? (
                               <video src={story.media_url} className="w-full h-full object-cover" />
@@ -1385,7 +1457,7 @@ export const CirclePage: React.FC = () => {
                             )}
                           </div>
                         </div>
-                        <span className="text-[10px] font-black text-white/70 tracking-wider truncate max-w-[74px] text-center">
+                        <span className="text-[10px] font-black text-white/70 tracking-wider truncate max-w-[74px] text-center mt-1">
                           {story.full_name?.split(' ')[0]}
                         </span>
                       </div>
@@ -1412,19 +1484,23 @@ export const CirclePage: React.FC = () => {
                       >
                         {post.user_id !== currentUserId && !post.media_url && (
                           <div
-                            className="flex items-center gap-2 pl-2 mb-1"
+                            className="flex items-center gap-2 pl-2 mb-1 cursor-pointer active:opacity-70 transition-opacity"
                             onClick={() => navigate(`/profile/${post.user_id}`)}
                           >
-                            <div className="w-5 h-5 rounded-full overflow-hidden bg-white/5">
-                              {post.profiles?.avatar_url && (
+                            <div className="w-8 h-8 rounded-full overflow-hidden bg-white/5 shrink-0 border border-white/10 shadow-sm">
+                              {post.profiles?.avatar_url ? (
                                 <img
                                   src={post.profiles.avatar_url}
                                   className="w-full h-full object-cover"
                                 />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-white/40 font-black text-[10px]">
+                                  {(post.profiles?.full_name || 'א')[0]}
+                                </div>
                               )}
                             </div>
-                            <span className="text-white/40 text-[10px] font-black uppercase tracking-wider">
-                              {post.profiles?.full_name?.split(' ')[0]}
+                            <span className="text-white/60 text-[12px] font-black tracking-widest">
+                              {post.profiles?.full_name}
                             </span>
                           </div>
                         )}
@@ -1486,7 +1562,7 @@ export const CirclePage: React.FC = () => {
 
                               {post.user_id !== currentUserId && (
                                 <span
-                                  className="absolute top-3 left-4 text-white/90 text-[10px] font-black uppercase tracking-widest drop-shadow-md z-10"
+                                  className="absolute top-3 left-4 text-white/90 text-[12px] font-black tracking-widest drop-shadow-md z-10 pointer-events-auto cursor-pointer"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     navigate(`/profile/${post.user_id}`);
@@ -1659,7 +1735,20 @@ export const CirclePage: React.FC = () => {
           )}
 
           {activeTab === 'vaults' && (
-            <div className="flex-1 p-5 flex flex-col gap-4 overflow-y-auto pb-[120px] scrollbar-hide">
+            <div 
+              className="flex-1 p-5 flex flex-col gap-4 overflow-y-auto pb-[120px] scrollbar-hide"
+              onClick={(e) => {
+                const target = e.target as HTMLElement;
+                if (target.tagName === 'IMG' || target.tagName === 'VIDEO') {
+                  const src = (target as any).src || (target as any).currentSrc;
+                  if (src) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setFullScreenMedia({ url: src, type: target.tagName.toLowerCase() });
+                  }
+                }
+              }}
+            >
               {loadingVaults ? (
                 <div className="flex items-center justify-center py-10">
                   <Loader2 className="animate-spin text-accent-primary" size={24} />
