@@ -22,13 +22,14 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
 
   if (location.pathname === '/auth') return <>{children}</>;
 
+  // סדר הפריטים: מועדון ראשון, הגדרות אחרון
   const gridItems = [
+    { path: '/create-circle', icon: PlusCircle, label: 'מועדון', colorClass: 'text-emerald-400' },
     { path: '/radar', icon: Radar, label: 'רדאר', badge: pendingSignalsCount > 0, colorClass: 'text-indigo-400' },
     { path: '/inbox', icon: MessageSquare, label: 'הודעות', colorClass: 'text-pink-400' },
     { path: '/wallet', icon: Wallet, label: 'ארנק', colorClass: 'text-amber-400' },
     { path: '/store', icon: ShoppingBag, label: 'חנות', colorClass: 'text-fuchsia-400' },
     { path: '/notifications', icon: Bell, label: 'התראות', badge: unreadCount > 0, colorClass: 'text-blue-400' },
-    { path: '/create-circle', icon: PlusCircle, label: 'מועדון', colorClass: 'text-emerald-400' },
     { path: '/studio', icon: TrendingUp, label: 'סטודיו', colorClass: 'text-teal-400' },
     { path: '/settings', icon: Settings, label: 'הגדרות', colorClass: 'text-slate-400' },
   ];
@@ -70,26 +71,26 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
                 transition={{ type: "spring", damping: 30, stiffness: 300 }} 
                 className="relative z-10 bg-surface rounded-t-[40px] p-6 pb-[calc(env(safe-area-inset-bottom)+24px)] shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border touch-none"
               >
-                <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-8" />
+                <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-10" />
                 
-                {/* הגריד הנקי - 2 עמודות ללא רקע */}
-                <div className="grid grid-cols-2 gap-y-10 gap-x-6 mb-12 px-2">
+                {/* גריד של 2 בשורה, נקי ללא מסגרות, עם אייקונים מוגדלים */}
+                <div className="grid grid-cols-2 gap-y-12 gap-x-6 mb-12 px-2">
                   {gridItems.map((item, idx) => (
                     <button 
                       key={idx} 
                       onClick={() => { triggerFeedback('pop'); navigate(item.path); closeSidebar(); }} 
-                      className="flex flex-col items-center justify-center gap-2 active:scale-[0.95] transition-transform relative group"
+                      className="flex flex-col items-center justify-center gap-3 active:scale-[0.95] transition-transform relative group"
                     >
                       <div className="flex items-center justify-center relative group-hover:scale-110 transition-transform">
-                        <item.icon size={36} className={item.colorClass} strokeWidth={1.5} />
+                        <item.icon size={42} className={item.colorClass} strokeWidth={1.5} />
                         {item.badge && <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-surface shadow-sm" />}
                       </div>
-                      <span className="font-black text-[14px] text-brand tracking-wide">{item.label}</span>
+                      <span className="font-black text-[15px] text-brand tracking-wide">{item.label}</span>
                     </button>
                   ))}
                 </div>
 
-                <div className="flex flex-col gap-3 pt-4 border-t border-surface-border/50">
+                <div className="flex flex-col gap-3 pt-6 border-t border-surface-border/50">
                   {/* כפתור אדמין - מופיע רק ל-CORE */}
                   {profile?.role_label === 'CORE' && (
                     <button 
