@@ -68,7 +68,7 @@ export const ProfilePage: React.FC = () => {
   const [usersListData, setUsersListData] = useState<any[]>([]);
   const [loadingUsersList, setLoadingUsersList] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'posts' | 'circles' | 'saved'>('posts');
+  const [activeTab, setActiveTab] = useState<'posts' | 'joined' | 'saved'>('posts');
   
   const [fullScreenMedia, setFullScreenMedia] = useState<any[] | null>(null);
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
@@ -151,7 +151,7 @@ export const ProfilePage: React.FC = () => {
           const [{ data: memberships }, { data: ownedCircles }, { data: myPosts }, { data: freshProfile }] = await Promise.all([
             supabase.from('circle_members').select('circle:circles(*)').eq('user_id', targetId).neq('role', 'admin'),
             supabase.from('circles').select('*').eq('owner_id', targetId),
-            supabase.from('posts').select('*, seals:post_seals(id, seal_type, user_id), comments_count:comments(count)').eq('user_id', targetId).order('created_at', { ascending: false }),
+            supabase.from('posts').select('*, seals:post_seals(id, seal_type, user_id), comments_count:comments(count), user_circles(*)').eq('user_id', targetId).order('created_at', { ascending: false }),
             supabase.from('profiles').select('*').eq('id', targetId).single()
           ]);
 
@@ -162,7 +162,7 @@ export const ProfilePage: React.FC = () => {
 
           let mySavedPosts: any[] = [];
           try {
-            const { data: saved } = await supabase.from('saved_posts').select('post_id, posts(*, seals:post_seals(id, seal_type, user_id), comments_count:comments(count), profiles:user_id(*))').eq('user_id', targetId);
+            const { data: saved } = await supabase.from('saved_posts').select('post_id, posts(*, seals:post_seals(id, seal_type, user_id), comments_count:comments(count), user_circles(*), profiles:user_id(*))').eq('user_id', targetId);
             mySavedPosts = saved?.map((s: any) => {
               if(!s.posts) return null;
               return {
@@ -189,7 +189,7 @@ export const ProfilePage: React.FC = () => {
           const [{ data: memberships }, { data: ownedCircles }, { data: userPosts }] = await Promise.all([
             supabase.from('circle_members').select('circle:circles(*)').eq('user_id', targetId).neq('role', 'admin'),
             supabase.from('circles').select('*').eq('owner_id', targetId),
-            supabase.from('posts').select('*, seals:post_seals(id, seal_type, user_id), comments_count:comments(count)').eq('user_id', targetId).order('created_at', { ascending: false }),
+            supabase.from('posts').select('*, seals:post_seals(id, seal_type, user_id), comments_count:comments(count), user_circles(*)').eq('user_id', targetId).order('created_at', { ascending: false }),
           ]);
 
           const formattedPosts = (userPosts || []).map((p: any) => ({
@@ -499,15 +499,8 @@ export const ProfilePage: React.FC = () => {
         )}
       </div>
 
-      <div className="relative z-10 flex flex-col items-center mt-4">
+      <div className="relative z-10 flex flex-col items-center pt-8">
         
-        {/* 🛡️ Top Fixed Back Button */}
-        <div className="w-full px-6 flex justify-between pt-[calc(env(safe-area-inset-top)+10px)] relative z-50">
-          <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/80 active:scale-90 transition-transform">
-            <ArrowLeft size={20} />
-          </button>
-        </div>
-
         {/* 🧬 Identity Core (Avatar & Level Ring) */}
         <div className="relative group mt-2">
           {/* Neon Level Ring */}
@@ -532,6 +525,13 @@ export const ProfilePage: React.FC = () => {
                 </div>
               )}
             </div>
+            
+            {/* Edit Icon Floating On Avatar */}
+            {isMyProfile && (
+              <button onClick={() => navigate('/edit-profile')} className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-accent-primary text-white flex items-center justify-center shadow-[0_0_15px_rgba(var(--color-accent-primary),0.5)] border-2 border-[#0d0d0f] active:scale-90 transition-transform z-30">
+                <Edit2 size={12} />
+              </button>
+            )}
           </div>
 
           {/* Core Badge */}
@@ -551,29 +551,23 @@ export const ProfilePage: React.FC = () => {
 
           {/* Clean Bio Without Border */}
           {userProfile.bio && (
-            <div className="mt-4 max-w-[320px] flex flex-col items-center">
-              <p className="text-white/80 text-[14px] leading-relaxed font-medium whitespace-pre-wrap text-center">
+            <div className="mt-4 w-full flex flex-col items-center">
+              <p className="text-white/90 text-[14px] leading-relaxed font-medium whitespace-pre-wrap text-center">
                 {(userProfile.bio.length > 80 && !isBioExpanded) ? userProfile.bio.slice(0, 80) + '...' : userProfile.bio}
+                {userProfile.bio.length > 80 && (
+                  <button onClick={() => setIsBioExpanded(!isBioExpanded)} className="text-accent-primary font-black text-[12px] mx-2">
+                    {isBioExpanded ? 'פחות' : 'עוד'}
+                  </button>
+                )}
               </p>
-              {userProfile.bio.length > 80 && (
-                <button onClick={() => setIsBioExpanded(!isBioExpanded)} className="text-accent-primary text-[10px] font-black uppercase tracking-widest mt-2 active:scale-95 transition-transform">
-                  {isBioExpanded ? 'פחות' : 'קרא עוד'}
-                </button>
-              )}
             </div>
           )}
 
+          {/* Clean Link */}
           {userProfile.social_link && (
-            <a href={userProfile.social_link.startsWith('http') ? userProfile.social_link : `https://${userProfile.social_link}`} target="_blank" rel="noopener noreferrer" className="mt-4 flex items-center gap-1.5 text-white font-bold text-[13px] hover:text-white/70 transition-colors">
-              <LinkIcon size={14} className="text-white/50" /> <span dir="ltr">{displayLink}</span>
+            <a href={userProfile.social_link.startsWith('http') ? userProfile.social_link : `https://${userProfile.social_link}`} target="_blank" rel="noopener noreferrer" className="mt-2 text-white font-bold text-[13px] hover:text-white/70 transition-colors flex items-center gap-1.5">
+              <LinkIcon size={14} className="text-white/60" /> <span dir="ltr">{displayLink}</span>
             </a>
-          )}
-
-          {/* Edit Profile Button Floating Smoothly */}
-          {isMyProfile && (
-            <button onClick={() => navigate('/edit-profile')} className="mt-5 flex items-center gap-2 bg-white/5 border border-white/10 px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest hover:bg-white/10 active:scale-95 transition-all text-white shadow-sm">
-              <Edit2 size={14} className="text-white/40" /> ערוך פרופיל
-            </button>
           )}
         </div>
 
@@ -608,39 +602,39 @@ export const ProfilePage: React.FC = () => {
           )}
         </div>
 
-        {/* 📊 4 Circular Data Pods (Followers, Following, Streak, Reputation) */}
-        <div className="flex flex-wrap justify-center gap-3 mt-8 w-full max-w-[340px] px-2">
+        {/* 📊 4 Circular Data Pods in a Single Row */}
+        <div className="grid grid-cols-4 gap-2 mt-8 w-full max-w-[360px] px-2">
           
           {/* Followers Orb */}
-          <div onClick={() => openUsersListSheet('followers')} className="w-[76px] h-[76px] bg-white/5 border border-white/5 backdrop-blur-xl rounded-full flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform shadow-sm">
+          <div onClick={() => openUsersListSheet('followers')} className="aspect-square bg-white/5 border border-white/5 backdrop-blur-xl rounded-full flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform shadow-sm">
             <span className="text-white text-lg font-black leading-none">{followersCount}</span>
-            <span className="text-white/30 text-[9px] font-black uppercase tracking-widest mt-1">עוקבים</span>
+            <span className="text-white/30 text-[8px] font-black uppercase tracking-widest mt-1">עוקבים</span>
           </div>
 
           {/* Following Orb */}
-          <div onClick={() => openUsersListSheet('following')} className="w-[76px] h-[76px] bg-white/5 border border-white/5 backdrop-blur-xl rounded-full flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform shadow-sm">
+          <div onClick={() => openUsersListSheet('following')} className="aspect-square bg-white/5 border border-white/5 backdrop-blur-xl rounded-full flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform shadow-sm">
             <span className="text-white text-lg font-black leading-none">{followingCount}</span>
-            <span className="text-white/30 text-[9px] font-black uppercase tracking-widest mt-1">נעקבים</span>
+            <span className="text-white/30 text-[8px] font-black uppercase tracking-widest mt-1">נעקבים</span>
           </div>
 
-          {/* Streak Orb (Animated Orange Ring) */}
-          <div className="w-[76px] h-[76px] relative flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform group">
+          {/* Streak Orb (Animated Emerald Ring) */}
+          <div className="aspect-square relative flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform group">
             <div className="absolute inset-0 bg-white/5 border border-white/5 backdrop-blur-xl rounded-full shadow-sm" />
             <svg className="absolute -inset-1.5 w-[calc(100%+12px)] h-[calc(100%+12px)] -rotate-90 pointer-events-none" viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="46" stroke="rgba(255,255,255,0.05)" strokeWidth="3" fill="none" />
               <motion.circle 
-                cx="50" cy="50" r="46" stroke="#f97316" strokeWidth="3" fill="none" strokeLinecap="round"
+                cx="50" cy="50" r="46" stroke="#10b981" strokeWidth="3" fill="none" strokeLinecap="round"
                 strokeDasharray="289" initial={{ strokeDashoffset: 289 }} animate={{ strokeDashoffset: 289 - (289 * (streakProgress || 100)) / 100 }}
                 transition={{ duration: 1.5, ease: "easeOut", delay: 0.2 }}
-                style={{ filter: 'drop-shadow(0 0 4px rgba(249,115,22, 0.6))' }}
+                style={{ filter: 'drop-shadow(0 0 4px rgba(16,185,129, 0.6))' }}
               />
             </svg>
-            <span className="text-orange-500 text-lg font-black drop-shadow-md relative z-10 leading-none">{streakDays}</span>
-            <span className="text-orange-500/50 text-[9px] font-black uppercase tracking-widest mt-1 relative z-10 text-center leading-tight">רצף<br/>ימים</span>
+            <span className="text-emerald-500 text-lg font-black drop-shadow-md relative z-10 leading-none">{streakDays}</span>
+            <span className="text-emerald-500/50 text-[8px] font-black uppercase tracking-widest mt-1 relative z-10 text-center leading-tight">רצף<br/>ימים</span>
           </div>
 
           {/* Reputation Orb (Animated Accent Ring) */}
-          <div className="w-[76px] h-[76px] relative flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform group">
+          <div className="aspect-square relative flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform group">
             <div className="absolute inset-0 bg-accent-primary/5 border border-accent-primary/10 backdrop-blur-xl rounded-full shadow-sm" />
             <svg className="absolute -inset-1.5 w-[calc(100%+12px)] h-[calc(100%+12px)] -rotate-90 pointer-events-none" viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="46" stroke="rgba(var(--color-accent-primary), 0.1)" strokeWidth="3" fill="none" />
@@ -652,7 +646,7 @@ export const ProfilePage: React.FC = () => {
               />
             </svg>
             <span className="text-accent-primary text-lg font-black drop-shadow-md relative z-10 leading-none">{trueReputation}</span>
-            <span className="text-accent-primary/50 text-[9px] font-black uppercase tracking-widest mt-1 relative z-10 text-center leading-tight">מוניטין<br/>כולל</span>
+            <span className="text-accent-primary/50 text-[8px] font-black uppercase tracking-widest mt-1 relative z-10 text-center leading-tight">מוניטין<br/>כולל</span>
           </div>
 
         </div>
@@ -703,20 +697,20 @@ export const ProfilePage: React.FC = () => {
         })}
       </div>
 
-      {/* 🔳 Edge-to-Edge Grid Content */}
-      <div className="w-full">
+      {/* 🔳 Edge-to-Edge Grid Content (3 Items Per Row, Minimal Rounding) */}
+      <div className="w-full mt-0.5">
         <AnimatePresence mode="wait">
           
           {/* POSTS */}
           {activeTab === 'posts' && (
-            <motion.div key="posts" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-0.5">
+            <motion.div key="posts" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-0.5 w-full">
               {data.posts.length === 0 ? (
                 <div className="col-span-3 py-16 text-center text-white/30 text-[12px] font-bold uppercase tracking-widest">אין עדיין דגימות מידע</div>
               ) : (
                 data.posts.map((post: any) => (
-                  <div key={post.id} onClick={() => { openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = mediaPosts.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[3/4] bg-[#111] relative cursor-pointer active:opacity-70 group overflow-hidden">
+                  <div key={post.id} onClick={() => { openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = mediaPosts.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[3/4] bg-[#111] relative cursor-pointer active:opacity-70 group overflow-hidden rounded-md">
                     {isMyProfile && (
-                      <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'post' })); }} className="absolute top-2 left-2 z-20 text-white/80 hover:text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'post' })); }} className="absolute top-2 left-2 z-20 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                         <MoreHorizontal size={20} strokeWidth={2.5} />
                       </button>
                     )}
@@ -733,18 +727,18 @@ export const ProfilePage: React.FC = () => {
 
           {/* JOINED CIRCLES */}
           {activeTab === 'circles' && (
-            <motion.div key="circles" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-0.5">
+            <motion.div key="circles" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-0.5 w-full">
               {data.memberships.length === 0 ? (
                 <div className="col-span-3 py-16 text-center text-white/30 text-[12px] font-bold uppercase tracking-widest">לא חבר במועדונים</div>
               ) : (
                 allMyCircles.map((circle: any) => (
-                  <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className={`aspect-[3/4] bg-[#111] relative overflow-hidden cursor-pointer group shadow-sm transition-all ${circle.isOwner ? 'border-b-2 border-accent-primary' : ''}`}>
+                  <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className={`aspect-[3/4] bg-[#111] relative overflow-hidden cursor-pointer group rounded-md shadow-sm transition-all ${circle.isOwner ? 'border-b-[3px] border-accent-primary' : ''}`}>
                     {circle.isOwner && (
                       <div className="absolute top-2 right-2 z-20 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] text-[9px] font-black uppercase tracking-widest">
                         בניהולי
                       </div>
                     )}
-                    <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: circle, type: 'circle' })); }} className="absolute top-2 left-2 z-20 text-white/80 hover:text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: circle, type: 'circle' })); }} className="absolute top-2 left-2 z-20 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                       <MoreHorizontal size={20} strokeWidth={2.5} />
                     </button>
                     {circle.cover_url ? (
@@ -763,13 +757,13 @@ export const ProfilePage: React.FC = () => {
 
           {/* SAVED */}
           {activeTab === 'saved' && isMyProfile && (
-            <motion.div key="saved" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-0.5">
+            <motion.div key="saved" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-0.5 w-full">
               {data.savedPosts.length === 0 ? (
                 <div className="col-span-3 py-16 text-center text-white/30 text-[12px] font-bold uppercase tracking-widest">אין פריטים שמורים</div>
               ) : (
                 data.savedPosts.map((post: any) => (
-                  <div key={post.id} onClick={() => { const savedMedia = data.savedPosts.filter((p: any) => p.media_url); openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = savedMedia.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[3/4] bg-[#111] relative overflow-hidden cursor-pointer active:opacity-70 group">
-                    <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'saved' })); }} className="absolute top-2 left-2 z-20 text-white/80 hover:text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div key={post.id} onClick={() => { const savedMedia = data.savedPosts.filter((p: any) => p.media_url); openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = savedMedia.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[3/4] bg-[#111] relative overflow-hidden cursor-pointer active:opacity-70 group rounded-md">
+                    <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'saved' })); }} className="absolute top-2 left-2 z-20 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                       <MoreHorizontal size={20} strokeWidth={2.5} />
                     </button>
                     {post.media_url ? (
@@ -948,34 +942,78 @@ export const ProfilePage: React.FC = () => {
                       )}
                       
                       {/* Floating Dark Glass Overlay (Right Side) */}
-                      <div className="absolute bottom-28 right-4 flex flex-col gap-4 items-center z-50 pointer-events-auto">
-                        <button onClick={(e) => { e.stopPropagation(); if (vid.has_sealed) handleRemoveSeal(vid.id); else openOverlay(() => setSealSelectorPost(vid)); }} className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex flex-col items-center justify-center gap-0.5 active:scale-90 transition-transform">
-                          <Flame size={20} className={vid.has_sealed ? 'text-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.8)]' : 'text-white'} fill={vid.has_sealed ? 'currentColor' : 'none'} />
-                          <span className="text-white text-[9px] font-black leading-none">{vid.seals_count || 0}</span>
+                      <div className="absolute bottom-32 left-4 flex flex-col gap-6 items-center z-50 pointer-events-auto">
+                        <button onClick={(e) => { e.stopPropagation(); if (vid.has_sealed) handleRemoveSeal(vid.id); else openOverlay(() => setSealSelectorPost(vid)); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform">
+                          <Flame size={32} className={vid.has_sealed ? 'text-orange-500' : 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]'} fill={vid.has_sealed ? 'currentColor' : 'none'} strokeWidth={1.5} />
+                          <span className="text-white text-[13px] font-black drop-shadow-md">{vid.seals_count || 0}</span>
                         </button>
-                        <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(vid); setActiveCommentsPostId(vid.id); setLoadingComments(true); supabase.from('comments').select('*, profiles!user_id(*)').eq('post_id', vid.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); }); }} className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex flex-col items-center justify-center gap-0.5 active:scale-90 transition-transform">
-                          <MessageSquare size={18} className="text-white" />
-                          <span className="text-white text-[9px] font-black leading-none">{vid.comments_count}</span>
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }} className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center active:scale-90 transition-transform mt-2">
-                          <MoreVertical size={18} className="text-white" />
+                        <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(vid); setActiveCommentsPostId(vid.id); setLoadingComments(true); supabase.from('comments').select('*, profiles!user_id(*)').eq('post_id', vid.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); }); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                          <MessageSquare size={32} strokeWidth={1.5} />
+                          <span className="text-white text-[13px] font-black drop-shadow-md">{vid.comments_count}</span>
                         </button>
                       </div>
 
+                      <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(vid)); }} className="absolute bottom-8 left-5 z-[60] active:scale-90 transition-transform p-1">
+                        <MoreVertical size={28} strokeWidth={2} className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+                      </button>
+
                       {/* Bottom Info Area */}
-                      <div className="absolute bottom-0 left-0 w-full px-5 pb-8 pt-32 bg-gradient-to-t from-[#0d0d0f]/90 via-[#0d0d0f]/40 to-transparent flex flex-col pointer-events-none">
+                      <div className="absolute bottom-0 left-0 right-0 px-5 pb-8 pt-32 bg-gradient-to-t from-black/60 via-black/20 to-transparent flex flex-col pointer-events-none">
                         {vid.content && (
-                          <p className="text-white text-[13px] font-medium text-right max-w-[80%] line-clamp-2 pointer-events-auto cursor-pointer mb-4 drop-shadow-md" onClick={(e) => { e.stopPropagation(); openOverlay(() => setActiveDescPost(vid)); }}>
+                          <p className="text-white drop-shadow-md text-[15px] font-medium text-right max-w-[85%] line-clamp-3 pointer-events-auto cursor-pointer mb-4" onClick={(e) => { e.stopPropagation(); openOverlay(() => setActiveDescPost(vid)); }}>
                             {vid.content}
                           </p>
                         )}
-                        <div className="flex items-center gap-3 pointer-events-auto w-max" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${vid.user_id}`), 50); }}>
-                          <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden bg-[#111] flex items-center justify-center cursor-pointer active:scale-95 transition-transform">
-                            {vid.profiles?.avatar_url ? <img src={vid.profiles.avatar_url} className="w-full h-full object-cover" /> : <span className="text-white font-black text-sm">{(vid.profiles?.full_name || 'א')[0]}</span>}
+                        
+                        {/* Circles Horizontal Scroll Area */}
+                        {vid.user_circles && vid.user_circles.length > 0 && (
+                          <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">
+                            {(() => {
+                              const sortedCircles = [...vid.user_circles].sort((a, b) => {
+                                const aOwner = a.owner_id === vid.user_id ? -1 : 1;
+                                const bOwner = b.owner_id === vid.user_id ? -1 : 1;
+                                return aOwner - bOwner;
+                              });
+                              const displayCircles = sortedCircles.slice(0, 20);
+                              const hasMore = sortedCircles.length > 20;
+
+                              return (
+                                <>
+                                  {displayCircles.map((circle: any) => {
+                                    const isOwnerOfThisCircle = circle.owner_id === vid.user_id;
+                                    return (
+                                      <div key={circle.id} onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/circle/${circle.slug || circle.id}`), 50); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
+                                        <div className={`w-8 h-8 rounded-full overflow-hidden shadow-sm bg-[#111] flex items-center justify-center ${isOwnerOfThisCircle ? 'border border-accent-primary shadow-[0_0_6px_rgba(var(--color-accent-primary),0.8)]' : 'border border-white/20'}`}>
+                                          {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-4 h-4 text-white/70" />}
+                                        </div>
+                                        <span className="text-[9px] text-white drop-shadow-md font-bold max-w-[55px] truncate text-center uppercase tracking-wider">{circle.name}</span>
+                                        {isOwnerOfThisCircle && <span className="text-white font-black text-[8px] uppercase tracking-widest drop-shadow-md -mt-1">בניהולי</span>}
+                                      </div>
+                                    );
+                                  })}
+                                  {hasMore && (
+                                    <div onClick={(e) => { e.stopPropagation(); openOverlay(() => setPostCirclesModal({ circles: sortedCircles, userId: vid.user_id })); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
+                                      <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white backdrop-blur-md shadow-sm">
+                                        <ArrowLeft size={14} />
+                                      </div>
+                                      <span className="text-[9px] text-white drop-shadow-md font-bold text-center uppercase tracking-wider">הכל</span>
+                                    </div>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </div>
-                          <div className="flex flex-col text-right cursor-pointer">
-                            <span className="text-white font-black text-[14px] drop-shadow-md">{vid.profiles?.full_name || 'אנונימי'}</span>
-                            <span className="text-white/60 text-[10px] font-bold tracking-widest">{new Date(vid.created_at).toLocaleDateString('he-IL')}</span>
+                        )}
+
+                        <div className="flex items-center justify-start pointer-events-auto">
+                          <div className="flex items-center gap-3 cursor-pointer" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${vid.user_id}`), 50); }}>
+                            <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden shrink-0 shadow-sm bg-[#111] flex items-center justify-center">
+                              {vid.profiles?.avatar_url ? <img src={vid.profiles.avatar_url} className="w-full h-full object-cover" loading="lazy" /> : <span className="text-white font-black text-lg flex items-center justify-center leading-none">{(vid.profiles?.full_name || 'א')[0]}</span>}
+                            </div>
+                            <div className="flex flex-col text-right">
+                              <span className="text-white font-black text-[15px] drop-shadow-md">{vid.profiles?.full_name || 'אנונימי'}</span>
+                              <span className="text-white/80 text-[10px] font-bold drop-shadow-md">{new Date(vid.created_at).toLocaleDateString('he-IL')}</span>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -995,6 +1033,35 @@ export const ProfilePage: React.FC = () => {
                   <div className="w-full py-4 flex justify-center cursor-grab border-b border-white/5"><div className="w-12 h-1 bg-white/10 rounded-full" /></div>
                   <div className="p-6 overflow-y-auto" onPointerDown={stopPropagation} onTouchStart={stopPropagation}>
                     <p className="text-white/90 text-[14px] leading-relaxed whitespace-pre-wrap font-medium">{activeDescPost.content}</p>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+
+          {/* POST CIRCLES MODAL (For >20 Circles in Post) */}
+          <AnimatePresence>
+            {postCirclesModal && (
+              <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
+                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.2} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-[#0d0d0f] rounded-t-[32px] p-6 flex flex-col gap-3 pb-12 max-h-[70vh] shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-white/10">
+                  <div className="w-full py-4 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>
+                  <h2 className="text-white font-black text-lg mb-4">פורסם ב- ({postCirclesModal.circles.length}) מועדונים</h2>
+                  <div className="flex flex-col gap-3 overflow-y-auto pr-1 scrollbar-hide" onPointerDown={stopPropagation} onTouchStart={stopPropagation}>
+                    {postCirclesModal.circles.map((c: any) => {
+                      const isOwnerOfThisCircle = c.owner_id === postCirclesModal.userId;
+                      return (
+                        <div key={c.id} onClick={() => { closeOverlay(); navigate(`/circle/${c.slug || c.id}`); }} className={`flex items-center gap-4 bg-white/5 p-4 rounded-2xl cursor-pointer active:scale-[0.98] transition-transform shadow-sm hover:bg-white/10 ${isOwnerOfThisCircle ? 'border-[1px] border-accent-primary shadow-[0_0_6px_rgba(var(--color-accent-primary),0.2)]' : 'border border-white/5'}`}>
+                          <div className={`w-12 h-12 rounded-full bg-[#111] overflow-hidden shrink-0 flex items-center justify-center shadow-inner ${isOwnerOfThisCircle ? 'border-none' : 'border border-white/10'}`}>
+                            {c.cover_url ? <img src={c.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users size={20} className="text-white/30" />}
+                          </div>
+                          <div className="flex flex-col flex-1">
+                            <span className="text-white font-black text-[15px]">{c.name}</span>
+                            {isOwnerOfThisCircle && <span className="text-accent-primary font-black text-[10px] uppercase tracking-widest mt-0.5">בניהולי</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </motion.div>
               </div>
