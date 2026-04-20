@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Radar, Send, Zap, UserCircle, Loader2, Crown, Inbox, Check, X, ChevronLeft } from 'lucide-react';
+import { Aperture, Send, Zap, UserCircle, Loader2, Crown, Inbox, Check, X, ChevronLeft, Radar } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { FadeIn, Button } from '../components/ui';
@@ -168,7 +168,7 @@ export const RadarPage: React.FC = () => {
   return (
     <FadeIn className="bg-[#050505] min-h-[100dvh] font-sans flex flex-col relative overflow-x-hidden pb-32" dir="rtl">
       
-      {/* 🌌 BACKGROUND HERO */}
+      {/* 🌌 BACKGROUND HERO (Accent Style) */}
       <div className="absolute top-0 left-0 right-0 h-[45vh] pointer-events-none z-0">
         <div className="absolute inset-0 bg-gradient-to-b from-accent-primary/20 via-[#050505]/80 to-[#050505]" />
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[350px] h-[350px] bg-accent-primary/10 blur-[120px] rounded-full" />
@@ -176,7 +176,7 @@ export const RadarPage: React.FC = () => {
 
       {/* HEADER */}
       <div className="relative z-20 pt-[calc(env(safe-area-inset-top)+20px)] px-6 flex flex-col items-center text-center shrink-0">
-        <h1 className="text-3xl font-black text-white tracking-widest drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mb-1">
+        <h1 className="text-3xl font-black text-white tracking-widest drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mb-1 flex items-center gap-3">
           רדאר
         </h1>
         <p className="text-white/50 text-[12px] font-medium tracking-wide max-w-[280px] leading-relaxed">
@@ -191,7 +191,7 @@ export const RadarPage: React.FC = () => {
         </div>
       </div>
 
-      {/* TABS */}
+      {/* TABS (Clean Text Style) */}
       <div className="flex items-center justify-center gap-8 px-6 mt-8 mb-6 shrink-0 relative z-20">
         {[
           { id: 'scanner', label: 'סריקת תדרים' },
@@ -208,7 +208,7 @@ export const RadarPage: React.FC = () => {
             >
               {t.label}
               {t.count > 0 && (
-                <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${isActive ? 'bg-accent-primary text-white' : 'bg-white/10 text-white/50'}`}>
+                <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${isActive ? 'bg-accent-primary text-white shadow-[0_0_10px_rgba(var(--color-accent-primary),0.5)]' : 'bg-white/10 text-white/50'}`}>
                   {t.count}
                 </span>
               )}
@@ -231,36 +231,35 @@ export const RadarPage: React.FC = () => {
           {activeTab === 'scanner' && (
             <motion.div key="scanner" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 flex items-center justify-center">
               
-              {/* Radar Rings (Restored Original Animation with accent-primary) */}
-              <div className="absolute inset-0 flex items-center justify-center opacity-40 pointer-events-none">
-                <div className="w-[300px] h-[300px] rounded-full border border-accent-primary/40 absolute" />
-                <div className="w-[500px] h-[500px] rounded-full border border-accent-primary/20 absolute" />
-                <div className="w-[700px] h-[700px] rounded-full border border-accent-primary/10 absolute" />
+              {/* Sci-Fi Radar Rings & Crosshairs */}
+              <div className="absolute inset-0 flex items-center justify-center opacity-50 pointer-events-none">
+                {/* Crosshairs */}
+                <div className="absolute w-[800px] h-[1px] bg-accent-primary/20" />
+                <div className="absolute h-[800px] w-[1px] bg-accent-primary/20" />
+                
+                {/* Rings */}
+                <div className="w-[200px] h-[200px] rounded-full border border-accent-primary/40 absolute" />
+                <div className="w-[350px] h-[350px] rounded-full border border-accent-primary/20 absolute border-dashed" />
+                <div className="w-[550px] h-[550px] rounded-full border border-accent-primary/10 absolute" />
+                
+                {/* Advanced Sweep Animation */}
                 <motion.div 
                   animate={{ rotate: 360 }} 
                   transition={{ duration: 4, repeat: Infinity, ease: "linear" }} 
-                  className="w-[800px] h-[800px] absolute rounded-full" 
-                  style={{ background: 'conic-gradient(from 0deg, transparent 70%, rgba(var(--color-accent-primary), 0.3) 100%)' }} 
-                />
+                  className="w-[800px] h-[800px] absolute rounded-full overflow-hidden" 
+                >
+                  <div className="absolute inset-0" style={{ background: 'conic-gradient(from 0deg, transparent 65%, rgba(var(--color-accent-primary), 0.15) 95%, rgba(var(--color-accent-primary), 0.6) 100%)' }} />
+                  <div className="absolute top-0 left-1/2 w-[2px] h-[400px] bg-accent-primary shadow-[0_0_20px_rgba(var(--color-accent-primary),1)] origin-bottom" />
+                </motion.div>
               </div>
 
               {/* Center User Avatar */}
               <div className="absolute z-30 flex flex-col items-center justify-center">
-                <div className="w-16 h-16 rounded-full border-2 border-accent-primary bg-[#050505] overflow-hidden shadow-[0_0_30px_rgba(var(--color-accent-primary),0.5)] z-20">
+                <div className="w-16 h-16 rounded-full border-[2px] border-accent-primary bg-[#050505] overflow-hidden shadow-[0_0_30px_rgba(var(--color-accent-primary),0.6)] z-20">
                   {profile?.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full text-brand-muted p-1" />}
                 </div>
                 <div className="w-4 h-4 bg-accent-primary rounded-full absolute animate-ping opacity-50 z-10" />
               </div>
-
-              {/* Scanning State (Restored Radar Icon) */}
-              <AnimatePresence>
-                {scanning && (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute z-40 flex flex-col items-center gap-3 bg-black/60 backdrop-blur-md px-8 py-5 rounded-[32px] border border-white/10 shadow-2xl">
-                    <Radar size={36} className="text-accent-primary animate-spin" strokeWidth={1.5} />
-                    <span className="text-white font-black tracking-widest uppercase text-[11px] drop-shadow-md">סורק תדרים...</span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
 
               {/* Positioned Users */}
               {!scanning && users.map((u) => (
@@ -274,10 +273,10 @@ export const RadarPage: React.FC = () => {
                   onClick={() => { triggerFeedback('pop'); setSelectedUser(u); }}
                 >
                   <div className="relative">
-                    <div className="w-12 h-12 rounded-full border border-white/20 bg-[#111] overflow-hidden shadow-lg group-hover:border-accent-primary transition-all group-hover:scale-110 duration-300 group-hover:shadow-[0_0_15px_rgba(var(--color-accent-primary),0.6)]">
+                    <div className="w-12 h-12 rounded-full border border-accent-primary/30 bg-[#111] overflow-hidden shadow-[0_0_15px_rgba(var(--color-accent-primary),0.2)] group-hover:border-accent-primary transition-all group-hover:scale-110 duration-300 group-hover:shadow-[0_0_25px_rgba(var(--color-accent-primary),0.8)]">
                       {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <UserCircle className="w-full h-full text-brand-muted p-1" />}
                     </div>
-                    <div className="absolute -bottom-2 -right-2 bg-black/80 border border-white/10 px-1.5 py-0.5 rounded-md text-[9px] font-black text-amber-400 backdrop-blur-md shadow-sm">
+                    <div className="absolute -bottom-2 -right-2 bg-black/80 border border-accent-primary/40 px-1.5 py-0.5 rounded-md text-[9px] font-black text-amber-400 backdrop-blur-md shadow-sm">
                       {u.signal_price || 50} ⚡
                     </div>
                   </div>
@@ -287,16 +286,29 @@ export const RadarPage: React.FC = () => {
                 </motion.div>
               ))}
 
-              {/* Refresh Button */}
-              <div className="absolute bottom-6 left-0 right-0 flex justify-center z-30 pointer-events-none">
-                <button onClick={() => { triggerFeedback('pop'); fetchRadarUsers(); }} className="pointer-events-auto bg-white/5 backdrop-blur-3xl border border-white/10 px-6 py-3.5 rounded-full text-white font-black text-[11px] uppercase tracking-widest flex items-center gap-2 shadow-[0_10px_40px_rgba(0,0,0,0.5)] active:scale-95 transition-all hover:bg-white/10 hover:border-white/20">
-                  <Radar size={16} className="text-accent-primary" /> רענן סריקה
+              {/* Elegant Scanning Pill Indicator */}
+              <AnimatePresence>
+                {scanning && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} 
+                    className="absolute bottom-28 z-40 flex items-center gap-3 bg-accent-primary/10 backdrop-blur-md px-6 py-2.5 rounded-full border border-accent-primary/30 shadow-[0_0_20px_rgba(var(--color-accent-primary),0.3)]"
+                  >
+                    <Radar size={16} className="text-accent-primary animate-spin" strokeWidth={2} />
+                    <span className="text-accent-primary font-black tracking-widest uppercase text-[10px]">מאתר תדרים...</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Sci-Fi Refresh Button */}
+              <div className="absolute bottom-8 left-0 right-0 flex justify-center z-30 pointer-events-none">
+                <button onClick={() => { triggerFeedback('pop'); fetchRadarUsers(); }} className="pointer-events-auto bg-[#0a0a0a]/80 backdrop-blur-xl border border-accent-primary/40 px-8 py-3 rounded-full text-accent-primary font-black text-[11px] uppercase tracking-widest flex items-center gap-2 shadow-[0_0_20px_rgba(var(--color-accent-primary),0.2)] active:scale-95 transition-all hover:bg-accent-primary/10">
+                  <Aperture size={14} className="text-accent-primary" /> סרוק מחדש
                 </button>
               </div>
             </motion.div>
           )}
 
-          {/* TAB 2: INCOMING QUEUE */}
+          {/* TAB 2: INCOMING QUEUE (Glassmorphism Accent Style) */}
           {activeTab === 'queue' && (
             <motion.div key="queue" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 flex flex-col overflow-y-auto px-4 gap-4 scrollbar-hide pt-4">
               {incomingSignals.length === 0 ? (
@@ -306,7 +318,7 @@ export const RadarPage: React.FC = () => {
                 </div>
               ) : (
                 incomingSignals.map((signal) => (
-                  <div key={signal.id} className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[28px] p-5 shadow-lg flex flex-col gap-4 transition-all hover:border-white/20">
+                  <div key={signal.id} className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[28px] p-5 shadow-lg flex flex-col gap-4 transition-all hover:border-accent-primary/30">
                     <div className="flex items-start justify-between border-b border-white/5 pb-4">
                       <div className="flex items-center gap-3 cursor-pointer group" onClick={() => { triggerFeedback('pop'); navigate(`/profile/${signal.sender?.id}`); }}>
                         <div className="w-12 h-12 rounded-full overflow-hidden bg-[#111] border border-white/10 group-hover:border-accent-primary transition-colors">
