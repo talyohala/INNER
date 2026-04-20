@@ -3,9 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { 
-  UserCircle, Loader2, Users, MessageSquare, Link as LinkIcon, 
-  UserCheck, MapPin, Calendar, GraduationCap, HeartHandshake, Camera, 
-  Briefcase, Sparkles, ChevronDown, Zap, Save, AtSign, X
+  UserCircle, Loader2, Camera, Sparkles, ChevronDown
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -148,21 +146,17 @@ export const EditProfilePage: React.FC = () => {
   const selectedGender = GENDER_OPTIONS.find(s => s.name === formData.gender);
   
   return (
-    <FadeIn className="bg-[#0d0d0f] min-h-[100dvh] font-sans text-white overflow-x-hidden relative pb-12" dir="rtl">
+    <FadeIn className="bg-[#0d0d0f] min-h-[100dvh] font-sans text-white overflow-x-hidden relative pb-24" dir="rtl">
       
-      {/* 🚀 Top Floating Header (Save & Exit) */}
-      <div className="fixed top-0 left-0 w-full z-50 bg-[#0d0d0f]/80 backdrop-blur-2xl border-b border-white/5 pt-[calc(env(safe-area-inset-top)+12px)] pb-3 px-5 flex justify-between items-center transition-all">
-        <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 text-white/50 hover:text-white hover:bg-white/10 active:scale-95 transition-all">
-          <X size={18} strokeWidth={2.5} />
-        </button>
-        <button onClick={handleSaveDetails} disabled={savingDetails} className="bg-accent-primary text-white rounded-full px-5 py-2.5 font-black text-[12px] uppercase tracking-widest flex items-center gap-1.5 shadow-[0_0_15px_rgba(var(--color-accent-primary),0.3)] active:scale-95 disabled:opacity-50 transition-transform">
-          {savingDetails ? <Loader2 size={16} className="animate-spin" /> : <><Save size={14} /> שמור</>}
+      {/* 🚀 Floating Top-Left Save Button (Semi-transparent, No Icon) */}
+      <div className="fixed top-[calc(env(safe-area-inset-top)+16px)] left-5 z-50">
+        <button onClick={handleSaveDetails} disabled={savingDetails} className="bg-white/10 backdrop-blur-xl border border-white/10 text-white rounded-full px-6 py-2.5 font-black text-[12px] uppercase tracking-widest shadow-[0_4px_15px_rgba(0,0,0,0.3)] active:scale-95 disabled:opacity-50 transition-all">
+          {savingDetails ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'שמור'}
         </button>
       </div>
 
-      {/* 🌌 Cover & Avatar Area */}
-      <div className="relative w-full h-[220px] mt-[calc(env(safe-area-inset-top)+60px)]">
-        {/* Hidden inputs */}
+      {/* 🌌 Cover & Avatar Area (Clean & Floating) */}
+      <div className="relative w-full h-[240px]">
         <input type="file" ref={coverInputRef} onChange={(e) => { if (e.target.files?.[0]) handleMediaUpload(e.target.files[0], 'cover'); if (coverInputRef.current) coverInputRef.current.value = ''; }} accept="image/*" className="hidden" />
         <input type="file" ref={avatarInputRef} onChange={(e) => { if (e.target.files?.[0]) handleMediaUpload(e.target.files[0], 'avatar'); if (avatarInputRef.current) avatarInputRef.current.value = ''; }} accept="image/*" className="hidden" />
 
@@ -173,12 +167,12 @@ export const EditProfilePage: React.FC = () => {
           ) : (
             <div className="w-full h-full bg-accent-primary/10" />
           )}
-          <div className="absolute inset-0 bg-gradient-to-b from-[#0d0d0f]/20 via-[#0d0d0f]/80 to-[#0d0d0f]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#0d0d0f]/60 to-[#0d0d0f]" />
         </div>
 
-        {/* Cover Edit Button */}
-        <button onClick={() => coverInputRef.current?.click()} disabled={uploadingCover} className="absolute top-4 right-4 z-20 flex items-center gap-1.5 bg-black/60 backdrop-blur-md border border-white/10 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-white/80 hover:text-white active:scale-95 transition-transform disabled:opacity-50">
-          {uploadingCover ? <Loader2 size={12} className="animate-spin" /> : <Camera size={12} />} ערוך רקע
+        {/* Cover Edit Badge */}
+        <button onClick={() => coverInputRef.current?.click()} disabled={uploadingCover} className="absolute bottom-4 right-4 z-20 flex items-center gap-1.5 bg-black/60 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-white/60 hover:text-white transition-all disabled:opacity-50">
+          {uploadingCover ? <Loader2 size={12} className="animate-spin" /> : <Camera size={12} />}
         </button>
 
         {/* Center Avatar */}
@@ -201,38 +195,39 @@ export const EditProfilePage: React.FC = () => {
         </div>
       </div>
 
-      {/* 📝 Borderless Form Container (The OS Look) */}
-      <div className="px-6 mt-16 flex flex-col gap-2">
+      {/* 📝 Elegant Form (No Boxes, No Borders, Floating Bubbles) */}
+      <div className="px-6 mt-16 flex flex-col gap-4 max-w-lg mx-auto">
 
-        <div className="flex flex-col gap-1 py-3 border-b border-white/5 focus-within:border-accent-primary/50 transition-colors group">
-          <label className="text-white/30 group-focus-within:text-accent-primary/80 transition-colors text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 pointer-events-none">
-            <Zap size={12} /> תעריף סיגנל (CRD)
-          </label>
-          <input type="number" value={formData.signal_price} onChange={e => setFormData(p=>({...p, signal_price: Number(e.target.value)}))} className="bg-transparent text-white text-[16px] font-medium outline-none placeholder:text-white/20 w-full mt-1" placeholder="50" dir="ltr" />
+        <div className="grid grid-cols-2 gap-3">
+          <InputField label="שם מלא" value={formData.full_name} onChange={v => setFormData(p=>({...p, full_name: v}))} placeholder="השם שלך" />
+          <InputField label="שם משתמש" value={formData.username} onChange={v => setFormData(p=>({...p, username: v.toLowerCase().replace(/[^a-zA-Z0-9_]/g, '')}))} placeholder="username" dir="ltr" />
+        </div>
+        
+        {/* Soft Bio Field */}
+        <div className="flex flex-col gap-1.5 mt-2">
+          <label className="text-white/30 text-[10px] font-black uppercase tracking-widest pl-2">אודות</label>
+          <textarea value={formData.bio} onChange={e => setFormData(p=>({...p, bio: e.target.value}))} className="bg-white/[0.03] hover:bg-white/[0.05] focus:bg-white/[0.07] rounded-2xl px-5 py-4 text-white text-[14px] font-medium outline-none transition-colors placeholder:text-white/20 w-full h-24 resize-none leading-relaxed" placeholder="ספר על עצמך בקצרה..." />
         </div>
 
-        <InputField label="שם מלא" icon={UserCheck} value={formData.full_name} onChange={v => setFormData(p=>({...p, full_name: v}))} placeholder="השם שלך" />
-        <InputField label="שם משתמש" icon={AtSign} value={formData.username} onChange={v => setFormData(p=>({...p, username: v.toLowerCase().replace(/[^a-zA-Z0-9_]/g, '')}))} placeholder="username" dir="ltr" />
-        
-        {/* Borderless Bio */}
-        <div className="flex flex-col gap-1 py-4 border-b border-white/5 focus-within:border-accent-primary/50 transition-colors group">
-          <label className="text-white/30 group-focus-within:text-accent-primary/80 transition-colors text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 pointer-events-none">
-            <MessageSquare size={12} /> אודות
-          </label>
-          <textarea value={formData.bio} onChange={e => setFormData(p=>({...p, bio: e.target.value}))} className="bg-transparent text-white text-[15px] font-medium outline-none placeholder:text-white/20 w-full h-16 resize-none leading-relaxed mt-1" placeholder="ספר על עצמך בקצרה..." />
+        <div className="grid grid-cols-2 gap-3 mt-4">
+          <SelectField label="מין" value={selectedGender ? selectedGender.name : ''} placeholder="בחירה" onClick={() => setShowGenderPicker(true)} />
+          <SelectField label="מזל" value={selectedZodiac ? `${selectedZodiac.icon} ${selectedZodiac.name}` : ''} placeholder="בחירה" onClick={() => setShowZodiacPicker(true)} />
         </div>
 
-        <InputField label="קישור חברתי" icon={LinkIcon} value={formData.social_link} onChange={v => setFormData(p=>({...p, social_link: v}))} placeholder="instagram.com/user" dir="ltr" />
-        <InputField label="עיסוק / מקצוע" icon={Briefcase} value={formData.job_title} onChange={v => setFormData(p=>({...p, job_title: v}))} placeholder="מעצב מוצר, משקיע..." />
+        <div className="grid grid-cols-2 gap-3">
+          <InputField label="מיקום" value={formData.location} onChange={v => setFormData(p=>({...p, location: v}))} placeholder="עיר, מדינה" />
+          <InputField label="תאריך לידה" value={formData.birth_date} onChange={v => setFormData(p=>({...p, birth_date: v}))} placeholder="" type="date" />
+        </div>
+
+        <SelectField label="מצב משפחתי" value={selectedRelationship ? selectedRelationship.name : ''} placeholder="בחירה" onClick={() => setShowRelationshipPicker(true)} />
+        <InputField label="השכלה" value={formData.education} onChange={v => setFormData(p=>({...p, education: v}))} placeholder="מוסד לימודים, תואר..." />
+        <InputField label="עיסוק / מקצוע" value={formData.job_title} onChange={v => setFormData(p=>({...p, job_title: v}))} placeholder="מעצב, משקיע, מפתח..." />
+        <InputField label="קישור חברתי" value={formData.social_link} onChange={v => setFormData(p=>({...p, social_link: v}))} placeholder="instagram.com/user" dir="ltr" />
         
-        <SelectField label="מין" icon={Users} value={selectedGender ? selectedGender.name : ''} placeholder="בחר מין" onClick={() => setShowGenderPicker(true)} />
-        <SelectField label="מזל" icon={Sparkles} value={selectedZodiac ? `${selectedZodiac.icon} ${selectedZodiac.name}` : ''} placeholder="בחר מזל" onClick={() => setShowZodiacPicker(true)} />
-        
-        <InputField label="מיקום" icon={MapPin} value={formData.location} onChange={v => setFormData(p=>({...p, location: v}))} placeholder="עיר, מדינה" />
-        <InputField label="תאריך לידה" icon={Calendar} value={formData.birth_date} onChange={v => setFormData(p=>({...p, birth_date: v}))} placeholder="" type="date" />
-        
-        <SelectField label="מצב משפחתי" icon={HeartHandshake} value={selectedRelationship ? selectedRelationship.name : ''} placeholder="בחר מצב" onClick={() => setShowRelationshipPicker(true)} />
-        <InputField label="השכלה" icon={GraduationCap} value={formData.education} onChange={v => setFormData(p=>({...p, education: v}))} placeholder="מוסד לימודים..." />
+        <div className="mt-4 pt-4 border-t border-white/5">
+          <InputField label="תעריף סיגנל (CRD)" value={formData.signal_price} onChange={v => setFormData(p=>({...p, signal_price: Number(v)}))} placeholder="50" type="number" dir="ltr" />
+        </div>
+
       </div>
 
       {/* 🌑 DARK GLASS MODALS FOR SELECTIONS */}
@@ -306,27 +301,27 @@ export const EditProfilePage: React.FC = () => {
   );
 };
 
-// 🌌 Ultra Minimalist Input
-interface InputFieldProps { label: string; icon: React.ElementType; value: string | number; onChange: (value: string) => void; placeholder: string; type?: string; dir?: string;}
-const InputField: React.FC<InputFieldProps> = ({ label, icon: Icon, value, onChange, placeholder, type = 'text', dir = 'rtl' }) => (
-  <div className="flex flex-col gap-1 py-3 border-b border-white/5 focus-within:border-accent-primary/50 transition-colors group">
-    <label className="text-white/30 group-focus-within:text-accent-primary/80 transition-colors text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 pointer-events-none">
-      <Icon size={12} /> {label}
+// 🌌 Ultra Minimalist Soft Bubble Input
+interface InputFieldProps { label: string; value: string | number; onChange: (value: string) => void; placeholder: string; type?: string; dir?: string; className?: string;}
+const InputField: React.FC<InputFieldProps> = ({ label, value, onChange, placeholder, type = 'text', dir = 'rtl', className = '' }) => (
+  <div className={`flex flex-col gap-1.5 ${className}`}>
+    <label className="text-white/30 text-[10px] font-black uppercase tracking-widest pl-2">
+      {label}
     </label>
-    <input type={type} value={value} onChange={e => onChange(e.target.value)} className="bg-transparent text-white text-[16px] font-medium outline-none placeholder:text-white/20 w-full mt-1" placeholder={placeholder} dir={dir} style={{ colorScheme: 'dark' }} />
+    <input type={type} value={value} onChange={e => onChange(e.target.value)} className="bg-white/[0.03] hover:bg-white/[0.05] focus:bg-white/[0.08] rounded-2xl px-5 py-4 text-white text-[14px] font-medium outline-none transition-colors placeholder:text-white/20 w-full" placeholder={placeholder} dir={dir} style={{ colorScheme: 'dark' }} />
   </div>
 );
 
-// 🌌 Ultra Minimalist Select
-interface SelectFieldProps { label: string; icon: React.ElementType; value: string; placeholder: string; onClick: () => void; }
-const SelectField: React.FC<SelectFieldProps> = ({ label, icon: Icon, value, placeholder, onClick }) => (
-  <div className="flex flex-col gap-1 py-3 border-b border-white/5 cursor-pointer active:opacity-70 transition-opacity group" onClick={onClick}>
-    <label className="text-white/30 group-hover:text-accent-primary/80 transition-colors text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 pointer-events-none">
-      <Icon size={12} /> {label}
+// 🌌 Ultra Minimalist Soft Bubble Select
+interface SelectFieldProps { label: string; value: string; placeholder: string; onClick: () => void; className?: string;}
+const SelectField: React.FC<SelectFieldProps> = ({ label, value, placeholder, onClick, className = '' }) => (
+  <div className={`flex flex-col gap-1.5 ${className}`}>
+    <label className="text-white/30 text-[10px] font-black uppercase tracking-widest pl-2 pointer-events-none">
+      {label}
     </label>
-    <div className="flex justify-between items-center mt-1 pointer-events-none">
-      <span className={`text-[16px] font-medium truncate ${value ? 'text-white' : 'text-white/20'}`}>{value || placeholder}</span>
-      <ChevronDown size={14} className="text-white/20" />
+    <div className="bg-white/[0.03] hover:bg-white/[0.05] rounded-2xl px-5 py-4 flex justify-between items-center cursor-pointer active:scale-[0.98] transition-all" onClick={onClick}>
+      <span className={`text-[14px] font-medium truncate ${value ? 'text-white' : 'text-white/20'}`}>{value || placeholder}</span>
+      <ChevronDown size={16} className="text-white/20" />
     </div>
   </div>
 );
