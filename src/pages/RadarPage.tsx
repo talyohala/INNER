@@ -417,6 +417,6 @@ export const RadarPage: React.FC = () => {
         </AnimatePresence>,
         document.body
       )}
-    </div>
+    </FadeIn>
   );
 };
