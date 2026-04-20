@@ -5,7 +5,7 @@ import { motion, AnimatePresence, useDragControls, useScroll, useTransform } fro
 import { 
   UserCircle, Loader2, MessageSquare, MoreVertical, MoreHorizontal, Share2, Reply, Trash2, X, Send, Download, 
   Link as LinkIcon, Edit2, Bookmark, MapPin, GraduationCap, ChevronDown, ChevronUp, Briefcase, Calendar, 
-  Sparkles, LogOut, Crown, Flame, Diamond, Handshake, Heart, Users, ArrowLeft, Settings2
+  Sparkles, LogOut, Crown, Flame, Diamond, Handshake, Heart, Users
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
@@ -502,7 +502,7 @@ export const ProfilePage: React.FC = () => {
       <div className="relative z-10 flex flex-col items-center pt-8">
         
         {/* 🧬 Identity Core (Avatar & Level Ring) */}
-        <div className="relative group mt-2">
+        <div className="relative group mt-8">
           {/* Neon Level Ring */}
           <div className="absolute -inset-2 rounded-full border border-white/5" />
           <svg className="absolute -inset-2 w-[calc(100%+16px)] h-[calc(100%+16px)] -rotate-90 pointer-events-none" viewBox="0 0 100 100">
@@ -528,21 +528,21 @@ export const ProfilePage: React.FC = () => {
             
             {/* Edit Icon Floating On Avatar */}
             {isMyProfile && (
-              <button onClick={() => navigate('/edit-profile')} className="absolute bottom-0 -right-1 w-9 h-9 rounded-full bg-black/80 backdrop-blur-md border border-accent-primary/50 text-accent-primary flex items-center justify-center shadow-[0_0_15px_rgba(var(--color-accent-primary),0.4)] active:scale-90 transition-transform z-30">
-                <Edit2 size={14} strokeWidth={2.5} />
+              <button onClick={() => navigate('/edit-profile')} className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-accent-primary text-white flex items-center justify-center shadow-[0_0_15px_rgba(var(--color-accent-primary),0.5)] border-2 border-[#0d0d0f] active:scale-90 transition-transform z-30">
+                <Edit2 size={12} />
               </button>
             )}
           </div>
-        </div>
 
-        {/* Level Badge directly under avatar */}
-        <div className="relative z-20 -mt-3 bg-[#0d0d0f] border border-accent-primary/40 backdrop-blur-xl px-4 py-1 rounded-full text-[10px] font-black tracking-widest flex items-center gap-1.5 shadow-[0_0_10px_rgba(var(--color-accent-primary),0.3)]">
-          <span className="text-white/60">LEVEL</span>
-          <span className="text-accent-primary drop-shadow-[0_0_5px_rgba(var(--color-accent-primary),0.8)]">{currentLevel}</span>
+          {/* Core Badge */}
+          <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-[#111] border border-white/10 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black tracking-widest flex items-center gap-1.5 shadow-xl z-20">
+            <span className="text-white/50">LVL</span>
+            <span className="text-accent-primary drop-shadow-[0_0_5px_rgba(var(--color-accent-primary),0.8)]">{currentLevel}</span>
+          </div>
         </div>
 
         {/* 📝 Name & Identity */}
-        <div className="mt-6 flex flex-col items-center text-center px-6 w-full max-w-[340px]">
+        <div className="mt-8 flex flex-col items-center text-center px-6 w-full max-w-[340px]">
           <h2 className="text-2xl font-black tracking-tight flex items-center gap-2">
             {userProfile.full_name}
             {userProfile.role_label === 'CORE' && <Crown size={16} className="text-accent-primary drop-shadow-[0_0_5px_rgba(var(--color-accent-primary),0.5)]" />}
@@ -801,7 +801,7 @@ export const ProfilePage: React.FC = () => {
                 )}
                 {gridActionModal.type === 'circle' && (
                   <>
-                    <button onClick={() => { closeOverlay(); setTimeout(() => navigate(`/circle/${gridActionModal.item.slug}`); }, 100); }} className="w-full p-4 bg-white/5 rounded-[20px] text-white font-black flex justify-between items-center text-[14px] hover:bg-white/10 transition-colors border border-white/5"><span>כנס למועדון</span><LinkIcon size={18} className="text-white/40" /></button>
+                    <button onClick={() => { closeOverlay(); setTimeout(() => navigate(`/circle/${gridActionModal.item.slug}`), 100); }} className="w-full p-4 bg-white/5 rounded-[20px] text-white font-black flex justify-between items-center text-[14px] hover:bg-white/10 transition-colors border border-white/5"><span>כנס למועדון</span><LinkIcon size={18} className="text-white/40" /></button>
                     <button onClick={() => { if (window.confirm('לעזוב את המועדון?')) leaveCircle(gridActionModal.item.id); }} className="w-full p-4 bg-red-500/10 rounded-[20px] text-red-500 font-black flex justify-between items-center text-[14px] hover:bg-red-500/20 transition-colors border border-red-500/20"><span>עזוב מועדון</span><LogOut size={18} /></button>
                   </>
                 )}
