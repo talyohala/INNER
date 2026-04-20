@@ -5,7 +5,7 @@ import { motion, AnimatePresence, useDragControls, useScroll, useTransform } fro
 import { 
   UserCircle, Loader2, MessageSquare, MoreVertical, MoreHorizontal, Share2, Reply, Trash2, X, Send, Download, 
   Link as LinkIcon, Edit2, Bookmark, MapPin, GraduationCap, ChevronDown, ChevronUp, Briefcase, Calendar, 
-  Sparkles, LogOut, Crown, Flame, Diamond, Handshake, Heart, Users, ArrowLeft
+  Sparkles, LogOut, Crown, Flame, Diamond, Handshake, Heart, Users, ArrowLeft, Settings2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
@@ -68,7 +68,7 @@ export const ProfilePage: React.FC = () => {
   const [usersListData, setUsersListData] = useState<any[]>([]);
   const [loadingUsersList, setLoadingUsersList] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'posts' | 'joined' | 'saved'>('posts');
+  const [activeTab, setActiveTab] = useState<'posts' | 'circles' | 'saved'>('posts');
   
   const [fullScreenMedia, setFullScreenMedia] = useState<any[] | null>(null);
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
@@ -528,21 +528,21 @@ export const ProfilePage: React.FC = () => {
             
             {/* Edit Icon Floating On Avatar */}
             {isMyProfile && (
-              <button onClick={() => navigate('/edit-profile')} className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-accent-primary text-white flex items-center justify-center shadow-[0_0_15px_rgba(var(--color-accent-primary),0.5)] border-2 border-[#0d0d0f] active:scale-90 transition-transform z-30">
-                <Edit2 size={12} />
+              <button onClick={() => navigate('/edit-profile')} className="absolute bottom-0 -right-1 w-9 h-9 rounded-full bg-black/80 backdrop-blur-md border border-accent-primary/50 text-accent-primary flex items-center justify-center shadow-[0_0_15px_rgba(var(--color-accent-primary),0.4)] active:scale-90 transition-transform z-30">
+                <Edit2 size={14} strokeWidth={2.5} />
               </button>
             )}
           </div>
+        </div>
 
-          {/* Core Badge */}
-          <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-[#111] border border-white/10 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black tracking-widest flex items-center gap-1.5 shadow-xl z-20">
-            <span className="text-white/50">LVL</span>
-            <span className="text-accent-primary drop-shadow-[0_0_5px_rgba(var(--color-accent-primary),0.8)]">{currentLevel}</span>
-          </div>
+        {/* Level Badge directly under avatar */}
+        <div className="relative z-20 -mt-3 bg-[#0d0d0f] border border-accent-primary/40 backdrop-blur-xl px-4 py-1 rounded-full text-[10px] font-black tracking-widest flex items-center gap-1.5 shadow-[0_0_10px_rgba(var(--color-accent-primary),0.3)]">
+          <span className="text-white/60">LEVEL</span>
+          <span className="text-accent-primary drop-shadow-[0_0_5px_rgba(var(--color-accent-primary),0.8)]">{currentLevel}</span>
         </div>
 
         {/* 📝 Name & Identity */}
-        <div className="mt-8 flex flex-col items-center text-center px-6 w-full max-w-[340px]">
+        <div className="mt-6 flex flex-col items-center text-center px-6 w-full max-w-[340px]">
           <h2 className="text-2xl font-black tracking-tight flex items-center gap-2">
             {userProfile.full_name}
             {userProfile.role_label === 'CORE' && <Crown size={16} className="text-accent-primary drop-shadow-[0_0_5px_rgba(var(--color-accent-primary),0.5)]" />}
@@ -698,7 +698,7 @@ export const ProfilePage: React.FC = () => {
       </div>
 
       {/* 🔳 Edge-to-Edge Grid Content (3 Items Per Row, Minimal Rounding) */}
-      <div className="w-full mt-0.5">
+      <div className="w-full mt-0.5 min-h-[50vh]">
         <AnimatePresence mode="wait">
           
           {/* POSTS */}
@@ -708,7 +708,7 @@ export const ProfilePage: React.FC = () => {
                 <div className="col-span-3 py-16 text-center text-white/30 text-[12px] font-bold uppercase tracking-widest">אין עדיין דגימות מידע</div>
               ) : (
                 data.posts.map((post: any) => (
-                  <div key={post.id} onClick={() => { openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = mediaPosts.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[3/4] bg-[#111] relative cursor-pointer active:opacity-70 group overflow-hidden rounded-md">
+                  <div key={post.id} onClick={() => { openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = mediaPosts.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[3/4] bg-[#111] relative cursor-pointer active:opacity-70 group overflow-hidden rounded-sm">
                     {isMyProfile && (
                       <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'post' })); }} className="absolute top-2 left-2 z-20 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                         <MoreHorizontal size={20} strokeWidth={2.5} />
@@ -732,7 +732,7 @@ export const ProfilePage: React.FC = () => {
                 <div className="col-span-3 py-16 text-center text-white/30 text-[12px] font-bold uppercase tracking-widest">לא חבר במועדונים</div>
               ) : (
                 allMyCircles.map((circle: any) => (
-                  <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className={`aspect-[3/4] bg-[#111] relative overflow-hidden cursor-pointer group rounded-md shadow-sm transition-all ${circle.isOwner ? 'border-b-[3px] border-accent-primary' : ''}`}>
+                  <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className={`aspect-[3/4] bg-[#111] relative overflow-hidden cursor-pointer group rounded-sm shadow-sm transition-all ${circle.isOwner ? 'border-[1px] border-accent-primary shadow-[0_0_10px_rgba(var(--color-accent-primary),0.2)]' : ''}`}>
                     {circle.isOwner && (
                       <div className="absolute top-2 right-2 z-20 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] text-[9px] font-black uppercase tracking-widest">
                         בניהולי
@@ -762,7 +762,7 @@ export const ProfilePage: React.FC = () => {
                 <div className="col-span-3 py-16 text-center text-white/30 text-[12px] font-bold uppercase tracking-widest">אין פריטים שמורים</div>
               ) : (
                 data.savedPosts.map((post: any) => (
-                  <div key={post.id} onClick={() => { const savedMedia = data.savedPosts.filter((p: any) => p.media_url); openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = savedMedia.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[3/4] bg-[#111] relative overflow-hidden cursor-pointer active:opacity-70 group rounded-md">
+                  <div key={post.id} onClick={() => { const savedMedia = data.savedPosts.filter((p: any) => p.media_url); openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = savedMedia.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[3/4] bg-[#111] relative overflow-hidden cursor-pointer active:opacity-70 group rounded-sm">
                     <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'saved' })); }} className="absolute top-2 left-2 z-20 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                       <MoreHorizontal size={20} strokeWidth={2.5} />
                     </button>
@@ -801,7 +801,7 @@ export const ProfilePage: React.FC = () => {
                 )}
                 {gridActionModal.type === 'circle' && (
                   <>
-                    <button onClick={() => { closeOverlay(); setTimeout(() => navigate(`/circle/${gridActionModal.item.slug}`), 100); }} className="w-full p-4 bg-white/5 rounded-[20px] text-white font-black flex justify-between items-center text-[14px] hover:bg-white/10 transition-colors border border-white/5"><span>כנס למועדון</span><LinkIcon size={18} className="text-white/40" /></button>
+                    <button onClick={() => { closeOverlay(); setTimeout(() => navigate(`/circle/${gridActionModal.item.slug}`); }, 100); }} className="w-full p-4 bg-white/5 rounded-[20px] text-white font-black flex justify-between items-center text-[14px] hover:bg-white/10 transition-colors border border-white/5"><span>כנס למועדון</span><LinkIcon size={18} className="text-white/40" /></button>
                     <button onClick={() => { if (window.confirm('לעזוב את המועדון?')) leaveCircle(gridActionModal.item.id); }} className="w-full p-4 bg-red-500/10 rounded-[20px] text-red-500 font-black flex justify-between items-center text-[14px] hover:bg-red-500/20 transition-colors border border-red-500/20"><span>עזוב מועדון</span><LogOut size={18} /></button>
                   </>
                 )}
