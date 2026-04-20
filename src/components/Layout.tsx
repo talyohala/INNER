@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   PlusCircle, Wallet, Bell, ShoppingBag, Settings, LogOut, 
-  Compass, MessageSquare, TrendingUp, LayoutDashboard 
+  Radio, MessageSquare, TrendingUp, LayoutDashboard 
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { triggerFeedback } from '../lib/sound';
@@ -24,7 +24,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
 
   const gridItems = [
     { path: '/create-circle', icon: PlusCircle, label: 'מועדון', colorClass: 'text-emerald-400' },
-    { path: '/radar', icon: Compass, label: 'רדאר', badge: pendingSignalsCount > 0, colorClass: 'text-indigo-400' },
+    { path: '/radar', icon: Radio, label: 'רדאר', badge: pendingSignalsCount > 0, colorClass: 'text-indigo-400' },
     { path: '/inbox', icon: MessageSquare, label: 'הודעות', colorClass: 'text-pink-400' },
     { path: '/wallet', icon: Wallet, label: 'ארנק', colorClass: 'text-amber-400' },
     { path: '/store', icon: ShoppingBag, label: 'חנות', colorClass: 'text-fuchsia-400' },
@@ -92,19 +92,23 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
                   {profile?.role_label === 'CORE' && (
                     <button 
                       onClick={() => { triggerFeedback('pop'); navigate('/admin'); closeSidebar(); }} 
-                      className="w-full flex items-center justify-center gap-3 p-4 rounded-[24px] bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500/20 active:scale-[0.98] transition-all shadow-sm"
+                      className="relative w-full flex items-center p-4 rounded-[24px] bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500/20 active:scale-[0.98] transition-all shadow-sm"
                     >
-                      <LayoutDashboard size={20} className="text-indigo-400" />
-                      <span className="text-white text-[15px] font-black uppercase tracking-widest">פאנל ניהול</span>
+                      <div className="absolute right-6">
+                        <LayoutDashboard size={20} className="text-indigo-400" />
+                      </div>
+                      <span className="w-full text-center text-white text-[15px] font-black uppercase tracking-widest">פאנל ניהול</span>
                     </button>
                   )}
 
                   <button 
                     onClick={async () => { triggerFeedback('pop'); closeSidebar(); try { await signOut?.(); } catch {} }} 
-                    className="w-full flex items-center justify-center gap-3 p-4 rounded-[24px] bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 active:scale-[0.98] transition-all shadow-sm"
+                    className="relative w-full flex items-center p-4 rounded-[24px] bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 active:scale-[0.98] transition-all shadow-sm"
                   >
-                    <LogOut size={18} className="text-red-500" strokeWidth={2.5} />
-                    <span className="text-white text-[14px] font-black uppercase tracking-widest">התנתק מהמערכת</span>
+                    <div className="absolute right-6">
+                      <LogOut size={18} className="text-red-500" strokeWidth={2.5} />
+                    </div>
+                    <span className="w-full text-center text-white text-[14px] font-black uppercase tracking-widest">התנתק מהמערכת</span>
                   </button>
                 </div>
               </motion.div>

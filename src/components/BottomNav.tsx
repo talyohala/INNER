@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, Search, User, Menu, Target } from 'lucide-react';
+import { Home, Search, User, Menu, Radio } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { triggerFeedback } from '../lib/sound';
 
@@ -17,7 +17,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onMenuClick, hasUnread, ha
   const items = [
     { path: '/', icon: Home, label: 'פיד' },
     { path: '/explore', icon: Search, label: 'חיפוש' },
-    { path: '/radar', icon: Target, label: 'רדאר' },
+    { path: '/radar', icon: Radio, label: 'רדאר' },
     { path: '/profile', icon: User, label: 'פרופיל' },
   ];
 
@@ -30,6 +30,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onMenuClick, hasUnread, ha
             {items.map((item) => {
               const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
               const Icon = item.icon;
+              
               return (
                 <button
                   key={item.path}
@@ -37,9 +38,14 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onMenuClick, hasUnread, ha
                   className={`relative flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all active:scale-90 ${isActive ? 'text-accent-primary' : 'text-brand-muted hover:text-brand'}`}
                 >
                   <Icon size={28} strokeWidth={isActive ? 2.5 : 2} className="transition-all" />
+                  
                   {/* הנקודה האדומה לאייקון הרדאר */}
                   {item.path === '/radar' && hasPendingSignals && (
-                    <motion.span animate={{ scale: [1, 1.3, 1], opacity: [0.7, 1, 0.7] }} transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }} className="absolute top-2 right-2 z-20 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-surface" />
+                    <motion.span 
+                      animate={{ scale: [1, 1.3, 1], opacity: [0.7, 1, 0.7] }} 
+                      transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }} 
+                      className="absolute top-2 right-2 z-20 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-surface" 
+                    />
                   )}
                 </button>
               );
@@ -47,9 +53,19 @@ export const BottomNav: React.FC<BottomNavProps> = ({ onMenuClick, hasUnread, ha
           </div>
 
           <div className="flex items-center gap-1 border-r border-surface-border pr-2 ml-1">
-            <button onClick={() => { triggerFeedback('pop'); onMenuClick(); }} className="relative flex items-center justify-center w-12 h-12 rounded-full text-brand-muted active:scale-90 transition-all hover:text-brand">
+            <button 
+              onClick={() => { triggerFeedback('pop'); onMenuClick(); }} 
+              className="relative flex items-center justify-center w-12 h-12 rounded-full text-brand-muted active:scale-90 transition-all hover:text-brand"
+            >
               <Menu size={28} strokeWidth={2} />
-              {hasUnread && <motion.span animate={{ scale: [1, 1.3, 1], opacity: [0.7, 1, 0.7] }} transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }} className="absolute top-2 right-2 z-20 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-surface" />}
+              {/* הנקודה האדומה לתפריט הראשי (התראות וכו') */}
+              {hasUnread && (
+                <motion.span 
+                  animate={{ scale: [1, 1.3, 1], opacity: [0.7, 1, 0.7] }} 
+                  transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }} 
+                  className="absolute top-2 right-2 z-20 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-surface" 
+                />
+              )}
             </button>
           </div>
 
