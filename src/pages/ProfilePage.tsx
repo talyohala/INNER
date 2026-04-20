@@ -5,7 +5,7 @@ import { motion, AnimatePresence, useDragControls, useScroll, useTransform } fro
 import { 
   UserCircle, Loader2, MessageSquare, MoreVertical, MoreHorizontal, Share2, Reply, Trash2, X, Send, Download, 
   Link as LinkIcon, Edit2, Bookmark, MapPin, GraduationCap, ChevronDown, ChevronUp, Briefcase, Calendar, 
-  Sparkles, LogOut, Crown, Flame, Diamond, Handshake, Heart, Users, ArrowLeft, Shield, Zap
+  Sparkles, Crown, Flame, Diamond, Handshake, Heart, Users
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
@@ -33,7 +33,7 @@ const getZodiacIcon = (zodiac: string) => {
 export const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
   const { username: routeId } = useParams<{ username?: string }>();
-  const { user, profile: authProfile, loading: authLoading, signOut } = useAuth() as any;
+  const { user, profile: authProfile, loading: authLoading } = useAuth() as any;
 
   const [mounted, setMounted] = useState(false);
   const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
@@ -455,7 +455,7 @@ export const ProfilePage: React.FC = () => {
   const stopPropagation = (e: any) => e.stopPropagation();
 
   if ((authLoading || loadingData) && !data.profile?.id) {
-    return <div className="min-h-screen bg-[#050505] flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div>;
+    return <div className="min-h-screen bg-[#0d0d0f] flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div>;
   }
 
   const userProfile = isMyProfile ? { ...(authProfile || {}), ...(data?.profile || {}) } : data?.profile || {};
@@ -483,36 +483,24 @@ export const ProfilePage: React.FC = () => {
   ].filter((item) => item.value);
 
   return (
-    <FadeIn className="bg-[#050505] min-h-[100dvh] relative font-sans text-white overflow-x-hidden pb-24" dir="rtl">
+    <FadeIn className="bg-[#0d0d0f] min-h-[100dvh] relative font-sans text-white overflow-x-hidden pb-24" dir="rtl">
       
       {/* 🌌 Hero Backdrop - Seamless Masked Gradient */}
-      <div className="absolute top-0 left-0 w-full h-[400px] z-0 pointer-events-none">
+      <div className="absolute top-0 left-0 w-full h-[350px] z-0 pointer-events-none">
         {userProfile.cover_url ? (
           <motion.div style={{ y: coverY, opacity: coverOpacity }} className="w-full h-full relative">
             <img src={userProfile.cover_url} className="w-full h-full object-cover opacity-60" />
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#050505]/80 to-[#050505]" />
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#0d0d0f]/80 to-[#0d0d0f]" />
           </motion.div>
         ) : (
-          <div className="w-full h-full bg-gradient-to-b from-accent-primary/20 via-[#050505]/80 to-[#050505]" />
+          <div className="w-full h-full bg-gradient-to-b from-accent-primary/20 via-[#0d0d0f]/80 to-[#0d0d0f]" />
         )}
       </div>
 
-      {/* 🛡️ Top Actions */}
-      <div className="relative z-50 flex items-center justify-between px-6 pt-[calc(env(safe-area-inset-top)+20px)]">
-        <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/80 active:scale-90 transition-transform">
-          <ArrowLeft size={20} />
-        </button>
-        {isMyProfile && (
-          <button onClick={() => navigate('/settings')} className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/80 active:scale-90 transition-transform">
-            <LogOut size={16} />
-          </button>
-        )}
-      </div>
-
-      <div className="relative z-10 flex flex-col items-center mt-6">
+      <div className="relative z-10 flex flex-col items-center mt-12">
         
         {/* 🧬 Identity Core (Avatar & Level Ring) */}
-        <div className="relative group">
+        <div className="relative group mt-8">
           {/* Neon Level Ring */}
           <div className="absolute -inset-2 rounded-full border border-white/5" />
           <svg className="absolute -inset-2 w-[calc(100%+16px)] h-[calc(100%+16px)] -rotate-90 pointer-events-none" viewBox="0 0 100 100">
@@ -536,7 +524,7 @@ export const ProfilePage: React.FC = () => {
               )}
             </div>
             {isMyProfile && (
-              <button onClick={() => navigate('/edit-profile')} className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-accent-primary text-white flex items-center justify-center shadow-[0_0_15px_rgba(var(--color-accent-primary),0.5)] border-2 border-black active:scale-90 transition-transform">
+              <button onClick={() => navigate('/edit-profile')} className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-accent-primary text-white flex items-center justify-center shadow-[0_0_15px_rgba(var(--color-accent-primary),0.5)] border-2 border-[#0d0d0f] active:scale-90 transition-transform">
                 <Edit2 size={12} />
               </button>
             )}
@@ -571,9 +559,40 @@ export const ProfilePage: React.FC = () => {
           )}
 
           {userProfile.social_link && (
-            <a href={userProfile.social_link.startsWith('http') ? userProfile.social_link : `https://${userProfile.social_link}`} target="_blank" rel="noopener noreferrer" className="mt-3 flex items-center gap-2 text-accent-primary text-[12px] font-bold bg-accent-primary/10 px-4 py-1.5 rounded-full border border-accent-primary/20">
-              <LinkIcon size={12} /> <span dir="ltr">{displayLink}</span>
+            <a href={userProfile.social_link.startsWith('http') ? userProfile.social_link : `https://${userProfile.social_link}`} target="_blank" rel="noopener noreferrer" className="mt-4 flex items-center gap-2 text-white text-[13px] font-bold hover:text-white/80 transition-colors">
+              <LinkIcon size={14} className="text-white/60" /> <span dir="ltr">{displayLink}</span>
             </a>
+          )}
+        </div>
+
+        {/* 🏷️ Info Chips (About section) */}
+        <div className="mt-6 flex flex-col items-center w-full px-6">
+          {visibleChips.length > 0 && (
+            <div className="flex flex-wrap justify-center gap-2">
+              {visibleChips.map((c: any) => (
+                <div key={c.key} className="bg-white/5 border border-white/5 backdrop-blur-md px-3 py-1.5 rounded-[12px] flex items-center gap-1.5 shadow-sm">
+                  {c.icon} <span className="text-white/80 text-[11px] font-bold">{c.value}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {hiddenChips.length > 0 && (
+            <div className="w-full mt-2 flex flex-col items-center">
+              <button onClick={() => setExtraInfoOpen(!extraInfoOpen)} className="flex items-center gap-1 text-white/30 hover:text-white/60 text-[9px] font-black uppercase tracking-widest py-2 transition-colors">
+                מידע נוסף <motion.div animate={{ rotate: extraInfoOpen ? 180 : 0 }}><ChevronDown size={12} /></motion.div>
+              </button>
+              <AnimatePresence>
+                {extraInfoOpen && (
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden w-full flex flex-wrap justify-center gap-2 pt-1">
+                    {hiddenChips.map((c: any) => (
+                      <div key={c.key} className="bg-white/5 border border-white/5 backdrop-blur-md px-3 py-1.5 rounded-[12px] flex items-center gap-1.5 shadow-sm">
+                        {c.icon} <span className="text-white/60 text-[11px] font-medium">{c.value}</span>
+                      </div>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           )}
         </div>
 
@@ -594,50 +613,50 @@ export const ProfilePage: React.FC = () => {
           </div>
         </div>
 
-        {/* ⚡ Action Buttons */}
-        {!isMyProfile ? (
+        {/* ⚡ Action Buttons (Follow/Message) */}
+        {!isMyProfile && (
           <div className="flex items-center gap-3 mt-6 w-full max-w-[340px] px-2">
             <button 
               onClick={() => { triggerFeedback('pop'); setIsFollowing(!isFollowing); }}
-              className={`flex-1 h-14 rounded-[22px] font-black text-[14px] tracking-widest uppercase transition-all active:scale-95 flex items-center justify-center ${
-                isFollowing ? 'bg-white/5 border border-white/10 text-white/40' : 'bg-accent-primary text-white shadow-[0_10px_30px_rgba(var(--color-accent-primary),0.3)]'
+              className={`flex-1 h-14 rounded-full font-black text-[13px] tracking-widest uppercase transition-all active:scale-95 flex items-center justify-center ${
+                isFollowing ? 'bg-white/5 border border-white/10 text-white/50' : 'bg-accent-primary text-white shadow-[0_0_20px_rgba(var(--color-accent-primary),0.4)]'
               }`}
             >
-              {isFollowing ? 'נעקב' : 'עקוב'}
+              {followLoading ? <Loader2 size={18} className="animate-spin" /> : isFollowing ? 'נעקב' : 'עקוב'}
             </button>
-            <button onClick={() => navigate(`/chat/${userProfile.id}`)} className="w-14 h-14 rounded-[22px] bg-white/5 border border-white/10 flex items-center justify-center active:scale-95">
+            <button onClick={() => navigate(`/chat/${userProfile.id}`)} className="w-14 h-14 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white active:scale-95 transition-transform">
               <MessageSquare size={20} />
             </button>
           </div>
-        ) : (
-          <button onClick={() => navigate('/edit-profile')} className="mt-6 flex items-center gap-2 bg-white/5 border border-white/10 px-6 py-3 rounded-full text-[12px] font-black uppercase tracking-widest hover:bg-white/10 transition-all">
-            <Edit2 size={14} /> ערוך פרופיל
-          </button>
         )}
       </div>
 
       {/* 🚀 Holographic Tab Navigation */}
-      <div className="sticky top-4 z-40 flex justify-center mt-10 mb-6">
-        <div className="bg-[#111]/80 backdrop-blur-2xl border border-white/10 p-1.5 rounded-full flex items-center gap-1 shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
-          {[
-            { id: 'posts', label: 'פוסטים' },
-            { id: 'circles', label: 'מועדונים' },
-            ...(isMyProfile ? [{ id: 'saved', label: 'שמורים' }] : [])
-          ].map((tab) => (
+      <div className="sticky top-4 z-40 flex items-center justify-center gap-8 px-6 mt-10 mb-6 shrink-0 bg-[#0d0d0f]/80 backdrop-blur-xl py-3 rounded-full border border-white/5 shadow-md mx-4">
+        {[
+          { id: 'posts', label: 'פוסטים' },
+          { id: 'circles', label: 'מועדונים' },
+          ...(isMyProfile ? [{ id: 'saved', label: 'שמורים' }] : [])
+        ].map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
             <button
               key={tab.id}
               onClick={() => { triggerFeedback('pop'); setActiveTab(tab.id as any); }}
-              className={`relative px-6 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest transition-colors ${
-                activeTab === tab.id ? 'text-white' : 'text-white/30 hover:text-white/60'
+              className={`relative text-[12px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5 ${
+                isActive ? 'text-white' : 'text-white/30 hover:text-white/60'
               }`}
             >
-              {activeTab === tab.id && (
-                <motion.div layoutId="profileTabIndicator" className="absolute inset-0 bg-white/10 border border-white/10 rounded-full shadow-inner" />
+              {tab.label}
+              {isActive && (
+                <motion.div
+                  layoutId="profileTabIndicator"
+                  className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-accent-primary shadow-[0_0_10px_rgba(var(--color-accent-primary),1)]"
+                />
               )}
-              <span className="relative z-10">{tab.label}</span>
             </button>
-          ))}
-        </div>
+          );
+        })}
       </div>
 
       {/* 🔳 Borderless Grid Content */}
@@ -738,7 +757,7 @@ export const ProfilePage: React.FC = () => {
           {gridActionModal && (
             <div className="fixed inset-0 z-[100000] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
-              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-[#0a0a0a] rounded-t-[32px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-white/10" onPointerDown={(e) => gridActionDragControls.start(e)} style={{ touchAction: 'none' }}>
+              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-[#0d0d0f] rounded-t-[32px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-white/10" onPointerDown={(e) => gridActionDragControls.start(e)} style={{ touchAction: 'none' }}>
                 <div className="w-full py-2 flex justify-center cursor-grab"><div className="w-12 h-1 bg-white/10 rounded-full" /></div>
                 {gridActionModal.type === 'post' && (
                   <>
@@ -763,7 +782,7 @@ export const ProfilePage: React.FC = () => {
           {showCreatePost && (
             <div className="fixed inset-0 z-[100000] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
-              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-[#0a0a0a] rounded-t-[32px] p-6 flex flex-col gap-4 pb-[env(safe-area-inset-bottom,32px)] border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.8)]">
+              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-[#0d0d0f] rounded-t-[32px] p-6 flex flex-col gap-4 pb-[env(safe-area-inset-bottom,32px)] border-t border-white/10 shadow-[0_-20px_50px_rgba(0,0,0,0.8)]">
                 <div className="w-full py-2 flex justify-center cursor-grab"><div className="w-12 h-1 bg-white/10 rounded-full" /></div>
                 <div className="flex justify-between items-center px-1"><h3 className="text-white font-black text-[15px] uppercase tracking-widest">עריכת נתונים</h3><button onClick={closeOverlay} className="text-white/40 hover:text-white"><X size={20} /></button></div>
                 <textarea value={editPostText} onChange={(e) => setEditPostText(e.target.value)} placeholder="הקלד כאן..." className="h-40 bg-white/5 rounded-[20px] p-5 text-white text-[14px] outline-none resize-none border border-white/10 placeholder:text-white/30 shadow-inner" />
@@ -776,7 +795,7 @@ export const ProfilePage: React.FC = () => {
           {optionsMenuPost && (
             <div className="fixed inset-0 z-[99900] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
-              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-[#0a0a0a] rounded-t-[32px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-white/10">
+              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-[#0d0d0f] rounded-t-[32px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-white/10">
                 <div className="w-full py-2 flex justify-center cursor-grab"><div className="w-12 h-1 bg-white/10 rounded-full" /></div>
                 <button onClick={() => { closeOverlay(); setTimeout(() => handleShare(optionsMenuPost), 100); }} className="w-full p-4 bg-white/5 rounded-[20px] text-white font-black flex justify-between items-center text-[14px] active:scale-[0.98] transition-all border border-white/5"><span>שתף דגימה</span><Share2 size={18} className="text-white/40" /></button>
                 {optionsMenuPost.media_url && <button onClick={() => handleDownloadMedia(optionsMenuPost.media_url)} className="w-full p-4 bg-white/5 rounded-[20px] text-white font-black flex justify-between items-center text-[14px] active:scale-[0.98] transition-all border border-white/5"><span>שמור למכשיר</span><Download size={18} className="text-white/40" /></button>}
@@ -796,7 +815,7 @@ export const ProfilePage: React.FC = () => {
           {sealSelectorPost && (
             <div className="fixed inset-0 z-[99900] flex flex-col justify-end p-4" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
-              <motion.div initial={{ y: '100%', scale: 0.95 }} animate={{ y: 0, scale: 1 }} exit={{ y: '100%', scale: 0.95 }} transition={{ type: 'spring', damping: 25, stiffness: 400 }} className="relative z-10 bg-[#0a0a0a] border border-white/10 rounded-[32px] p-8 shadow-2xl flex flex-col items-center gap-6">
+              <motion.div initial={{ y: '100%', scale: 0.95 }} animate={{ y: 0, scale: 1 }} exit={{ y: '100%', scale: 0.95 }} transition={{ type: 'spring', damping: 25, stiffness: 400 }} className="relative z-10 bg-[#0d0d0f] border border-white/10 rounded-[32px] p-8 shadow-2xl flex flex-col items-center gap-6">
                 <div className="w-12 h-1 bg-white/10 rounded-full mb-2" />
                 <div className="text-center">
                   <h3 className="text-white font-black text-lg tracking-widest uppercase">הענקת חותם</h3>
@@ -821,7 +840,7 @@ export const ProfilePage: React.FC = () => {
           {activeCommentsPostId && (
             <div className="fixed inset-0 z-[99000] flex flex-col justify-end" dir="rtl" onTouchStart={stopPropagation} onTouchMove={stopPropagation}>
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
-              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="relative z-10 bg-[#0a0a0a] rounded-t-[32px] h-[85vh] flex flex-col overflow-hidden pb-[env(safe-area-inset-bottom,20px)] shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-white/10">
+              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="relative z-10 bg-[#0d0d0f] rounded-t-[32px] h-[85vh] flex flex-col overflow-hidden pb-[env(safe-area-inset-bottom,20px)] shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-white/10">
                 <div className="w-full py-4 flex justify-center cursor-grab border-b border-white/5" onPointerDown={(e) => commentsDragControls.start(e)} style={{ touchAction: 'none' }}><div className="w-12 h-1 bg-white/10 rounded-full" /></div>
                 
                 <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-5 scrollbar-hide">
@@ -860,7 +879,7 @@ export const ProfilePage: React.FC = () => {
                   })}
                 </div>
 
-                <div className="p-4 bg-[#0a0a0a] border-t border-white/5 flex flex-col gap-2">
+                <div className="p-4 bg-[#0d0d0f] border-t border-white/5 flex flex-col gap-2">
                   {replyingTo && (
                     <div className="flex items-center justify-between bg-white/5 px-3 py-1.5 rounded-lg border border-white/10 text-[11px]">
                       <span className="text-white/50 font-bold">משיב ל- <span className="text-accent-primary">{replyingTo.profiles?.full_name}</span></span>
@@ -876,21 +895,22 @@ export const ProfilePage: React.FC = () => {
             </div>
           )}
 
-          {/* FULL SCREEN MEDIA */}
+          {/* FULL SCREEN MEDIA (TikTok Style with dark glass icons) */}
           {fullScreenMedia && (
-            <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed inset-0 z-[90000] bg-[#050505]">
+            <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed inset-0 z-[90000] bg-[#0d0d0f]">
               <div className="w-full h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide" onScroll={handleContainerScroll}>
                 {fullScreenMedia.map((vid, idx) => {
                   const isVid = vid.media_url?.match(/\.(mp4|webm|mov)$/i);
                   const keyVal = vid._uid ? vid._uid : `${vid.id}-${idx}`;
                   return (
-                    <div key={keyVal} className="w-full h-screen snap-center relative bg-[#050505] flex items-center justify-center">
+                    <div key={keyVal} className="w-full h-screen snap-center relative bg-[#0d0d0f] flex items-center justify-center">
                       {isVid ? (
                         <video src={vid.media_url} loop playsInline className="w-full h-full object-cover full-media-item" onClick={(e) => (e.currentTarget.paused ? e.currentTarget.play() : e.currentTarget.pause())} />
                       ) : (
                         <img src={vid.media_url} className="w-full h-full object-contain full-media-item" onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Unavailable'; }} />
                       )}
                       
+                      {/* Floating Dark Glass Overlay (Right Side) */}
                       <div className="absolute bottom-28 right-4 flex flex-col gap-4 items-center z-50 pointer-events-auto">
                         <button onClick={(e) => { e.stopPropagation(); if (vid.has_sealed) handleRemoveSeal(vid.id); else openOverlay(() => setSealSelectorPost(vid)); }} className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex flex-col items-center justify-center gap-0.5 active:scale-90 transition-transform">
                           <Flame size={20} className={vid.has_sealed ? 'text-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.8)]' : 'text-white'} fill={vid.has_sealed ? 'currentColor' : 'none'} />
@@ -905,7 +925,8 @@ export const ProfilePage: React.FC = () => {
                         </button>
                       </div>
 
-                      <div className="absolute bottom-0 left-0 w-full px-5 pb-8 pt-32 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col pointer-events-none">
+                      {/* Bottom Info Area */}
+                      <div className="absolute bottom-0 left-0 w-full px-5 pb-8 pt-32 bg-gradient-to-t from-[#0d0d0f]/90 via-[#0d0d0f]/40 to-transparent flex flex-col pointer-events-none">
                         {vid.content && (
                           <p className="text-white text-[13px] font-medium text-right max-w-[80%] line-clamp-2 pointer-events-auto cursor-pointer mb-4 drop-shadow-md" onClick={(e) => { e.stopPropagation(); openOverlay(() => setActiveDescPost(vid)); }}>
                             {vid.content}
@@ -933,7 +954,7 @@ export const ProfilePage: React.FC = () => {
             {activeDescPost && (
               <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
-                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-[#0a0a0a] rounded-t-[32px] flex flex-col overflow-hidden pb-10 max-h-[75vh] shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-white/10 text-center">
+                <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-[#0d0d0f] rounded-t-[32px] flex flex-col overflow-hidden pb-10 max-h-[75vh] shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-white/10 text-center">
                   <div className="w-full py-4 flex justify-center cursor-grab border-b border-white/5"><div className="w-12 h-1 bg-white/10 rounded-full" /></div>
                   <div className="p-6 overflow-y-auto" onPointerDown={stopPropagation} onTouchStart={stopPropagation}>
                     <p className="text-white/90 text-[14px] leading-relaxed whitespace-pre-wrap font-medium">{activeDescPost.content}</p>
@@ -947,7 +968,7 @@ export const ProfilePage: React.FC = () => {
           {commentActionModal && (
             <div className="fixed inset-0 z-[99900] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
-              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-[#0a0a0a] rounded-t-[32px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-white/10">
+              <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-[#0d0d0f] rounded-t-[32px] p-6 flex flex-col gap-3 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-white/10">
                 <div className="w-full py-2 flex justify-center cursor-grab"><div className="w-12 h-1 bg-white/10 rounded-full" /></div>
                 <button onClick={() => { closeOverlay(); setReplyingTo(commentActionModal.parent_id ? comments.find((c) => c?.id === commentActionModal.parent_id) : commentActionModal); setNewComment(`@${commentActionModal.profiles?.full_name} `); document.getElementById('comment-input')?.focus(); }} className="w-full p-4 bg-white/5 rounded-[20px] text-white font-black flex justify-between items-center text-[14px] hover:bg-white/10 transition-colors border border-white/5"><span>השב לתגובה</span><Reply size={18} className="text-white/40" /></button>
                 {commentActionModal.user_id === currentUserId && (
