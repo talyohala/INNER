@@ -73,8 +73,8 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
               >
                 <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-10" />
                 
-                {/* גריד של 2 בשורה, נקי ללא מסגרות, עם אייקונים מוגדלים */}
-                <div className="grid grid-cols-2 gap-y-12 gap-x-6 mb-12 px-2">
+                {/* גריד של 2 בשורה, נקי ללא מסגרות, עם אייקונים במידה 38 */}
+                <div className="grid grid-cols-2 gap-y-10 gap-x-6 mb-10 px-2">
                   {gridItems.map((item, idx) => (
                     <button 
                       key={idx} 
@@ -82,10 +82,10 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
                       className="flex flex-col items-center justify-center gap-3 active:scale-[0.95] transition-transform relative group"
                     >
                       <div className="flex items-center justify-center relative group-hover:scale-110 transition-transform">
-                        <item.icon size={42} className={item.colorClass} strokeWidth={1.5} />
+                        <item.icon size={38} className={item.colorClass} strokeWidth={1.5} />
                         {item.badge && <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-surface shadow-sm" />}
                       </div>
-                      <span className="font-black text-[15px] text-brand tracking-wide">{item.label}</span>
+                      <span className="font-black text-[14px] text-brand tracking-wide">{item.label}</span>
                     </button>
                   ))}
                 </div>
