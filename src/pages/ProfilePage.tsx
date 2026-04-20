@@ -5,7 +5,7 @@ import { motion, AnimatePresence, useDragControls, useScroll, useTransform } fro
 import { 
   UserCircle, Loader2, MessageSquare, MoreVertical, MoreHorizontal, Share2, Reply, Trash2, X, Send, Download, 
   Link as LinkIcon, Edit2, Bookmark, MapPin, GraduationCap, ChevronDown, ChevronUp, Briefcase, Calendar, 
-  Sparkles, LogOut, Crown, Flame, Diamond, Handshake, Heart, Users
+  Sparkles, LogOut, Crown, Flame, Diamond, Handshake, Heart, Users, ArrowLeft
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
@@ -528,8 +528,8 @@ export const ProfilePage: React.FC = () => {
             
             {/* Edit Icon Floating On Avatar */}
             {isMyProfile && (
-              <button onClick={() => navigate('/edit-profile')} className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-accent-primary text-white flex items-center justify-center shadow-[0_0_15px_rgba(var(--color-accent-primary),0.5)] border-2 border-[#0d0d0f] active:scale-90 transition-transform z-30">
-                <Edit2 size={12} />
+              <button onClick={() => navigate('/edit-profile')} className="absolute bottom-0 -right-1 w-9 h-9 rounded-full bg-black/80 backdrop-blur-md border border-accent-primary/50 text-accent-primary flex items-center justify-center shadow-[0_0_15px_rgba(var(--color-accent-primary),0.4)] active:scale-90 transition-transform z-30">
+                <Edit2 size={14} strokeWidth={2.5} />
               </button>
             )}
           </div>
@@ -697,7 +697,7 @@ export const ProfilePage: React.FC = () => {
         })}
       </div>
 
-      {/* 🔳 Edge-to-Edge Grid Content (3 Items Per Row, Minimal Rounding) */}
+      {/* 🔳 Edge-to-Edge Grid Content (3 Items Per Row) */}
       <div className="w-full mt-0.5 min-h-[50vh]">
         <AnimatePresence mode="wait">
           
@@ -710,8 +710,8 @@ export const ProfilePage: React.FC = () => {
                 data.posts.map((post: any) => (
                   <div key={post.id} onClick={() => { openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = mediaPosts.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[3/4] bg-[#111] relative cursor-pointer active:opacity-70 group overflow-hidden rounded-sm">
                     {isMyProfile && (
-                      <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'post' })); }} className="absolute top-2 left-2 z-20 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-                        <MoreHorizontal size={20} strokeWidth={2.5} />
+                      <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'post' })); }} className="absolute top-2 right-2 z-20 text-white/80 hover:text-white bg-black/40 backdrop-blur-md rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <MoreHorizontal size={16} />
                       </button>
                     )}
                     {post.media_url ? (
@@ -732,14 +732,14 @@ export const ProfilePage: React.FC = () => {
                 <div className="col-span-3 py-16 text-center text-white/30 text-[12px] font-bold uppercase tracking-widest">לא חבר במועדונים</div>
               ) : (
                 allMyCircles.map((circle: any) => (
-                  <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className={`aspect-[3/4] bg-[#111] relative overflow-hidden cursor-pointer group rounded-sm shadow-sm transition-all ${circle.isOwner ? 'border-[1px] border-accent-primary shadow-[0_0_10px_rgba(var(--color-accent-primary),0.2)]' : ''}`}>
+                  <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className={`aspect-[3/4] bg-[#111] relative overflow-hidden cursor-pointer group rounded-sm shadow-sm transition-all ${circle.isOwner ? 'border-[1px] border-accent-primary/60 shadow-[0_0_10px_rgba(var(--color-accent-primary),0.2)]' : ''}`}>
                     {circle.isOwner && (
-                      <div className="absolute top-2 right-2 z-20 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] text-[9px] font-black uppercase tracking-widest">
+                      <div className="absolute top-2 left-2 z-20 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] text-[9px] font-black uppercase tracking-widest bg-accent-primary/80 backdrop-blur-md px-1.5 py-0.5 rounded">
                         בניהולי
                       </div>
                     )}
-                    <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: circle, type: 'circle' })); }} className="absolute top-2 left-2 z-20 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-                      <MoreHorizontal size={20} strokeWidth={2.5} />
+                    <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: circle, type: 'circle' })); }} className="absolute top-2 right-2 z-20 text-white/80 hover:text-white bg-black/40 backdrop-blur-md rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <MoreHorizontal size={16} />
                     </button>
                     {circle.cover_url ? (
                       <img src={circle.cover_url} className="w-full h-full object-cover opacity-80" />
@@ -763,8 +763,8 @@ export const ProfilePage: React.FC = () => {
               ) : (
                 data.savedPosts.map((post: any) => (
                   <div key={post.id} onClick={() => { const savedMedia = data.savedPosts.filter((p: any) => p.media_url); openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = savedMedia.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[3/4] bg-[#111] relative overflow-hidden cursor-pointer active:opacity-70 group rounded-sm">
-                    <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'saved' })); }} className="absolute top-2 left-2 z-20 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-                      <MoreHorizontal size={20} strokeWidth={2.5} />
+                    <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'saved' })); }} className="absolute top-2 right-2 z-20 text-white/80 hover:text-white bg-black/40 backdrop-blur-md rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <MoreHorizontal size={16} />
                     </button>
                     {post.media_url ? (
                       post.media_type === 'video' ? <video src={post.media_url} className="w-full h-full object-cover" /> : <img src={post.media_url} className="w-full h-full object-cover" />
