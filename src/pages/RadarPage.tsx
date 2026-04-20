@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Radio, Send, Zap, UserCircle, Loader2, Crown, Inbox, Check, X, ChevronLeft, Aperture } from 'lucide-react';
+import { Radio, Send, Zap, UserCircle, Loader2, Crown, Inbox, Check, X, ChevronLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { FadeIn, Button } from '../components/ui';
@@ -235,7 +235,7 @@ export const RadarPage: React.FC = () => {
               {/* Sci-Fi Radar Rings & Wide Sweep */}
               <div className="absolute inset-0 flex items-center justify-center opacity-50 pointer-events-none">
                 
-                {/* Rings ONLY */}
+                {/* Rings */}
                 <div className="w-[200px] h-[200px] rounded-full border border-accent-primary/40 absolute" />
                 <div className="w-[350px] h-[350px] rounded-full border border-accent-primary/20 absolute border-dashed" />
                 <div className="w-[550px] h-[550px] rounded-full border border-accent-primary/10 absolute" />
@@ -246,12 +246,12 @@ export const RadarPage: React.FC = () => {
                   transition={{ duration: 4, repeat: Infinity, ease: "linear" }} 
                   className="w-[800px] h-[800px] absolute rounded-full overflow-hidden" 
                 >
-                  {/* זרימת אור רחבה יותר שמתחילה מוקדם ונבנית בהדרגה */}
-                  <div className="absolute inset-0" style={{ background: 'conic-gradient(from 0deg, transparent 15%, rgba(var(--color-accent-primary), 0.1) 60%, rgba(var(--color-accent-primary), 0.4) 95%, rgba(var(--color-accent-primary), 0.8) 100%)' }} />
-                  {/* הילה (Glow) רחבה במיוחד */}
-                  <div className="absolute top-0 left-1/2 w-[100px] h-[400px] bg-accent-primary/30 blur-[20px] origin-bottom -translate-x-full" />
-                  {/* קו חיתוך סריקה דק ואלגנטי */}
-                  <div className="absolute top-0 left-1/2 w-[2px] h-[400px] bg-accent-primary shadow-[0_0_15px_rgba(var(--color-accent-primary),1)] origin-bottom -translate-x-full" />
+                  {/* מניפת אור רחבה מאוד ועמוקה */}
+                  <div className="absolute inset-0" style={{ background: 'conic-gradient(from 0deg, transparent 5%, rgba(var(--color-accent-primary), 0.05) 40%, rgba(var(--color-accent-primary), 0.3) 85%, rgba(var(--color-accent-primary), 0.7) 100%)' }} />
+                  {/* הילה רחבה במיוחד לכיסוי שטח גדול */}
+                  <div className="absolute top-0 left-1/2 w-[220px] h-[400px] bg-accent-primary/25 blur-[30px] origin-bottom -translate-x-full" />
+                  {/* קו חיתוך סריקה דק מאוד (0.5px) וכמעט בלתי נראה */}
+                  <div className="absolute top-0 left-1/2 w-[0.5px] h-[400px] bg-accent-primary/40 shadow-[0_0_10px_rgba(var(--color-accent-primary),0.8)] origin-bottom -translate-x-full" />
                 </motion.div>
               </div>
 
@@ -417,6 +417,6 @@ export const RadarPage: React.FC = () => {
         </AnimatePresence>,
         document.body
       )}
-    </FadeIn>
+    </div>
   );
 };
