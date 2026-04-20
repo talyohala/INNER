@@ -72,23 +72,24 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
               >
                 <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-8" />
                 
-                <div className="grid grid-cols-4 gap-y-6 gap-x-2 mb-8 px-2">
+                {/* הגריד המעודכן - 2 עמודות */}
+                <div className="grid grid-cols-2 gap-y-8 gap-x-6 mb-10 px-4">
                   {gridItems.map((item, idx) => (
                     <button 
                       key={idx} 
                       onClick={() => { triggerFeedback('pop'); navigate(item.path); closeSidebar(); }} 
-                      className="flex flex-col items-center justify-center gap-2 active:scale-[0.95] transition-transform relative group"
+                      className="flex flex-col items-center justify-center gap-3 active:scale-[0.95] transition-transform relative group bg-surface-card border border-surface-border rounded-[24px] py-4 shadow-sm hover:bg-white/5"
                     >
                       <div className="flex items-center justify-center relative group-hover:scale-110 transition-transform">
-                        <item.icon size={32} className={item.colorClass} strokeWidth={1.5} />
-                        {item.badge && <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-surface shadow-sm" />}
+                        <item.icon size={36} className={item.colorClass} strokeWidth={1.5} />
+                        {item.badge && <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-surface-card shadow-sm" />}
                       </div>
-                      <span className="font-black text-[11px] text-brand tracking-wide">{item.label}</span>
+                      <span className="font-black text-[14px] text-brand tracking-wide">{item.label}</span>
                     </button>
                   ))}
                 </div>
 
-                <div className="flex flex-col gap-3 mt-2 pt-4 border-t border-surface-border/50">
+                <div className="flex flex-col gap-3 pt-4 border-t border-surface-border/50">
                   {/* כפתור אדמין - מופיע רק ל-CORE */}
                   {profile?.role_label === 'CORE' && (
                     <button 
