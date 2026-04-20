@@ -77,27 +77,52 @@ export const AuthPage: React.FC = () => {
   return (
     <div className="min-h-[100dvh] flex flex-col items-center justify-center p-6 font-sans relative overflow-hidden bg-[#050505]" dir="rtl">
       
-      {/* רקע גרדיאנט סטטי וחלק בהתאמה לצבעי האקסנט של האפליקציה (ללא ריצודים) */}
+      {/* רקע גרדיאנט סטטי וחלק מבוסס על צבע האקסנט של האפליקציה (ללא ריצודים) */}
       <div className="absolute inset-0 pointer-events-none z-0">
-        {/* אקסנט פרימרי (אינדיגו/כחול עמוק) */}
-        <div className="absolute bottom-[-20%] right-[-10%] w-[80%] h-[70%] bg-indigo-600 rounded-full mix-blend-screen opacity-40 blur-[100px]" />
-        {/* צבע משלים (ציאן/תכלת זוהר) */}
-        <div className="absolute bottom-[-10%] left-[-10%] w-[70%] h-[60%] bg-cyan-500 rounded-full mix-blend-screen opacity-30 blur-[100px]" />
-        {/* צבע משלים (סגול רך ליצירת עומק) */}
-        <div className="absolute bottom-[-30%] left-[20%] w-[60%] h-[60%] bg-purple-600 rounded-full mix-blend-screen opacity-30 blur-[120px]" />
+        {/* אקסנט פרימרי (הצבע הראשי של האפליקציה) */}
+        <div className="absolute bottom-[-20%] right-[-10%] w-[80%] h-[70%] bg-accent-primary rounded-full mix-blend-screen opacity-40 blur-[100px]" />
+        {/* צבע משלים בהיר (טורקיז/ציאן) להוספת עומק */}
+        <div className="absolute bottom-[-10%] left-[-10%] w-[70%] h-[60%] bg-[#00DDFF] rounded-full mix-blend-screen opacity-20 blur-[100px]" />
+        {/* צבע משלים כהה (סגול/כחול כהה) ליצירת מעבר חלק */}
+        <div className="absolute bottom-[-30%] left-[20%] w-[60%] h-[60%] bg-[#4f46e5] rounded-full mix-blend-screen opacity-30 blur-[120px]" />
       </div>
 
       <div className="w-full max-w-sm z-10 flex flex-col">
         
-        {/* לוגו INNER בלבד - נקי, עבה ומרשים */}
+        {/* לוגו INNER עם אנימציית מעבר אור מרהיבה (Shimmer Effect) */}
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: "easeOut" }}
-          className="flex flex-col items-center mb-10 mt-4"
+          className="flex flex-col items-center mb-10 mt-4 relative"
         >
-          <h1 className="text-[42px] font-black text-white tracking-[0.25em] uppercase drop-shadow-[0_0_20px_rgba(255,255,255,0.2)] mb-8 select-none pl-3">
-            INNER
+          {/* הילה קבועה מתחת לטקסט */}
+          <div className="absolute inset-0 bg-white/5 blur-[30px] rounded-full scale-110" />
+          
+          <h1 className="text-[42px] font-black tracking-[0.25em] uppercase mb-8 select-none pl-3 relative group">
+            {/* הטקסט הלבן הבסיסי */}
+            <span className="text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.15)]">
+              INNER
+            </span>
+            {/* שכבת האור המסתובבת - Shimmer */}
+            <motion.span 
+              className="absolute inset-0 text-transparent bg-clip-text"
+              style={{
+                backgroundImage: 'linear-gradient(120deg, transparent 25%, rgba(255,255,255,0.8) 50%, transparent 75%)',
+                backgroundSize: '200% 100%',
+                WebkitBackgroundClip: 'text',
+              }}
+              animate={{
+                backgroundPosition: ['100% 0%', '-100% 0%'],
+              }}
+              transition={{
+                duration: 3,
+                repeat: Infinity,
+                ease: "linear",
+              }}
+            >
+              INNER
+            </motion.span>
           </h1>
           
           <h2 className="text-2xl font-bold text-white tracking-tight">
@@ -127,7 +152,7 @@ export const AuthPage: React.FC = () => {
                   <input
                     type="text" value={fullName} onChange={(e) => setFullName(e.target.value)}
                     placeholder="שם מלא"
-                    className="w-full bg-[#1C1C1E] border border-transparent rounded-[12px] h-[52px] px-4 text-white placeholder:text-white/30 outline-none focus:border-indigo-500/50 transition-all font-medium"
+                    className="w-full bg-[#1C1C1E]/60 backdrop-blur-sm border border-white/5 rounded-[12px] h-[52px] px-4 text-white placeholder:text-white/30 outline-none focus:border-accent-primary/50 transition-all font-medium"
                   />
                 </div>
                 <div className="flex flex-col">
@@ -135,7 +160,7 @@ export const AuthPage: React.FC = () => {
                   <input
                     type="text" value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-zA-Z0-9_]/g, ''))}
                     placeholder="username" dir="ltr"
-                    className="w-full bg-[#1C1C1E] border border-transparent rounded-[12px] h-[52px] px-4 text-left text-white placeholder:text-white/30 outline-none focus:border-indigo-500/50 transition-all font-medium placeholder:text-right"
+                    className="w-full bg-[#1C1C1E]/60 backdrop-blur-sm border border-white/5 rounded-[12px] h-[52px] px-4 text-left text-white placeholder:text-white/30 outline-none focus:border-accent-primary/50 transition-all font-medium placeholder:text-right"
                   />
                 </div>
               </motion.div>
@@ -147,7 +172,7 @@ export const AuthPage: React.FC = () => {
             <input
               type="email" value={email} onChange={(e) => setEmail(e.target.value)}
               placeholder="name@example.com" dir="ltr"
-              className="w-full bg-[#1C1C1E] border border-transparent rounded-[12px] h-[52px] px-4 text-left text-white placeholder:text-white/30 outline-none focus:border-indigo-500/50 transition-all font-medium placeholder:text-right"
+              className="w-full bg-[#1C1C1E]/60 backdrop-blur-sm border border-white/5 rounded-[12px] h-[52px] px-4 text-left text-white placeholder:text-white/30 outline-none focus:border-accent-primary/50 transition-all font-medium placeholder:text-right"
             />
           </div>
 
@@ -156,7 +181,7 @@ export const AuthPage: React.FC = () => {
             <input
               type="password" value={password} onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••" dir="ltr"
-              className="w-full bg-[#1C1C1E] border border-transparent rounded-[12px] h-[52px] px-4 text-left text-white placeholder:text-white/30 outline-none focus:border-indigo-500/50 transition-all font-medium placeholder:text-right"
+              className="w-full bg-[#1C1C1E]/60 backdrop-blur-sm border border-white/5 rounded-[12px] h-[52px] px-4 text-left text-white placeholder:text-white/30 outline-none focus:border-accent-primary/50 transition-all font-medium placeholder:text-right"
             />
           </div>
 
