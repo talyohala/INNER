@@ -4,13 +4,24 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import {
   Loader2, Bell, CheckCheck, UserCircle, MoreHorizontal, Trash2,
-  Circle, CheckCircle2, ExternalLink, RefreshCw, Award, MessageSquare,
-  Gift, Crown, Flame, Diamond, Handshake, Coins, Zap, UserPlus
+  Circle, CheckCircle2, ExternalLink, RefreshCw
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
+
+const cleanToastStyle = {
+  background: 'rgba(18, 18, 18, 0.95)',
+  backdropFilter: 'blur(20px)',
+  color: '#ffffff',
+  border: '1px solid rgba(255, 255, 255, 0.05)',
+  borderRadius: '100px',
+  fontSize: '13px',
+  fontWeight: 700,
+  padding: '12px 24px',
+  boxShadow: '0 15px 40px rgba(0,0,0,0.6)',
+};
 
 type ActorProfile = {
   id: string;
@@ -21,23 +32,6 @@ type ActorProfile = {
 
 const getActorIdFromNotification = (notif: any): string | null => {
   return notif?.actor_id || notif?.sender_id || notif?.from_user_id || notif?.initiator_id || notif?.profile_id || notif?.target_user_id || null;
-};
-
-const getNotifIcon = (text: string = '') => {
-  const lowerText = text.toLowerCase();
-  
-  if (lowerText.includes('אש') || lowerText.includes('fire')) return <Flame size={14} className="text-orange-500" />;
-  if (lowerText.includes('יהלום') || lowerText.includes('diamond')) return <Diamond size={14} className="text-blue-400" />;
-  if (lowerText.includes('ברית') || lowerText.includes('alliance')) return <Handshake size={14} className="text-emerald-400" />;
-  if (lowerText.includes('חותם') || lowerText.includes('לייק') || lowerText.includes('אהב')) return <Award size={14} className="text-pink-500" />;
-  if (lowerText.includes('הד') || lowerText.includes('הגיב') || lowerText.includes('תגובה') || lowerText.includes('צ\'אט')) return <MessageSquare size={14} className="text-accent-primary" />;
-  if (lowerText.includes('crd') || lowerText.includes('תשלום') || lowerText.includes('נאמנות') || lowerText.includes('העביר')) return <Coins size={14} className="text-amber-400" />;
-  if (lowerText.includes('מתנה') || lowerText.includes('דרופ') || lowerText.includes('נפתח')) return <Gift size={14} className="text-emerald-400" />;
-  if (lowerText.includes('xp') || lowerText.includes('רמה') || lowerText.includes('סיגנל')) return <Zap size={14} className="text-amber-400 fill-amber-400" />;
-  if (lowerText.includes('מועדון') || lowerText.includes('הצטרף') || lowerText.includes('core')) return <Crown size={14} className="text-purple-400" />;
-  if (lowerText.includes('עוקב') || lowerText.includes('follow')) return <UserPlus size={14} className="text-blue-400" />;
-
-  return <Bell size={14} className="text-white" />;
 };
 
 const BottomSheet: React.FC<{ open: boolean; onClose: () => void; children: React.ReactNode }> = ({ open, onClose, children }) => {
@@ -54,16 +48,16 @@ const BottomSheet: React.FC<{ open: boolean; onClose: () => void; children: Reac
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-[9900] flex flex-col justify-end" dir="rtl">
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={onClose} />
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
           <motion.div
             drag="y" dragControls={dragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.1}
             onDragEnd={(_, info) => { if (info.offset.y > 100 || info.velocity.y > 400) onClose(); }}
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 500 }}
-            className="bg-[#0a0a0a] rounded-t-[40px] flex flex-col shadow-2xl relative overflow-hidden border-t border-white/10 pb-8"
+            className="bg-[#121212] rounded-t-[40px] flex flex-col shadow-2xl relative overflow-hidden border-t border-white/5 pb-8"
           >
-            <div className="w-full py-4 flex justify-center shrink-0 cursor-grab active:cursor-grabbing border-b border-white/5" onPointerDown={startSheetDrag} style={{ touchAction: 'none' }}>
-              <div className="w-12 h-1 bg-white/20 rounded-full pointer-events-none" />
+            <div className="w-full py-5 flex justify-center shrink-0 cursor-grab active:cursor-grabbing border-b border-white/5" onPointerDown={startSheetDrag} style={{ touchAction: 'none' }}>
+              <div className="w-12 h-1.5 bg-white/10 rounded-full pointer-events-none" />
             </div>
             <div className="flex-1 overflow-y-auto scrollbar-hide p-6" onPointerDown={startSheetDrag} style={{ touchAction: 'pan-y' }}>
               {children}
@@ -86,7 +80,7 @@ export const NotificationsPage: React.FC = () => {
   const [actorProfiles, setActorProfiles] = useState<Record<string, ActorProfile>>(() => {
     try { return JSON.parse(localStorage.getItem('inner_notifs_actors_cache') || '{}'); } catch { return {}; }
   });
-  
+
   const [loading, setLoading] = useState(notifications.length === 0);
   const [activeMenuNotif, setActiveMenuNotif] = useState<any | null>(null);
   const [showGlobalActions, setShowGlobalActions] = useState(false);
@@ -155,8 +149,8 @@ export const NotificationsPage: React.FC = () => {
       localStorage.setItem('inner_notifs_cache', JSON.stringify(updated));
       if (user?.id) await checkUnread(user.id);
       triggerFeedback('success');
-      toast.success(state ? 'סומן כנקרא' : 'סומן כלא נקרא');
-    } catch { toast.error('שגיאה בעדכון'); } finally { setBusyId(null); setActiveMenuNotif(null); }
+      toast.success(state ? 'סומן כנקרא' : 'סומן כלא נקרא', { style: cleanToastStyle });
+    } catch { toast.error('שגיאה בעדכון', { style: cleanToastStyle }); } finally { setBusyId(null); setActiveMenuNotif(null); }
   };
 
   const deleteNotification = async (notifId: string | number) => {
@@ -167,8 +161,8 @@ export const NotificationsPage: React.FC = () => {
       const updated = notifications.filter((n) => n.id !== notifId);
       setNotifications(updated);
       localStorage.setItem('inner_notifs_cache', JSON.stringify(updated));
-      toast.success('ההתראה נמחקה');
-    } catch { toast.error('שגיאה במחיקה'); } finally { setBusyId(null); setActiveMenuNotif(null); }
+      toast.success('ההתראה נמחקה', { style: cleanToastStyle });
+    } catch { toast.error('שגיאה במחיקה', { style: cleanToastStyle }); } finally { setBusyId(null); setActiveMenuNotif(null); }
   };
 
   const markAllAsRead = async () => {
@@ -181,8 +175,8 @@ export const NotificationsPage: React.FC = () => {
       setNotifications(updated);
       localStorage.setItem('inner_notifs_cache', JSON.stringify(updated));
       await checkUnread(user.id);
-      toast.success('הכל סומן כנקרא');
-    } catch { toast.error('שגיאה בעדכון'); } finally { setBusyId(null); setShowGlobalActions(false); }
+      toast.success('הכל סומן כנקרא', { style: cleanToastStyle });
+    } catch { toast.error('שגיאה בעדכון', { style: cleanToastStyle }); } finally { setBusyId(null); setShowGlobalActions(false); }
   };
 
   const deleteAllRead = async () => {
@@ -194,11 +188,11 @@ export const NotificationsPage: React.FC = () => {
       const updated = notifications.filter((n) => !n.is_read);
       setNotifications(updated);
       localStorage.setItem('inner_notifs_cache', JSON.stringify(updated));
-      toast.success('כל הנקראות נמחקו');
-    } catch { toast.error('שגיאה במחיקה'); } finally { setBusyId(null); setShowGlobalActions(false); }
+      toast.success('כל הנקראות נמחקו', { style: cleanToastStyle });
+    } catch { toast.error('שגיאה במחיקה', { style: cleanToastStyle }); } finally { setBusyId(null); setShowGlobalActions(false); }
   };
 
-  if (loading && notifications.length === 0) return <div className="min-h-screen bg-surface flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div>;
+  if (loading && notifications.length === 0) return <div className="min-h-screen bg-[#121212] flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={40} /></div>;
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -211,26 +205,33 @@ export const NotificationsPage: React.FC = () => {
   };
 
   return (
-    <div className="px-4 pt-6 pb-32 bg-surface min-h-screen flex flex-col font-sans" dir="rtl">
-      <div className="flex justify-between items-center mb-6 px-2">
-        <h1 className="text-2xl font-black text-brand tracking-widest uppercase">פעילות</h1>
+    <div className="px-5 pt-6 pb-[120px] bg-[#121212] min-h-[100dvh] flex flex-col font-sans relative overflow-x-hidden" dir="rtl">
+      
+      <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
+        <div className="absolute top-[-10%] right-[-10%] w-[60%] h-[40%] bg-accent-primary/5 rounded-full blur-[120px]" />
+      </div>
+
+      <div className="flex justify-between items-center mb-8 relative z-10">
+        <h1 className="text-2xl font-black text-white tracking-[0.2em] uppercase">פעילות</h1>
         <button
           onClick={() => { triggerFeedback('pop'); setShowGlobalActions(true); }}
-          className="w-10 h-10 flex items-center justify-center bg-surface-card border border-surface-border rounded-full text-brand-muted hover:text-accent-primary shadow-sm active:scale-90 transition-all"
+          className="w-12 h-12 flex items-center justify-center bg-[#1a1a1e] border border-white/5 rounded-full text-[#8b8b93] hover:text-white hover:bg-white/5 shadow-sm active:scale-95 transition-all"
         >
-          <MoreHorizontal size={20} />
+          <MoreHorizontal size={22} />
         </button>
       </div>
 
-      <div className="flex-1 flex flex-col gap-3">
+      <div className="flex-1 flex flex-col gap-3 relative z-10">
         <AnimatePresence mode="popLayout">
           {notifications.length === 0 ? (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col items-center justify-center opacity-40 mt-32">
-              <Bell size={56} className="text-brand-muted mb-4" strokeWidth={1} />
-              <p className="font-black text-brand-muted uppercase tracking-widest text-[13px]">אין פעילות עדיין</p>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col items-center justify-center opacity-50 mt-20">
+              <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mb-6 shadow-inner border border-white/5">
+                <Bell size={40} className="text-[#8b8b93]" strokeWidth={1.5} />
+              </div>
+              <p className="font-black text-[#8b8b93] uppercase tracking-[0.2em] text-[13px]">אין התראות עדיין</p>
             </motion.div>
           ) : (
-            <motion.div variants={containerVariants} initial="hidden" animate="show" className="flex flex-col gap-3">
+            <motion.div variants={containerVariants} initial="hidden" animate="show" className="flex flex-col gap-4">
               {notifications.map((notif) => {
                 const actor = actorProfiles[getActorIdFromNotification(notif) || ''];
                 const isUnread = !notif.is_read;
@@ -241,47 +242,59 @@ export const NotificationsPage: React.FC = () => {
                     layout
                     exit={{ opacity: 0, scale: 0.95 }}
                     onClick={() => handleNotifClick(notif)}
-                    className={`p-5 rounded-[32px] border flex items-start gap-4 transition-all cursor-pointer active:scale-[0.98] ${
+                    className={`p-5 rounded-[28px] border flex items-start gap-4 transition-all cursor-pointer active:scale-[0.98] ${
                       isUnread
-                        ? 'bg-surface-card border-accent-primary/40 shadow-[0_5px_15px_rgba(var(--color-accent-primary),0.08)]'
-                        : 'bg-surface border-surface-border opacity-70 grayscale-[10%]'
+                        ? 'bg-accent-primary/5 border-accent-primary/20 shadow-sm'
+                        : 'bg-[#1a1a1e] border-white/5 opacity-80 hover:bg-white/5'
                     }`}
                   >
-                    <div className="relative shrink-0 mt-1">
-                      <div className="w-12 h-12 rounded-full overflow-hidden bg-surface-card border border-surface-border flex items-center justify-center shadow-inner">
+                    {/* עמודה ימנית: פרופיל עגול נקי ולחיץ למעבר לפרופיל */}
+                    <div 
+                      className="relative shrink-0 mt-1 cursor-pointer active:scale-95 transition-transform"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const actorId = getActorIdFromNotification(notif);
+                        if (actorId) {
+                          triggerFeedback('pop');
+                          navigate(`/profile/${actorId}`);
+                        }
+                      }}
+                    >
+                      <div className="w-14 h-14 rounded-full overflow-hidden bg-[#121212] border border-white/5 flex items-center justify-center shadow-inner hover:opacity-80 transition-opacity">
                         {actor?.avatar_url ? (
                           <img src={actor.avatar_url} className="w-full h-full object-cover" />
                         ) : (
-                          <span className="text-brand-muted font-black text-lg">{(actor?.full_name || notif.title || 'א')[0]}</span>
+                          <span className="text-[#8b8b93] font-black text-xl">{(actor?.full_name || notif.title || 'א')[0]}</span>
                         )}
-                      </div>
-                      <div className={`absolute -bottom-1 -right-1 w-6 h-6 bg-surface-card border border-surface-border rounded-full flex items-center justify-center shadow-md ${isUnread ? 'bg-accent-primary/10 border-accent-primary/30' : ''}`}>
-                        {getNotifIcon(notif.content || notif.title)}
                       </div>
                     </div>
 
-                    <div className="flex-1 min-w-0 flex flex-col pt-0.5">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className={`font-black text-[15px] truncate ${isUnread ? 'text-brand' : 'text-brand-muted'}`}>
+                    {/* עמודה שמאלית: תוכן ותאריך בפינה למטה משמאל */}
+                    <div className="flex-1 min-w-0 flex flex-col pt-1">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className={`font-black text-[15px] truncate ${isUnread ? 'text-white' : 'text-[#8b8b93]'}`}>
                           {actor?.full_name || notif.title}
                         </span>
                         {isUnread && (
-                          <span className="text-[9px] font-black text-accent-primary bg-accent-primary/10 border border-accent-primary/20 px-2 py-0.5 rounded-md uppercase tracking-widest shadow-sm">
+                          <span className="text-[9px] font-black text-accent-primary bg-accent-primary/10 border border-accent-primary/20 px-2.5 py-1 rounded-md uppercase tracking-[0.2em] shadow-sm shrink-0">
                             חדש
                           </span>
                         )}
                       </div>
-                      <p className={`text-[13px] leading-relaxed line-clamp-2 ${isUnread ? 'text-brand font-medium' : 'text-brand-muted font-medium'}`}>
+                      <p className={`text-[13px] leading-relaxed line-clamp-2 ${isUnread ? 'text-white/90 font-medium' : 'text-[#8b8b93] font-medium'}`}>
                         {notif.content}
                       </p>
-                      <span className="text-brand-muted/50 text-[10px] font-bold uppercase tracking-widest mt-2 block">
+                      
+                      {/* תאריך מיושר לשמאל */}
+                      <span className="text-[#8b8b93]/60 text-[10px] font-bold uppercase tracking-widest mt-2.5 block text-left" dir="ltr">
                         {new Date(notif.created_at).toLocaleDateString('he-IL', { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
 
+                    {/* אפשרויות (More) */}
                     <button
                       onClick={(e) => { e.stopPropagation(); setActiveMenuNotif(notif); }}
-                      className="p-2 -mr-2 text-brand-muted hover:text-brand transition-colors self-center active:scale-90"
+                      className="p-2 -mr-2 text-[#8b8b93] hover:text-white transition-colors self-start mt-1 active:scale-90"
                     >
                       <MoreHorizontal size={20} />
                     </button>
@@ -297,20 +310,20 @@ export const NotificationsPage: React.FC = () => {
         <>
           <BottomSheet open={showGlobalActions} onClose={() => setShowGlobalActions(false)}>
             <div className="flex flex-col gap-3">
-              <button onClick={handleRefresh} className="w-full flex items-center gap-4 p-4 rounded-[24px] bg-[#111] hover:bg-white/5 border border-white/5 active:scale-[0.98] transition-all shadow-sm">
-                <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center shrink-0"><RefreshCw size={18} className="text-white/60" /></div>
-                <span className="flex-1 text-right text-white text-[15px] font-black">רענן התראות</span>
+              <button onClick={handleRefresh} className="w-full flex items-center gap-4 p-4 rounded-[24px] bg-[#1a1a1e] hover:bg-white/5 border border-white/5 active:scale-[0.98] transition-all shadow-sm">
+                <div className="w-12 h-12 rounded-[18px] bg-white/5 flex items-center justify-center shrink-0 border border-white/5"><RefreshCw size={20} className="text-white" /></div>
+                <span className="flex-1 text-right text-white text-[15px] font-black tracking-wide">רענן התראות</span>
               </button>
               {unreadExists && (
-                <button onClick={markAllAsRead} disabled={busyId === 'mark-all'} className="w-full flex items-center gap-4 p-4 rounded-[24px] bg-[#111] hover:bg-white/5 border border-white/5 active:scale-[0.98] transition-all shadow-sm">
-                  <div className="w-10 h-10 rounded-full bg-accent-primary/10 border border-accent-primary/20 flex items-center justify-center shrink-0"><CheckCheck size={18} className="text-accent-primary" /></div>
-                  <span className="flex-1 text-right text-white text-[15px] font-black">סמן הכל כנקרא</span>
+                <button onClick={markAllAsRead} disabled={busyId === 'mark-all'} className="w-full flex items-center gap-4 p-4 rounded-[24px] bg-[#1a1a1e] hover:bg-white/5 border border-white/5 active:scale-[0.98] transition-all shadow-sm">
+                  <div className="w-12 h-12 rounded-[18px] bg-accent-primary/10 border border-accent-primary/20 flex items-center justify-center shrink-0"><CheckCheck size={20} className="text-accent-primary" /></div>
+                  <span className="flex-1 text-right text-white text-[15px] font-black tracking-wide">סמן הכל כנקרא</span>
                 </button>
               )}
               {readExists && (
-                <button onClick={deleteAllRead} disabled={busyId === 'delete-all'} className="w-full flex items-center gap-4 p-4 rounded-[24px] bg-[#111] hover:bg-white/5 border border-rose-500/20 active:scale-[0.98] transition-all shadow-sm">
-                  <div className="w-10 h-10 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0"><Trash2 size={18} className="text-rose-500" /></div>
-                  <span className="flex-1 text-right text-rose-500 text-[15px] font-black">מחק את כל ההתראות שנקראו</span>
+                <button onClick={deleteAllRead} disabled={busyId === 'delete-all'} className="w-full flex items-center gap-4 p-4 rounded-[24px] bg-[#1a1a1e] hover:bg-white/5 border border-rose-500/10 active:scale-[0.98] transition-all shadow-sm">
+                  <div className="w-12 h-12 rounded-[18px] bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0"><Trash2 size={20} className="text-rose-500" /></div>
+                  <span className="flex-1 text-right text-rose-500 text-[15px] font-black tracking-wide">מחק את כל ההתראות שנקראו</span>
                 </button>
               )}
             </div>
@@ -319,25 +332,25 @@ export const NotificationsPage: React.FC = () => {
           {activeMenuNotif && (
             <BottomSheet open={!!activeMenuNotif} onClose={() => setActiveMenuNotif(null)}>
               <div className="flex flex-col gap-3">
-                <button onClick={() => setReadState(activeMenuNotif, !activeMenuNotif.is_read)} className="w-full flex items-center gap-4 p-4 rounded-[24px] bg-[#111] hover:bg-white/5 border border-white/5 active:scale-[0.98] transition-all shadow-sm">
-                  <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center shrink-0">
-                    {activeMenuNotif.is_read ? <Circle size={18} className="text-white/40" /> : <CheckCircle2 size={18} className="text-accent-primary" />}
+                <button onClick={() => setReadState(activeMenuNotif, !activeMenuNotif.is_read)} className="w-full flex items-center gap-4 p-4 rounded-[24px] bg-[#1a1a1e] hover:bg-white/5 border border-white/5 active:scale-[0.98] transition-all shadow-sm">
+                  <div className="w-12 h-12 rounded-[18px] bg-white/5 flex items-center justify-center shrink-0 border border-white/5">
+                    {activeMenuNotif.is_read ? <Circle size={20} className="text-[#8b8b93]" /> : <CheckCircle2 size={20} className="text-accent-primary" />}
                   </div>
-                  <span className="flex-1 text-right text-white text-[15px] font-black">{activeMenuNotif.is_read ? 'סמן כלא נקראה' : 'סמן כנקראה'}</span>
+                  <span className="flex-1 text-right text-white text-[15px] font-black tracking-wide">{activeMenuNotif.is_read ? 'סמן כלא נקראה' : 'סמן כנקראה'}</span>
                 </button>
-                <button onClick={() => { setActiveMenuNotif(null); navigate(`/profile/${getActorIdFromNotification(activeMenuNotif)}`); }} className="w-full flex items-center gap-4 p-4 rounded-[24px] bg-[#111] hover:bg-white/5 border border-white/5 active:scale-[0.98] transition-all shadow-sm">
-                  <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center shrink-0"><UserCircle size={18} className="text-white/60" /></div>
-                  <span className="flex-1 text-right text-white text-[15px] font-black">מעבר לפרופיל</span>
+                <button onClick={() => { setActiveMenuNotif(null); navigate(`/profile/${getActorIdFromNotification(activeMenuNotif)}`); }} className="w-full flex items-center gap-4 p-4 rounded-[24px] bg-[#1a1a1e] hover:bg-white/5 border border-white/5 active:scale-[0.98] transition-all shadow-sm">
+                  <div className="w-12 h-12 rounded-[18px] bg-white/5 flex items-center justify-center shrink-0 border border-white/5"><UserCircle size={20} className="text-white" /></div>
+                  <span className="flex-1 text-right text-white text-[15px] font-black tracking-wide">מעבר לפרופיל</span>
                 </button>
                 {activeMenuNotif.action_url && (
-                  <button onClick={() => { triggerFeedback('pop'); setActiveMenuNotif(null); navigate(activeMenuNotif.action_url); }} className="w-full flex items-center gap-4 p-4 rounded-[24px] bg-[#111] hover:bg-white/5 border border-white/5 active:scale-[0.98] transition-all shadow-sm">
-                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center shrink-0"><ExternalLink size={18} className="text-white/60" /></div>
-                    <span className="flex-1 text-right text-white text-[15px] font-black">פתח יעד ההתראה</span>
+                  <button onClick={() => { triggerFeedback('pop'); setActiveMenuNotif(null); navigate(activeMenuNotif.action_url); }} className="w-full flex items-center gap-4 p-4 rounded-[24px] bg-[#1a1a1e] hover:bg-white/5 border border-white/5 active:scale-[0.98] transition-all shadow-sm">
+                    <div className="w-12 h-12 rounded-[18px] bg-white/5 flex items-center justify-center shrink-0 border border-white/5"><ExternalLink size={20} className="text-white" /></div>
+                    <span className="flex-1 text-right text-white text-[15px] font-black tracking-wide">פתח יעד ההתראה</span>
                   </button>
                 )}
-                <button onClick={() => deleteNotification(activeMenuNotif.id)} className="w-full flex items-center gap-4 p-4 rounded-[24px] bg-[#111] hover:bg-white/5 border border-rose-500/20 active:scale-[0.98] transition-all shadow-sm">
-                  <div className="w-10 h-10 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0"><Trash2 size={18} className="text-rose-500" /></div>
-                  <span className="flex-1 text-right text-rose-500 text-[15px] font-black">מחק התראה זו</span>
+                <button onClick={() => deleteNotification(activeMenuNotif.id)} className="w-full flex items-center gap-4 p-4 rounded-[24px] bg-[#1a1a1e] hover:bg-white/5 border border-rose-500/10 active:scale-[0.98] transition-all shadow-sm">
+                  <div className="w-12 h-12 rounded-[18px] bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0"><Trash2 size={20} className="text-rose-500" /></div>
+                  <span className="flex-1 text-right text-rose-500 text-[15px] font-black tracking-wide">מחק התראה זו</span>
                 </button>
               </div>
             </BottomSheet>

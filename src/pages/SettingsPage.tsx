@@ -31,7 +31,7 @@ const cleanToastStyle = {
   boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
 };
 
-// הלוגו מתוקן: ה-i הוקטנה כך שתשתווה בדיוק לגובה האותיות
+// לוגו INNER מתוקן: ה-i הוקטנה כך שתשתווה בדיוק לגובה האותיות
 const OfficialInnerLogo = () => (
   <div className="flex items-center justify-center gap-2" dir="ltr">
     <svg width="22" height="38" viewBox="120 60 140 240" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 mt-1">
@@ -368,6 +368,7 @@ export const SettingsPage: React.FC = () => {
         return (
           <div className="flex flex-col items-center justify-center text-center py-6 gap-6">
             <div className="flex items-center justify-center py-4">
+              {/* הלוגו המעוצב והחדש עם סדר נכון i INNER וגובה אחיד */}
               <OfficialInnerLogo />
             </div>
             <div className="-mt-4">
@@ -480,7 +481,7 @@ export const SettingsPage: React.FC = () => {
               <section className="space-y-2">
                 <h4 className="text-white font-black text-[14px] uppercase tracking-widest pr-2">2. הכלכלה הפנימית</h4>
                 <p className="text-[13px] leading-relaxed font-medium">
-                  מטבעות ה-CRD משמשים בתוך הפלטפורמה בלבד. אין להם ערך פיאט. רכישות קרדיטים סופיות ללא החזרים כספיים.
+                  Mטבעות ה-CRD משמשים בתוך הפלטפורמה בלבד. אין להם ערך פיאט. רכישות קרדיטים סופיות ללא החזרים כספיים.
                 </p>
               </section>
               <section className="space-y-2">
@@ -528,7 +529,7 @@ export const SettingsPage: React.FC = () => {
             <h3 className="text-2xl font-black text-white text-center uppercase tracking-widest">הצהרת נגישות</h3>
             <div className="space-y-6 font-medium">
               <p className="text-[13px] leading-relaxed">
-                חברת INNER משקיעה מאמצים בהנגשת השירות לכלל האוכלוסייה מתוך שוויון הזדמנויות.
+                حברת INNER משקיעה מאמצים בהנגשת השירות לכלל האוכלוסייה מתוך שוויון הזדמנויות.
               </p>
               <div className="p-6 bg-[#1a1a1e] rounded-[24px] border-none space-y-3 shadow-sm">
                 <div className="flex items-center gap-3">
@@ -595,12 +596,15 @@ export const SettingsPage: React.FC = () => {
 
   return (
     <>
+      {/* MAIN SETTINGS PAGE */}
       <FadeIn className="px-5 pt-8 pb-[120px] flex flex-col gap-8 bg-[#121212] min-h-[100dvh] font-sans relative overflow-x-hidden" dir="rtl">
         
-        <div className="flex items-center justify-center relative mb-4 z-10">
+        {/* HEADER - תיקון: 121212 שקוף ומרחף */}
+        <div className="sticky top-0 z-50 bg-[#121212]/70 backdrop-blur-2xl pt-[calc(env(safe-area-inset-top)+16px)] pb-5 px-5 flex items-center justify-center border-none shadow-sm -mx-5">
           <h1 className="text-xl font-black text-white tracking-[0.2em] uppercase">הגדרות מערכת</h1>
         </div>
 
+        {/* SETTINGS LIST */}
         <div className="flex flex-col gap-10 relative z-10">
           
           {SETTINGS_GROUPS.map((group, gIdx) => (
@@ -635,6 +639,7 @@ export const SettingsPage: React.FC = () => {
             </div>
           ))}
 
+          {/* כפתורי סימטריה אקשן - התנתקות ומחיקה */}
           <div className="flex gap-4 mt-4 mb-8">
              <Button
                 onClick={() => openSheet('delete')}
@@ -655,6 +660,7 @@ export const SettingsPage: React.FC = () => {
         </div>
       </FadeIn>
 
+      {/* BOTTOM SHEETS */}
       {mounted && typeof document !== 'undefined' && createPortal(
         <BottomSheet open={!!activeSheet} onClose={closeSheet}>
           {renderSheetContent()}

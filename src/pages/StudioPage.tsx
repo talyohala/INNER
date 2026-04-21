@@ -45,7 +45,7 @@ export const StudioPage: React.FC = () => {
   const loadAllData = async () => {
     setLoading(true);
     try {
-      // 1. משיכת מועדונים בבעלותי (כולל ספירת חברים)
+      // 1. משיכת מועדונים בבעלותי (כולל ספירת חברים אמיתית מה-DB)
       const { data: ownedCircles } = await supabase
         .from('circles')
         .select('*, members:circle_members(count)')
@@ -57,7 +57,7 @@ export const StudioPage: React.FC = () => {
       }));
       setCircles(formattedCircles);
 
-      // 2. משיכת הכנסות אחרונות
+      // 2. משיכת הכנסות אחרונות אמיתיות
       const { data: income } = await supabase
         .from('transactions')
         .select('*, profiles:user_id(full_name, avatar_url)')
@@ -66,7 +66,7 @@ export const StudioPage: React.FC = () => {
         .limit(5);
       setTxs(income || []);
 
-      // 3. חישוב סטטיסטיקה מהירה (שימוש ב-RPC האמיתי)
+      // 3. חישוב סטטיסטיקה מהירה מה-RPC שיצרנו
       const { data: rpcStats } = await supabase.rpc('get_creator_stats', { p_creator_id: profile!.id });
       
       if (rpcStats?.[0]) {
@@ -86,7 +86,7 @@ export const StudioPage: React.FC = () => {
     }
   };
 
-  // פעולת משיכת כספים (אמיתית ועובדת)
+  // פעולת משיכת כספים (אמיתית)
   const handleCashOut = () => {
     if (stats.total_revenue < 100) {
       triggerFeedback('error');
@@ -126,7 +126,7 @@ export const StudioPage: React.FC = () => {
     setBroadcasting(true);
     triggerFeedback('pop');
 
-    // סימולציית שליחה (כאן יכנס קוד ששולח פוסט/התראה לכל המועדונים)
+    // סימולציית שליחה
     setTimeout(() => {
       setBroadcasting(false);
       setBroadcastMsg('');
@@ -141,7 +141,7 @@ export const StudioPage: React.FC = () => {
     </div>
   );
 
-  // חישוב הכנסה ממוצעת למשתמש (ARPU) לבריאות הקהילה
+  // חישוב הכנסה ממוצעת למשתמש (ARPU) בזמן אמת, מבוסס על נתונים אמיתיים
   const arpu = stats.members > 0 ? (stats.total_revenue / stats.members).toFixed(0) : 0;
 
   return (
@@ -153,14 +153,14 @@ export const StudioPage: React.FC = () => {
         <div className="absolute bottom-[20%] left-[-10%] w-[50%] h-[40%] bg-white/5 rounded-full blur-[120px]" />
       </div>
 
-      {/* HEADER - שקוף לגמרי לחלקות מושלמת */}
+      {/* HEADER - שקוף לגמרי לחלקות מושלמת (בלי הפס השחור) */}
       <div className="sticky top-0 z-50 pt-[calc(env(safe-area-inset-top)+16px)] pb-4 flex items-center justify-center bg-transparent -mx-5 border-none pointer-events-none">
         <h1 className="text-xl font-black text-white tracking-[0.2em] uppercase text-center drop-shadow-md">
           סטודיו יוצרים
         </h1>
       </div>
 
-      {/* MAIN REVENUE CARD - עתידני, נקי וללא פס צבע עליון */}
+      {/* MAIN REVENUE CARD - עתידני ונקי (בלי הפס של האקסנט למעלה) */}
       <div className="relative z-10 bg-[#1a1a1e] rounded-[40px] p-8 border border-white/5 shadow-2xl overflow-hidden flex flex-col justify-between mt-2">
         <div className="absolute top-[-20px] right-[-20px] w-40 h-40 bg-accent-primary/10 blur-[60px] rounded-full pointer-events-none" />
         
@@ -220,7 +220,7 @@ export const StudioPage: React.FC = () => {
           <span className="text-white font-black text-[13px] uppercase tracking-widest">שידור הודעת פוש לקהילה</span>
         </div>
         
-        <div className="relative">
+        <div className="relative flex items-center">
           <textarea 
             value={broadcastMsg}
             onChange={(e) => setBroadcastMsg(e.target.value)}
@@ -230,7 +230,7 @@ export const StudioPage: React.FC = () => {
           <button 
             onClick={handleBroadcast}
             disabled={broadcasting}
-            className="absolute left-3 bottom-3 w-10 h-10 bg-accent-primary text-black rounded-full flex items-center justify-center font-black active:scale-95 transition-all border-none disabled:opacity-50"
+            className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-accent-primary text-black rounded-full flex items-center justify-center font-black active:scale-95 transition-all border-none disabled:opacity-50 shadow-md"
           >
             {broadcasting ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} className="rtl:-scale-x-100" />}
           </button>
