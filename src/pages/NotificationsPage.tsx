@@ -30,8 +30,36 @@ type ActorProfile = {
   avatar_url: string | null;
 };
 
-const getActorIdFromNotification = (notif: any): string | null => {
-  return notif?.actor_id || notif?.sender_id || notif?.from_user_id || notif?.initiator_id || notif?.profile_id || notif?.target_user_id || null;
+// הפתרון מהשורש: פונקציה חכמה שסורקת כל חור אפשרי בהתראה כדי למצוא את זהות השולח
+const getActorIdFromNotification = (notif: any, currentUserId?: string): string | null => {
+  if (!notif) return null;
+  
+  const possibleIds = [
+    notif.actor_id, 
+    notif.sender_id, 
+    notif.from_user_id, 
+    notif.initiator_id, 
+    notif.profile_id,
+    notif.created_by,
+    notif.related_user_id,
+    notif.data?.actor_id, 
+    notif.data?.sender_id, 
+    notif.data?.user_id,
+    notif.data?.from_user_id,
+    notif.metadata?.actor_id, 
+    notif.metadata?.sender_id, 
+    notif.actor?.id, 
+    notif.sender?.id, 
+    notif.profiles?.id
+  ];
+
+  for (const id of possibleIds) {
+    // מוודא שיש ID, שהוא סטרינג, ושהוא לא שייך למשתמש המחובר עצמו
+    if (id && typeof id === 'string' && id !== currentUserId) {
+      return id;
+    }
+  }
+  return null;
 };
 
 const BottomSheet: React.FC<{ open: boolean; onClose: () => void; children: React.ReactNode }> = ({ open, onClose, children }) => {
@@ -94,7 +122,8 @@ export const NotificationsPage: React.FC = () => {
   }, []);
 
   const enrichActorProfiles = useCallback(async (list: any[]) => {
-    const actorIds = Array.from(new Set(list.map(getActorIdFromNotification).filter(Boolean))) as string[];
+    // השתמשנו בפונקציה החכמה החדשה כדי לאסוף את כל ה-IDs
+    const actorIds = Array.from(new Set(list.map(n => getActorIdFromNotification(n, user?.id)).filter(Boolean))) as string[];
     if (actorIds.length === 0) return;
     try {
       const { data } = await supabase.from('profiles').select('id, full_name, username, avatar_url').in('id', actorIds);
@@ -103,7 +132,7 @@ export const NotificationsPage: React.FC = () => {
       setActorProfiles(map);
       localStorage.setItem('inner_notifs_actors_cache', JSON.stringify(map));
     } catch (err) {}
-  }, [actorProfiles]);
+  }, [actorProfiles, user?.id]);
 
   const fetchNotifs = useCallback(async (markAsRead = true) => {
     if (!user?.id) return;
@@ -233,8 +262,11 @@ export const NotificationsPage: React.FC = () => {
           ) : (
             <motion.div variants={containerVariants} initial="hidden" animate="show" className="flex flex-col gap-4">
               {notifications.map((notif) => {
-                const actor = actorProfiles[getActorIdFromNotification(notif) || ''];
+                const actorId = getActorIdFromNotification(notif, user?.id);
+                const actor = actorProfiles[actorId || ''];
                 const isUnread = !notif.is_read;
+                const fallbackLetter = actor?.full_name?.[0] || actor?.username?.[0] || 'א';
+
                 return (
                   <motion.div
                     key={notif.id}
@@ -248,15 +280,16 @@ export const NotificationsPage: React.FC = () => {
                         : 'bg-[#1a1a1e] border-white/5 opacity-80 hover:bg-white/5'
                     }`}
                   >
-                    {/* עמודה ימנית: פרופיל עגול נקי ולחיץ למעבר לפרופיל */}
+                    {/* עמודה ימנית: פרופיל עגול נקי ולחיץ */}
                     <div 
-                      className="relative shrink-0 mt-1 cursor-pointer active:scale-95 transition-transform"
+                      className={`relative shrink-0 mt-1 ${actorId ? 'cursor-pointer active:scale-95 transition-transform' : ''}`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        const actorId = getActorIdFromNotification(notif);
                         if (actorId) {
                           triggerFeedback('pop');
                           navigate(`/profile/${actorId}`);
+                        } else {
+                          toast('התראת מערכת - אין פרופיל מקושר', { style: cleanToastStyle });
                         }
                       }}
                     >
@@ -264,7 +297,7 @@ export const NotificationsPage: React.FC = () => {
                         {actor?.avatar_url ? (
                           <img src={actor.avatar_url} className="w-full h-full object-cover" />
                         ) : (
-                          <span className="text-[#8b8b93] font-black text-xl">{(actor?.full_name || notif.title || 'א')[0]}</span>
+                          <span className="text-[#8b8b93] font-black text-xl">{fallbackLetter}</span>
                         )}
                       </div>
                     </div>
@@ -285,13 +318,11 @@ export const NotificationsPage: React.FC = () => {
                         {notif.content}
                       </p>
                       
-                      {/* תאריך מיושר לשמאל */}
                       <span className="text-[#8b8b93]/60 text-[10px] font-bold uppercase tracking-widest mt-2.5 block text-left" dir="ltr">
                         {new Date(notif.created_at).toLocaleDateString('he-IL', { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
 
-                    {/* אפשרויות (More) */}
                     <button
                       onClick={(e) => { e.stopPropagation(); setActiveMenuNotif(notif); }}
                       className="p-2 -mr-2 text-[#8b8b93] hover:text-white transition-colors self-start mt-1 active:scale-90"
@@ -338,7 +369,15 @@ export const NotificationsPage: React.FC = () => {
                   </div>
                   <span className="flex-1 text-right text-white text-[15px] font-black tracking-wide">{activeMenuNotif.is_read ? 'סמן כלא נקראה' : 'סמן כנקראה'}</span>
                 </button>
-                <button onClick={() => { setActiveMenuNotif(null); navigate(`/profile/${getActorIdFromNotification(activeMenuNotif)}`); }} className="w-full flex items-center gap-4 p-4 rounded-[24px] bg-[#1a1a1e] hover:bg-white/5 border border-white/5 active:scale-[0.98] transition-all shadow-sm">
+                <button 
+                  onClick={() => { 
+                    setActiveMenuNotif(null); 
+                    const actorId = getActorIdFromNotification(activeMenuNotif, user?.id); 
+                    if(actorId) navigate(`/profile/${actorId}`); 
+                    else toast('התראת מערכת - אין פרופיל מקושר', { style: cleanToastStyle });
+                  }} 
+                  className={`w-full flex items-center gap-4 p-4 rounded-[24px] bg-[#1a1a1e] border border-white/5 transition-all shadow-sm ${getActorIdFromNotification(activeMenuNotif, user?.id) ? 'hover:bg-white/5 active:scale-[0.98]' : 'opacity-50 cursor-not-allowed'}`}
+                >
                   <div className="w-12 h-12 rounded-[18px] bg-white/5 flex items-center justify-center shrink-0 border border-white/5"><UserCircle size={20} className="text-white" /></div>
                   <span className="flex-1 text-right text-white text-[15px] font-black tracking-wide">מעבר לפרופיל</span>
                 </button>
