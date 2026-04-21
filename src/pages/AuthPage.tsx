@@ -7,7 +7,6 @@ import { useAuth } from '../context/AuthContext';
 import { triggerFeedback } from '../lib/sound';
 import { supabase } from '../lib/supabase';
 
-// סגנון נקי ללא אייקונים, מותאם לעיצוב הבהיר והיוקרתי החדש
 const cleanToastStyle = {
   background: 'rgba(255, 255, 255, 0.85)',
   backdropFilter: 'blur(10px)',
@@ -91,21 +90,15 @@ export const AuthPage: React.FC = () => {
   return (
     <div className="min-h-[100dvh] flex flex-col items-center justify-center p-6 font-sans relative overflow-hidden bg-[#e5edff]" dir="rtl">
       
-      {/* 🌌 רקע פסטל מדויק לפי התמונה (צורות מטושטשות) */}
       <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
-        {/* סגול-פסטל (לוונדר) עליון שמאל */}
         <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-[#c1bbf2] rounded-full opacity-70 blur-[100px]" />
-        {/* לבן זוהר ובוהק עליון ימין */}
         <div className="absolute top-[-20%] right-[-20%] w-[70%] h-[70%] bg-[#ffffff] rounded-full opacity-100 blur-[90px]" />
-        {/* סגול/כחול עמוק תחתון שמאל */}
         <div className="absolute bottom-[-10%] left-[-20%] w-[70%] h-[70%] bg-[#a9a3f8] rounded-full opacity-50 blur-[120px]" />
-        {/* תכלת שמיים תחתון ימין */}
         <div className="absolute bottom-[-20%] right-[-10%] w-[80%] h-[80%] bg-[#a5d6ff] rounded-full opacity-60 blur-[120px]" />
       </div>
 
       <div className="w-full max-w-sm z-10 flex flex-col">
         
-        {/* לוגו INNER - הותאם לרקע הבהיר */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -114,12 +107,10 @@ export const AuthPage: React.FC = () => {
         >
           <div className="absolute inset-0 bg-white/40 blur-[30px] rounded-full scale-110" />
           
-          <h1 className="text-[42px] font-black tracking-[0.25em] uppercase mb-8 select-none pl-3 relative group">
-            {/* טקסט בסיס כהה ואלגנטי */}
+          <h1 className="text-[46px] font-serif font-medium tracking-[0.25em] uppercase mb-8 select-none pl-3 relative group">
             <span className="text-slate-900 drop-shadow-[0_2px_15px_rgba(255,255,255,1)]">
               INNER
             </span>
-            {/* אנימציית ברק מבריקה */}
             <motion.span
               className="absolute inset-0 text-transparent bg-clip-text"
               style={{
@@ -127,8 +118,9 @@ export const AuthPage: React.FC = () => {
                 backgroundSize: '200% 100%',
                 WebkitBackgroundClip: 'text',
               }}
-              animate={{ backgroundPosition: ['100% 0%', '-100% 0%'] }}
-              transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+              initial={{ backgroundPosition: '200% 0%' }}
+              animate={{ backgroundPosition: ['200% 0%', '-100% 0%'] }}
+              transition={{ duration: 2.5, ease: "easeInOut", repeat: 0, delay: 0.5 }}
             >
               INNER
             </motion.span>
@@ -139,7 +131,6 @@ export const AuthPage: React.FC = () => {
           </h2>
         </motion.div>
 
-        {/* טופס זכוכית (White Glassmorphism) */}
         <motion.form
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -194,26 +185,21 @@ export const AuthPage: React.FC = () => {
             />
           </div>
 
-          {/* כפתור אישור כהה מודרני */}
-          <div className="flex justify-center mt-6">
+          <div className="flex justify-center mt-8">
             <button
               type="submit"
               disabled={loading}
-              className="flex items-center gap-2 bg-slate-900 text-white px-8 h-[52px] rounded-full font-black text-[15px] tracking-wide active:scale-95 transition-all disabled:opacity-50 shadow-[0_10px_30px_rgba(15,23,42,0.3)] hover:bg-slate-800"
+              className="flex items-center justify-center w-[64px] h-[64px] rounded-full bg-white/90 backdrop-blur-md border border-white text-slate-900 active:scale-90 transition-all disabled:opacity-50 shadow-[0_15px_35px_rgba(0,0,0,0.1)] hover:bg-white"
             >
               {loading ? (
-                <Loader2 size={20} className="animate-spin text-white" />
+                <Loader2 size={28} className="animate-spin text-slate-900" />
               ) : (
-                <>
-                  {isLogin ? 'המשך' : 'צור חשבון'}
-                  <ArrowLeft size={18} strokeWidth={2.5} />
-                </>
+                <ArrowLeft size={30} strokeWidth={2} />
               )}
             </button>
           </div>
         </motion.form>
 
-        {/* Toggle Login/Signup */}
         <div className="mt-10 text-center">
           <button
             onClick={() => { triggerFeedback('pop'); setIsLogin(!isLogin); }}
