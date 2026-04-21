@@ -473,7 +473,7 @@ export const AdminPage: React.FC = () => {
                   {campActionType === 'reward' ? (
                     <motion.div key="reward" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="relative overflow-hidden mt-1">
                       <Zap size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-muted" />
-                      <input type="number" value={campReward} onChange={e=>setCampReward(Number(e.target.value))} placeholder="סכום תגמול (CRD)..." dir="ltr" className="w-full bg-surface-card h-14 rounded-[16px] pl-12 pr-4 text-brand font-black outline-none focus:ring-2 focus:ring-accent-primary/50 transition-colors text-left placeholder:text-brand-muted border-none" />
+                      <input type="number" value={campReward} onChange={e=>setCampReward(Number(e.target.value))} placeholder="CRD בחר סכום" dir="ltr" className="w-full bg-surface-card h-14 rounded-[16px] pl-12 pr-4 text-brand font-black outline-none focus:ring-2 focus:ring-accent-primary/50 transition-colors text-left placeholder:text-brand-muted border-none" />
                     </motion.div>
                   ) : (
                     <motion.div key="link" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="relative overflow-hidden mt-1">
