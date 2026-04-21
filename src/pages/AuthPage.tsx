@@ -107,26 +107,40 @@ export const AuthPage: React.FC = () => {
         >
           <div className="absolute inset-0 bg-white/40 blur-[30px] rounded-full scale-110" />
           
-          <h1 className="text-[44px] font-sans font-black tracking-[0.35em] uppercase mb-8 select-none pl-4 relative group">
-            <span className="text-slate-900 drop-shadow-[0_2px_15px_rgba(255,255,255,1)]">
-              INNER
-            </span>
-            <motion.span
-              className="absolute inset-0 text-transparent bg-clip-text"
-              style={{
-                backgroundImage: 'linear-gradient(120deg, transparent 25%, rgba(255,255,255,0.9) 50%, transparent 75%)',
-                backgroundSize: '200% 100%',
-                WebkitBackgroundClip: 'text',
-              }}
-              initial={{ backgroundPosition: '200% 0%' }}
-              animate={{ backgroundPosition: ['200% 0%', '-100% 0%'] }}
-              transition={{ duration: 2.5, ease: "easeInOut", repeat: 0, delay: 0.5 }}
-            >
-              INNER
-            </motion.span>
-          </h1>
+          {/* הוספת הלוגו הוקטורי (dir="ltr" כדי שהלוגו יישאר משמאל לטקסט האנגלי) */}
+          <div className="flex items-center justify-center gap-4 mb-6 relative z-10" dir="ltr">
+            <svg width="48" height="48" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-slate-900 drop-shadow-[0_2px_15px_rgba(255,255,255,1)]">
+              <path
+                d="M171 113 C171 113 323 113 342 113 C339 118 333 123 327 128 L226 197 C220 201 214 205 208 209 L210 157 C211 142 205 127 171 113Z"
+                fill="currentColor"
+              />
+              <path
+                d="M208 233 L287 178 L276 392 C275 429 289 446 316 460 L173 460 C181 451 186 443 187 430 L208 233Z"
+                fill="currentColor"
+              />
+            </svg>
+            
+            <h1 className="text-[44px] font-sans font-black tracking-[0.35em] uppercase select-none relative group pt-2">
+              <span className="text-slate-900 drop-shadow-[0_2px_15px_rgba(255,255,255,1)]">
+                INNER
+              </span>
+              <motion.span
+                className="absolute inset-0 text-transparent bg-clip-text"
+                style={{
+                  backgroundImage: 'linear-gradient(120deg, transparent 25%, rgba(255,255,255,0.9) 50%, transparent 75%)',
+                  backgroundSize: '200% 100%',
+                  WebkitBackgroundClip: 'text',
+                }}
+                initial={{ backgroundPosition: '200% 0%' }}
+                animate={{ backgroundPosition: ['200% 0%', '-100% 0%'] }}
+                transition={{ duration: 2.5, ease: "easeInOut", repeat: 0, delay: 0.5 }}
+              >
+                INNER
+              </motion.span>
+            </h1>
+          </div>
 
-          <h2 className="text-2xl font-black text-slate-800 tracking-tight drop-shadow-sm">
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight drop-shadow-sm relative z-10">
             {isLogin ? 'התחברות לחשבון' : 'יצירת חשבון'}
           </h2>
         </motion.div>
@@ -185,16 +199,17 @@ export const AuthPage: React.FC = () => {
             />
           </div>
 
+          {/* כפתור מלבני וקטן יותר עם חץ שמאלה */}
           <div className="flex justify-center mt-6 w-full">
             <button
               type="submit"
               disabled={loading}
-              className="flex items-center justify-center w-full h-[52px] rounded-[16px] bg-white text-slate-900 active:scale-[0.98] transition-all disabled:opacity-50 shadow-[0_10px_30px_rgba(0,0,0,0.08)] hover:bg-gray-50 border border-white/80"
+              className="flex items-center justify-center w-[110px] h-[48px] rounded-[14px] bg-white text-slate-900 active:scale-[0.98] transition-all disabled:opacity-50 shadow-[0_5px_20px_rgba(0,0,0,0.08)] hover:bg-gray-50 border border-white/80"
             >
               {loading ? (
                 <Loader2 size={24} className="animate-spin text-slate-900" />
               ) : (
-                <ArrowLeft size={24} strokeWidth={2.5} className="rtl:-scale-x-100" />
+                <ArrowLeft size={24} strokeWidth={2.5} />
               )}
             </button>
           </div>
