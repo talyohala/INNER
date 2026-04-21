@@ -13,6 +13,7 @@ import { FadeIn, Button } from '../components/ui';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 
+// טוסט שקוף-פחם אלגנטי ונקי
 const cleanToastStyle = {
   background: 'rgba(20, 20, 20, 0.85)',
   backdropFilter: 'blur(16px)',
@@ -44,7 +45,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({ open, onClose, children }) =>
             drag="y" dragControls={dragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.1} dragMomentum={false}
             onDragEnd={(_, info) => { if (info.offset.y > 90 || info.velocity.y > 450) onClose(); }}
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 28, stiffness: 500 }}
-            className="bg-[#121212] border-t border-white/5 rounded-t-[32px] h-auto min-h-[50vh] max-h-[90vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden"
+            className="bg-[#121212] rounded-t-[32px] h-auto min-h-[50vh] max-h-[90vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden"
           >
             <div className="w-full py-4 shrink-0" onPointerDown={startSheetDrag} style={{ touchAction: 'none' }} />
             <div className="flex-1 overflow-y-auto scrollbar-hide p-6 pt-0" onPointerDown={startSheetDrag} style={{ touchAction: 'pan-y' }}>
@@ -86,7 +87,9 @@ export const AdminPage: React.FC = () => {
   const [campStyle, setCampStyle] = useState(STYLES[1].id);
   const [campTitle, setCampTitle] = useState('');
   const [campBody, setCampBody] = useState('');
-  const [campExpiresAt, setCampExpiresAt] = useState(''); // שדה לוח שנה
+  
+  // תאריך ושעה בלבד (קלנדר)
+  const [campExpiresAt, setCampExpiresAt] = useState(''); 
 
   const [campActionType, setCampActionType] = useState<'reward' | 'link'>('reward');
   const [campReward, setCampReward] = useState<number | ''>('');
@@ -227,7 +230,7 @@ export const AdminPage: React.FC = () => {
     if (campActionType === 'link' && !campLink.trim()) return toast('חובה להזין קישור', { style: cleanToastStyle });
 
     setCampDeploying(true); triggerFeedback('pop');
-    const tid = toast('משגר קמפיין...', { style: cleanToastStyle });
+    const tid = toast('מפרסם...', { style: cleanToastStyle });
 
     try {
       let media_url = null; let media_type = 'image'; let expires_at = null;
@@ -271,25 +274,25 @@ export const AdminPage: React.FC = () => {
       
       <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*" />
 
-      {/* HEADER בעברית מלאה */}
+      {/* HEADER */}
       <div className="pt-[calc(env(safe-area-inset-top)+20px)] px-6 pb-6 flex flex-col items-center justify-center relative z-10 text-center">
         <h1 className="text-[28px] font-black text-white tracking-widest drop-shadow-md">פאנל ניהול ושליטה</h1>
       </div>
 
-      {/* MAIN TABS - מסודרים ב-2 שורות */}
-      <div className="px-5 mb-6 relative z-10">
+      {/* MAIN TABS */}
+      <div className="px-5 mb-8 relative z-10">
         <LayoutGroup id="mainTabs">
-          <div className="flex flex-col items-center gap-4 bg-[#1a1a1e]/50 border border-white/5 rounded-[24px] p-2 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-4 bg-surface-card rounded-[24px] p-4 shadow-sm">
             <div className="flex items-center gap-x-8 gap-y-1">
               {['dashboard', 'campaigns', 'cashouts'].map(tab => {
                 const isActive = activeTab === tab;
                 const label = tab === 'dashboard' ? 'סקירה' : tab === 'campaigns' ? 'קמפיינים' : 'משיכות';
                 return (
                   <button key={tab} onClick={() => { triggerFeedback('pop'); setActiveTab(tab as any); }} className="relative flex flex-col items-center min-w-max pb-2.5 active:scale-95 transition-all">
-                    <span className={`text-[15px] transition-colors ${isActive ? 'text-white font-black' : 'text-[#6b7280] font-bold hover:text-[#9ca3af]'}`}>
+                    <span className={`text-[15px] transition-colors ${isActive ? 'text-brand font-black' : 'text-brand-muted font-bold hover:text-brand'}`}>
                       {label}
                     </span>
-                    {isActive && <motion.div layoutId="main-tab-dot" className="absolute -bottom-1 w-1.5 h-1.5 bg-accent-primary rounded-full shadow-[0_0_8px_rgba(var(--color-accent-primary),0.6)]" />}
+                    {isActive && <motion.div layoutId="main-tab-dot" className="absolute -bottom-1 w-1.5 h-1.5 bg-accent-primary rounded-full shadow-sm" />}
                     {tab === 'cashouts' && adminData.pending_cashouts.length > 0 && <span className="absolute top-0 -left-2.5 w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse" />}
                   </button>
                 )
@@ -301,10 +304,10 @@ export const AdminPage: React.FC = () => {
                 const label = tab === 'users' ? 'משתמשים' : 'פעילות';
                 return (
                   <button key={tab} onClick={() => { triggerFeedback('pop'); setActiveTab(tab as any); }} className="relative flex flex-col items-center min-w-max pb-2.5 active:scale-95 transition-all">
-                    <span className={`text-[15px] transition-colors ${isActive ? 'text-white font-black' : 'text-[#6b7280] font-bold hover:text-[#9ca3af]'}`}>
+                    <span className={`text-[15px] transition-colors ${isActive ? 'text-brand font-black' : 'text-brand-muted font-bold hover:text-brand'}`}>
                       {label}
                     </span>
-                    {isActive && <motion.div layoutId="main-tab-dot" className="absolute -bottom-1 w-1.5 h-1.5 bg-accent-primary rounded-full shadow-[0_0_8px_rgba(var(--color-accent-primary),0.6)]" />}
+                    {isActive && <motion.div layoutId="main-tab-dot" className="absolute -bottom-1 w-1.5 h-1.5 bg-accent-primary rounded-full shadow-sm" />}
                   </button>
                 )
               })}
@@ -318,65 +321,69 @@ export const AdminPage: React.FC = () => {
           
           {/* TAB: DASHBOARD */}
           {activeTab === 'dashboard' && (
-            <motion.div key="dash" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-4">
-              <div className="bg-[#121212] border border-white/5 pt-10 pb-8 rounded-[24px] flex flex-col items-center text-center shadow-sm relative overflow-hidden">
-                <span className="text-[#6b7280] text-[11px] font-black uppercase tracking-[0.2em] mb-1 z-10 flex items-center gap-1.5"><Coins size={14}/> כלכלת האפליקציה</span>
+            <motion.div key="dash" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
+              
+              <div className="bg-surface-card pt-10 pb-8 rounded-[24px] flex flex-col items-center text-center shadow-sm relative overflow-hidden">
+                <span className="text-brand-muted text-[11px] font-black uppercase tracking-[0.2em] mb-1 z-10 flex items-center gap-1.5"><Coins size={14}/> כלכלת האפליקציה</span>
                 <div className="flex flex-col items-center justify-center mt-2 z-10 relative">
-                  <span className="text-[52px] font-black text-white tracking-tighter leading-none drop-shadow-sm">{adminData.total_crd.toLocaleString()}</span>
+                  <span className="text-[52px] font-black text-brand tracking-tighter leading-none">{adminData.total_crd.toLocaleString()}</span>
                   <span className="text-[10px] font-black text-accent-primary uppercase tracking-[0.5em] mt-3">CRD במחזור הכללי</span>
                 </div>
               </div>
+
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-[#121212] border border-white/5 rounded-[24px] p-5 shadow-sm flex flex-col items-center text-center">
-                  <span className="text-[#6b7280] text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5 mb-2"><Users size={14}/> משתמשים</span>
-                  <span className="text-white font-black text-2xl">{adminData.total_users.toLocaleString()}</span>
+                <div className="bg-surface-card rounded-[24px] p-5 shadow-sm flex flex-col items-center text-center">
+                  <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5 mb-2"><Users size={14}/> משתמשים</span>
+                  <span className="text-brand font-black text-2xl">{adminData.total_users.toLocaleString()}</span>
                 </div>
-                <div className="bg-[#121212] border border-white/5 rounded-[24px] p-5 shadow-sm flex flex-col items-center text-center">
-                  <span className="text-[#6b7280] text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5 mb-2"><Compass size={14}/> מועדונים</span>
-                  <span className="text-white font-black text-2xl">{adminData.total_circles.toLocaleString()}</span>
+                <div className="bg-surface-card rounded-[24px] p-5 shadow-sm flex flex-col items-center text-center">
+                  <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5 mb-2"><Compass size={14}/> מועדונים</span>
+                  <span className="text-brand font-black text-2xl">{adminData.total_circles.toLocaleString()}</span>
                 </div>
               </div>
-              <div className="bg-[#121212] border border-white/5 rounded-[32px] p-6 shadow-sm">
+
+              <div className="bg-surface-card rounded-[32px] p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-6">
-                  <span className="text-[#6b7280] text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5"><BarChart3 size={14}/> הרשמות אחרונות</span>
-                  <span className="text-white font-black text-[13px]">{adminData.total_posts.toLocaleString()} פוסטים באוויר</span>
+                  <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5"><BarChart3 size={14}/> הרשמות אחרונות</span>
+                  <span className="text-brand font-black text-[13px]">{adminData.total_posts.toLocaleString()} פוסטים באוויר</span>
                 </div>
                 <div className="flex items-end justify-between h-32 gap-2">
                   {adminData.chart_data.length === 0 ? (
-                    <div className="w-full h-full flex items-center justify-center text-[#6b7280] text-[12px] font-bold">אין נתונים כרגע</div>
+                    <div className="w-full h-full flex items-center justify-center text-brand-muted text-[12px] font-bold">אין נתונים כרגע</div>
                   ) : (
                     adminData.chart_data.map((data: any, i: number) => {
                       const heightPercent = Math.max((data.count / maxChartValue) * 100, 5);
                       return (
                         <div key={i} className="flex flex-col items-center gap-2 flex-1 h-full">
-                          <div className="w-full bg-[#0a0a0a] rounded-t-[6px] flex flex-col justify-end h-full relative group border border-white/5 border-b-0 overflow-hidden shadow-inner">
-                            <motion.div initial={{ height: 0 }} animate={{ height: `${heightPercent}%` }} className="bg-accent-primary group-hover:bg-accent-primary transition-all group-hover:opacity-100 opacity-60 rounded-t-sm w-full" />
+                          <div className="w-full bg-black/20 rounded-t-[6px] flex flex-col justify-end h-full relative group overflow-hidden shadow-inner">
+                            <motion.div initial={{ height: 0 }} animate={{ height: `${heightPercent}%` }} className="bg-accent-primary group-hover:opacity-100 opacity-60 rounded-t-sm w-full transition-opacity" />
                             <span className="absolute -top-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 text-[10px] text-brand font-black whitespace-nowrap">{data.count}</span>
                           </div>
-                          <span className="text-[10px] font-bold text-[#6b7280] mt-1">{data.date}</span>
+                          <span className="text-[10px] font-bold text-brand-muted mt-1">{data.date}</span>
                         </div>
                       )
                     })
                   )}
                 </div>
               </div>
+
             </motion.div>
           )}
           
           {/* TAB: CAMPAIGNS */}
           {activeTab === 'campaigns' && (
-            <motion.div key="campaigns" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
+            <motion.div key="campaigns" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-8">
               
               <div className="flex flex-col gap-3">
-                <span className="text-[#6b7280] text-[11px] font-bold uppercase tracking-widest">מיקום הקמפיין</span>
+                <span className="text-brand-muted text-[11px] font-bold uppercase tracking-widest">מיקום הקמפיין</span>
                 <LayoutGroup id="placementGroup">
-                  <div className="flex items-center gap-x-8 gap-y-1 overflow-x-auto scrollbar-hide pb-2 border-b border-white/5">
+                  <div className="flex items-center gap-x-8 gap-y-1 overflow-x-auto scrollbar-hide pb-2">
                     {PLACEMENTS.map(pos => {
                       const isActive = campPlacement === pos.id;
                       return (
                         <button key={pos.id} onClick={() => { triggerFeedback('pop'); setCampPlacement(pos.id); }} className="relative flex flex-col items-center min-w-max pb-3 active:scale-95 transition-transform">
-                          <span className={`text-[15px] transition-colors ${isActive ? 'text-white font-black' : 'text-[#6b7280] font-bold'}`}>{pos.label}</span>
-                          {isActive && <motion.div layoutId="placementBar" className="absolute bottom-0 w-5 h-0.5 bg-accent-primary rounded-full shadow-[0_0_8px_rgba(var(--color-accent-primary),0.6)]" />}
+                          <span className={`text-[15px] transition-colors ${isActive ? 'text-brand font-black' : 'text-brand-muted font-bold'}`}>{pos.label}</span>
+                          {isActive && <motion.div layoutId="placementBar" className="absolute bottom-0 w-5 h-0.5 bg-accent-primary rounded-full" />}
                         </button>
                       )
                     })}
@@ -385,15 +392,15 @@ export const AdminPage: React.FC = () => {
               </div>
 
               <div className="flex flex-col gap-3">
-                <span className="text-[#6b7280] text-[11px] font-bold uppercase tracking-widest">סגנון תצוגה</span>
+                <span className="text-brand-muted text-[11px] font-bold uppercase tracking-widest">סגנון תצוגה</span>
                 <LayoutGroup id="styleGroup">
-                  <div className="flex items-center gap-x-8 gap-y-1 overflow-x-auto scrollbar-hide pb-2 border-b border-white/5">
+                  <div className="flex items-center gap-x-8 gap-y-1 overflow-x-auto scrollbar-hide pb-2">
                     {STYLES.map(style => {
                       const isActive = campStyle === style.id;
                       return (
                         <button key={style.id} onClick={() => { triggerFeedback('pop'); setCampStyle(style.id); }} className="relative flex flex-col items-center min-w-max pb-3 active:scale-95 transition-transform">
-                          <span className={`text-[15px] transition-colors ${isActive ? 'text-white font-black' : 'text-[#6b7280] font-bold'}`}>{style.label}</span>
-                          {isActive && <motion.div layoutId="styleBar" className="absolute bottom-0 w-5 h-0.5 bg-accent-primary rounded-full shadow-[0_0_8px_rgba(var(--color-accent-primary),0.6)]" />}
+                          <span className={`text-[15px] transition-colors ${isActive ? 'text-brand font-black' : 'text-brand-muted font-bold'}`}>{style.label}</span>
+                          {isActive && <motion.div layoutId="styleBar" className="absolute bottom-0 w-5 h-0.5 bg-accent-primary rounded-full" />}
                         </button>
                       )
                     })}
@@ -401,25 +408,24 @@ export const AdminPage: React.FC = () => {
                 </LayoutGroup>
               </div>
 
-              {/* מנגנון בחירת תאריך חדש (קלנדר) */}
               <div className="flex flex-col gap-3">
-                <span className="text-[#6b7280] text-[11px] font-bold uppercase tracking-widest">תוקף הקמפיין (אופציונלי)</span>
-                <div className="relative">
-                  <CalendarDays size={20} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6b7280]" />
+                <span className="text-brand-muted text-[11px] font-bold uppercase tracking-widest">תוקף וזמן באוויר</span>
+                <div className="relative mt-1">
+                  <CalendarDays size={20} className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-muted" />
                   <input 
                     type="datetime-local" 
                     value={campExpiresAt} 
-                    onChange={e => setCampExpiresAt(e.target.value)} 
+                    onChange={e=>setCampExpiresAt(e.target.value)} 
                     style={{ colorScheme: 'dark' }} 
-                    className="w-full bg-[#121212] border border-white/5 h-14 rounded-[20px] pl-4 pr-12 text-white font-black outline-none focus:border-accent-primary/50 transition-colors text-left shadow-sm" 
+                    className="w-full bg-surface-card h-14 rounded-[20px] pl-4 pr-12 text-brand font-black outline-none focus:ring-2 focus:ring-accent-primary/50 transition-colors text-left shadow-sm border-none" 
                     dir="ltr" 
                   />
-                  {!campExpiresAt && <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#6b7280] text-[12px] font-bold pointer-events-none">השאר ריק לתמידי</span>}
+                  {!campExpiresAt && <span className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-muted text-[12px] font-bold pointer-events-none">בחר תאריך ושעה (אופציונלי)</span>}
                 </div>
               </div>
 
               <div className="flex flex-col gap-4 mt-2">
-                <div onClick={() => fileInputRef.current?.click()} className={`w-full h-40 rounded-[20px] bg-[#121212] border ${campFile ? 'border-accent-primary/50' : 'border-white/5'} border-dashed flex flex-col items-center justify-center cursor-pointer relative overflow-hidden`}>
+                <div onClick={() => fileInputRef.current?.click()} className={`w-full h-40 rounded-[20px] bg-surface-card border-2 ${campFile ? 'border-accent-primary/50' : 'border-dashed border-white/5'} flex flex-col items-center justify-center cursor-pointer relative overflow-hidden`}>
                   {campFile ? (
                     <>
                       {campFile.type.startsWith('video/') ? (
@@ -432,22 +438,22 @@ export const AdminPage: React.FC = () => {
                       </div>
                     </>
                   ) : (
-                    <div className="flex flex-col items-center gap-2 text-[#6b7280]">
+                    <div className="flex flex-col items-center gap-2 text-brand-muted">
                       <ImageIcon size={24} />
                       <span className="text-[12px] font-medium">העלאת תמונה / וידאו</span>
                     </div>
                   )}
                 </div>
-                {campFile && <button onClick={() => setCampFile(null)} className="text-rose-500 text-[10px] font-black uppercase tracking-widest self-end px-2 mt-1">הסר מדיה</button>}
+                {campFile && <button onClick={() => setCampFile(null)} className="text-rose-500 text-[10px] font-black uppercase tracking-widest self-end px-2">הסר מדיה</button>}
 
-                <input type="text" value={campTitle} onChange={e=>setCampTitle(e.target.value)} placeholder="כותרת הקמפיין..." className="w-full bg-[#121212] border border-white/5 h-14 rounded-[16px] px-5 text-white font-black outline-none focus:border-white/20 transition-colors placeholder:text-[#6b7280]" />
-                <textarea value={campBody} onChange={e=>setCampBody(e.target.value)} placeholder="תוכן (אופציונלי)..." className="w-full bg-[#121212] border border-white/5 h-24 rounded-[16px] p-5 text-white font-bold outline-none focus:border-white/20 transition-colors resize-none placeholder:text-[#6b7280]" />
+                <input type="text" value={campTitle} onChange={e=>setCampTitle(e.target.value)} placeholder="כותרת הקמפיין..." className="w-full bg-surface-card h-14 rounded-[16px] px-5 text-brand font-black outline-none focus:ring-2 focus:ring-accent-primary/50 transition-colors placeholder:text-brand-muted border-none" />
+                <textarea value={campBody} onChange={e=>setCampBody(e.target.value)} placeholder="תוכן הקמפיין..." className="w-full bg-surface-card h-24 rounded-[16px] p-5 text-brand font-bold outline-none focus:ring-2 focus:ring-accent-primary/50 transition-colors resize-none placeholder:text-brand-muted border-none" />
               </div>
 
               <div className="flex flex-col gap-3 mt-4">
-                <span className="text-[#6b7280] text-[11px] font-bold uppercase tracking-widest">פעולת משתמש</span>
+                <span className="text-brand-muted text-[11px] font-bold uppercase tracking-widest">פעולת משתמש</span>
                 <LayoutGroup id="actionGroup">
-                  <div className="flex items-center gap-x-8 gap-y-1 overflow-x-auto scrollbar-hide pb-2 border-b border-white/5">
+                  <div className="flex items-center gap-x-8 gap-y-1 overflow-x-auto scrollbar-hide pb-2">
                     {[
                       { id: 'reward', label: 'CRD' },
                       { id: 'link', label: 'קישור חיצוני' }
@@ -455,8 +461,8 @@ export const AdminPage: React.FC = () => {
                       const isActive = campActionType === act.id;
                       return (
                         <button key={act.id} onClick={() => { triggerFeedback('pop'); setCampActionType(act.id as any); }} className="relative flex flex-col items-center min-w-max pb-3 active:scale-95 transition-transform">
-                          <span className={`text-[15px] transition-colors ${isActive ? 'text-accent-primary font-black' : 'text-[#6b7280] font-bold'}`}>{act.label}</span>
-                          {isActive && <motion.div layoutId="actionBar" className="absolute bottom-0 w-5 h-0.5 bg-accent-primary rounded-full shadow-[0_0_8px_rgba(var(--color-accent-primary),0.6)]" />}
+                          <span className={`text-[15px] transition-colors ${isActive ? 'text-accent-primary font-black' : 'text-brand-muted font-bold'}`}>{act.label}</span>
+                          {isActive && <motion.div layoutId="actionBar" className="absolute bottom-0 w-5 h-0.5 bg-accent-primary rounded-full" />}
                         </button>
                       )
                     })}
@@ -466,20 +472,20 @@ export const AdminPage: React.FC = () => {
                 <AnimatePresence mode="wait">
                   {campActionType === 'reward' ? (
                     <motion.div key="reward" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="relative overflow-hidden mt-1">
-                      <Zap size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#6b7280]" />
-                      <input type="number" value={campReward} onChange={e=>setCampReward(Number(e.target.value))} placeholder="סכום תגמול (CRD)..." dir="ltr" className="w-full bg-[#121212] border border-white/5 h-14 rounded-[16px] pl-12 pr-4 text-white font-black outline-none focus:border-white/20 transition-colors text-left placeholder:text-[#6b7280]" />
+                      <Zap size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-muted" />
+                      <input type="number" value={campReward} onChange={e=>setCampReward(Number(e.target.value))} placeholder="סכום תגמול (CRD)..." dir="ltr" className="w-full bg-surface-card h-14 rounded-[16px] pl-12 pr-4 text-brand font-black outline-none focus:ring-2 focus:ring-accent-primary/50 transition-colors text-left placeholder:text-brand-muted border-none" />
                     </motion.div>
                   ) : (
                     <motion.div key="link" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="relative overflow-hidden mt-1">
-                      <LinkIcon size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#6b7280]" />
-                      <input type="url" value={campLink} onChange={e=>setCampLink(e.target.value)} placeholder="https://..." dir="ltr" className="w-full bg-[#121212] border border-white/5 h-14 rounded-[16px] pl-12 pr-4 text-white font-bold outline-none focus:border-white/20 transition-colors text-left placeholder:text-[#6b7280]" />
+                      <LinkIcon size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-muted" />
+                      <input type="url" value={campLink} onChange={e=>setCampLink(e.target.value)} placeholder="https://..." dir="ltr" className="w-full bg-surface-card h-14 rounded-[16px] pl-12 pr-4 text-brand font-bold outline-none focus:ring-2 focus:ring-accent-primary/50 transition-colors text-left placeholder:text-brand-muted border-none" />
                     </motion.div>
                   )}
                 </AnimatePresence>
               </div>
 
-              <Button onClick={handleDeployCampaign} disabled={campDeploying || !campTitle.trim()} className="h-16 w-full mt-4 rounded-[20px] bg-white text-black font-black text-[15px] uppercase tracking-widest active:scale-[0.98] transition-all flex items-center justify-center gap-2 border-none">
-                {campDeploying ? <Loader2 size={24} className="animate-spin text-black" /> : 'שגר לאוויר'}
+              <Button onClick={handleDeployCampaign} disabled={campDeploying || !campTitle.trim()} className="h-16 w-full mt-4 rounded-[20px] bg-white text-black font-black text-[15px] uppercase tracking-widest active:scale-[0.98] transition-all flex items-center justify-center gap-2 border-none shadow-md">
+                {campDeploying ? <Loader2 size={24} className="animate-spin text-black" /> : 'פרסם'}
               </Button>
             </motion.div>
           )}
@@ -489,29 +495,29 @@ export const AdminPage: React.FC = () => {
             <motion.div key="cashouts" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-4">
               {adminData.pending_cashouts.length === 0 ? (
                 <div className="py-24 flex flex-col items-center text-center">
-                  <CheckCircle size={40} className="text-[#3f3f46] mb-3" strokeWidth={1.5} />
-                  <span className="text-[#71717a] font-bold text-[14px]">אין משיכות ממתינות</span>
+                  <CheckCircle size={40} className="text-brand-muted mb-3" strokeWidth={1.5} />
+                  <span className="text-brand-muted font-bold text-[14px]">אין משיכות ממתינות</span>
                 </div>
               ) : (
                 adminData.pending_cashouts.map((tx: any) => (
-                  <div key={tx.id} className="bg-[#121212] border border-white/5 rounded-[24px] p-5 flex flex-col relative shadow-sm">
-                    <div className="flex items-center justify-between border-b border-white/5 pb-4 mb-4">
+                  <div key={tx.id} className="bg-surface-card rounded-[24px] p-5 flex flex-col relative shadow-sm">
+                    <div className="flex items-center justify-between pb-4 mb-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full overflow-hidden bg-[#0a0a0a]">
-                          {tx.avatar_url ? <img src={tx.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={20} className="text-[#3f3f46] w-full h-full p-2" />}
+                        <div className="w-10 h-10 rounded-full overflow-hidden bg-black/20">
+                          {tx.avatar_url ? <img src={tx.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={20} className="text-brand-muted w-full h-full p-2" />}
                         </div>
                         <div className="flex flex-col">
-                          <span className="text-white font-black text-[14px]">{tx.full_name}</span>
-                          <span className="text-[#71717a] text-[11px] font-bold mt-0.5" dir="ltr">@{tx.username}</span>
+                          <span className="text-brand font-black text-[14px]">{tx.full_name}</span>
+                          <span className="text-brand-muted text-[11px] font-bold mt-0.5" dir="ltr">@{tx.username}</span>
                         </div>
                       </div>
                       <span className="text-accent-primary font-black text-xl" dir="ltr">{Math.abs(tx.amount)}</span>
                     </div>
                     <div className="flex gap-2 relative z-10">
-                      <button onClick={() => handleCashoutAction(tx.id, 'approve')} className="flex-1 h-12 bg-white/5 text-white hover:bg-white/10 text-[13px] font-black tracking-widest uppercase rounded-[16px] transition-colors border border-white/5">
+                      <button onClick={() => handleCashoutAction(tx.id, 'approve')} className="flex-1 h-12 bg-white/5 text-white hover:bg-white/10 text-[13px] font-black tracking-widest uppercase rounded-[16px] transition-colors border-none">
                         אישור
                       </button>
-                      <button onClick={() => { if(window.confirm('לדחות ולהחזיר למשתמש את ה-CRD?')) handleCashoutAction(tx.id, 'reject'); }} className="flex-1 h-12 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 text-[13px] font-black tracking-widest uppercase rounded-[16px] transition-colors border border-rose-500/10">
+                      <button onClick={() => { if(window.confirm('לדחות ולהחזיר למשתמש את ה-CRD?')) handleCashoutAction(tx.id, 'reject'); }} className="flex-1 h-12 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 text-[13px] font-black tracking-widest uppercase rounded-[16px] transition-colors border-none">
                         דחייה
                       </button>
                     </div>
@@ -525,26 +531,26 @@ export const AdminPage: React.FC = () => {
           {activeTab === 'users' && (
             <motion.div key="users" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-4 relative z-10">
               <div className="relative">
-                <Search size={18} className="absolute right-5 top-1/2 -translate-y-1/2 text-[#71717a]" />
-                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="איתור משתמש..." className="w-full bg-[#121212] border border-white/5 text-white font-bold h-14 rounded-[20px] pl-5 pr-12 outline-none focus:border-white/20 transition-colors text-[14px] placeholder:text-[#71717a]" />
+                <Search size={18} className="absolute right-5 top-1/2 -translate-y-1/2 text-brand-muted" />
+                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="איתור משתמש..." className="w-full bg-surface-card text-brand font-bold h-14 rounded-[20px] pl-5 pr-12 outline-none focus:ring-2 focus:ring-accent-primary/50 transition-colors text-[14px] placeholder:text-brand-muted border-none shadow-sm" />
               </div>
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-3">
                 {filteredUsers.map((u: any) => (
-                  <div key={u.id} onClick={() => { triggerFeedback('pop'); setSelectedUser(u); }} className={`flex items-center justify-between p-3 px-4 bg-[#121212] border ${u.is_banned ? 'border-rose-500/30' : 'border-white/5 hover:border-white/10'} rounded-[20px] cursor-pointer active:scale-[0.98] transition-all shadow-sm`}>
+                  <div key={u.id} onClick={() => { triggerFeedback('pop'); setSelectedUser(u); }} className={`flex items-center justify-between p-3 px-4 bg-surface-card ${u.is_banned ? 'border border-rose-500/30' : 'border-none'} rounded-[20px] cursor-pointer active:scale-[0.98] transition-all shadow-sm`}>
                     <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full overflow-hidden bg-[#0a0a0a] flex items-center justify-center ${u.is_banned ? 'grayscale opacity-40' : ''}`}>
-                        {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={20} className="text-[#3f3f46]" />}
+                      <div className={`w-10 h-10 rounded-full overflow-hidden bg-black/20 flex items-center justify-center ${u.is_banned ? 'grayscale opacity-40' : ''}`}>
+                        {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={20} className="text-brand-muted" />}
                       </div>
                       <div className="flex flex-col">
-                        <span className={`font-black text-[14px] flex items-center gap-1.5 ${u.is_banned ? 'text-rose-500 line-through' : 'text-white'}`}>
+                        <span className={`font-black text-[14px] flex items-center gap-1.5 ${u.is_banned ? 'text-rose-500 line-through' : 'text-brand'}`}>
                           {u.full_name} {u.role_label === 'CORE' && <ShieldAlert size={12} className="text-accent-primary" />}
                         </span>
-                        <span className="text-[#71717a] text-[11px] font-bold" dir="ltr">@{u.username}</span>
+                        <span className="text-brand-muted text-[11px] font-bold" dir="ltr">@{u.username}</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 bg-[#0a0a0a] px-3 py-1 rounded-[10px] border border-white/5 shadow-inner">
+                    <div className="flex items-center gap-1 bg-[#0a0a0a] px-3 py-1 rounded-[10px] shadow-inner">
                       <span className="text-white font-black text-[13px]">{u.crd_balance}</span>
-                      <Zap size={12} className="text-[#71717a]" />
+                      <Zap size={12} className="text-brand-muted" />
                     </div>
                   </div>
                 ))}
@@ -556,20 +562,20 @@ export const AdminPage: React.FC = () => {
           {activeTab === 'content' && (
             <motion.div key="content" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-4 relative z-10">
               {adminData.recent_posts.map((p: any) => (
-                <div key={p.id} className="bg-[#121212] border border-white/5 rounded-[24px] p-5 flex flex-col gap-3 relative shadow-sm">
-                  <div className="flex items-center justify-between border-b border-white/5 pb-3 mb-1">
+                <div key={p.id} className="bg-surface-card rounded-[24px] p-5 flex flex-col gap-4 relative shadow-sm">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full overflow-hidden bg-[#0a0a0a] flex items-center justify-center">
-                        {p.avatar_url ? <img src={p.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={18} className="text-[#3f3f46]" />}
+                        {p.avatar_url ? <img src={p.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={18} className="text-brand-muted" />}
                       </div>
-                      <span className="text-white font-black text-[13px]">{p.full_name}</span>
+                      <span className="text-brand font-black text-[13px]">{p.full_name}</span>
                     </div>
-                    <button onClick={() => handleDeletePost(p.id)} className="text-[#71717a] hover:text-rose-500 active:scale-90 transition-all">
+                    <button onClick={() => handleDeletePost(p.id)} className="text-brand-muted hover:text-rose-500 active:scale-90 transition-all">
                       <Trash2 size={16} />
                     </button>
                   </div>
-                  {p.media_url && <img src={p.media_url} className="w-full h-40 object-cover rounded-[16px] border border-white/5 relative z-10" />}
-                  <p className="text-white/80 text-[14px] leading-relaxed whitespace-pre-wrap relative z-10 drop-shadow-sm">{p.content}</p>
+                  {p.media_url && <img src={p.media_url} className="w-full h-40 object-cover rounded-[16px] relative z-10" />}
+                  <p className="text-brand text-[14px] leading-relaxed whitespace-pre-wrap relative z-10">{p.content}</p>
                 </div>
               ))}
             </motion.div>
@@ -582,29 +588,29 @@ export const AdminPage: React.FC = () => {
         <BottomSheet open={!!selectedUser} onClose={() => setSelectedUser(null)}>
           {selectedUser && (
             <div className="flex flex-col gap-6 text-center items-center pb-6">
-              <div className="w-20 h-20 rounded-full overflow-hidden bg-[#121212] shrink-0 border border-white/10 flex items-center justify-center shadow-lg relative">
-                {selectedUser.avatar_url ? <img src={selectedUser.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={32} className="text-[#3f3f46]" />}
+              <div className="w-20 h-20 rounded-full overflow-hidden bg-surface-card shrink-0 flex items-center justify-center shadow-lg relative">
+                {selectedUser.avatar_url ? <img src={selectedUser.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={32} className="text-brand-muted" />}
               </div>
               <div className="flex flex-col items-center gap-1">
-                <h2 className="text-white font-black text-2xl flex items-center gap-2 drop-shadow-sm">{selectedUser.full_name} {selectedUser.role_label === 'CORE' && <ShieldAlert size={18} className="text-accent-primary" />}</h2>
-                <span className="text-[#71717a] text-[13px] font-bold mt-1" dir="ltr">@{selectedUser.username}</span>
+                <h2 className="text-brand font-black text-2xl flex items-center gap-2">{selectedUser.full_name} {selectedUser.role_label === 'CORE' && <ShieldAlert size={18} className="text-accent-primary" />}</h2>
+                <span className="text-brand-muted text-[13px] font-bold mt-1" dir="ltr">@{selectedUser.username}</span>
               </div>
 
-              <div className="w-full bg-[#121212] border border-white/5 rounded-[24px] p-6 flex flex-col items-center gap-1 shadow-inner">
-                <span className="text-[10px] text-[#71717a] font-black uppercase tracking-widest">יתרה זמינה למשתמש</span>
-                <span className="text-accent-primary font-black text-4xl flex items-center gap-2 drop-shadow-sm">{selectedUser.crd_balance} <Zap size={20} className="text-[#71717a]" /></span>
+              <div className="w-full bg-surface-card rounded-[24px] p-6 flex flex-col items-center gap-1 shadow-sm">
+                <span className="text-[10px] text-brand-muted font-black uppercase tracking-widest">יתרה זמינה למשתמש</span>
+                <span className="text-accent-primary font-black text-4xl flex items-center gap-2">{selectedUser.crd_balance} <Zap size={20} className="text-brand-muted" /></span>
               </div>
 
               <div className="w-full flex flex-col gap-3 mt-2">
-                <h4 className="text-[#6b7280] text-[11px] font-bold uppercase tracking-widest text-right px-2">פעולות הנהלה</h4>
+                <h4 className="text-brand-muted text-[11px] font-bold uppercase tracking-widest text-right px-2">פעולות הנהלה</h4>
 
-                <div className="flex items-center gap-2 bg-[#121212] border border-white/5 p-1.5 pl-4 rounded-[18px] shadow-sm">
-                  <Gift size={18} className="text-[#71717a] mr-2" />
-                  <input type="number" value={grantAmount} onChange={(e) => setGrantAmount(Number(e.target.value))} placeholder="הזן בונוס (CRD)" className="flex-1 bg-transparent border-none text-white font-black outline-none h-12 px-2 placeholder:text-[#3f3f46] text-[15px]" data-no-drag="true" />
+                <div className="flex items-center gap-2 bg-surface-card p-1.5 pl-4 rounded-[18px] shadow-sm">
+                  <Gift size={18} className="text-brand-muted mr-2" />
+                  <input type="number" value={grantAmount} onChange={(e) => setGrantAmount(Number(e.target.value))} placeholder="הזן בונוס (CRD)" className="flex-1 bg-transparent border-none text-brand font-black outline-none h-12 px-2 placeholder:text-brand-muted text-[15px]" data-no-drag="true" />
                   <Button onClick={handleGrantCrd} disabled={actionLoading || !grantAmount} className="h-10 bg-white text-black rounded-[14px] px-6 text-[13px] font-black active:scale-95 disabled:opacity-50 transition-all border-none">שגר</Button>
                 </div>
 
-                <button onClick={() => handleToggleBan(selectedUser)} disabled={actionLoading} className={`w-full h-14 rounded-[18px] flex items-center justify-center gap-2.5 font-black text-[14px] tracking-widest uppercase transition-all active:scale-[0.98] border ${selectedUser.is_banned ? 'bg-white/5 text-white border-white/5' : 'bg-rose-500/10 text-rose-500 border-rose-500/20'}`}>
+                <button onClick={() => handleToggleBan(selectedUser)} disabled={actionLoading} className={`w-full h-14 rounded-[18px] flex items-center justify-center gap-2.5 font-black text-[14px] tracking-widest uppercase transition-all active:scale-[0.98] border-none ${selectedUser.is_banned ? 'bg-white/5 text-white' : 'bg-rose-500/10 text-rose-500'}`}>
                   <Ban size={16} /> {selectedUser.is_banned ? 'שחרר חסימה' : 'השעה משתמש'}
                 </button>
               </div>
