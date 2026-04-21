@@ -107,7 +107,7 @@ export const AuthPage: React.FC = () => {
         >
           <div className="absolute inset-0 bg-white/40 blur-[30px] rounded-full scale-110" />
           
-          <h1 className="text-[46px] font-serif font-medium tracking-[0.25em] uppercase mb-8 select-none pl-3 relative group">
+          <h1 className="text-[44px] font-sans font-black tracking-[0.35em] uppercase mb-8 select-none pl-4 relative group">
             <span className="text-slate-900 drop-shadow-[0_2px_15px_rgba(255,255,255,1)]">
               INNER
             </span>
@@ -185,16 +185,16 @@ export const AuthPage: React.FC = () => {
             />
           </div>
 
-          <div className="flex justify-center mt-8">
+          <div className="flex justify-center mt-6 w-full">
             <button
               type="submit"
               disabled={loading}
-              className="flex items-center justify-center w-[64px] h-[64px] rounded-full bg-white/90 backdrop-blur-md border border-white text-slate-900 active:scale-90 transition-all disabled:opacity-50 shadow-[0_15px_35px_rgba(0,0,0,0.1)] hover:bg-white"
+              className="flex items-center justify-center w-full h-[52px] rounded-[16px] bg-white text-slate-900 active:scale-[0.98] transition-all disabled:opacity-50 shadow-[0_10px_30px_rgba(0,0,0,0.08)] hover:bg-gray-50 border border-white/80"
             >
               {loading ? (
-                <Loader2 size={28} className="animate-spin text-slate-900" />
+                <Loader2 size={24} className="animate-spin text-slate-900" />
               ) : (
-                <ArrowLeft size={30} strokeWidth={2} />
+                <ArrowLeft size={24} strokeWidth={2.5} className="rtl:-scale-x-100" />
               )}
             </button>
           </div>
