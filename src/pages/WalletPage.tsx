@@ -36,7 +36,6 @@ type CreditPackage = {
   popular?: boolean;
 };
 
-// טוסט בהיר ונקי שמשתלב עם הרקע החדש
 const cleanToastStyle = {
   background: 'rgba(255, 255, 255, 0.9)',
   backdropFilter: 'blur(16px)',
@@ -69,13 +68,12 @@ const BottomSheet: React.FC<{ open: boolean; onClose: () => void; children: Reac
             onDragEnd={(_, info) => { if (info.offset.y > 100 || info.velocity.y > 400) onClose(); }}
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 500 }}
-            className={`bg-surface rounded-t-[40px] ${heightClass} flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.15)] relative overflow-hidden`}
+            className={`bg-surface rounded-t-[40px] ${heightClass} flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.15)] relative overflow-hidden border-t border-surface-border`}
           >
-            {/* אזור גרירה נקי לחלוטין ללא קווים מסביב */}
-            <div className="w-full py-5 flex justify-center shrink-0 cursor-grab active:cursor-grabbing" onPointerDown={startSheetDrag} style={{ touchAction: 'none' }}>
+            <div className="w-full py-4 flex justify-center shrink-0 cursor-grab active:cursor-grabbing border-b border-surface-border/50" onPointerDown={startSheetDrag} style={{ touchAction: 'none' }}>
               <div className="w-12 h-1.5 bg-surface-border rounded-full pointer-events-none" />
             </div>
-            <div className="flex-1 overflow-y-auto scrollbar-hide p-6 pt-2" onPointerDown={startSheetDrag} style={{ touchAction: 'pan-y' }}>
+            <div className="flex-1 overflow-y-auto scrollbar-hide p-6 pt-4" onPointerDown={startSheetDrag} style={{ touchAction: 'pan-y' }}>
               {children}
             </div>
           </motion.div>
@@ -237,15 +235,14 @@ export const WalletPage: React.FC = () => {
   return (
     <>
       <FadeIn className="px-5 pt-8 pb-32 bg-surface min-h-[100dvh] font-sans relative overflow-hidden" dir="rtl">
-        {/* תאורת רקע פסטלית עדינה שנעלמת */}
         <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
           <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-accent-primary/5 rounded-full blur-[100px]" />
         </div>
 
         <div className="flex flex-col gap-8 relative z-10">
           
-          {/* Balance Card - מרחף ללא מסגרות חותכות */}
-          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative bg-surface-card rounded-[40px] p-8 pb-6 flex flex-col items-center shadow-lg overflow-hidden border-none">
+          {/* Balance Card */}
+          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative bg-surface-card rounded-[40px] p-8 pb-6 flex flex-col items-center shadow-sm overflow-hidden border border-surface-border">
             <div className="absolute top-0 right-0 w-32 h-32 bg-accent-primary/10 blur-[80px] rounded-full pointer-events-none" />
             <span className="text-brand-muted text-[12px] font-black uppercase tracking-[0.3em] mb-2 relative z-10">יתרה זמינה</span>
             <div className="flex items-center gap-2 relative z-10">
@@ -254,19 +251,19 @@ export const WalletPage: React.FC = () => {
             <span className="text-accent-primary text-[11px] font-black uppercase tracking-[0.3em] mt-3 opacity-90 relative z-10">קרדיטים פנימיים</span>
             
             <div className="flex gap-4 w-full mt-10 relative z-10">
-              {/* כפתורים שקופים לחלוטין ללא מסגרת רקע מעצבנת */}
-              <button onClick={() => { triggerFeedback('pop'); setShowTransfer(true); }} className="flex-1 bg-surface hover:bg-surface-border/40 h-14 rounded-[20px] flex items-center justify-center gap-2.5 transition-colors active:scale-95 group border-none">
-                <Send size={20} className="text-brand-muted group-hover:text-accent-primary transition-colors rtl:-scale-x-100" />
-                <span className="text-brand font-black text-[15px] uppercase tracking-widest">העברה</span>
+              {/* כפתורים שקופים לחלוטין ללא מסגרות ורקעים - נטו טקסט ואייקון מרחפים */}
+              <button onClick={() => { triggerFeedback('pop'); setShowTransfer(true); }} className="flex-1 bg-transparent h-14 flex items-center justify-center gap-2.5 transition-colors active:scale-95 group border-none">
+                <Send size={22} className="text-brand-muted group-hover:text-accent-primary transition-colors rtl:-scale-x-100" />
+                <span className="text-brand font-black text-[15px] uppercase tracking-widest group-hover:text-accent-primary transition-colors">העברה</span>
               </button>
-              <button onClick={() => { triggerFeedback('pop'); setShowRedeem(true); }} className="flex-1 bg-surface hover:bg-surface-border/40 h-14 rounded-[20px] flex items-center justify-center gap-2.5 transition-colors active:scale-95 group border-none">
-                <Download size={20} className="text-brand-muted group-hover:text-brand transition-colors" />
-                <span className="text-brand font-black text-[15px] uppercase tracking-widest">משיכה</span>
+              <button onClick={() => { triggerFeedback('pop'); setShowRedeem(true); }} className="flex-1 bg-transparent h-14 flex items-center justify-center gap-2.5 transition-colors active:scale-95 group border-none">
+                <Download size={22} className="text-brand-muted group-hover:text-brand transition-colors" />
+                <span className="text-brand font-black text-[15px] uppercase tracking-widest transition-colors">משיכה</span>
               </button>
             </div>
           </motion.div>
 
-          {/* Quick Packs (ללא מסגרות, עם להבה נקייה) */}
+          {/* Quick Packs (עיגולים מושלמים, ללא מסגרת, אחוזים נטו) */}
           <div className="flex flex-col gap-4">
             <h3 className="text-brand-muted text-[12px] font-black uppercase tracking-[0.2em] px-2 flex items-center gap-2"><Gift size={16}/> טעינה מהירה</h3>
             <div className="grid grid-cols-3 gap-4 px-2">
@@ -276,7 +273,6 @@ export const WalletPage: React.FC = () => {
                   onClick={() => openPaymentSheet(pkg)}
                   className={`relative aspect-square rounded-full flex flex-col items-center justify-center active:scale-95 transition-all group overflow-visible shadow-sm border-none ${pkg.popular ? 'bg-accent-primary/10' : 'bg-surface-card hover:bg-surface-border/40'}`}
                 >
-                  {/* להבה מונפשת מרחפת נטו (ללא קופסאות מסביבה) */}
                   {pkg.popular && (
                     <motion.div 
                       animate={{ y: [0, -6, 0] }} 
@@ -299,22 +295,21 @@ export const WalletPage: React.FC = () => {
             </div>
           </div>
 
-          {/* History */}
-          <div className="flex flex-col gap-4 mt-2">
+          {/* History - מרחף לגמרי, נטו טקסט ואייקונים בלי קופסאות */}
+          <div className="flex flex-col gap-4 mt-4">
             <h3 className="text-brand-muted text-[12px] font-black uppercase tracking-[0.2em] px-2 flex items-center gap-2">
               <History size={16} /> פעולות אחרונות
             </h3>
-            <div className="bg-surface-card rounded-[32px] overflow-hidden shadow-sm border-none">
+            <div className="flex flex-col gap-2">
               {transactions.length === 0 ? (
-                <div className="p-10 flex flex-col items-center justify-center text-brand-muted gap-3">
+                <div className="py-10 flex flex-col items-center justify-center text-brand-muted gap-3">
                   <CreditCard size={36} />
                   <span className="text-[13px] font-bold uppercase tracking-widest opacity-70">הארנק שלך ריק</span>
                 </div>
               ) : (
-                <div className="flex flex-col gap-1 p-2">
-                  {/* רווחים במקום פסים */}
-                  {visibleTransactions.map((tx, idx) => (
-                    <div key={tx.id} className="flex items-center justify-between p-4 bg-surface rounded-[24px]">
+                <>
+                  {visibleTransactions.map((tx) => (
+                    <div key={tx.id} className="flex items-center justify-between p-2">
                       <div className="flex items-center gap-4 text-right">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-inner border-none ${tx.amount > 0 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
                           {tx.amount > 0 ? <ArrowDownLeft size={18} /> : <ArrowUpRight size={18} />}
@@ -330,11 +325,11 @@ export const WalletPage: React.FC = () => {
                     </div>
                   ))}
                   {transactions.length > 4 && (
-                    <button onClick={() => { triggerFeedback('pop'); setShowAllTx(true); }} className="w-full mt-2 p-4 rounded-[24px] hover:bg-surface-border/30 transition-colors text-brand-muted text-[12px] font-black uppercase tracking-widest">
+                    <button onClick={() => { triggerFeedback('pop'); setShowAllTx(true); }} className="w-full mt-2 p-3 hover:bg-surface-border/20 rounded-full transition-colors text-brand-muted text-[12px] font-black uppercase tracking-widest">
                       הצג הכל
                     </button>
                   )}
-                </div>
+                </>
               )}
             </div>
           </div>
@@ -349,11 +344,10 @@ export const WalletPage: React.FC = () => {
             <div className="flex flex-col gap-4 pb-10">
               <h2 className="text-brand font-black text-xl tracking-widest uppercase text-center mb-4">כל הפעולות</h2>
               <div className="flex flex-col gap-2">
-                {/* רווחים במקום קווים בארכיון הפעולות */}
-                {transactions.map((tx, idx) => (
-                  <div key={tx.id} className="flex items-center justify-between p-4 bg-surface-card rounded-[24px] shadow-sm">
+                {transactions.map((tx) => (
+                  <div key={tx.id} className="flex items-center justify-between p-2">
                     <div className="flex items-center gap-4 text-right">
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-inner ${tx.amount > 0 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-inner border-none ${tx.amount > 0 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
                         {tx.amount > 0 ? <ArrowDownLeft size={20} /> : <ArrowUpRight size={20} />}
                       </div>
                       <div className="flex flex-col">
@@ -378,7 +372,6 @@ export const WalletPage: React.FC = () => {
                   <h2 className="text-brand font-black text-2xl tracking-widest uppercase">אישור טעינה</h2>
                   <p className="text-brand-muted text-[14px] font-medium mt-1">הוספת <span className="font-black text-brand">{selectedPackage.amount} קרדיטים</span> לארנק שלך</p>
                 </div>
-                {/* ללא קווי הפרדה */}
                 <div className="w-full bg-surface-card rounded-[32px] p-6 flex flex-col gap-5 shadow-sm border-none">
                   <div className="flex justify-between items-center">
                     <span className="text-brand-muted text-[12px] font-black uppercase tracking-widest">כמות קרדיטים</span>
@@ -402,7 +395,7 @@ export const WalletPage: React.FC = () => {
             )}
           </BottomSheet>
 
-          {/* Transfer Sheet - ללא קווים */}
+          {/* Transfer Sheet (ללא קווים) */}
           <BottomSheet open={showTransfer} onClose={() => setShowTransfer(false)}>
             <div className="flex flex-col gap-6 pb-10">
               <div className="text-center">
@@ -482,7 +475,7 @@ export const WalletPage: React.FC = () => {
             </div>
           </BottomSheet>
 
-          {/* Redeem Sheet - ללא קווים */}
+          {/* Redeem Sheet */}
           <BottomSheet open={showRedeem} onClose={() => setShowRedeem(false)} heightClass="h-auto">
             <div className="flex flex-col gap-6 items-center text-center pb-10">
               <div className="w-20 h-20 bg-rose-500/10 rounded-full flex items-center justify-center mb-2">
