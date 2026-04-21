@@ -98,34 +98,35 @@ export const AuthPage: React.FC = () => {
         <div className="absolute bottom-[-20%] right-[-10%] w-[80%] h-[80%] bg-[#a5d6ff] rounded-full opacity-60 blur-[120px]" />
       </div>
 
-      <div className="w-full max-w-sm z-10 flex flex-col pt-8">
+      <div className="w-full max-w-sm z-10 flex flex-col pt-0">
         
+        {/* אזור הלוגו - הועלה למעלה עם מרווח שלילי */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: "easeOut" }}
-          className="flex flex-col items-center mb-12 relative"
+          className="flex flex-col items-center mb-12 -mt-8 relative"
         >
           {/* הילה לבנה מאחורי הלוגו */}
-          <div className="absolute inset-0 bg-white/40 blur-[35px] rounded-full scale-[1.2]" />
+          <div className="absolute inset-0 bg-white/40 blur-[40px] rounded-full scale-[1.3]" />
           
-          {/* קונטיינר הלוגו המרכזי */}
-          <div className="relative flex items-center justify-center gap-4 select-none z-10" dir="ltr">
+          {/* קונטיינר הלוגו: סמל גדול במרכז וטקסט קטן מתחתיו */}
+          <div className="relative flex flex-col items-center justify-center gap-3 select-none z-10" dir="ltr">
             
             {/* שכבת הבסיס: לוגו וטקסט כהים */}
-            <div className="flex items-center gap-4 text-slate-900 drop-shadow-[0_2px_15px_rgba(255,255,255,1)]">
-              <svg width="46" height="46" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <div className="flex flex-col items-center gap-2 text-slate-900 drop-shadow-[0_2px_15px_rgba(255,255,255,1)]">
+              <svg width="86" height="86" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M171 113 C171 113 323 113 342 113 C339 118 333 123 327 128 L226 197 C220 201 214 205 208 209 L210 157 C211 142 205 127 171 113Z" fill="currentColor"/>
                 <path d="M208 233 L287 178 L276 392 C275 429 289 446 316 460 L173 460 C181 451 186 443 187 430 L208 233Z" fill="currentColor"/>
               </svg>
-              <h1 className="text-[42px] font-sans font-black tracking-[0.35em] uppercase pt-2">
+              <h1 className="text-[15px] font-sans font-black tracking-[0.55em] uppercase pl-2">
                 INNER
               </h1>
             </div>
 
-            {/* שכבת הברק הלבנה עם אנימציית המסכה שעוברת פעם אחת! */}
+            {/* שכבת הברק הלבנה - עוברת פעם אחת */}
             <motion.div 
-              className="absolute inset-0 flex items-center gap-4 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]"
+              className="absolute inset-0 flex flex-col items-center gap-2 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]"
               style={{
                 WebkitMaskImage: 'linear-gradient(120deg, transparent 25%, black 50%, transparent 75%)',
                 WebkitMaskSize: '300% 100%',
@@ -135,11 +136,11 @@ export const AuthPage: React.FC = () => {
               animate={{ WebkitMaskPosition: '-50% 0%' }}
               transition={{ duration: 2.2, ease: "easeInOut", delay: 0.5 }}
             >
-              <svg width="46" height="46" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <svg width="86" height="86" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M171 113 C171 113 323 113 342 113 C339 118 333 123 327 128 L226 197 C220 201 214 205 208 209 L210 157 C211 142 205 127 171 113Z" fill="currentColor"/>
                 <path d="M208 233 L287 178 L276 392 C275 429 289 446 316 460 L173 460 C181 451 186 443 187 430 L208 233Z" fill="currentColor"/>
               </svg>
-              <h1 className="text-[42px] font-sans font-black tracking-[0.35em] uppercase pt-2">
+              <h1 className="text-[15px] font-sans font-black tracking-[0.55em] uppercase pl-2">
                 INNER
               </h1>
             </motion.div>
@@ -147,12 +148,13 @@ export const AuthPage: React.FC = () => {
           </div>
         </motion.div>
 
+        {/* שדות הטופס - הוגדלו והורחבו חזרה */}
         <motion.form
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.8, delay: 0.2 }}
           onSubmit={handleSubmit}
-          className="flex flex-col gap-3.5 w-full px-2"
+          className="flex flex-col gap-4 w-full px-2"
         >
           <AnimatePresence initial={false} mode="popLayout">
             {!isLogin && (
@@ -161,22 +163,22 @@ export const AuthPage: React.FC = () => {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="flex flex-col gap-3.5 overflow-hidden"
+                className="flex flex-col gap-4 overflow-hidden"
               >
                 <div className="flex flex-col">
-                  <label className="text-slate-600 text-[12px] mb-1 font-bold tracking-wide pl-1">שם מלא</label>
+                  <label className="text-slate-600 text-[13px] mb-1.5 font-bold tracking-wide pl-1">שם מלא</label>
                   <input
                     type="text" value={fullName} onChange={(e) => setFullName(e.target.value)}
                     placeholder="שם מלא"
-                    className="w-full bg-white/40 backdrop-blur-md border border-white/60 rounded-[12px] h-[46px] px-4 text-[14px] text-slate-900 placeholder:text-slate-400 outline-none focus:border-accent-primary/60 focus:bg-white/60 transition-all font-bold shadow-sm"
+                    className="w-full bg-white/40 backdrop-blur-md border border-white/60 rounded-[14px] h-[52px] px-4 text-[15px] text-slate-900 placeholder:text-slate-400 outline-none focus:border-accent-primary/60 focus:bg-white/60 transition-all font-bold shadow-sm"
                   />
                 </div>
                 <div className="flex flex-col">
-                  <label className="text-slate-600 text-[12px] mb-1 font-bold tracking-wide pl-1">שם משתמש</label>
+                  <label className="text-slate-600 text-[13px] mb-1.5 font-bold tracking-wide pl-1">שם משתמש</label>
                   <input
                     type="text" value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-zA-Z0-9_]/g, ''))}
                     placeholder="username" dir="ltr"
-                    className="w-full bg-white/40 backdrop-blur-md border border-white/60 rounded-[12px] h-[46px] px-4 text-[14px] text-left text-slate-900 placeholder:text-slate-400 outline-none focus:border-accent-primary/60 focus:bg-white/60 transition-all font-bold shadow-sm placeholder:text-right"
+                    className="w-full bg-white/40 backdrop-blur-md border border-white/60 rounded-[14px] h-[52px] px-4 text-[15px] text-left text-slate-900 placeholder:text-slate-400 outline-none focus:border-accent-primary/60 focus:bg-white/60 transition-all font-bold shadow-sm placeholder:text-right"
                   />
                 </div>
               </motion.div>
@@ -184,20 +186,20 @@ export const AuthPage: React.FC = () => {
           </AnimatePresence>
 
           <div className="flex flex-col">
-            <label className="text-slate-600 text-[12px] mb-1 font-bold tracking-wide pl-1">אימייל</label>
+            <label className="text-slate-600 text-[13px] mb-1.5 font-bold tracking-wide pl-1">אימייל</label>
             <input
               type="email" value={email} onChange={(e) => setEmail(e.target.value)}
               placeholder="name@example.com" dir="ltr"
-              className="w-full bg-white/40 backdrop-blur-md border border-white/60 rounded-[12px] h-[46px] px-4 text-[14px] text-left text-slate-900 placeholder:text-slate-400 outline-none focus:border-accent-primary/60 focus:bg-white/60 transition-all font-bold shadow-sm placeholder:text-right"
+              className="w-full bg-white/40 backdrop-blur-md border border-white/60 rounded-[14px] h-[52px] px-4 text-[15px] text-left text-slate-900 placeholder:text-slate-400 outline-none focus:border-accent-primary/60 focus:bg-white/60 transition-all font-bold shadow-sm placeholder:text-right"
             />
           </div>
 
           <div className="flex flex-col">
-            <label className="text-slate-600 text-[12px] mb-1 font-bold tracking-wide pl-1">סיסמה</label>
+            <label className="text-slate-600 text-[13px] mb-1.5 font-bold tracking-wide pl-1">סיסמה</label>
             <input
               type="password" value={password} onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••" dir="ltr"
-              className="w-full bg-white/40 backdrop-blur-md border border-white/60 rounded-[12px] h-[46px] px-4 text-[14px] text-left text-slate-900 placeholder:text-slate-400 outline-none focus:border-accent-primary/60 focus:bg-white/60 transition-all font-bold shadow-sm placeholder:text-right"
+              className="w-full bg-white/40 backdrop-blur-md border border-white/60 rounded-[14px] h-[52px] px-4 text-[15px] text-left text-slate-900 placeholder:text-slate-400 outline-none focus:border-accent-primary/60 focus:bg-white/60 transition-all font-bold shadow-sm placeholder:text-right"
             />
           </div>
 
@@ -205,12 +207,12 @@ export const AuthPage: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="flex items-center justify-center w-[100px] h-[44px] rounded-[12px] bg-white text-slate-900 active:scale-[0.96] transition-all disabled:opacity-50 shadow-[0_5px_15px_rgba(0,0,0,0.06)] hover:bg-gray-50 border border-white/80"
+              className="flex items-center justify-center w-[110px] h-[48px] rounded-[14px] bg-white text-slate-900 active:scale-[0.96] transition-all disabled:opacity-50 shadow-[0_5px_15px_rgba(0,0,0,0.06)] hover:bg-gray-50 border border-white/80"
             >
               {loading ? (
-                <Loader2 size={20} className="animate-spin text-slate-900" />
+                <Loader2 size={22} className="animate-spin text-slate-900" />
               ) : (
-                <ArrowLeft size={22} strokeWidth={2.5} />
+                <ArrowLeft size={24} strokeWidth={2.5} />
               )}
             </button>
           </div>
