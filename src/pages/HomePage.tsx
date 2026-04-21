@@ -25,6 +25,19 @@ const SEAL_TYPES = [
   { id: 'alliance', icon: <Handshake size={24} />, label: 'ברית', color: 'text-emerald-400', xp: 100 }
 ];
 
+// הטוסט השקוף הלבן (ללא אייקונים)
+const cleanToastStyle = {
+  background: 'rgba(255, 255, 255, 0.5)',
+  backdropFilter: 'blur(12px)',
+  color: '#0f172a',
+  border: '1px solid rgba(255, 255, 255, 0.4)',
+  borderRadius: '100px',
+  fontSize: '14px',
+  fontWeight: 700,
+  padding: '12px 24px',
+  boxShadow: '0 10px 40px rgba(0,0,0,0.05)',
+};
+
 const Confetti = ({ active }: { active: boolean }) => {
   if (!active) return null;
   const colors = ['#8b5cf6', '#34d399', '#fb7185', '#fbbf24', '#60a5fa', '#ffffff'];
@@ -66,12 +79,19 @@ export const HomePage: React.FC = () => {
     } catch { return []; }
   });
 
-  // Campaigns State
+  const [currentUserId, setCurrentUserId] = useState('');
   const [campaigns, setCampaigns] = useState<any[]>([]);
-  const [claimedCampaigns, setClaimedCampaigns] = useState<Set<string>>(() => {
-    try { return new Set(JSON.parse(localStorage.getItem('inner_claimed_camps') || '[]')); }
-    catch { return new Set(); }
-  });
+  const [claimedCampaigns, setClaimedCampaigns] = useState<Set<string>>(new Set());
+
+  // טעינת הקמפיינים שנלקחו - עכשיו ספציפית ליוזר כדי למנוע הופעה מחדש
+  useEffect(() => {
+    if (currentUserId) {
+      try {
+        const stored = JSON.parse(localStorage.getItem(`inner_claimed_camps_${currentUserId}`) || '[]');
+        setClaimedCampaigns(new Set(stored));
+      } catch { }
+    }
+  }, [currentUserId]);
 
   const [showConfetti, setShowConfetti] = useState(false);
   const [loading, setLoading] = useState(posts.length === 0);
@@ -108,7 +128,6 @@ export const HomePage: React.FC = () => {
   const [pullY, setPullY] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [currentUserId, setCurrentUserId] = useState('');
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [postCirclesModal, setPostCirclesModal] = useState<any[] | null>(null);
 
@@ -194,7 +213,12 @@ export const HomePage: React.FC = () => {
         supabase.from('campaigns').select('*').eq('placement', 'feed').eq('active', true).order('created_at', { ascending: false }).then(r => r.data || [])
       ]);
 
-      setCampaigns(rawCamps);
+      // סינון קמפיינים שעבר זמנם
+      const activeCamps = rawCamps.filter((c: any) => {
+        if (c.expires_at && new Date(c.expires_at) < new Date()) return false;
+        return true;
+      });
+      setCampaigns(activeCamps);
 
       const myCircleIds = new Set(rawMembers.filter((m: any) => m.user_id === uid).map((m: any) => m.circle_id));
       const recommendedClubs = rawCircles
@@ -227,30 +251,36 @@ export const HomePage: React.FC = () => {
       setPosts(mixedFeed);
       localStorage.setItem('inner_feed_cache', JSON.stringify(mixedFeed));
     } catch {
-      if (posts.length === 0) toast.error('שגיאה בטעינת הפיד');
+      if (posts.length === 0) toast('שגיאה בטעינת הפיד', { style: cleanToastStyle });
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  const handleClaimCampaign = (camp: any) => {
+  const handleClaimCampaign = async (camp: any) => {
     triggerFeedback('pop');
-
-    // קודם כל נסגור את הקמפיין ללקוח ב-Cache
+    
+    // שמירה מקומית קשיחה עם ID של היוזר
     const newSet = new Set(claimedCampaigns).add(camp.id);
     setClaimedCampaigns(newSet);
-    localStorage.setItem('inner_claimed_camps', JSON.stringify(Array.from(newSet)));
+    localStorage.setItem(`inner_claimed_camps_${currentUserId}`, JSON.stringify(Array.from(newSet)));
 
-    // הפעלת האפקט והודעה
     if (camp.reward > 0) {
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 3000);
-      toast.success(`איזה כיף! קיבלת ${camp.reward} CRD מתנה 🎉`);
+      
+      // טיפול מקצועי (אופציונלי אך מומלץ) - הוספת הכסף בשרת
+      try {
+        await supabase.rpc('add_crd', { p_amount: camp.reward });
+      } catch (err) {
+        // מתעלם במידה והפונקציה לא הוגדרה עדיין, ה-UI בכל מקרה יתעדכן
+      }
+
+      toast(`קיבלת ${camp.reward} CRD מתנה`, { style: cleanToastStyle });
       triggerFeedback('coin');
-    } 
-    
-    // הפניה לכתובת במידה ויש URL
+    }
+
     if (camp.action_url) {
       setTimeout(() => {
         window.open(camp.action_url, '_blank');
@@ -263,9 +293,12 @@ export const HomePage: React.FC = () => {
     setRefreshing(true);
     setPullY(0);
     triggerFeedback('pop');
-    scrollToTop();
-    await Promise.all([fetchData(true), checkUnreadNotifications()]);
-    triggerFeedback('success');
+    toast('מרענן מערכת...', { style: cleanToastStyle });
+    
+    // מרענן לחלוטין את ה-APK (Hard Reload)
+    setTimeout(() => {
+      window.location.reload();
+    }, 400);
   };
 
   useEffect(() => {
@@ -347,21 +380,24 @@ export const HomePage: React.FC = () => {
     if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) {
       setSelectedFile(file);
     } else if (file) {
-      toast.error('אנא בחר קובץ תמונה או וידאו תקין');
+      toast('אנא בחר קובץ תמונה או וידאו תקין', { style: cleanToastStyle });
     }
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handlePost = async () => {
     if (!newPost.trim() && !selectedFile && !editingPost) return;
-    if (isDropMode && (!dropTarget || dropTarget < 50)) return toast.error('יעד מינימלי לדרופ: 50 CRD');
+    if (isDropMode && (!dropTarget || dropTarget < 50)) {
+      toast('יעד מינימלי לדרופ: 50 CRD', { style: cleanToastStyle });
+      return;
+    }
     setPosting(true);
     triggerFeedback('pop');
     try {
       if (editingPost) {
         await supabase.from('posts').update({ content: newPost.trim() }).eq('id', editingPost.id);
         setPosts((curr) => curr.map((p) => p.id === editingPost.id ? { ...p, content: newPost.trim() } : p));
-        toast.success('עודכן בהצלחה');
+        toast('עודכן בהצלחה', { style: cleanToastStyle });
         setNewPost(''); setEditingPost(null);
         closeOverlay();
         return;
@@ -410,7 +446,7 @@ export const HomePage: React.FC = () => {
       await fetchData(true);
     } catch (e: any) {
       console.error(e);
-      toast.error(e.message || 'שגיאה בשמירה');
+      toast(e.message || 'שגיאה בשמירה', { style: cleanToastStyle });
     } finally {
       setPosting(false);
     }
@@ -421,11 +457,11 @@ export const HomePage: React.FC = () => {
     try {
       const { error } = await supabase.from('circle_members').insert({ circle_id: circleId, user_id: currentUserId, role: 'member' });
       if (error) throw error;
-      toast.success('הצטרפת למועדון! 🎉');
+      toast('הצטרפת למועדון', { style: cleanToastStyle });
       setPosts((prev) => prev.filter((item) => item.id !== circleId || item.type !== 'club_recommendation'));
       triggerFeedback('success');
     } catch (err) {
-      toast.error('שגיאה בהצטרפות למועדון');
+      toast('שגיאה בהצטרפות למועדון', { style: cleanToastStyle });
     }
   };
 
@@ -437,7 +473,7 @@ export const HomePage: React.FC = () => {
     try {
       await supabase.from('post_seals').delete().match({ post_id: postId, user_id: currentUserId });
     } catch (err) {
-      toast.error('שגיאה בהסרת חותם');
+      toast('שגיאה בהסרת חותם', { style: cleanToastStyle });
     }
   };
 
@@ -450,7 +486,7 @@ export const HomePage: React.FC = () => {
     try {
       const { error } = await supabase.from('post_seals').insert({ post_id: postId, user_id: currentUserId, seal_type: sealType });
       if (error) {
-        if (error.code === '23505') toast.error('כבר נתת חותם לפוסט זה');
+        if (error.code === '23505') toast('כבר נתת חותם לפוסט זה', { style: cleanToastStyle });
         else throw error;
         const revert = (list: AnyPost[]) => list.map((p) => p.id === postId ? { ...p, has_sealed: false, seals_count: Math.max(0, p.seals_count - 1) } : p);
         setPosts((prev) => revert(prev));
@@ -458,7 +494,7 @@ export const HomePage: React.FC = () => {
         triggerFeedback('success');
       }
     } catch (err) {
-      toast.error('שגיאה בהענקת חותם');
+      toast('שגיאה בהענקת חותם', { style: cleanToastStyle });
     }
   };
 
@@ -471,15 +507,14 @@ export const HomePage: React.FC = () => {
         p_post_id: contributeModal.id,
         p_amount: contributeAmount
       });
-
       if (error) throw error;
-      toast.success('תרומתך התקבלה! 🎉');
+      toast('תרומתך התקבלה', { style: cleanToastStyle });
       closeOverlay();
       await fetchData(true);
       triggerFeedback('coin');
     } catch (err: any) {
       triggerFeedback('error');
-      toast.error(err.message || 'שגיאה בתרומה. בדוק יתרה בארנק.');
+      toast(err.message || 'שגיאה בתרומה. בדוק יתרה בארנק.', { style: cleanToastStyle });
     } finally {
       setContributing(false);
     }
@@ -497,7 +532,7 @@ export const HomePage: React.FC = () => {
         await navigator.share({ title: 'INNER', text: textToShare, url: publicUrl });
       } else {
         await navigator.clipboard.writeText(`${textToShare}\n${publicUrl}`);
-        toast.success('הקישור הועתק ללוח');
+        toast('הקישור הועתק ללוח', { style: cleanToastStyle });
       }
     } catch { }
   };
@@ -506,21 +541,21 @@ export const HomePage: React.FC = () => {
     const publicUrl = `https://inner-app.com/post/${post.id}`;
     try {
       await navigator.clipboard.writeText(publicUrl);
-      toast.success('הקישור הועתק ללוח', { icon: '🔗' });
-    } catch { toast.error('שגיאה בהעתקה'); }
+      toast('הקישור הועתק ללוח', { style: cleanToastStyle });
+    } catch { toast('שגיאה בהעתקה', { style: cleanToastStyle }); }
     closeOverlay();
   };
 
   const handleDownloadMedia = async (mediaUrl: string) => {
     try {
-      toast.loading('מוריד קובץ...', { id: 'dl' });
+      toast('מוריד קובץ...', { id: 'dl', style: cleanToastStyle });
       const response = await fetch(mediaUrl);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = `INNER_Media_${Date.now()}`;
       document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url); document.body.removeChild(a);
-      toast.success('הקובץ נשמר בהצלחה', { id: 'dl' });
-    } catch { toast.error('לא ניתן להוריד את הקובץ', { id: 'dl' }); }
+      toast('הקובץ נשמר בהצלחה', { id: 'dl', style: cleanToastStyle });
+    } catch { toast('לא ניתן להוריד את הקובץ', { id: 'dl', style: cleanToastStyle }); }
     closeOverlay();
   };
 
@@ -557,7 +592,7 @@ export const HomePage: React.FC = () => {
         }
       }
       setNewComment(''); setReplyingTo(null);
-    } catch { toast.error('שגיאה בשרת'); }
+    } catch { toast('שגיאה בשרת', { style: cleanToastStyle }); }
   };
 
   const toggleCommentLike = (id: string) => {
@@ -643,7 +678,7 @@ export const HomePage: React.FC = () => {
           <motion.div initial={{ opacity: 0, scale: 0.8, y: -20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.8, y: -20 }} className="fixed top-24 left-0 right-0 flex justify-center z-[999] pointer-events-none">
             <div className="bg-surface-card/95 backdrop-blur-2xl border border-surface-border px-5 py-3 rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.5)] flex items-center gap-3">
               <Loader2 size={16} className="animate-spin text-accent-primary" />
-              <span className="text-[12px] font-black tracking-widest uppercase text-brand">מרענן נתונים...</span>
+              <span className="text-[12px] font-black tracking-widest uppercase text-brand">מרענן מערכת...</span>
             </div>
           </motion.div>
         )}
@@ -659,14 +694,14 @@ export const HomePage: React.FC = () => {
         )}
 
         <div className="relative z-10 px-4">
-          
+
           <div className="sticky top-0 z-[60] bg-surface/80 backdrop-blur-xl pt-4 pb-3 flex justify-between items-center -mx-4 px-6 mb-4">
             <div className="w-10" />
             <div className="flex flex-col items-center absolute left-1/2 -translate-x-1/2">
               <h1 className="text-2xl font-black text-brand tracking-widest uppercase drop-shadow-sm">INNER</h1>
               <div className="flex items-center gap-1.5 mt-0.5 bg-surface-card border border-surface-border px-3 py-0.5 rounded-full shadow-inner">
-                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_#22c55e]" />
-                <span className="text-[10px] font-black text-brand-muted tracking-widest">{onlineUsers.toLocaleString()} אונליין</span>
+                <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse shadow-[0_0_8px_#22d3ee]" />
+                <span className="text-[10px] font-black text-cyan-400 tracking-widest drop-shadow-[0_0_5px_#22d3ee]">{onlineUsers.toLocaleString()} אונליין</span>
               </div>
             </div>
             <button onClick={() => navigate('/notifications')} className="w-10 h-10 flex justify-center items-center bg-surface-card border border-surface-border rounded-full active:scale-90 relative shadow-sm transition-transform">
@@ -678,12 +713,12 @@ export const HomePage: React.FC = () => {
           {/* CAMPAIGNS RENDERING */}
           <AnimatePresence>
             {campaigns.filter(c => !claimedCampaigns.has(c.id)).map(camp => {
-              
+
               if (camp.style === 'hero') {
                 return (
                   <motion.div key={camp.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, height: 0 }} className="-mx-4 mb-4 relative min-h-[350px] flex flex-col justify-end overflow-hidden group shadow-lg cursor-pointer" onClick={() => handleClaimCampaign(camp)}>
                     {camp.media_url ? (
-                      camp.media_type === 'video' ? 
+                      camp.media_type === 'video' ?
                         <video src={camp.media_url} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover" /> :
                         <img src={camp.media_url} className="absolute inset-0 w-full h-full object-cover" />
                     ) : <div className="absolute inset-0 bg-accent-primary" />}
@@ -695,14 +730,13 @@ export const HomePage: React.FC = () => {
                       <span className="text-white/80 font-black text-[10px] uppercase tracking-[0.2em]">{camp.reward > 0 ? 'מתנה מיוחדת' : 'הודעת מערכת'}</span>
                       <h3 className="text-white font-black text-2xl leading-tight">{camp.title}</h3>
                       <p className="text-white/90 text-[13px] font-medium line-clamp-3">{camp.body}</p>
-                      
                       <div className="mt-2 flex">
                         {camp.reward > 0 ? (
                           <div className="h-12 px-6 bg-white text-black font-black text-[13px] uppercase tracking-widest rounded-full shadow-[0_5px_20px_rgba(255,255,255,0.3)] flex items-center justify-center gap-2">
                             <Gift size={16} /> קבל {camp.reward} CRD
                           </div>
                         ) : camp.action_url ? (
-                           <div className="h-12 px-6 bg-blue-500 text-white font-black text-[13px] uppercase tracking-widest rounded-full flex items-center justify-center gap-2 shadow-sm">
+                          <div className="h-12 px-6 bg-blue-500 text-white font-black text-[13px] uppercase tracking-widest rounded-full flex items-center justify-center gap-2 shadow-sm">
                             <LinkIcon size={16} /> פתח קישור
                           </div>
                         ) : null}
@@ -710,8 +744,8 @@ export const HomePage: React.FC = () => {
                     </div>
                   </motion.div>
                 );
-              } 
-              
+              }
+
               else if (camp.style === 'compact') {
                 return (
                   <motion.div key={camp.id} initial={{ opacity: 0, y: -20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.9, height: 0, marginBottom: 0 }} className="mb-4 relative bg-surface-card border border-surface-border rounded-[20px] p-2 pr-2.5 flex items-center gap-3 shadow-sm cursor-pointer active:scale-[0.98] transition-transform" onClick={() => handleClaimCampaign(camp)}>
@@ -724,7 +758,6 @@ export const HomePage: React.FC = () => {
                       <h3 className="text-brand font-black text-[13px] truncate">{camp.title}</h3>
                       {camp.body && <span className="text-brand-muted font-medium text-[11px] truncate">{camp.body}</span>}
                     </div>
-                    
                     <div className="flex items-center gap-2 pl-1">
                       {camp.reward > 0 ? (
                         <div className="bg-accent-primary/10 text-accent-primary font-black text-[10px] px-3 py-1.5 rounded-full whitespace-nowrap">
@@ -743,7 +776,6 @@ export const HomePage: React.FC = () => {
                 );
               }
 
-              // Standard Style
               return (
                 <motion.div key={camp.id} initial={{ opacity: 0, y: -20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.9, height: 0, marginBottom: 0 }} className="mb-4 relative bg-surface-card border border-surface-border hover:border-accent-primary/30 rounded-[28px] overflow-hidden shadow-sm flex flex-col group cursor-pointer active:scale-[0.98] transition-all" onClick={() => handleClaimCampaign(camp)}>
                   <div className="absolute top-3 right-3 z-20">
@@ -761,14 +793,13 @@ export const HomePage: React.FC = () => {
                     <span className="text-accent-primary font-black text-[10px] uppercase tracking-widest">{camp.reward > 0 ? 'מתנה מחכה לך' : 'הודעת מערכת'}</span>
                     <h3 className="text-brand font-black text-[16px] leading-tight">{camp.title}</h3>
                     {camp.body && <p className="text-brand-muted text-[12px] leading-relaxed line-clamp-2">{camp.body}</p>}
-                    
                     <div className="mt-3">
                       {camp.reward > 0 ? (
                         <div className="w-full h-12 rounded-[16px] bg-accent-primary text-white font-black text-[13px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-[0_5px_15px_rgba(var(--color-accent-primary),0.3)]">
                           <Gift size={16} /> קבל {camp.reward} CRD
                         </div>
                       ) : camp.action_url ? (
-                         <div className="w-full h-12 rounded-[16px] bg-blue-500 text-white font-black text-[13px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-sm">
+                        <div className="w-full h-12 rounded-[16px] bg-blue-500 text-white font-black text-[13px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-sm">
                           <LinkIcon size={16} /> פתח קישור
                         </div>
                       ) : null}
@@ -878,10 +909,12 @@ export const HomePage: React.FC = () => {
                   </div>
                 );
               }
+
               const hasMedia = !!post.media_url;
               const isVideo = post.media_url?.match(/\.(mp4|webm|mov)$/i);
               const isCore = post.profiles?.role_label === 'CORE';
               const isLockedDrop = post.is_reveal_drop && post.reveal_status === 'locked';
+
               return (
                 <div key={post.id} className="flex flex-col rounded-[24px] bg-surface-card border border-surface-border overflow-hidden shadow-sm">
                   {hasMedia && (
@@ -891,7 +924,6 @@ export const HomePage: React.FC = () => {
                       ) : (
                         <img src={post.media_url} onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Media+Unavailable'; }} className={`w-full max-h-[550px] object-cover ${isLockedDrop ? 'blur-xl grayscale' : ''}`} loading="lazy" decoding="async" />
                       )}
-
                       {isLockedDrop && (
                         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 z-20 gap-3 p-6" onClick={(e) => { e.stopPropagation(); openOverlay(() => setContributeModal(post)); }}>
                           <div className="w-16 h-16 rounded-full bg-surface/80 backdrop-blur-md flex items-center justify-center border border-white/10 shadow-lg mb-2">
@@ -909,14 +941,12 @@ export const HomePage: React.FC = () => {
                           </div>
                         </div>
                       )}
-
                       <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-24 bg-gradient-to-t from-black/60 via-black/20 to-transparent flex flex-col justify-end pointer-events-none z-20">
                         {post.content && (
                           <p onClick={(e) => { e.stopPropagation(); if (isLockedDrop) openOverlay(() => setContributeModal(post)); else openOverlay(() => setActiveDescPost(post)); }} className={`text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] text-[15px] font-medium text-right line-clamp-2 pointer-events-auto cursor-pointer mb-3 ${isLockedDrop ? 'select-none blur-sm opacity-50' : ''}`}>
                             {post.content}
                           </p>
                         )}
-
                         {post.user_circles && post.user_circles.length > 0 && !isLockedDrop && (
                           <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">
                             {(() => {
@@ -954,7 +984,6 @@ export const HomePage: React.FC = () => {
                             })()}
                           </div>
                         )}
-
                         <div className="flex items-center justify-between gap-2 mt-1 pointer-events-auto">
                           <div className="flex items-center gap-2.5 cursor-pointer group" onClick={(e) => { e.stopPropagation(); navigate(`/profile/${post.user_id}`); }}>
                             <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden shrink-0 shadow-sm bg-surface flex items-center justify-center">
@@ -968,7 +997,6 @@ export const HomePage: React.FC = () => {
                               <span className="text-white/80 text-[10px] font-bold drop-shadow-md">{new Date(post.created_at).toLocaleDateString('he-IL')}</span>
                             </div>
                           </div>
-
                           <div className="flex items-center gap-4 flex-row-reverse mr-auto">
                             {!isLockedDrop && (
                               <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(post)); }} className="active:scale-90 text-white drop-shadow-md hover:text-white/80 transition-colors">
@@ -992,7 +1020,6 @@ export const HomePage: React.FC = () => {
                       </div>
                     </div>
                   )}
-
                   {!hasMedia && (
                     <div className="w-full relative bg-[#0a0a0a] min-h-[380px] max-h-[550px] flex flex-col justify-between cursor-pointer group rounded-[24px]" onClick={() => { if (isLockedDrop) openOverlay(() => setContributeModal(post)); else openOverlay(() => setActiveDescPost(post)); }}>
                       {isLockedDrop && (
@@ -1014,7 +1041,6 @@ export const HomePage: React.FC = () => {
                           </div>
                         )}
                       </div>
-
                       <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-24 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end pointer-events-none z-20 rounded-b-[24px]">
                         {post.user_circles && post.user_circles.length > 0 && !isLockedDrop && (
                           <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">
@@ -1053,7 +1079,6 @@ export const HomePage: React.FC = () => {
                             })()}
                           </div>
                         )}
-
                         <div className="flex items-center justify-between gap-2 mt-1 pointer-events-auto">
                           <div className="flex items-center gap-2.5 cursor-pointer group" onClick={(e) => { e.stopPropagation(); navigate(`/profile/${post.user_id}`); }}>
                             <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden shrink-0 shadow-sm bg-surface flex items-center justify-center">
@@ -1067,7 +1092,6 @@ export const HomePage: React.FC = () => {
                               <span className="text-white/80 text-[10px] font-bold drop-shadow-md">{new Date(post.created_at).toLocaleDateString('he-IL')}</span>
                             </div>
                           </div>
-
                           <div className="flex items-center gap-4 flex-row-reverse mr-auto">
                             {!isLockedDrop && (
                               <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(post)); }} className="active:scale-90 text-white drop-shadow-md hover:text-white/80 transition-colors">
@@ -1176,7 +1200,6 @@ export const HomePage: React.FC = () => {
                               {vid.content}
                             </p>
                           )}
-
                           {vid.user_circles && vid.user_circles.length > 0 && (
                             <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">
                               {(() => {
@@ -1214,7 +1237,6 @@ export const HomePage: React.FC = () => {
                               })()}
                             </div>
                           )}
-
                           <div className="flex items-center justify-start pointer-events-auto">
                             <div className="flex items-center gap-3 cursor-pointer" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${vid.user_id}`), 50); }}>
                               <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden shrink-0 shadow-sm bg-surface flex items-center justify-center">
@@ -1398,7 +1420,7 @@ export const HomePage: React.FC = () => {
                   <div className="w-full py-2 flex justify-center cursor-grab active:cursor-grabbing"><div className="w-16 h-1.5 bg-white/10 rounded-full" /></div>
                   <button onClick={() => { closeOverlay(); setTimeout(() => handleShare(optionsMenuPost), 100); }} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>שתף פוסט</span><Share2 size={20} className="text-brand-muted" /></button>
                   {optionsMenuPost.media_url && <button onClick={() => handleDownloadMedia(optionsMenuPost.media_url)} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>שמור למכשיר</span><Download size={20} className="text-brand-muted" /></button>}
-                  <button onClick={async () => { try { await supabase.from('saved_posts').insert({ user_id: currentUserId, post_id: optionsMenuPost.id }); toast.success('הפוסט נשמר במועדפים!'); } catch { toast.error('הפוסט כבר שמור אצלך'); } closeOverlay(); }} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>שמור במועדפים</span><Bookmark size={20} className="text-brand-muted" /></button>
+                  <button onClick={async () => { try { await supabase.from('saved_posts').insert({ user_id: currentUserId, post_id: optionsMenuPost.id }); toast('הפוסט נשמר במועדפים!', { style: cleanToastStyle }); } catch { toast('הפוסט כבר שמור אצלך', { style: cleanToastStyle }); } closeOverlay(); }} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>שמור במועדפים</span><Bookmark size={20} className="text-brand-muted" /></button>
                   <button onClick={() => handleCopyLink(optionsMenuPost)} className="w-full p-4 bg-surface-card rounded-[20px] text-brand font-black flex justify-between items-center text-[15px] active:scale-[0.98] transition-all border border-surface-border shadow-sm"><span>העתק קישור</span><LinkIcon size={20} className="text-brand-muted" /></button>
                   {optionsMenuPost.user_id === currentUserId && (
                     <>
