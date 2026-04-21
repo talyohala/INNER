@@ -2,7 +2,8 @@ const Jimp = require('jimp');
 const fs = require('fs');
 const path = require('path');
 
-const sourceImage = path.join(__dirname, 'my-logo.png');
+// קורא בדיוק את התמונה שלך!
+const sourceImage = path.join(__dirname, '334455.png');
 const resPath = path.join(__dirname, 'android', 'app', 'src', 'main', 'res');
 
 const sizes = {
@@ -15,11 +16,10 @@ const sizes = {
 
 async function forceGenerate() {
   if (!fs.existsSync(sourceImage)) {
-    console.error('❌ שגיאה: לא מצאתי את my-logo.png');
+    console.error('❌ שגיאה: לא מצאתי את 334455.png בתיקייה. ודא שהקובץ נמצא כאן.');
     return;
   }
 
-  // 1. ניקוי יסודי - מוחק כל קובץ XML של אייקון שעלול להפריע
   const folders = fs.readdirSync(resPath);
   folders.forEach(folder => {
     if (folder.startsWith('mipmap') || folder.startsWith('drawable')) {
@@ -33,9 +33,8 @@ async function forceGenerate() {
     }
   });
 
-  console.log('🧹 ניקוי הסתיים. מייצר אייקונים חדשים...');
+  console.log('🧹 ניקוי הסתיים. מייצר אייקונים חדשים מ-334455.png...');
 
-  // 2. יצירת ה-PNG החדשים
   const image = await Jimp.read(sourceImage);
   
   for (const [density, size] of Object.entries(sizes)) {
@@ -48,7 +47,7 @@ async function forceGenerate() {
     console.log(`✅ נוצר ${density}`);
   }
 
-  console.log('🚀 סיימתי! אין יותר קבצי XML ישנים שיפריעו.');
+  console.log('🚀 סיימתי! האייקונים מוכנים.');
 }
 
 forceGenerate();
