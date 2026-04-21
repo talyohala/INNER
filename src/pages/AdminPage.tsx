@@ -85,6 +85,9 @@ export const AdminPage: React.FC = () => {
   const { profile } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // נוסף כדי למנוע קריסה ב-Portal
+  const [mounted, setMounted] = useState(false);
+
   const defaultAdminData = { total_users: 0, total_crd: 0, total_posts: 0, total_circles: 0, pending_cashouts: [], recent_users: [], recent_posts: [], chart_data: [] };
 
   const [adminData, setAdminData] = useState(() => {
@@ -109,6 +112,10 @@ export const AdminPage: React.FC = () => {
   const [campLink, setCampLink] = useState('');
   const [campFile, setCampFile] = useState<File | null>(null);
   const [campDeploying, setCampDeploying] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (profile && profile.role_label !== 'CORE') { navigate('/'); return; }
@@ -210,7 +217,6 @@ export const AdminPage: React.FC = () => {
       let media_type = 'image';
       let expires_at = null;
 
-      // חישוב תאריך התפוגה אם הוגדר
       if (campExpiresDays && Number(campExpiresDays) > 0) {
         const d = new Date();
         d.setDate(d.getDate() + Number(campExpiresDays));
@@ -248,7 +254,6 @@ export const AdminPage: React.FC = () => {
       toast('הקמפיין שוגר בהצלחה', { id: tid, style: cleanToastStyle });
       triggerFeedback('success');
 
-      // Reset form
       setCampTitle(''); setCampBody(''); setCampReward(''); setCampLink(''); setCampFile(null); setCampExpiresDays('');
     } catch (err: any) {
       toast(`שגיאה בשיגור: ${err.message}`, { id: tid, style: cleanToastStyle });
