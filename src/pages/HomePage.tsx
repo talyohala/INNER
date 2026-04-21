@@ -25,7 +25,6 @@ const SEAL_TYPES = [
   { id: 'alliance', icon: <Handshake size={24} />, label: 'ברית', color: 'text-emerald-400', xp: 100 }
 ];
 
-// הטוסט השקוף הלבן (ללא אייקונים)
 const cleanToastStyle = {
   background: 'rgba(255, 255, 255, 0.5)',
   backdropFilter: 'blur(12px)',
@@ -83,7 +82,6 @@ export const HomePage: React.FC = () => {
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [claimedCampaigns, setClaimedCampaigns] = useState<Set<string>>(new Set());
 
-  // טעינת הקמפיינים שנלקחו - עכשיו ספציפית ליוזר כדי למנוע הופעה מחדש
   useEffect(() => {
     if (currentUserId) {
       try {
@@ -100,7 +98,6 @@ export const HomePage: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [editingPost, setEditingPost] = useState<AnyPost | null>(null);
   const [showCreatePost, setShowCreatePost] = useState(false);
-
   const [isDropMode, setIsDropMode] = useState(false);
   const [dropTarget, setDropTarget] = useState<number | ''>(500);
   const [contributeModal, setContributeModal] = useState<AnyPost | null>(null);
@@ -213,7 +210,6 @@ export const HomePage: React.FC = () => {
         supabase.from('campaigns').select('*').eq('placement', 'feed').eq('active', true).order('created_at', { ascending: false }).then(r => r.data || [])
       ]);
 
-      // סינון קמפיינים שעבר זמנם
       const activeCamps = rawCamps.filter((c: any) => {
         if (c.expires_at && new Date(c.expires_at) < new Date()) return false;
         return true;
@@ -260,8 +256,6 @@ export const HomePage: React.FC = () => {
 
   const handleClaimCampaign = async (camp: any) => {
     triggerFeedback('pop');
-    
-    // שמירה מקומית קשיחה עם ID של היוזר
     const newSet = new Set(claimedCampaigns).add(camp.id);
     setClaimedCampaigns(newSet);
     localStorage.setItem(`inner_claimed_camps_${currentUserId}`, JSON.stringify(Array.from(newSet)));
@@ -269,14 +263,9 @@ export const HomePage: React.FC = () => {
     if (camp.reward > 0) {
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 3000);
-      
-      // טיפול מקצועי (אופציונלי אך מומלץ) - הוספת הכסף בשרת
       try {
         await supabase.rpc('add_crd', { p_amount: camp.reward });
-      } catch (err) {
-        // מתעלם במידה והפונקציה לא הוגדרה עדיין, ה-UI בכל מקרה יתעדכן
-      }
-
+      } catch (err) { }
       toast(`קיבלת ${camp.reward} CRD מתנה`, { style: cleanToastStyle });
       triggerFeedback('coin');
     }
@@ -294,8 +283,6 @@ export const HomePage: React.FC = () => {
     setPullY(0);
     triggerFeedback('pop');
     toast('מרענן מערכת...', { style: cleanToastStyle });
-    
-    // מרענן לחלוטין את ה-APK (Hard Reload)
     setTimeout(() => {
       window.location.reload();
     }, 400);
@@ -480,11 +467,14 @@ export const HomePage: React.FC = () => {
   const handleSeal = async (postId: string, sealType: string) => {
     triggerFeedback('pop');
     closeOverlay();
+    
     const update = (list: AnyPost[]) => list.map((p) => p.id === postId ? { ...p, has_sealed: true, seals_count: p.seals_count + 1 } : p);
     setPosts((prev) => update(prev));
     if (fullScreenMedia) setFullScreenMedia((prev) => (prev ? update(prev) : prev));
+    
     try {
       const { error } = await supabase.from('post_seals').insert({ post_id: postId, user_id: currentUserId, seal_type: sealType });
+      
       if (error) {
         if (error.code === '23505') toast('כבר נתת חותם לפוסט זה', { style: cleanToastStyle });
         else throw error;
@@ -492,6 +482,26 @@ export const HomePage: React.FC = () => {
         setPosts((prev) => revert(prev));
       } else {
         triggerFeedback('success');
+        
+        try {
+          const targetPost = posts.find(p => p.id === postId) || (fullScreenMedia && fullScreenMedia.find(p => p.id === postId));
+          if (targetPost && targetPost.user_id && targetPost.user_id !== currentUserId) {
+            const sealLabels: Record<string, string> = { fire: 'חותם אש', diamond: 'חותם יהלום', alliance: 'חותם ברית' };
+            const currentLabel = sealLabels[sealType] || 'חותם יוקרה';
+            const senderName = profile?.full_name || profile?.username || 'משתמש';
+            
+            await supabase.from('notifications').insert({
+              user_id: targetPost.user_id,
+              actor_id: currentUserId,
+              title: `${currentLabel} חדש!`,       
+              content: `${senderName} העניק לך ${currentLabel} לפוסט שלך!`,
+              action_url: `/post/${postId}`,
+              is_read: false
+            });
+          }
+        } catch (notifError) {
+          console.error("שגיאה ביצירת התראה: ", notifError);
+        }
       }
     } catch (err) {
       toast('שגיאה בהענקת חותם', { style: cleanToastStyle });
@@ -657,6 +667,9 @@ export const HomePage: React.FC = () => {
     return <div className="min-h-screen bg-surface flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div>;
   }
 
+  // הפתרון לקריסה: בדיקה בטוחה שה-DOM זמין כדי לצייר עליו את הפופ-אפים
+  const portalContainer = typeof document !== 'undefined' ? (document.getElementById('root') || document.body) : null;
+
   return (
     <>
       <Confetti active={showConfetti} />
@@ -694,7 +707,6 @@ export const HomePage: React.FC = () => {
         )}
 
         <div className="relative z-10 px-4">
-
           <div className="sticky top-0 z-[60] bg-surface/80 backdrop-blur-xl pt-4 pb-3 flex justify-between items-center -mx-4 px-6 mb-4">
             <div className="w-10" />
             <div className="flex flex-col items-center absolute left-1/2 -translate-x-1/2">
@@ -710,10 +722,8 @@ export const HomePage: React.FC = () => {
             </button>
           </div>
 
-          {/* CAMPAIGNS RENDERING */}
           <AnimatePresence>
             {campaigns.filter(c => !claimedCampaigns.has(c.id)).map(camp => {
-
               if (camp.style === 'hero') {
                 return (
                   <motion.div key={camp.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, height: 0 }} className="-mx-4 mb-4 relative min-h-[350px] flex flex-col justify-end overflow-hidden group shadow-lg cursor-pointer" onClick={() => handleClaimCampaign(camp)}>
@@ -745,7 +755,6 @@ export const HomePage: React.FC = () => {
                   </motion.div>
                 );
               }
-
               else if (camp.style === 'compact') {
                 return (
                   <motion.div key={camp.id} initial={{ opacity: 0, y: -20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.9, height: 0, marginBottom: 0 }} className="mb-4 relative bg-surface-card border border-surface-border rounded-[20px] p-2 pr-2.5 flex items-center gap-3 shadow-sm cursor-pointer active:scale-[0.98] transition-transform" onClick={() => handleClaimCampaign(camp)}>
@@ -775,7 +784,6 @@ export const HomePage: React.FC = () => {
                   </motion.div>
                 );
               }
-
               return (
                 <motion.div key={camp.id} initial={{ opacity: 0, y: -20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.9, height: 0, marginBottom: 0 }} className="mb-4 relative bg-surface-card border border-surface-border hover:border-accent-primary/30 rounded-[28px] overflow-hidden shadow-sm flex flex-col group cursor-pointer active:scale-[0.98] transition-all" onClick={() => handleClaimCampaign(camp)}>
                   <div className="absolute top-3 right-3 z-20">
@@ -810,7 +818,6 @@ export const HomePage: React.FC = () => {
             })}
           </AnimatePresence>
 
-          {/* CREATE POST BLOCK */}
           <div className="mb-4">
             <div className="p-3 px-4 rounded-[20px] border border-surface-border bg-surface-card shadow-sm relative z-10 flex flex-col gap-2">
               {selectedFile && (
@@ -1020,6 +1027,7 @@ export const HomePage: React.FC = () => {
                       </div>
                     </div>
                   )}
+
                   {!hasMedia && (
                     <div className="w-full relative bg-[#0a0a0a] min-h-[380px] max-h-[550px] flex flex-col justify-between cursor-pointer group rounded-[24px]" onClick={() => { if (isLockedDrop) openOverlay(() => setContributeModal(post)); else openOverlay(() => setActiveDescPost(post)); }}>
                       {isLockedDrop && (
@@ -1123,7 +1131,7 @@ export const HomePage: React.FC = () => {
       </FadeIn>
 
       {/* OVERLAYS / PORTALS */}
-      {mounted && typeof document !== 'undefined' && createPortal(
+      {mounted && portalContainer && createPortal(
         <>
           {/* 1. SEAL SELECTOR MODAL */}
           <AnimatePresence>
@@ -1382,7 +1390,7 @@ export const HomePage: React.FC = () => {
             )}
           </AnimatePresence>
 
-          {/* 5. POST CIRCLES MODAL (For >20 Circles in Post) */}
+          {/* 5. POST CIRCLES MODAL */}
           <AnimatePresence>
             {postCirclesModal && (
               <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">
@@ -1487,8 +1495,7 @@ export const HomePage: React.FC = () => {
               </div>
             )}
           </AnimatePresence>
-        </>,
-        document.body
+        </>
       )}
     </>
   );
