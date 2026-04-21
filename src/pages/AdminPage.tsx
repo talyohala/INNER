@@ -5,7 +5,7 @@ import { motion, AnimatePresence, useDragControls, LayoutGroup } from 'framer-mo
 import {
   Loader2, Users, Search, Gift, Ban, MessageSquare, Trash2, 
   Activity, UserCircle, ShieldAlert, Zap, Coins, Image as ImageIcon, 
-  X, Link as LinkIcon, Compass, CheckCircle, BarChart3
+  X, Link as LinkIcon, Compass, CheckCircle, BarChart3, CalendarDays
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -13,7 +13,6 @@ import { FadeIn, Button } from '../components/ui';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 
-// טוסט שקוף-פחם אלגנטי ונקי
 const cleanToastStyle = {
   background: 'rgba(20, 20, 20, 0.85)',
   backdropFilter: 'blur(16px)',
@@ -47,7 +46,6 @@ const BottomSheet: React.FC<BottomSheetProps> = ({ open, onClose, children }) =>
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 28, stiffness: 500 }}
             className="bg-[#121212] border-t border-white/5 rounded-t-[32px] h-auto min-h-[50vh] max-h-[90vh] flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden"
           >
-            {/* הוסר פס ההחלקה המכוער */}
             <div className="w-full py-4 shrink-0" onPointerDown={startSheetDrag} style={{ touchAction: 'none' }} />
             <div className="flex-1 overflow-y-auto scrollbar-hide p-6 pt-0" onPointerDown={startSheetDrag} style={{ touchAction: 'pan-y' }}>
               {children}
@@ -66,11 +64,6 @@ const PLACEMENTS = [
 
 const STYLES = [
   { id: 'hero', label: 'מסך מלא' }, { id: 'standard', label: 'כרטיסייה' }, { id: 'compact', label: 'פס צר' }
-];
-
-const DURATION_PRESETS = [
-  { id: 'never', label: 'תמידי' }, { id: '1h', label: 'שעה' }, { id: '24h', label: 'יממה' },
-  { id: '7d', label: 'שבוע' }, { id: '30d', label: 'חודש' }, { id: 'custom', label: 'מותאם' },
 ];
 
 export const AdminPage: React.FC = () => {
@@ -93,8 +86,7 @@ export const AdminPage: React.FC = () => {
   const [campStyle, setCampStyle] = useState(STYLES[1].id);
   const [campTitle, setCampTitle] = useState('');
   const [campBody, setCampBody] = useState('');
-  const [campDuration, setCampDuration] = useState('never');
-  const [customDate, setCustomDate] = useState('');
+  const [campExpiresAt, setCampExpiresAt] = useState(''); // שדה לוח שנה
 
   const [campActionType, setCampActionType] = useState<'reward' | 'link'>('reward');
   const [campReward, setCampReward] = useState<number | ''>('');
@@ -233,7 +225,6 @@ export const AdminPage: React.FC = () => {
   const handleDeployCampaign = async () => {
     if (!campTitle.trim()) return toast('חובה למלא כותרת', { style: cleanToastStyle });
     if (campActionType === 'link' && !campLink.trim()) return toast('חובה להזין קישור', { style: cleanToastStyle });
-    if (campDuration === 'custom' && !customDate) return toast('חובה לבחור תאריך בתוקף', { style: cleanToastStyle });
 
     setCampDeploying(true); triggerFeedback('pop');
     const tid = toast('משגר קמפיין...', { style: cleanToastStyle });
@@ -241,14 +232,8 @@ export const AdminPage: React.FC = () => {
     try {
       let media_url = null; let media_type = 'image'; let expires_at = null;
 
-      if (campDuration !== 'never') {
-        const d = new Date();
-        if (campDuration === '1h') d.setHours(d.getHours() + 1);
-        else if (campDuration === '24h') d.setHours(d.getHours() + 24);
-        else if (campDuration === '7d') d.setDate(d.getDate() + 7);
-        else if (campDuration === '30d') d.setDate(d.getDate() + 30);
-        else if (campDuration === 'custom' && customDate) expires_at = new Date(customDate).toISOString();
-        if (campDuration !== 'custom') expires_at = d.toISOString();
+      if (campExpiresAt) {
+        expires_at = new Date(campExpiresAt).toISOString();
       }
 
       if (campFile) {
@@ -267,7 +252,7 @@ export const AdminPage: React.FC = () => {
       });
 
       toast('הקמפיין באוויר 🚀', { id: tid, style: cleanToastStyle }); triggerFeedback('success');
-      setCampTitle(''); setCampBody(''); setCampReward(''); setCampLink(''); setCampFile(null); setCampDuration('never'); setCustomDate('');
+      setCampTitle(''); setCampBody(''); setCampReward(''); setCampLink(''); setCampFile(null); setCampExpiresAt('');
     } catch (err: any) {
       toast(`שגיאה: ${err.message}`, { id: tid, style: cleanToastStyle });
     } finally { setCampDeploying(false); }
@@ -291,11 +276,10 @@ export const AdminPage: React.FC = () => {
         <h1 className="text-[28px] font-black text-white tracking-widest drop-shadow-md">פאנל ניהול ושליטה</h1>
       </div>
 
-      {/* MAIN TABS - טאבים מרחפים עם נקודה בסגנון הפרופיל, מסודרים ב-2 שורות */}
+      {/* MAIN TABS - מסודרים ב-2 שורות */}
       <div className="px-5 mb-6 relative z-10">
         <LayoutGroup id="mainTabs">
           <div className="flex flex-col items-center gap-4 bg-[#1a1a1e]/50 border border-white/5 rounded-[24px] p-2 backdrop-blur-sm">
-            {/* שורה ראשונה */}
             <div className="flex items-center gap-x-8 gap-y-1">
               {['dashboard', 'campaigns', 'cashouts'].map(tab => {
                 const isActive = activeTab === tab;
@@ -306,12 +290,11 @@ export const AdminPage: React.FC = () => {
                       {label}
                     </span>
                     {isActive && <motion.div layoutId="main-tab-dot" className="absolute -bottom-1 w-1.5 h-1.5 bg-accent-primary rounded-full shadow-[0_0_8px_rgba(var(--color-accent-primary),0.6)]" />}
-                    {tab === 'cashouts' && adminData.pending_cashouts.length > 0 && <span className="absolute top-0 -left-2.5 w-1.5 h-1.5 bg-rose-500 rounded-fullanimate-pulse" />}
+                    {tab === 'cashouts' && adminData.pending_cashouts.length > 0 && <span className="absolute top-0 -left-2.5 w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse" />}
                   </button>
                 )
               })}
             </div>
-            {/* שורה שנייה */}
             <div className="flex items-center gap-x-8 gap-y-1">
               {['users', 'content'].map(tab => {
                 const isActive = activeTab === tab;
@@ -336,7 +319,6 @@ export const AdminPage: React.FC = () => {
           {/* TAB: DASHBOARD */}
           {activeTab === 'dashboard' && (
             <motion.div key="dash" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-4">
-              
               <div className="bg-[#121212] border border-white/5 pt-10 pb-8 rounded-[24px] flex flex-col items-center text-center shadow-sm relative overflow-hidden">
                 <span className="text-[#6b7280] text-[11px] font-black uppercase tracking-[0.2em] mb-1 z-10 flex items-center gap-1.5"><Coins size={14}/> כלכלת האפליקציה</span>
                 <div className="flex flex-col items-center justify-center mt-2 z-10 relative">
@@ -344,7 +326,6 @@ export const AdminPage: React.FC = () => {
                   <span className="text-[10px] font-black text-accent-primary uppercase tracking-[0.5em] mt-3">CRD במחזור הכללי</span>
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-[#121212] border border-white/5 rounded-[24px] p-5 shadow-sm flex flex-col items-center text-center">
                   <span className="text-[#6b7280] text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5 mb-2"><Users size={14}/> משתמשים</span>
@@ -355,7 +336,6 @@ export const AdminPage: React.FC = () => {
                   <span className="text-white font-black text-2xl">{adminData.total_circles.toLocaleString()}</span>
                 </div>
               </div>
-
               <div className="bg-[#121212] border border-white/5 rounded-[32px] p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-6">
                   <span className="text-[#6b7280] text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5"><BarChart3 size={14}/> הרשמות אחרונות</span>
@@ -380,7 +360,6 @@ export const AdminPage: React.FC = () => {
                   )}
                 </div>
               </div>
-
             </motion.div>
           )}
           
@@ -388,7 +367,6 @@ export const AdminPage: React.FC = () => {
           {activeTab === 'campaigns' && (
             <motion.div key="campaigns" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col gap-6">
               
-              {/* Placement Sub-Tabs עם פס במקום נקודה */}
               <div className="flex flex-col gap-3">
                 <span className="text-[#6b7280] text-[11px] font-bold uppercase tracking-widest">מיקום הקמפיין</span>
                 <LayoutGroup id="placementGroup">
@@ -397,7 +375,7 @@ export const AdminPage: React.FC = () => {
                       const isActive = campPlacement === pos.id;
                       return (
                         <button key={pos.id} onClick={() => { triggerFeedback('pop'); setCampPlacement(pos.id); }} className="relative flex flex-col items-center min-w-max pb-3 active:scale-95 transition-transform">
-                          <span className={`text-[15px]transition-colors ${isActive ? 'text-white font-black' : 'text-[#6b7280] font-bold'}`}>{pos.label}</span>
+                          <span className={`text-[15px] transition-colors ${isActive ? 'text-white font-black' : 'text-[#6b7280] font-bold'}`}>{pos.label}</span>
                           {isActive && <motion.div layoutId="placementBar" className="absolute bottom-0 w-5 h-0.5 bg-accent-primary rounded-full shadow-[0_0_8px_rgba(var(--color-accent-primary),0.6)]" />}
                         </button>
                       )
@@ -406,7 +384,6 @@ export const AdminPage: React.FC = () => {
                 </LayoutGroup>
               </div>
 
-              {/* Style Sub-Tabs */}
               <div className="flex flex-col gap-3">
                 <span className="text-[#6b7280] text-[11px] font-bold uppercase tracking-widest">סגנון תצוגה</span>
                 <LayoutGroup id="styleGroup">
@@ -415,7 +392,7 @@ export const AdminPage: React.FC = () => {
                       const isActive = campStyle === style.id;
                       return (
                         <button key={style.id} onClick={() => { triggerFeedback('pop'); setCampStyle(style.id); }} className="relative flex flex-col items-center min-w-max pb-3 active:scale-95 transition-transform">
-                          <span className={`text-[15px]transition-colors ${isActive ? 'text-white font-black' : 'text-[#6b7280] font-bold'}`}>{style.label}</span>
+                          <span className={`text-[15px] transition-colors ${isActive ? 'text-white font-black' : 'text-[#6b7280] font-bold'}`}>{style.label}</span>
                           {isActive && <motion.div layoutId="styleBar" className="absolute bottom-0 w-5 h-0.5 bg-accent-primary rounded-full shadow-[0_0_8px_rgba(var(--color-accent-primary),0.6)]" />}
                         </button>
                       )
@@ -424,33 +401,24 @@ export const AdminPage: React.FC = () => {
                 </LayoutGroup>
               </div>
 
-              {/* Duration Sub-Tabs */}
+              {/* מנגנון בחירת תאריך חדש (קלנדר) */}
               <div className="flex flex-col gap-3">
-                <span className="text-[#6b7280] text-[11px] font-bold uppercase tracking-widest">תוקף וזמן באוויר</span>
-                <LayoutGroup id="durationGroup">
-                  <div className="flex items-center gap-x-8 gap-y-1 overflow-x-auto scrollbar-hide pb-2 border-b border-white/5">
-                    {DURATION_PRESETS.map(preset => {
-                      const isActive = campDuration === preset.id;
-                      return (
-                        <button key={preset.id} onClick={() => { triggerFeedback('pop'); setCampDuration(preset.id); }} className="relative flex flex-col items-center min-w-max pb-3 active:scale-95 transition-transform">
-                          <span className={`text-[15px]transition-colors ${isActive ? 'text-white font-black' : 'text-[#6b7280] font-bold'}`}>{preset.label}</span>
-                          {isActive && <motion.div layoutId="durationBar" className="absolute bottom-0 w-5 h-0.5 bg-accent-primary rounded-full shadow-[0_0_8px_rgba(var(--color-accent-primary),0.6)]" />}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </LayoutGroup>
-                <AnimatePresence>
-                  {campDuration === 'custom' && (
-                    <motion.div initial={{opacity:0, height:0}} animate={{opacity:1, height:'auto'}} exit={{opacity:0, height:0}} className="overflow-hidden mt-1">
-                      <input type="datetime-local" value={customDate} onChange={e=>setCustomDate(e.target.value)} style={{ colorScheme: 'dark' }} className="w-full bg-[#121212] border border-white/5 h-14 rounded-[16px] px-4 text-white font-medium outline-none focus:border-white/20 transition-colors text-left" dir="ltr" />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                <span className="text-[#6b7280] text-[11px] font-bold uppercase tracking-widest">תוקף הקמפיין (אופציונלי)</span>
+                <div className="relative">
+                  <CalendarDays size={20} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6b7280]" />
+                  <input 
+                    type="datetime-local" 
+                    value={campExpiresAt} 
+                    onChange={e => setCampExpiresAt(e.target.value)} 
+                    style={{ colorScheme: 'dark' }} 
+                    className="w-full bg-[#121212] border border-white/5 h-14 rounded-[20px] pl-4 pr-12 text-white font-black outline-none focus:border-accent-primary/50 transition-colors text-left shadow-sm" 
+                    dir="ltr" 
+                  />
+                  {!campExpiresAt && <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#6b7280] text-[12px] font-bold pointer-events-none">השאר ריק לתמידי</span>}
+                </div>
               </div>
 
               <div className="flex flex-col gap-4 mt-2">
-                {/* Media */}
                 <div onClick={() => fileInputRef.current?.click()} className={`w-full h-40 rounded-[20px] bg-[#121212] border ${campFile ? 'border-accent-primary/50' : 'border-white/5'} border-dashed flex flex-col items-center justify-center cursor-pointer relative overflow-hidden`}>
                   {campFile ? (
                     <>
@@ -470,25 +438,24 @@ export const AdminPage: React.FC = () => {
                     </div>
                   )}
                 </div>
+                {campFile && <button onClick={() => setCampFile(null)} className="text-rose-500 text-[10px] font-black uppercase tracking-widest self-end px-2 mt-1">הסר מדיה</button>}
 
-                {/* Inputs */}
                 <input type="text" value={campTitle} onChange={e=>setCampTitle(e.target.value)} placeholder="כותרת הקמפיין..." className="w-full bg-[#121212] border border-white/5 h-14 rounded-[16px] px-5 text-white font-black outline-none focus:border-white/20 transition-colors placeholder:text-[#6b7280]" />
                 <textarea value={campBody} onChange={e=>setCampBody(e.target.value)} placeholder="תוכן (אופציונלי)..." className="w-full bg-[#121212] border border-white/5 h-24 rounded-[16px] p-5 text-white font-bold outline-none focus:border-white/20 transition-colors resize-none placeholder:text-[#6b7280]" />
               </div>
 
-              {/* Action Type */}
               <div className="flex flex-col gap-3 mt-4">
                 <span className="text-[#6b7280] text-[11px] font-bold uppercase tracking-widest">פעולת משתמש</span>
                 <LayoutGroup id="actionGroup">
                   <div className="flex items-center gap-x-8 gap-y-1 overflow-x-auto scrollbar-hide pb-2 border-b border-white/5">
                     {[
-                      { id: 'reward', label: 'תגמול' },
+                      { id: 'reward', label: 'CRD' },
                       { id: 'link', label: 'קישור חיצוני' }
                     ].map(act => {
                       const isActive = campActionType === act.id;
                       return (
                         <button key={act.id} onClick={() => { triggerFeedback('pop'); setCampActionType(act.id as any); }} className="relative flex flex-col items-center min-w-max pb-3 active:scale-95 transition-transform">
-                          <span className={`text-[15px]transition-colors ${isActive ? 'text-accent-primary font-black' : 'text-[#6b7280] font-bold'}`}>{act.label}</span>
+                          <span className={`text-[15px] transition-colors ${isActive ? 'text-accent-primary font-black' : 'text-[#6b7280] font-bold'}`}>{act.label}</span>
                           {isActive && <motion.div layoutId="actionBar" className="absolute bottom-0 w-5 h-0.5 bg-accent-primary rounded-full shadow-[0_0_8px_rgba(var(--color-accent-primary),0.6)]" />}
                         </button>
                       )
@@ -563,7 +530,7 @@ export const AdminPage: React.FC = () => {
               </div>
               <div className="flex flex-col gap-2">
                 {filteredUsers.map((u: any) => (
-                  <div key={u.id} onClick={() => { triggerFeedback('pop'); setSelectedUser(u); }} className={`flex items-center justify-between p-3 px-4 bg-[#121212] border ${u.is_banned ? 'border-rose-500/30' : 'border-white/5 hover:border-accent-primary/20'} rounded-[20px] cursor-pointer active:scale-[0.98] transition-all shadow-sm`}>
+                  <div key={u.id} onClick={() => { triggerFeedback('pop'); setSelectedUser(u); }} className={`flex items-center justify-between p-3 px-4 bg-[#121212] border ${u.is_banned ? 'border-rose-500/30' : 'border-white/5 hover:border-white/10'} rounded-[20px] cursor-pointer active:scale-[0.98] transition-all shadow-sm`}>
                     <div className="flex items-center gap-3">
                       <div className={`w-10 h-10 rounded-full overflow-hidden bg-[#0a0a0a] flex items-center justify-center ${u.is_banned ? 'grayscale opacity-40' : ''}`}>
                         {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={20} className="text-[#3f3f46]" />}
@@ -602,7 +569,7 @@ export const AdminPage: React.FC = () => {
                     </button>
                   </div>
                   {p.media_url && <img src={p.media_url} className="w-full h-40 object-cover rounded-[16px] border border-white/5 relative z-10" />}
-                  <p className="text-brand text-[14px] leading-relaxed whitespace-pre-wrap relative z-10 drop-shadow-sm">{p.content}</p>
+                  <p className="text-white/80 text-[14px] leading-relaxed whitespace-pre-wrap relative z-10 drop-shadow-sm">{p.content}</p>
                 </div>
               ))}
             </motion.div>
