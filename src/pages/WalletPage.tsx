@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import {
   Loader2, UserCircle, CheckCircle2, ArrowUpRight, ArrowDownLeft,
-  CreditCard, Send, Download, Search, Zap, History, Gift, Flame
+  CreditCard, Send, Download, Search, History, Gift, Flame
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { FadeIn, Button } from '../components/ui';
@@ -36,16 +36,17 @@ type CreditPackage = {
   popular?: boolean;
 };
 
+// טוסט פחם יוקרתי ונקי שמשתלב מושלם
 const cleanToastStyle = {
-  background: 'rgba(255, 255, 255, 0.9)',
+  background: 'rgba(26, 26, 30, 0.95)',
   backdropFilter: 'blur(16px)',
-  color: '#0f172a',
-  border: '1px solid rgba(0, 0, 0, 0.05)',
+  color: '#ffffff',
+  border: 'none',
   borderRadius: '100px',
   fontSize: '14px',
   fontWeight: 700,
   padding: '12px 24px',
-  boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
+  boxShadow: '0 15px 40px rgba(0,0,0,0.5)',
 };
 
 const BottomSheet: React.FC<{ open: boolean; onClose: () => void; children: React.ReactNode; heightClass?: string }> = ({ open, onClose, children, heightClass = 'h-[85vh]' }) => {
@@ -62,18 +63,19 @@ const BottomSheet: React.FC<{ open: boolean; onClose: () => void; children: Reac
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-[9900] flex flex-col justify-end" dir="rtl">
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
           <motion.div
             drag="y" dragControls={dragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.1}
             onDragEnd={(_, info) => { if (info.offset.y > 100 || info.velocity.y > 400) onClose(); }}
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 500 }}
-            className={`bg-surface rounded-t-[40px] ${heightClass} flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.15)] relative overflow-hidden border-t border-surface-border`}
+            className={`bg-[#121212] rounded-t-[40px] ${heightClass} flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.5)] relative overflow-hidden`}
           >
-            <div className="w-full py-4 flex justify-center shrink-0 cursor-grab active:cursor-grabbing border-b border-surface-border/50" onPointerDown={startSheetDrag} style={{ touchAction: 'none' }}>
-              <div className="w-12 h-1.5 bg-surface-border rounded-full pointer-events-none" />
+            {/* גרירה נטו בלי קווים מכוערים */}
+            <div className="w-full py-5 flex justify-center shrink-0 cursor-grab active:cursor-grabbing" onPointerDown={startSheetDrag} style={{ touchAction: 'none' }}>
+              <div className="w-12 h-1.5 bg-white/10 rounded-full pointer-events-none" />
             </div>
-            <div className="flex-1 overflow-y-auto scrollbar-hide p-6 pt-4" onPointerDown={startSheetDrag} style={{ touchAction: 'pan-y' }}>
+            <div className="flex-1 overflow-y-auto scrollbar-hide p-6 pt-2" onPointerDown={startSheetDrag} style={{ touchAction: 'pan-y' }}>
               {children}
             </div>
           </motion.div>
@@ -230,62 +232,65 @@ export const WalletPage: React.FC = () => {
 
   const visibleTransactions = useMemo(() => transactions.slice(0, 4), [transactions]);
 
-  if (loading && transactions.length === 0 && balance === 0) return ( <div className="min-h-screen bg-surface flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div> );
+  if (loading && transactions.length === 0 && balance === 0) return ( <div className="min-h-[100dvh] bg-[#121212] flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div> );
 
   return (
     <>
-      <FadeIn className="px-5 pt-8 pb-32 bg-surface min-h-[100dvh] font-sans relative overflow-hidden" dir="rtl">
+      <FadeIn className="px-5 pt-8 pb-32 bg-[#121212] min-h-[100dvh] font-sans relative overflow-hidden" dir="rtl">
+        {/* תאורת רקע פחם עדינה */}
         <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
-          <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-accent-primary/5 rounded-full blur-[100px]" />
+          <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-accent-primary/5 rounded-full blur-[120px]" />
         </div>
 
-        <div className="flex flex-col gap-8 relative z-10">
+        <div className="flex flex-col gap-10 relative z-10">
           
-          {/* Balance Card */}
-          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative bg-surface-card rounded-[40px] p-8 pb-6 flex flex-col items-center shadow-sm overflow-hidden border border-surface-border">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-accent-primary/10 blur-[80px] rounded-full pointer-events-none" />
-            <span className="text-brand-muted text-[12px] font-black uppercase tracking-[0.3em] mb-2 relative z-10">יתרה זמינה</span>
-            <div className="flex items-center gap-2 relative z-10">
-              <span className="text-7xl font-black text-brand tracking-tighter drop-shadow-sm">{balance.toLocaleString()}</span>
+          {/* Balance Area - מרחף לחלוטין, ללא קופסה או רקע מוגזם */}
+          <div className="flex flex-col items-center pt-6">
+            <span className="text-[#8b8b93] text-[12px] font-black uppercase tracking-[0.3em] mb-2">יתרה זמינה</span>
+            <div className="flex items-center justify-center">
+              {/* סמל הברק הוסר לחלוטין - נטו הטקסט */}
+              <span className="text-7xl font-black text-white tracking-tighter drop-shadow-md">{balance.toLocaleString()}</span>
             </div>
-            <span className="text-accent-primary text-[11px] font-black uppercase tracking-[0.3em] mt-3 opacity-90 relative z-10">קרדיטים פנימיים</span>
+            <span className="text-accent-primary text-[11px] font-black uppercase tracking-[0.3em] mt-4 opacity-90">קרדיטים פנימיים</span>
             
-            <div className="flex gap-4 w-full mt-10 relative z-10">
-              {/* כפתורים שקופים לחלוטין ללא מסגרות ורקעים - נטו טקסט ואייקון מרחפים */}
-              <button onClick={() => { triggerFeedback('pop'); setShowTransfer(true); }} className="flex-1 bg-transparent h-14 flex items-center justify-center gap-2.5 transition-colors active:scale-95 group border-none">
-                <Send size={22} className="text-brand-muted group-hover:text-accent-primary transition-colors rtl:-scale-x-100" />
-                <span className="text-brand font-black text-[15px] uppercase tracking-widest group-hover:text-accent-primary transition-colors">העברה</span>
+            {/* כפתורים משיכה והעברה - נטו אייקון וטקסט! בלי שום מסגרת או רקע */}
+            <div className="flex items-center justify-center gap-16 w-full mt-10">
+              <button onClick={() => { triggerFeedback('pop'); setShowTransfer(true); }} className="flex flex-col items-center justify-center gap-3 bg-transparent border-none active:scale-95 transition-transform group">
+                <Send size={26} className="text-[#8b8b93] group-hover:text-accent-primary transition-colors rtl:-scale-x-100" />
+                <span className="text-white font-black text-[14px] uppercase tracking-widest group-hover:text-accent-primary transition-colors">העברה</span>
               </button>
-              <button onClick={() => { triggerFeedback('pop'); setShowRedeem(true); }} className="flex-1 bg-transparent h-14 flex items-center justify-center gap-2.5 transition-colors active:scale-95 group border-none">
-                <Download size={22} className="text-brand-muted group-hover:text-brand transition-colors" />
-                <span className="text-brand font-black text-[15px] uppercase tracking-widest transition-colors">משיכה</span>
+              <button onClick={() => { triggerFeedback('pop'); setShowRedeem(true); }} className="flex flex-col items-center justify-center gap-3 bg-transparent border-none active:scale-95 transition-transform group">
+                <Download size={26} className="text-[#8b8b93] group-hover:text-white transition-colors" />
+                <span className="text-white font-black text-[14px] uppercase tracking-widest transition-colors">משיכה</span>
               </button>
             </div>
-          </motion.div>
+          </div>
 
-          {/* Quick Packs (עיגולים מושלמים, ללא מסגרת, אחוזים נטו) */}
-          <div className="flex flex-col gap-4">
-            <h3 className="text-brand-muted text-[12px] font-black uppercase tracking-[0.2em] px-2 flex items-center gap-2"><Gift size={16}/> טעינה מהירה</h3>
-            <div className="grid grid-cols-3 gap-4 px-2">
+          {/* Quick Packs (עיגולים חלקים, נטולי מסגרת, אחוזים נטו) */}
+          <div className="flex flex-col gap-5 mt-2">
+            <h3 className="text-[#8b8b93] text-[12px] font-black uppercase tracking-[0.2em] flex items-center gap-2"><Gift size={16}/> טעינה מהירה</h3>
+            <div className="grid grid-cols-3 gap-4">
               {PACKAGES.map((pkg) => (
                 <button
                   key={pkg.id}
                   onClick={() => openPaymentSheet(pkg)}
-                  className={`relative aspect-square rounded-full flex flex-col items-center justify-center active:scale-95 transition-all group overflow-visible shadow-sm border-none ${pkg.popular ? 'bg-accent-primary/10' : 'bg-surface-card hover:bg-surface-border/40'}`}
+                  className={`relative aspect-square rounded-full flex flex-col items-center justify-center active:scale-95 transition-all group overflow-visible shadow-sm border-none ${pkg.popular ? 'bg-accent-primary/10' : 'bg-[#1a1a1e]/80 hover:bg-white/10'}`}
                 >
+                  {/* להבה מונפשת מרחפת נטו (ללא קופסאות) */}
                   {pkg.popular && (
                     <motion.div 
                       animate={{ y: [0, -6, 0] }} 
                       transition={{ repeat: Infinity, duration: 1.5 }}
-                      className="absolute -top-2 right-1 z-20 pointer-events-none"
+                      className="absolute -top-3 right-1 z-20 pointer-events-none"
                     >
-                      <Flame size={22} className="text-orange-500 drop-shadow-sm" fill="currentColor" />
+                      <Flame size={24} className="text-orange-500 drop-shadow-md" fill="currentColor" />
                     </motion.div>
                   )}
                   
                   <div className="flex flex-col items-center justify-center relative z-10 gap-0.5">
-                    <span className="text-[28px] font-black text-brand tracking-tighter drop-shadow-sm">{pkg.amount}</span>
-                    <span className="text-[13px] font-bold text-brand-muted">₪{pkg.price}</span>
+                    <span className="text-[28px] font-black text-white tracking-tighter drop-shadow-sm">{pkg.amount}</span>
+                    <span className="text-[13px] font-bold text-[#8b8b93]">₪{pkg.price}</span>
+                    {/* אחוזים כטקסט בלבד ללא מסגרת */}
                     {pkg.discount && pkg.discount > 0 && (
                       <span className="text-[11px] font-black uppercase tracking-widest text-emerald-500 mt-1">{pkg.discount}% הנחה</span>
                     )}
@@ -295,38 +300,38 @@ export const WalletPage: React.FC = () => {
             </div>
           </div>
 
-          {/* History - מרחף לגמרי, נטו טקסט ואייקונים בלי קופסאות */}
-          <div className="flex flex-col gap-4 mt-4">
-            <h3 className="text-brand-muted text-[12px] font-black uppercase tracking-[0.2em] px-2 flex items-center gap-2">
+          {/* History - נטו אייקונים וטקסט, ללא שום קופסה או רקע */}
+          <div className="flex flex-col gap-5 mt-2">
+            <h3 className="text-[#8b8b93] text-[12px] font-black uppercase tracking-[0.2em] flex items-center gap-2">
               <History size={16} /> פעולות אחרונות
             </h3>
-            <div className="flex flex-col gap-2">
+            
+            <div className="flex flex-col gap-6">
               {transactions.length === 0 ? (
-                <div className="py-10 flex flex-col items-center justify-center text-brand-muted gap-3">
+                <div className="py-10 flex flex-col items-center justify-center text-[#6b7280] gap-3">
                   <CreditCard size={36} />
                   <span className="text-[13px] font-bold uppercase tracking-widest opacity-70">הארנק שלך ריק</span>
                 </div>
               ) : (
                 <>
                   {visibleTransactions.map((tx) => (
-                    <div key={tx.id} className="flex items-center justify-between p-2">
+                    <div key={tx.id} className="flex items-center justify-between">
                       <div className="flex items-center gap-4 text-right">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-inner border-none ${tx.amount > 0 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
-                          {tx.amount > 0 ? <ArrowDownLeft size={18} /> : <ArrowUpRight size={18} />}
-                        </div>
+                        {/* אייקון נטו, ללא עיגול רקע */}
+                        {tx.amount > 0 ? <ArrowDownLeft size={24} className="text-emerald-400" /> : <ArrowUpRight size={24} className="text-rose-400" />}
                         <div className="flex flex-col">
-                          <span className="text-brand font-black text-[15px] drop-shadow-sm">{tx.description || 'פעולה בחשבון'}</span>
-                          <span className="text-brand-muted text-[11px] font-bold mt-0.5 tracking-widest" dir="ltr">{new Date(tx.created_at).toLocaleDateString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span className="text-white font-black text-[15px]">{tx.description || 'פעולה בחשבון'}</span>
+                          <span className="text-[#8b8b93] text-[11px] font-bold mt-0.5 tracking-widest" dir="ltr">{new Date(tx.created_at).toLocaleDateString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       </div>
-                      <span className={`font-black text-[16px] tracking-widest ${tx.amount > 0 ? 'text-emerald-500' : 'text-rose-500'}`} dir="ltr">
+                      <span className={`font-black text-[16px] tracking-widest ${tx.amount > 0 ? 'text-emerald-400' : 'text-rose-400'}`} dir="ltr">
                         {tx.amount > 0 ? '+' : ''}{tx.amount}
                       </span>
                     </div>
                   ))}
                   {transactions.length > 4 && (
-                    <button onClick={() => { triggerFeedback('pop'); setShowAllTx(true); }} className="w-full mt-2 p-3 hover:bg-surface-border/20 rounded-full transition-colors text-brand-muted text-[12px] font-black uppercase tracking-widest">
-                      הצג הכל
+                    <button onClick={() => { triggerFeedback('pop'); setShowAllTx(true); }} className="w-fit self-center mt-2 px-6 py-2 bg-transparent text-[#8b8b93] text-[11px] font-black uppercase tracking-widest transition-colors hover:text-white">
+                      הצג את כל הפעולות
                     </button>
                   )}
                 </>
@@ -341,21 +346,19 @@ export const WalletPage: React.FC = () => {
         <>
           {/* All Transactions Sheet */}
           <BottomSheet open={showAllTx} onClose={() => setShowAllTx(false)}>
-            <div className="flex flex-col gap-4 pb-10">
-              <h2 className="text-brand font-black text-xl tracking-widest uppercase text-center mb-4">כל הפעולות</h2>
-              <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-6 pb-10">
+              <h2 className="text-white font-black text-xl tracking-widest uppercase text-center mb-4">כל הפעולות</h2>
+              <div className="flex flex-col gap-6">
                 {transactions.map((tx) => (
-                  <div key={tx.id} className="flex items-center justify-between p-2">
+                  <div key={tx.id} className="flex items-center justify-between">
                     <div className="flex items-center gap-4 text-right">
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-inner border-none ${tx.amount > 0 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
-                        {tx.amount > 0 ? <ArrowDownLeft size={20} /> : <ArrowUpRight size={20} />}
-                      </div>
+                      {tx.amount > 0 ? <ArrowDownLeft size={24} className="text-emerald-400" /> : <ArrowUpRight size={24} className="text-rose-400" />}
                       <div className="flex flex-col">
-                        <span className="text-brand font-black text-[15px] drop-shadow-sm">{tx.description || 'פעולה'}</span>
-                        <span className="text-brand-muted text-[11px] font-bold mt-0.5 tracking-widest" dir="ltr">{new Date(tx.created_at).toLocaleDateString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span className="text-white font-black text-[15px]">{tx.description || 'פעולה'}</span>
+                        <span className="text-[#8b8b93] text-[11px] font-bold mt-0.5 tracking-widest" dir="ltr">{new Date(tx.created_at).toLocaleDateString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                     </div>
-                    <span className={`font-black text-[16px] tracking-widest ${tx.amount > 0 ? 'text-emerald-500' : 'text-rose-500'}`} dir="ltr">
+                    <span className={`font-black text-[16px] tracking-widest ${tx.amount > 0 ? 'text-emerald-400' : 'text-rose-400'}`} dir="ltr">
                       {tx.amount > 0 ? '+' : ''}{tx.amount}
                     </span>
                   </div>
@@ -364,43 +367,46 @@ export const WalletPage: React.FC = () => {
             </div>
           </BottomSheet>
 
-          {/* Payment Sheet */}
+          {/* Payment Sheet - נקי ויוקרתי (ללא קופסאות פנימיות) */}
           <BottomSheet open={!!selectedPackage} onClose={closePaymentSheet} heightClass="h-auto min-h-[30vh] max-h-[85vh]">
             {selectedPackage && (
-              <div className="flex flex-col gap-6 items-center text-center pb-10">
+              <div className="flex flex-col gap-8 items-center text-center pb-10">
                 <div>
-                  <h2 className="text-brand font-black text-2xl tracking-widest uppercase">אישור טעינה</h2>
-                  <p className="text-brand-muted text-[14px] font-medium mt-1">הוספת <span className="font-black text-brand">{selectedPackage.amount} קרדיטים</span> לארנק שלך</p>
+                  <h2 className="text-white font-black text-2xl tracking-widest uppercase">אישור טעינה</h2>
+                  <p className="text-[#8b8b93] text-[14px] font-medium mt-1">הוספת <span className="font-black text-white">{selectedPackage.amount} קרדיטים</span> לארנק שלך</p>
                 </div>
-                <div className="w-full bg-surface-card rounded-[32px] p-6 flex flex-col gap-5 shadow-sm border-none">
+                
+                {/* ללא רקע או מסגרת, טקסט מרחף */}
+                <div className="w-full flex flex-col gap-5 px-4">
                   <div className="flex justify-between items-center">
-                    <span className="text-brand-muted text-[12px] font-black uppercase tracking-widest">כמות קרדיטים</span>
-                    <span className="text-brand font-black text-[18px]">{selectedPackage.amount}</span>
+                    <span className="text-[#8b8b93] text-[13px] font-black uppercase tracking-widest">כמות קרדיטים</span>
+                    <span className="text-white font-black text-[18px]">{selectedPackage.amount}</span>
                   </div>
                   {selectedPackage.discount && selectedPackage.discount > 0 ? (
                     <div className="flex justify-between items-center">
-                      <span className="text-brand-muted text-[12px] font-black uppercase tracking-widest">הטבה</span>
-                      <span className="text-emerald-500 font-black text-[14px]">{selectedPackage.discount}% חיסכון</span>
+                      <span className="text-[#8b8b93] text-[13px] font-black uppercase tracking-widest">הטבה</span>
+                      <span className="text-emerald-400 font-black text-[14px]">{selectedPackage.discount}% חיסכון</span>
                     </div>
                   ) : null}
-                  <div className="flex justify-between items-center pt-2">
-                    <span className="text-brand-muted text-[12px] font-black uppercase tracking-widest">סה"כ לתשלום</span>
-                    <span className="text-accent-primary font-black text-3xl">₪{selectedPackage.price}</span>
+                  <div className="flex justify-between items-center pt-4 mt-2 border-t border-white/10">
+                    <span className="text-[#8b8b93] text-[13px] font-black uppercase tracking-widest">סה"כ לתשלום</span>
+                    <span className="text-accent-primary font-black text-4xl">₪{selectedPackage.price}</span>
                   </div>
                 </div>
-                <Button onClick={processNativePayment} disabled={adding} className="w-full h-16 bg-accent-primary text-white font-black text-[16px] uppercase tracking-widest rounded-3xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-md disabled:opacity-50 border-none">
-                  {adding ? <Loader2 size={24} className="animate-spin text-white" /> : 'אישור תשלום'}
+
+                <Button onClick={processNativePayment} disabled={adding} className="w-full h-16 bg-white text-black font-black text-[16px] uppercase tracking-widest rounded-3xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-none disabled:opacity-50 border-none mt-2">
+                  {adding ? <Loader2 size={24} className="animate-spin text-black" /> : 'אישור תשלום'}
                 </Button>
               </div>
             )}
           </BottomSheet>
 
-          {/* Transfer Sheet (ללא קווים) */}
+          {/* Transfer Sheet (ללא רקע לחיפוש, נקי לגמרי) */}
           <BottomSheet open={showTransfer} onClose={() => setShowTransfer(false)}>
             <div className="flex flex-col gap-6 pb-10">
               <div className="text-center">
-                <h2 className="text-brand font-black text-2xl tracking-widest uppercase">העברת קרדיטים</h2>
-                <p className="text-brand-muted text-[13px] font-medium mt-1">העבר לחברים או יוצרים בקלות</p>
+                <h2 className="text-white font-black text-2xl tracking-widest uppercase">העברת קרדיטים</h2>
+                <p className="text-[#8b8b93] text-[13px] font-medium mt-1">העבר לחברים או יוצרים בקלות</p>
               </div>
               
               <div className="relative" data-no-drag="true">
@@ -416,27 +422,27 @@ export const WalletPage: React.FC = () => {
                   }}
                   onFocus={() => setShowUserDropdown(true)}
                   placeholder="חפש שם או @יוזר..." dir="rtl"
-                  className="w-full h-16 bg-surface-card border-none rounded-[20px] pl-12 pr-5 text-brand outline-none focus:bg-surface-border/30 transition-all font-medium shadow-sm"
+                  className="w-full h-16 bg-transparent border-b border-white/20 pl-12 pr-2 text-white outline-none focus:border-accent-primary transition-all font-medium text-[16px]"
                 />
-                <Search size={20} className="absolute left-5 top-1/2 -translate-y-1/2 text-brand-muted" />
+                <Search size={20} className="absolute left-2 top-1/2 -translate-y-1/2 text-[#8b8b93]" />
                 
                 <AnimatePresence>
                   {isSearching && (
-                    <div className="absolute left-14 top-1/2 -translate-y-1/2 flex items-center"><Loader2 size={18} className="animate-spin text-accent-primary" /></div>
+                    <div className="absolute left-10 top-1/2 -translate-y-1/2 flex items-center"><Loader2 size={18} className="animate-spin text-accent-primary" /></div>
                   )}
                   {transferUsername.trim() !== '' && !selectedRecipient && !isSearching && (
-                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="absolute w-full mt-2 bg-surface-card rounded-[24px] shadow-2xl overflow-hidden z-50 flex flex-col gap-1 p-2" data-no-drag="true">
+                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="absolute w-full mt-2 bg-[#121212] border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50 flex flex-col gap-1 p-2" data-no-drag="true">
                       {transferResults.length === 0 ? (
-                        <div className="p-6 text-center text-brand-muted text-[13px] font-bold">לא נמצא משתמש כזה</div>
+                        <div className="p-6 text-center text-[#8b8b93] text-[13px] font-bold">לא נמצא משתמש כזה</div>
                       ) : (
                         transferResults.map((u, i) => (
-                          <div key={u.id} onClick={() => { triggerFeedback('pop'); setSelectedRecipient(u); setTransferUsername(u.username || ''); setShowUserDropdown(false); }} className={`flex items-center gap-3 p-3 bg-surface rounded-[16px] hover:bg-surface-border/40 cursor-pointer transition-colors w-full`}>
-                            <div className="w-12 h-12 rounded-full bg-surface-card overflow-hidden shrink-0 border-none flex items-center justify-center">
-                              {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={24} className="text-brand-muted" />}
+                          <div key={u.id} onClick={() => { triggerFeedback('pop'); setSelectedRecipient(u); setTransferUsername(u.username || ''); setShowUserDropdown(false); }} className={`flex items-center gap-4 p-3 bg-transparent rounded-[16px] hover:bg-white/5 cursor-pointer transition-colors w-full`}>
+                            <div className="w-12 h-12 rounded-full bg-[#1a1a1e] overflow-hidden shrink-0 flex items-center justify-center">
+                              {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={24} className="text-[#8b8b93]" />}
                             </div>
                             <div className="flex flex-col text-right">
-                              <span className="text-brand text-[15px] font-black">{u.full_name || 'משתמש'}</span>
-                              {u.username && <span className="text-brand-muted text-[12px] font-bold tracking-widest" dir="ltr">@{u.username}</span>}
+                              <span className="text-white text-[15px] font-black">{u.full_name || 'משתמש'}</span>
+                              {u.username && <span className="text-[#8b8b93] text-[12px] font-bold tracking-widest" dir="ltr">@{u.username}</span>}
                             </div>
                           </div>
                         ))
@@ -447,54 +453,54 @@ export const WalletPage: React.FC = () => {
               </div>
 
               {selectedRecipient && (
-                <div className="bg-accent-primary/10 border-none rounded-[20px] p-3 px-4 flex items-center justify-between shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full overflow-hidden bg-surface-card border-none flex items-center justify-center">
-                      {selectedRecipient.avatar_url ? <img src={selectedRecipient.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={24} className="text-brand-muted" />}
+                <div className="bg-transparent border-b border-white/20 py-4 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full overflow-hidden bg-[#1a1a1e] flex items-center justify-center">
+                      {selectedRecipient.avatar_url ? <img src={selectedRecipient.avatar_url} className="w-full h-full object-cover" /> : <UserCircle size={24} className="text-[#8b8b93]" />}
                     </div>
                     <div className="flex flex-col text-right">
-                      <span className="text-brand text-[15px] font-black flex items-center gap-1.5">{selectedRecipient.full_name || 'משתמש'}<CheckCircle2 size={16} className="text-accent-primary" /></span>
-                      {selectedRecipient.username && <span className="text-brand-muted text-[12px] font-bold tracking-widest" dir="ltr">@{selectedRecipient.username}</span>}
+                      <span className="text-white text-[15px] font-black flex items-center gap-1.5">{selectedRecipient.full_name || 'משתמש'}<CheckCircle2 size={16} className="text-accent-primary" /></span>
+                      {selectedRecipient.username && <span className="text-[#8b8b93] text-[12px] font-bold tracking-widest" dir="ltr">@{selectedRecipient.username}</span>}
                     </div>
                   </div>
-                  <button onClick={() => { setSelectedRecipient(null); setTransferUsername(''); setTransferResults([]); }} className="text-brand-muted hover:text-brand transition-colors text-[12px] font-black bg-surface px-4 py-2 rounded-full border-none">שנה</button>
+                  <button onClick={() => { setSelectedRecipient(null); setTransferUsername(''); setTransferResults([]); }} className="text-[#8b8b93] hover:text-white transition-colors text-[12px] font-black bg-white/5 px-4 py-2 rounded-full">שנה</button>
                 </div>
               )}
 
-              <div className="relative mt-2" data-no-drag="true">
-                <span className="absolute left-6 top-1/2 -translate-y-1/2 text-accent-primary font-black text-[16px] tracking-widest">קרדיטים</span>
+              <div className="relative mt-4" data-no-drag="true">
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-accent-primary font-black text-[16px] tracking-widest">קרדיטים</span>
                 <input
                   type="number" value={transferAmount} onChange={(e: any) => setTransferAmount(e.target.value)}
-                  placeholder="סכום..." dir="ltr"
-                  className="w-full h-16 bg-surface-card border-none rounded-[20px] px-24 text-brand font-black text-2xl outline-none focus:bg-surface-border/30 transition-all text-left placeholder:text-brand-muted shadow-sm"
+                  placeholder="סכום ההעברה..." dir="ltr"
+                  className="w-full h-16 bg-transparent border-b border-white/20 px-24 text-white font-black text-3xl outline-none focus:border-accent-primary transition-all text-left placeholder:text-[#4a4a52]"
                 />
               </div>
-              <Button onClick={handleTransfer} disabled={transferring || !transferAmount || !selectedRecipient} className="h-16 bg-accent-primary text-white font-black text-[16px] uppercase tracking-widest rounded-[20px] mt-4 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 border-none shadow-md">
-                {transferring ? <Loader2 size={24} className="animate-spin text-white" /> : 'אישור העברה'}
+              <Button onClick={handleTransfer} disabled={transferring || !transferAmount || !selectedRecipient} className="h-16 bg-white text-black font-black text-[16px] uppercase tracking-widest rounded-[24px] mt-6 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 border-none">
+                {transferring ? <Loader2 size={24} className="animate-spin text-black" /> : 'אישור העברה'}
               </Button>
             </div>
           </BottomSheet>
 
-          {/* Redeem Sheet */}
+          {/* Redeem Sheet (ללא קופסאות פנימיות) */}
           <BottomSheet open={showRedeem} onClose={() => setShowRedeem(false)} heightClass="h-auto">
             <div className="flex flex-col gap-6 items-center text-center pb-10">
               <div className="w-20 h-20 bg-rose-500/10 rounded-full flex items-center justify-center mb-2">
                 <Download size={32} className="text-rose-500" />
               </div>
               <div>
-                <h2 className="text-brand font-black text-2xl uppercase tracking-widest mb-1">משיכת מזומן</h2>
-                <p className="text-brand-muted text-[14px] font-medium leading-relaxed px-4">משוך את הקרדיטים לחשבון הבנק.<br/><span className="text-rose-500 font-bold text-[12px] uppercase tracking-widest">מינימום: 100 קרדיטים</span></p>
+                <h2 className="text-white font-black text-2xl uppercase tracking-widest mb-1">משיכת מזומן</h2>
+                <p className="text-[#8b8b93] text-[14px] font-medium leading-relaxed px-4">משוך את הקרדיטים לחשבון הבנק.<br/><span className="text-rose-500 font-bold text-[12px] uppercase tracking-widest mt-1 inline-block">מינימום: 100 קרדיטים</span></p>
               </div>
-              <div className="relative w-full mt-2" data-no-drag="true">
-                <span className="absolute left-6 top-1/2 -translate-y-1/2 text-rose-500 font-black text-[16px] tracking-widest">קרדיטים</span>
+              <div className="relative w-full mt-4" data-no-drag="true">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-rose-500 font-black text-[16px] tracking-widest">קרדיטים</span>
                 <input
                   type="number" value={redeemAmount} onChange={(e: any) => setRedeemAmount(e.target.value)}
                   placeholder="0" dir="ltr"
-                  className="w-full h-16 bg-surface-card border-none rounded-[20px] px-24 text-brand font-black text-2xl outline-none focus:bg-surface-border/30 transition-all text-left placeholder:text-brand-muted shadow-sm"
+                  className="w-full h-16 bg-transparent border-b border-white/20 px-24 text-white font-black text-4xl outline-none focus:border-rose-500 transition-all text-left placeholder:text-[#4a4a52]"
                 />
               </div>
-              <Button onClick={handleRedeem} disabled={redeeming || !redeemAmount} className="w-full h-16 mt-2 bg-rose-500 hover:bg-rose-600 text-white font-black text-[16px] uppercase tracking-widest rounded-[20px] active:scale-95 disabled:opacity-50 border-none shadow-md">
-                {redeeming ? <Loader2 size={24} className="animate-spin text-white" /> : 'בקש משיכה'}
+              <Button onClick={handleRedeem} disabled={redeeming || !redeemAmount} className="w-full h-16 mt-6 bg-white text-black font-black text-[16px] uppercase tracking-widest rounded-[24px] active:scale-95 disabled:opacity-50 border-none">
+                {redeeming ? <Loader2 size={24} className="animate-spin text-black" /> : 'בקש משיכה'}
               </Button>
             </div>
           </BottomSheet>
