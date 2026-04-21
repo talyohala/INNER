@@ -487,7 +487,7 @@ export const ProfilePage: React.FC = () => {
   return (
     <FadeIn className="bg-[#0d0d0f] min-h-[100dvh] relative font-sans text-white overflow-x-hidden pb-24" dir="rtl">
       
-      {/* 🌌 Hero Backdrop */}
+      {/* 🌌 Hero Backdrop - Seamless Masked Gradient */}
       <div className="absolute top-0 left-0 w-full h-[350px] z-0 pointer-events-none">
         {userProfile.cover_url ? (
           <motion.div style={{ y: coverY, opacity: coverOpacity }} className="w-full h-full relative">
@@ -788,7 +788,7 @@ export const ProfilePage: React.FC = () => {
                 )}
                 {gridActionModal.type === 'circle' && (
                   <>
-                    <button onClick={() => { closeOverlay(); setTimeout(() => navigate(`/circle/${gridActionModal.item.slug}`); }, 100); }} className="w-full p-4 bg-white/5 rounded-[20px] text-white font-black flex justify-between items-center text-[14px] hover:bg-white/10 transition-colors border border-white/5"><span>כנס למועדון</span><LinkIcon size={18} className="text-white/40" /></button>
+                    <button onClick={() => { closeOverlay(); setTimeout(() => navigate(`/circle/${gridActionModal.item.slug}`), 100); }} className="w-full p-4 bg-white/5 rounded-[20px] text-white font-black flex justify-between items-center text-[14px] hover:bg-white/10 transition-colors border border-white/5"><span>כנס למועדון</span><LinkIcon size={18} className="text-white/40" /></button>
                     <button onClick={() => { if (window.confirm('לעזוב את המועדון?')) leaveCircle(gridActionModal.item.id); }} className="w-full p-4 bg-red-500/10 rounded-[20px] text-red-500 font-black flex justify-between items-center text-[14px] hover:bg-red-500/20 transition-colors border border-red-500/20"><span>עזוב מועדון</span><LogOut size={18} /></button>
                   </>
                 )}
