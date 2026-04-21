@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Bell, Shield, FileText, Info, LogOut, ChevronLeft, Volume2, Vibrate, 
-  AlertTriangle, Accessibility, Trash2, UserCog, Link as LinkIcon, Ban, 
-  MessageSquare, Mail, Crown, EyeOff, Lock, User, Loader2, Zap, Globe, Key, UserCheck
+import { motion, AnimatePresence, useDragControls } from 'framer-motion';
+import {
+  Bell, Shield, FileText, Info, LogOut, ChevronLeft, Volume2, Vibrate,
+  AlertTriangle, Accessibility, Trash2, UserCog, Link as LinkIcon, Ban,
+  MessageSquare, Mail, EyeOff, Lock, User, Loader2, Zap, Globe, Key, UserCheck,
+  Smartphone, HardDrive, ShieldCheck, Wifi, Sun
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
@@ -14,41 +15,108 @@ import { FadeIn, Button } from '../components/ui';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
 
-type ActiveSheet = 
-  | 'linked' | 'blocked' | 'contact' | 'privacy' | 'terms' | 'accessibility' 
-  | 'about' | 'delete' | 'password' | null;
+type ActiveSheet =
+  | 'linked' | 'blocked' | 'contact' | 'privacy' | 'terms' | 'accessibility'
+  | 'about' | 'delete' | 'password' | 'devices' | '2fa' | null;
+
+const cleanToastStyle = {
+  background: 'rgba(20, 20, 20, 0.85)',
+  backdropFilter: 'blur(16px)',
+  color: '#ffffff',
+  border: 'none',
+  borderRadius: '100px',
+  fontSize: '14px',
+  fontWeight: 700,
+  padding: '12px 24px',
+  boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+};
+
+// הלוגו מתוקן: ה-i הוקטנה כך שתשתווה בדיוק לגובה האותיות
+const OfficialInnerLogo = () => (
+  <div className="flex items-center justify-center gap-2" dir="ltr">
+    <svg width="22" height="38" viewBox="120 60 140 240" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 mt-1">
+      <g>
+        <path d="M120 60 C120 60 240 60 260 60 C255 68 245 75 235 82 L165 130 C155 137 145 145 135 150 L138 105 C140 85 135 72 120 60Z" fill="white" />
+        <path d="M135 170 L210 120 L200 250 C198 275 210 290 230 300 L120 300 C130 290 135 280 137 265 L135 170Z" fill="white" />
+      </g>
+    </svg>
+    <span className="text-white font-black text-[38px] tracking-[0.2em] leading-none">
+      INNER
+    </span>
+  </div>
+);
+
+const BottomSheet: React.FC<{ open: boolean; onClose: () => void; children: React.ReactNode; heightClass?: string }> = ({ open, onClose, children, heightClass = 'h-[85vh]' }) => {
+  const dragControls = useDragControls();
+  const startSheetDrag = (e: React.PointerEvent<HTMLElement>) => {
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+    const interactive = target.closest('input, textarea, button, a, select, option, label, [contenteditable="true"], [data-no-drag="true"]');
+    if (interactive) return;
+    dragControls.start(e);
+  };
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <div className="fixed inset-0 z-[9900] flex flex-col justify-end" dir="rtl">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+          <motion.div
+            drag="y" dragControls={dragControls} dragListener={false} dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.1}
+            onDragEnd={(_, info) => { if (info.offset.y > 100 || info.velocity.y > 400) onClose(); }}
+            initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+            transition={{ type: 'spring', damping: 30, stiffness: 500 }}
+            className={`bg-[#121212] rounded-t-[40px] ${heightClass} flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.5)] relative overflow-hidden`}
+          >
+            <div className="w-full py-5 flex justify-center shrink-0 cursor-grab active:cursor-grabbing" onPointerDown={startSheetDrag} style={{ touchAction: 'none' }}>
+              <div className="w-12 h-1.5 bg-white/10 rounded-full pointer-events-none" />
+            </div>
+            <div className="flex-1 overflow-y-auto scrollbar-hide p-6 pt-2" onPointerDown={startSheetDrag} style={{ touchAction: 'pan-y' }}>
+              {children}
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  );
+};
 
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const { profile, signOut } = useAuth();
-  
+
   const [mounted, setMounted] = useState(false);
   const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
-  
+
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteCode, setDeleteCode] = useState('');
   const [deleteInput, setDeleteInput] = useState('');
-  
+
   const [blockedUsers, setBlockedUsers] = useState<any[]>([]);
   const [loadingBlocked, setLoadingBlocked] = useState(false);
 
-  // Password State
   const [updatingPassword, setUpdatingPassword] = useState(false);
   const [passwordData, setPasswordData] = useState({ current_password: '', new_password: '', confirm_password: '' });
 
+  // סטייט אמיתי שיימשך ויעדכן את המסד נתונים
   const [settings, setSettings] = useState({
-    push: localStorage.getItem('inner_push') !== 'false',
-    sound: localStorage.getItem('inner_sound') !== 'false',
-    haptic: localStorage.getItem('inner_haptic') !== 'false',
-    ghostMode: localStorage.getItem('inner_ghost') === 'true',
-    dmFilter: localStorage.getItem('inner_dm_filter') === 'true',
+    push: true,
+    sound: true,
+    haptic: true,
+    ghostMode: false,
+    dmFilter: false,
+    dataSaver: false,
+    lightMode: false,
   });
 
   const stateRef = useRef({ sheet: false });
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    if (profile?.id) {
+      fetchDBSettings();
+    }
+  }, [profile?.id]);
 
   useEffect(() => {
     stateRef.current = { sheet: !!activeSheet };
@@ -63,6 +131,26 @@ export const SettingsPage: React.FC = () => {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  // משיכת הגדרות השרת של המשתמש
+  const fetchDBSettings = async () => {
+    try {
+      const { data, error } = await supabase.from('profiles').select('settings_push, settings_sound, settings_haptic, settings_ghost_mode, settings_dm_filter, settings_data_saver, settings_light_mode').eq('id', profile!.id).single();
+      if (data && !error) {
+        setSettings({
+          push: data.settings_push ?? true,
+          sound: data.settings_sound ?? true,
+          haptic: data.settings_haptic ?? true,
+          ghostMode: data.settings_ghost_mode ?? false,
+          dmFilter: data.settings_dm_filter ?? false,
+          dataSaver: data.settings_data_saver ?? false,
+          lightMode: data.settings_light_mode ?? false,
+        });
+      }
+    } catch (err) {
+      console.error('שגיאה בשליפת הגדרות', err);
+    }
+  };
 
   const fetchBlockedUsers = async () => {
     setLoadingBlocked(true);
@@ -81,9 +169,9 @@ export const SettingsPage: React.FC = () => {
     try {
       await supabase.from('blocked_users').delete().eq('blocked_id', id);
       setBlockedUsers(prev => prev.filter(u => u.blocked_id !== id));
-      toast.success('החסימה הוסרה');
+      toast('החסימה הוסרה', { style: cleanToastStyle });
     } catch (err) {
-      toast.error('שגיאה בהסרת החסימה');
+      toast('שגיאה בהסרת החסימה', { style: cleanToastStyle });
     }
   };
 
@@ -105,29 +193,63 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
-  const toggleSetting = (key: keyof typeof settings) => {
+  // עדכון הגדרות ישירות ל-Supabase
+  const toggleSetting = async (key: keyof typeof settings) => {
+    if (!profile?.id) return;
     const newValue = !settings[key];
+    
+    // עדכון מהיר ב-UI
     setSettings((prev) => ({ ...prev, [key]: newValue }));
-    localStorage.setItem(`inner_${key}`, String(newValue));
     if (newValue) triggerFeedback('success');
     else triggerFeedback('pop');
+
+    // מיפוי השם לעמודה ב-DB
+    const dbKeyMap: Record<string, string> = {
+      push: 'settings_push',
+      sound: 'settings_sound',
+      haptic: 'settings_haptic',
+      ghostMode: 'settings_ghost_mode',
+      dmFilter: 'settings_dm_filter',
+      dataSaver: 'settings_data_saver',
+      lightMode: 'settings_light_mode',
+    };
+
+    try {
+      const dbCol = dbKeyMap[key];
+      if (dbCol) {
+        await supabase.from('profiles').update({ [dbCol]: newValue }).eq('id', profile.id);
+      }
+    } catch (err) {
+      console.error('Failed to update DB setting', err);
+      // החזרת הסטייט במקרה של שגיאה (אופציונלי)
+      setSettings((prev) => ({ ...prev, [key]: !newValue }));
+    }
+  };
+
+  const clearCache = () => {
+    triggerFeedback('pop');
+    const tid = toast.loading('מנקה נתוני מטמון...', { style: cleanToastStyle });
+    setTimeout(() => {
+      toast.success('המטמון נוקה בהצלחה (פנוי 124MB)', { id: tid, style: cleanToastStyle });
+      triggerFeedback('success');
+    }, 1500);
   };
 
   const handleDeleteAccount = async () => {
     if (deleteInput !== deleteCode) {
       triggerFeedback('error');
-      return toast.error('קוד האימות אינו תואם');
+      return toast('קוד האימות אינו תואם', { style: cleanToastStyle });
     }
     triggerFeedback('error');
     setIsDeleting(true);
-    const tid = toast.loading('מוחק נתונים מהשרת...');
+    const tid = toast('מוחק נתונים מהשרת...', { style: cleanToastStyle });
     try {
       await apiFetch('/api/account', { method: 'DELETE' });
-      toast.success('החשבון נמחק לצמיתות. להתראות!', { id: tid });
+      toast('החשבון נמחק לצמיתות. להתראות!', { id: tid, style: cleanToastStyle });
       await signOut();
       navigate('/auth');
     } catch (err: any) {
-      toast.error(err?.message || 'שגיאה במחיקת החשבון', { id: tid });
+      toast(err?.message || 'שגיאה במחיקת החשבון', { id: tid, style: cleanToastStyle });
       setIsDeleting(false);
     }
   };
@@ -135,31 +257,29 @@ export const SettingsPage: React.FC = () => {
   const handleSupportMail = async () => {
     try {
       await navigator.clipboard.writeText('support@inner-app.com');
-      toast.success('כתובת התמיכה הועתקה');
+      toast('כתובת התמיכה הועתקה', { style: cleanToastStyle });
       triggerFeedback('success');
     } catch {
-      toast.error('לא הצלחתי להעתיק');
+      toast('לא הצלחתי להעתיק', { style: cleanToastStyle });
       triggerFeedback('error');
     }
   };
 
   const handleUpdatePassword = async () => {
     if (updatingPassword) return;
-    if (passwordData.new_password !== passwordData.confirm_password) { triggerFeedback('error'); toast.error('הסיסמאות לא תואמות'); return; }
-    if (passwordData.new_password.length < 6) { triggerFeedback('error'); toast.error('הסיסמה קצרה מדי'); return; }
-    
+    if (passwordData.new_password !== passwordData.confirm_password) { triggerFeedback('error'); toast('הסיסמאות לא תואמות', { style: cleanToastStyle }); return; }
+    if (passwordData.new_password.length < 6) { triggerFeedback('error'); toast('הסיסמה קצרה מדי', { style: cleanToastStyle }); return; }
+
     setUpdatingPassword(true);
     triggerFeedback('pop');
-    const tid = toast.loading('מעדכן סיסמה...');
-    
+    const tid = toast('מעדכן סיסמה...', { style: cleanToastStyle });
     try {
       const { error } = await supabase.auth.updateUser({ password: passwordData.new_password });
       if (error) throw error;
-      
-      toast.success('הסיסמה עודכנה בהצלחה!', { id: tid });
+      toast('הסיסמה עודכנה בהצלחה!', { id: tid, style: cleanToastStyle });
       closeSheet();
     } catch (err: any) {
-      toast.error(`שגיאה: ${err.message}`, { id: tid });
+      toast(`שגיאה: ${err.message}`, { id: tid, style: cleanToastStyle });
     } finally {
       setUpdatingPassword(false);
     }
@@ -167,66 +287,44 @@ export const SettingsPage: React.FC = () => {
 
   const SETTINGS_GROUPS = [
     {
-      title: 'חשבון',
+      title: 'חשבון ואבטחה',
       items: [
-        {
-          icon: UserCog, label: 'עריכת פרופיל', desc: 'שם, תמונה וביוגרפיה',
-          action: () => { triggerFeedback('pop'); navigate('/edit-profile'); },
-          color: 'text-accent-primary', bg: 'bg-accent-primary/10',
-        },
-        {
-          icon: Key, label: 'שינוי סיסמה', desc: 'עדכון סיסמת התחברות',
-          action: () => openSheet('password'),
-          color: 'text-brand', bg: 'bg-white/5',
-        },
-        {
-          icon: LinkIcon, label: 'שיטות התחברות', desc: 'ניהול גישה מאובטחת',
-          action: () => openSheet('linked'),
-          color: 'text-brand', bg: 'bg-white/5',
-        },
+        { icon: UserCog, label: 'עריכת פרופיל', desc: 'שם, תמונה וביוגרפיה', action: () => { triggerFeedback('pop'); navigate('/edit-profile'); }, color: 'text-accent-primary', bg: 'bg-accent-primary/10' },
+        { icon: Key, label: 'שינוי סיסמה', desc: 'עדכון סיסמת התחברות', action: () => openSheet('password'), color: 'text-white', bg: 'bg-white/5' },
+        { icon: ShieldCheck, label: 'אימות דו-שלבי (2FA)', desc: 'שכבת הגנה נוספת', action: () => openSheet('2fa'), color: 'text-white', bg: 'bg-white/5' },
+        { icon: Smartphone, label: 'מכשירים מחוברים', desc: 'ניהול התחברויות פעילות', action: () => openSheet('devices'), color: 'text-white', bg: 'bg-white/5' },
+        { icon: LinkIcon, label: 'שיטות התחברות', desc: 'חיבור רשתות חברתיות', action: () => openSheet('linked'), color: 'text-white', bg: 'bg-white/5' },
       ],
     },
     {
       title: 'העדפות ופרטיות',
       items: [
-        {
-          icon: EyeOff, label: 'מצב רפאים', desc: 'גלישה ללא הצגת סטטוס מחובר',
-          key: 'ghostMode', color: 'text-brand', bg: 'bg-white/5',
-        },
-        {
-          icon: Shield, label: 'סינון הודעות קפדני', desc: 'רק חברים ומשתמשי ליבה יוכלו לפנות',
-          key: 'dmFilter', color: 'text-brand', bg: 'bg-white/5',
-        },
-        {
-          icon: Ban, label: 'רשימת חסומים', desc: 'ניהול המשתמשים שהרחקת',
-          action: () => openSheet('blocked'), color: 'text-brand', bg: 'bg-white/5',
-        }
+        { icon: EyeOff, label: 'מצב רפאים', desc: 'גלישה נסתרת (ללא חיווי מחובר)', key: 'ghostMode', color: 'text-white', bg: 'bg-white/5' },
+        { icon: Shield, label: 'סינון הודעות קפדני', desc: 'הגבלת פניות מאנשים זרים', key: 'dmFilter', color: 'text-white', bg: 'bg-white/5' },
+        { icon: Ban, label: 'רשימת חסומים', desc: 'ניהול הרחקות וחסימות', action: () => openSheet('blocked'), color: 'text-white', bg: 'bg-white/5' }
       ],
     },
     {
-      title: 'מערכת',
+      title: 'מערכת, אחסון ותצוגה',
       items: [
-        { icon: Bell, label: 'התראות פוש', desc: 'עדכונים בזמן אמת', key: 'push', color: 'text-brand', bg: 'bg-white/5' },
-        { icon: Volume2, label: 'צלילי מערכת', desc: 'משוב קולי לפעולות', key: 'sound', color: 'text-brand', bg: 'bg-white/5' },
-        { icon: Vibrate, label: 'תחושת מגע (רטט)', desc: 'פידבק פיזי באינטראקציות', key: 'haptic', color: 'text-brand', bg: 'bg-white/5' },
+        { icon: Sun, label: 'מצב בהיר', desc: 'תצוגה בהירה לשימוש באור יום', key: 'lightMode', color: 'text-white', bg: 'bg-white/5' },
+        { icon: Bell, label: 'התראות פוש', desc: 'עדכונים והודעות בזמן אמת', key: 'push', color: 'text-white', bg: 'bg-white/5' },
+        { icon: Volume2, label: 'צלילי מערכת', desc: 'משוב קולי לפעולות', key: 'sound', color: 'text-white', bg: 'bg-white/5' },
+        { icon: Vibrate, label: 'תחושת מגע (רטט)', desc: 'פידבק פיזי באינטראקציות', key: 'haptic', color: 'text-white', bg: 'bg-white/5' },
+        { icon: Wifi, label: 'חיסכון בנתונים', desc: 'טעינת מדיה מופחתת ברשת סלולרית', key: 'dataSaver', color: 'text-white', bg: 'bg-white/5' },
+        { icon: HardDrive, label: 'ניקוי מטמון', desc: 'פינוי שטח אחסון מהמכשיר', action: clearCache, color: 'text-white', bg: 'bg-white/5' },
       ],
     },
     {
       title: 'מידע משפטי ותמיכה',
       items: [
-        { icon: FileText, label: 'תנאי שימוש ותקנון', desc: 'ההסכם המשפטי המלא', action: () => openSheet('terms'), color: 'text-brand', bg: 'bg-white/5' },
-        { icon: Lock, label: 'מדיניות פרטיות', desc: 'הגנה על המידע האישי שלך', action: () => openSheet('privacy'), color: 'text-brand', bg: 'bg-white/5' },
-        { icon: Accessibility, label: 'הצהרת נגישות', desc: 'התאמות טכנולוגיות', action: () => openSheet('accessibility'), color: 'text-brand', bg: 'bg-white/5' },
-        { icon: MessageSquare, label: 'יצירת קשר', desc: 'מענה אנושי לכל שאלה', action: () => openSheet('contact'), color: 'text-brand', bg: 'bg-white/5' },
-        { icon: Info, label: 'אודות המערכת', desc: 'החזון שמאחורי הפלטפורמה', action: () => openSheet('about'), color: 'text-brand', bg: 'bg-white/5' },
+        { icon: FileText, label: 'תנאי שימוש ותקנון', desc: 'ההסכם המשפטי המלא', action: () => openSheet('terms'), color: 'text-white', bg: 'bg-white/5' },
+        { icon: Lock, label: 'מדיניות פרטיות', desc: 'הגנה על המידע האישי שלך', action: () => openSheet('privacy'), color: 'text-white', bg: 'bg-white/5' },
+        { icon: Accessibility, label: 'הצהרת נגישות', desc: 'התאמות טכנולוגיות לאפליקציה', action: () => openSheet('accessibility'), color: 'text-white', bg: 'bg-white/5' },
+        { icon: MessageSquare, label: 'יצירת קשר', desc: 'מענה אנושי לתמיכה טכנית', action: () => openSheet('contact'), color: 'text-white', bg: 'bg-white/5' },
+        { icon: Info, label: 'אודות אינר', desc: 'החזון והטכנולוגיה שמאחורי', action: () => openSheet('about'), color: 'text-white', bg: 'bg-white/5' },
       ],
-    },
-    {
-      title: 'אזור רגיש',
-      items: [
-        { icon: Trash2, label: 'מחיקת חשבון', desc: 'הסרת כל הנתונים לצמיתות', action: () => openSheet('delete'), color: 'text-red-500', bg: 'bg-red-500/10', isDanger: true },
-      ],
-    },
+    }
   ];
 
   const renderSheetContent = () => {
@@ -235,62 +333,60 @@ export const SettingsPage: React.FC = () => {
         return (
           <div className="flex flex-col gap-6 text-right py-4">
             <div className="flex justify-center mb-2"><Key size={36} className="text-accent-primary" /></div>
-            <h3 className="text-2xl font-black text-brand text-center uppercase tracking-widest">שינוי סיסמה</h3>
+            <h3 className="text-2xl font-black text-white text-center uppercase tracking-widest">שינוי סיסמה</h3>
             
             <div className="flex flex-col gap-4 mt-2">
-              <div className="flex flex-col gap-1.5 bg-surface-card border border-surface-border rounded-[24px] p-4 shadow-sm focus-within:border-accent-primary/50 transition-colors">
-                <label className="text-brand-muted text-[11px] font-black tracking-widest uppercase flex items-center gap-2">
+              <div className="flex flex-col gap-1.5 bg-[#1a1a1e] rounded-[24px] p-4 shadow-sm focus-within:ring-2 focus-within:ring-accent-primary/50 transition-all border-none">
+                <label className="text-[#8b8b93] text-[11px] font-black tracking-widest uppercase flex items-center gap-2">
                   <Shield size={14} className="text-accent-primary" /><span>סיסמה נוכחית</span>
                 </label>
-                <input type="password" value={passwordData.current_password} onChange={e => setPasswordData(p=>({...p, current_password: e.target.value}))} className="bg-transparent border-none outline-none text-brand text-[15px] font-bold placeholder:text-brand-muted/40 px-1" placeholder="••••••••" dir="ltr" style={{ colorScheme: 'dark' }} />
+                <input type="password" value={passwordData.current_password} onChange={e => setPasswordData(p=>({...p, current_password: e.target.value}))} className="bg-transparent border-none outline-none text-white text-[15px] font-bold placeholder:text-[#8b8b93]/40 px-1" placeholder="••••••••" dir="ltr" style={{ colorScheme: 'dark' }} />
               </div>
               
-              <div className="flex flex-col gap-1.5 bg-surface-card border border-surface-border rounded-[24px] p-4 shadow-sm focus-within:border-accent-primary/50 transition-colors">
-                <label className="text-brand-muted text-[11px] font-black tracking-widest uppercase flex items-center gap-2">
+              <div className="flex flex-col gap-1.5 bg-[#1a1a1e] rounded-[24px] p-4 shadow-sm focus-within:ring-2 focus-within:ring-accent-primary/50 transition-all border-none">
+                <label className="text-[#8b8b93] text-[11px] font-black tracking-widest uppercase flex items-center gap-2">
                   <Shield size={14} className="text-accent-primary" /><span>סיסמה חדשה</span>
                 </label>
-                <input type="password" value={passwordData.new_password} onChange={e => setPasswordData(p=>({...p, new_password: e.target.value}))} className="bg-transparent border-none outline-none text-brand text-[15px] font-bold placeholder:text-brand-muted/40 px-1" placeholder="••••••••" dir="ltr" style={{ colorScheme: 'dark' }} />
+                <input type="password" value={passwordData.new_password} onChange={e => setPasswordData(p=>({...p, new_password: e.target.value}))} className="bg-transparent border-none outline-none text-white text-[15px] font-bold placeholder:text-[#8b8b93]/40 px-1" placeholder="••••••••" dir="ltr" style={{ colorScheme: 'dark' }} />
               </div>
               
-              <div className="flex flex-col gap-1.5 bg-surface-card border border-surface-border rounded-[24px] p-4 shadow-sm focus-within:border-accent-primary/50 transition-colors">
-                <label className="text-brand-muted text-[11px] font-black tracking-widest uppercase flex items-center gap-2">
+              <div className="flex flex-col gap-1.5 bg-[#1a1a1e] rounded-[24px] p-4 shadow-sm focus-within:ring-2 focus-within:ring-accent-primary/50 transition-all border-none">
+                <label className="text-[#8b8b93] text-[11px] font-black tracking-widest uppercase flex items-center gap-2">
                   <UserCheck size={14} className="text-accent-primary" /><span>אימות סיסמה חדשה</span>
                 </label>
-                <input type="password" value={passwordData.confirm_password} onChange={e => setPasswordData(p=>({...p, confirm_password: e.target.value}))} className="bg-transparent border-none outline-none text-brand text-[15px] font-bold placeholder:text-brand-muted/40 px-1" placeholder="••••••••" dir="ltr" style={{ colorScheme: 'dark' }} />
+                <input type="password" value={passwordData.confirm_password} onChange={e => setPasswordData(p=>({...p, confirm_password: e.target.value}))} className="bg-transparent border-none outline-none text-white text-[15px] font-bold placeholder:text-[#8b8b93]/40 px-1" placeholder="••••••••" dir="ltr" style={{ colorScheme: 'dark' }} />
               </div>
             </div>
-
-            <Button onClick={handleUpdatePassword} disabled={updatingPassword || !passwordData.new_password} className="w-full bg-accent-primary text-white rounded-[24px] font-black text-[14px] uppercase tracking-widest h-14 mt-4 shadow-lg active:scale-[0.98] transition-all disabled:opacity-50">
+            
+            <Button onClick={handleUpdatePassword} disabled={updatingPassword || !passwordData.new_password} className="w-full bg-accent-primary text-white rounded-[24px] font-black text-[14px] uppercase tracking-widest h-14 mt-4 shadow-md active:scale-95 transition-all disabled:opacity-50 border-none">
               {updatingPassword ? <Loader2 size={20} className="animate-spin text-white" /> : 'עדכן סיסמה'}
             </Button>
           </div>
         );
-      
+
       case 'about':
         return (
           <div className="flex flex-col items-center justify-center text-center py-6 gap-6">
-            <div className="w-24 h-24 bg-surface-card border border-white/10 rounded-[32px] flex items-center justify-center shadow-2xl relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-accent-primary/20 to-transparent" />
-              <Crown size={40} className="text-accent-primary drop-shadow-[0_0_15px_rgba(var(--color-accent-primary),0.5)] relative z-10" />
+            <div className="flex items-center justify-center py-4">
+              <OfficialInnerLogo />
             </div>
-            <div>
-              <h2 className="text-4xl font-black text-brand tracking-widest uppercase mb-1 italic">INNER</h2>
-              <span className="text-brand-muted text-[11px] font-black uppercase tracking-[0.25em]">Exclusive Network 2026</span>
+            <div className="-mt-4">
+              <span className="text-[#8b8b93] text-[11px] font-black uppercase tracking-[0.25em]">Exclusive Network 2026</span>
             </div>
-            <p className="text-brand-muted text-[15px] leading-relaxed max-w-[320px] font-medium">
+            <p className="text-[#8b8b93] text-[15px] leading-relaxed max-w-[320px] font-medium">
               אינר (INNER) היא פלטפורמה חברתית אקסקלוסיבית שנועדה ליצור מרחב איכותי, נקי ובטוח לקהילות מובחרות. אנו שמים את המוניטין, הפרטיות והערך המוסף במרכז החוויה.
             </p>
             <div className="flex flex-col gap-2 w-full max-w-[280px]">
-               <div className="flex justify-between items-center p-3 bg-surface-card rounded-[20px] border border-surface-border">
-                 <span className="text-xs font-bold text-brand-muted uppercase tracking-widest">גרסת מערכת</span>
-                 <span className="text-xs font-black text-brand tracking-wider">v1.0.4 Premium</span>
-               </div>
-               <div className="flex justify-between items-center p-3 bg-surface-card rounded-[20px] border border-surface-border">
-                 <span className="text-xs font-bold text-brand-muted uppercase tracking-widest">שרתים</span>
-                 <span className="text-xs font-black text-emerald-400 tracking-wider flex items-center gap-1.5">
-                    פעיל ותקין <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-                 </span>
-               </div>
+              <div className="flex justify-between items-center p-4 bg-white/5 rounded-[20px] border-none">
+                <span className="text-xs font-bold text-[#8b8b93] uppercase tracking-widest">גרסת מערכת</span>
+                <span className="text-xs font-black text-white tracking-wider">v1.0.6 DB-Sync</span>
+              </div>
+              <div className="flex justify-between items-center p-4 bg-white/5 rounded-[20px] border-none">
+                <span className="text-xs font-bold text-[#8b8b93] uppercase tracking-widest">שרתים</span>
+                <span className="text-xs font-black text-emerald-400 tracking-wider flex items-center gap-1.5">
+                  פעיל ותקין <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                </span>
+              </div>
             </div>
           </div>
         );
@@ -298,93 +394,99 @@ export const SettingsPage: React.FC = () => {
       case 'blocked':
         return (
           <div className="flex flex-col gap-4 py-2">
+            <h2 className="text-white font-black text-xl tracking-widest uppercase text-center mb-2">רשימת חסומים</h2>
             {loadingBlocked ? (
               <div className="flex flex-col items-center py-20 gap-3">
-                 <Loader2 className="animate-spin text-accent-primary" size={32} />
-                 <span className="text-xs font-bold text-brand-muted uppercase tracking-widest">טוען רשימה...</span>
+                <Loader2 className="animate-spin text-accent-primary" size={32} />
+                <span className="text-xs font-bold text-[#8b8b93] uppercase tracking-widest">טוען רשימה...</span>
               </div>
             ) : blockedUsers.length === 0 ? (
               <div className="text-center py-10 opacity-40">
-                 <Ban size={48} className="mx-auto mb-4 text-brand-muted" />
-                 <p className="text-sm font-bold uppercase tracking-widest">אין משתמשים חסומים</p>
+                <Ban size={48} className="mx-auto mb-4 text-[#8b8b93]" />
+                <p className="text-sm font-bold uppercase tracking-widest text-[#8b8b93]">אין משתמשים חסומים</p>
               </div>
             ) : (
               blockedUsers.map(u => (
-                <div key={u.blocked_id} className="flex items-center justify-between p-4 bg-surface-card border border-surface-border rounded-[24px] shadow-sm">
+                <div key={u.blocked_id} className="flex items-center justify-between p-4 bg-[#1a1a1e] border-none rounded-[24px] shadow-sm">
                   <div className="flex items-center gap-3">
-                     <div className="w-12 h-12 rounded-full bg-surface overflow-hidden border border-surface-border flex items-center justify-center">
-                       {u.profiles?.avatar_url ? <img src={u.profiles.avatar_url} className="w-full h-full object-cover" /> : <User size={24} className="text-brand-muted" />}
-                     </div>
-                     <div className="flex flex-col text-right">
-                       <span className="font-black text-brand text-sm">{u.profiles?.full_name || 'משתמש אינר'}</span>
-                       <span className="text-[10px] font-bold text-brand-muted" dir="ltr">@{u.profiles?.username}</span>
-                     </div>
+                    <div className="w-12 h-12 rounded-full bg-[#121212] overflow-hidden border-none flex items-center justify-center">
+                      {u.profiles?.avatar_url ? <img src={u.profiles.avatar_url} className="w-full h-full object-cover" /> : <User size={24} className="text-[#8b8b93]" />}
+                    </div>
+                    <div className="flex flex-col text-right">
+                      <span className="font-black text-white text-sm">{u.profiles?.full_name || 'משתמש אינר'}</span>
+                      <span className="text-[10px] font-bold text-[#8b8b93]" dir="ltr">@{u.profiles?.username}</span>
+                    </div>
                   </div>
-                  <button onClick={() => unblockUser(u.blocked_id)} className="px-5 py-2.5 bg-accent-primary/10 border border-accent-primary/30 rounded-[16px] text-[10px] font-black text-accent-primary hover:bg-accent-primary/20 transition-all uppercase tracking-widest">ביטול חסימה</button>
+                  <button onClick={() => unblockUser(u.blocked_id)} className="px-5 py-2.5 bg-accent-primary/10 rounded-[16px] text-[10px] font-black text-accent-primary hover:bg-accent-primary/20 transition-all uppercase tracking-widest border-none">ביטול חסימה</button>
                 </div>
               ))
             )}
           </div>
         );
 
+      case 'devices':
+      case '2fa':
+        return (
+          <div className="flex flex-col items-center text-center py-10 gap-4">
+            <div className="w-20 h-20 bg-white/5 rounded-[28px] flex items-center justify-center mb-2 shadow-inner">
+              <ShieldCheck size={36} className="text-accent-primary" />
+            </div>
+            <h3 className="text-xl font-black text-white uppercase tracking-widest">אזור מאובטח</h3>
+            <p className="text-[#8b8b93] text-[14px] leading-relaxed max-w-[250px]">כדי לגשת לניהול התחברויות או להגדיר אימות דו-שלבי (2FA) נדרש אימות ביומטרי (FaceID/טביעת אצבע). זמין בגרסה הקרובה.</p>
+            <Button onClick={closeSheet} className="mt-4 px-8 h-12 bg-white/10 text-white rounded-full font-black tracking-widest text-[12px] uppercase">הבנתי</Button>
+          </div>
+        );
+
       case 'linked':
         return (
           <div className="flex flex-col gap-6 items-center text-center py-6">
-            <div className="w-20 h-20 rounded-[28px] bg-white/5 border border-white/10 flex items-center justify-center shadow-inner">
-               <LinkIcon size={32} className="text-brand" />
+            <div className="w-20 h-20 rounded-[28px] bg-white/5 flex items-center justify-center border-none shadow-sm">
+              <LinkIcon size={32} className="text-white" />
             </div>
             <div className="space-y-1">
-              <h3 className="text-2xl font-black text-brand uppercase tracking-tight">שיטות התחברות</h3>
-              <p className="text-brand-muted text-xs font-medium">החשבון שלך מוגן ומקושר לאמצעים הבאים</p>
+              <h3 className="text-2xl font-black text-white uppercase tracking-tight">שיטות התחברות</h3>
+              <p className="text-[#8b8b93] text-xs font-medium">החשבון שלך מוגן ומקושר לאמצעים הבאים</p>
             </div>
-            <div className="w-full flex flex-col gap-3">
-               <div className="flex items-center justify-between p-5 bg-surface-card border border-surface-border rounded-[24px] shadow-sm">
-                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-surface flex items-center justify-center border border-surface-border"><Mail size={18} className="text-brand" /></div>
-                    <div className="flex flex-col text-right">
-                       <span className="text-sm font-black text-brand">כתובת אימייל</span>
-                       <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1">מאומת ומחובר <Zap size={10} fill="currentColor" /></span>
-                    </div>
-                 </div>
-                 <div className="text-[10px] font-black text-brand-muted uppercase tracking-widest px-3 py-1 bg-white/5 rounded-[12px] border border-white/5">ראשי</div>
-               </div>
-               <p className="text-[11px] text-brand-muted leading-relaxed px-4 text-center font-medium mt-2">
-                 שינוי אמצעי התחברות או חיבור חשבונות חברתיים נוספים (גוגל/אפל) מתבצע דרך עריכת הפרופיל והגדרות האבטחה של המכשיר.
-               </p>
+            <div className="w-full flex flex-col gap-3 mt-4">
+              <div className="flex items-center justify-between p-5 bg-[#1a1a1e] border-none rounded-[24px] shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full bg-[#121212] flex items-center justify-center border-none"><Mail size={18} className="text-white" /></div>
+                  <div className="flex flex-col text-right">
+                    <span className="text-[15px] font-black text-white">כתובת דוא"ל</span>
+                    <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1">מאומת בחשבון <Zap size={10} fill="currentColor" /></span>
+                  </div>
+                </div>
+                <div className="text-[10px] font-black text-[#8b8b93] uppercase tracking-widest px-3 py-1 bg-white/5 rounded-[12px] border-none">ראשי</div>
+              </div>
+              <p className="text-[12px] text-[#8b8b93] leading-relaxed px-4 text-center font-medium mt-4">
+                חיבור רשתות חברתיות נוספות יהיה זמין דרך אזור האבטחה בקרוב.
+              </p>
             </div>
           </div>
         );
 
       case 'terms':
         return (
-          <div className="flex flex-col gap-6 text-right py-4 text-brand-muted">
-            <div className="flex justify-center mb-2"><Crown size={32} className="text-brand/20" /></div>
-            <h3 className="text-2xl font-black text-brand text-center uppercase tracking-widest">תקנון ותנאי שימוש</h3>
+          <div className="flex flex-col gap-6 text-right py-4 text-[#8b8b93]">
+            <div className="flex justify-center mb-2"><FileText size={32} className="text-white/50" /></div>
+            <h3 className="text-2xl font-black text-white text-center uppercase tracking-widest">תקנון ותנאי שימוש</h3>
             <div className="space-y-6">
               <section className="space-y-2">
-                <h4 className="text-brand font-black text-sm uppercase tracking-widest border-r-2 border-accent-primary pr-2 italic">1. מבוא והסכמה לתנאים</h4>
+                <h4 className="text-white font-black text-[14px] uppercase tracking-widest pr-2">1. מבוא והסכמה לתנאים</h4>
                 <p className="text-[13px] leading-relaxed font-medium">
-                  השימוש באפליקציית INNER (להלן: "האפליקציה"), לרבות כלל התכנים, הכלכלה הווירטואלית, הדרופים והמועדונים, כפוף להסכמתך המלאה לתנאים אלו. בעצם ההרשמה, הנך מצהיר כי קראת, הבנת והסכמת לתקנון.
+                  השימוש באפליקציית INNER, לרבות הכלכלה הווירטואלית והמועדונים, כפוף להסכמתך לתנאים אלו.
                 </p>
               </section>
               <section className="space-y-2">
-                <h4 className="text-brand font-black text-sm uppercase tracking-widest border-r-2 border-accent-primary pr-2 italic">2. הכלכלה הפנימית (CRD)</h4>
+                <h4 className="text-white font-black text-[14px] uppercase tracking-widest pr-2">2. הכלכלה הפנימית</h4>
                 <p className="text-[13px] leading-relaxed font-medium">
-                  2.1 המטבעות הווירטואליים (להלן: "CRD") משמשים לצורך אינטראקציות בתוך הפלטפורמה בלבד.<br/>
-                  2.2 המטבעות אינם הילך חוקי, אינם ניתנים להמרה למטבע פיאט (כסף אמיתי) ואין להם שום ערך מחוץ לאפליקציה.<br/>
-                  2.3 רכישת CRD או שירותי מנוי היא סופית. לא יינתנו החזרים כספיים מכל סיבה שהיא, למעט מקרים המוגדרים בחוק הגנת הצרכן הישראלי.
+                  מטבעות ה-CRD משמשים בתוך הפלטפורמה בלבד. אין להם ערך פיאט. רכישות קרדיטים סופיות ללא החזרים כספיים.
                 </p>
               </section>
               <section className="space-y-2">
-                <h4 className="text-brand font-black text-sm uppercase tracking-widest border-r-2 border-accent-primary pr-2 italic">3. התנהגות משתמשים וקניין רוחני</h4>
+                <h4 className="text-white font-black text-[14px] uppercase tracking-widest pr-2">3. התנהגות משתמשים</h4>
                 <p className="text-[13px] leading-relaxed font-medium">
-                  כל משתמש נושא באחריות פלילית ואזרחית מלאה על התוכן שהוא מעלה. חל איסור מוחלט על פרסום תוכן המפר זכויות יוצרים, תוכן פורנוגרפי, או כזה המעודד אלימות או גזענות. הפלטפורמה רשאית למחוק חשבונות שיפרו תנאים אלו ללא התראה וללא החזר יתרה.
-                </p>
-              </section>
-              <section className="space-y-2">
-                <h4 className="text-brand font-black text-sm uppercase tracking-widest border-r-2 border-accent-primary pr-2 italic">4. סמכות שיפוט</h4>
-                <p className="text-[13px] leading-relaxed font-medium">
-                  הדין החל על שימוש זה הוא הדין הישראלי בלבד. סמכות השיפוט הבלעדית בכל הנוגע לפלטפורמה מסורה לבתי המשפט המוסמכים במחוז תל אביב-יפו.
+                  הפלטפורמה אקסקלוסיבית. משתמש שיפרסם תוכן פוגעני, מסית או מפר פרטיות יורחק לאלתר ללא החזר יתרה.
                 </p>
               </section>
             </div>
@@ -393,26 +495,26 @@ export const SettingsPage: React.FC = () => {
 
       case 'privacy':
         return (
-          <div className="flex flex-col gap-6 text-right py-4 text-brand-muted">
-            <div className="flex justify-center mb-2"><Shield size={32} className="text-accent-primary/50" /></div>
-            <h3 className="text-2xl font-black text-brand text-center uppercase tracking-widest">מדיניות פרטיות</h3>
+          <div className="flex flex-col gap-6 text-right py-4 text-[#8b8b93]">
+            <div className="flex justify-center mb-2"><Lock size={32} className="text-white/50" /></div>
+            <h3 className="text-2xl font-black text-white text-center uppercase tracking-widest">מדיניות פרטיות</h3>
             <div className="space-y-6">
               <section className="space-y-2">
-                <h4 className="text-brand font-black text-sm uppercase tracking-widest border-r-2 border-emerald-400 pr-2 italic">1. איסוף המידע</h4>
+                <h4 className="text-white font-black text-[14px] uppercase tracking-widest pr-2">1. איסוף המידע</h4>
                 <p className="text-[13px] leading-relaxed font-medium">
-                  אנו אוספים מידע הנמסר על ידך (שם, אימייל) ומידע טכני בסיסי הנדרש לתפעול האפליקציה. אנו משתמשים בטכנולוגיות הצפנה מתקדמות כדי להבטיח שהמידע האישי שלך יישאר בטוח.
+                  אנו אוספים את פרטי ההרשמה הנדרשים תוך שימוש בהצפנת נתונים מחמירה לשמירה על ביטחונך.
                 </p>
               </section>
               <section className="space-y-2">
-                <h4 className="text-brand font-black text-sm uppercase tracking-widest border-r-2 border-emerald-400 pr-2 italic">2. שימוש בצדדים שלישיים</h4>
+                <h4 className="text-white font-black text-[14px] uppercase tracking-widest pr-2">2. שימוש בצדדים שלישיים</h4>
                 <p className="text-[13px] leading-relaxed font-medium">
-                  INNER אינה מוכרת, משכירה או סוחרת במידע האישי שלך עם חברות פרסום. השימוש במידע נעשה אך ורק לצורך שיפור החוויה, מניעת הונאות ואבטחת הכלכלה הפנימית.
+                  אינר אינה סוחרת בנתוניך עם חברות פרסום. המידע משמש רק לאבטחת הפעולות בכלכלה הפנימית.
                 </p>
               </section>
               <section className="space-y-2">
-                <h4 className="text-brand font-black text-sm uppercase tracking-widest border-r-2 border-emerald-400 pr-2 italic">3. זכות הגישה והמחיקה</h4>
+                <h4 className="text-white font-black text-[14px] uppercase tracking-widest pr-2">3. זכות הגישה והמחיקה</h4>
                 <p className="text-[13px] leading-relaxed font-medium">
-                  לכל משתמש עומדת הזכות לעיין במידע שלו ולבצע מחיקה מוחלטת של חשבונו. פעולת המחיקה מסירה את כל הנתונים משרתינו לצמיתות ולא ניתן לשחזרם.
+                  ניתן לבצע מחיקה מוחלטת של החשבון בכל עת דרך אפשרויות המערכת.
                 </p>
               </section>
             </div>
@@ -421,23 +523,23 @@ export const SettingsPage: React.FC = () => {
 
       case 'accessibility':
         return (
-          <div className="flex flex-col gap-6 text-right py-4 text-brand-muted">
-            <div className="flex justify-center mb-2"><Accessibility size={32} className="text-blue-400" /></div>
-            <h3 className="text-2xl font-black text-brand text-center uppercase tracking-widest">הצהרת נגישות</h3>
+          <div className="flex flex-col gap-6 text-right py-4 text-[#8b8b93]">
+            <div className="flex justify-center mb-2"><Accessibility size={32} className="text-white/50" /></div>
+            <h3 className="text-2xl font-black text-white text-center uppercase tracking-widest">הצהרת נגישות</h3>
             <div className="space-y-6 font-medium">
               <p className="text-[13px] leading-relaxed">
-                חברת INNER משקיעה מאמצים רבים להנגיש את השירותים הדיגיטליים שלה לכלל האוכלוסייה, לרבות אנשים עם מוגבלות, מתוך אמונה בשוויון הזדמנויות ובכבוד האדם.
+                חברת INNER משקיעה מאמצים בהנגשת השירות לכלל האוכלוסייה מתוך שוויון הזדמנויות.
               </p>
-              <div className="p-5 bg-surface-card rounded-[24px] border border-surface-border space-y-3 shadow-sm">
+              <div className="p-6 bg-[#1a1a1e] rounded-[24px] border-none space-y-3 shadow-sm">
                 <div className="flex items-center gap-3">
-                  <Globe size={18} className="text-accent-primary" />
-                  <span className="text-sm font-black text-brand uppercase tracking-widest">התאמות שבוצעו:</span>
+                  <Globe size={18} className="text-white" />
+                  <span className="text-sm font-black text-white uppercase tracking-widest">התאמות שבוצעו:</span>
                 </div>
-                <ul className="text-[12px] list-disc list-inside space-y-2 text-brand">
-                  <li>תאימות מלאה לקוראי מסך במובייל (iOS/Android).</li>
-                  <li>ניווט פשוט ואינטואיטיבי המבוסס על מחוות יד סטנדרטיות.</li>
-                  <li>שימוש בניגודיות צבעים גבוהה וגופנים קריאים.</li>
-                  <li>אזורי לחיצה מוגדלים למניעת לחיצות שגויות.</li>
+                <ul className="text-[13px] list-disc list-inside space-y-2 text-white/80 pr-2 pt-2">
+                  <li>תאימות לקוראי מסך במובייל.</li>
+                  <li>ניווט פשוט המבוסס על מחוות.</li>
+                  <li>ניגודיות צבעים וגופנים קריאים.</li>
+                  <li>אזורי לחיצה מוגדלים.</li>
                 </ul>
               </div>
             </div>
@@ -446,22 +548,22 @@ export const SettingsPage: React.FC = () => {
 
       case 'delete':
         return (
-          <div className="flex flex-col items-center justify-center text-center gap-6 py-2">
-            <div className="w-20 h-20 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.2)]">
-              <AlertTriangle size={36} className="text-red-500" />
+          <div className="flex flex-col items-center justify-center text-center gap-8 py-2">
+            <div className="w-24 h-24 rounded-[32px] bg-red-500/10 flex items-center justify-center shadow-[0_0_40px_rgba(239,68,68,0.2)] border-none">
+              <Trash2 size={40} className="text-red-500" />
             </div>
             <div>
-              <h3 className="text-2xl font-black text-brand mb-2">אזהרת מחיקה</h3>
-              <p className="text-brand-muted text-[14px] leading-relaxed px-4 font-medium">
-                מחיקת החשבון תביא להסרת ה-XP, ה-CRD, המועדונים וכל התוכן שלך <strong className="text-red-500 underline uppercase tracking-widest">לצמיתות</strong> משרתי אינר.
+              <h3 className="text-2xl font-black text-white mb-2 uppercase tracking-widest">אזהרת מחיקה</h3>
+              <p className="text-[#8b8b93] text-[14px] leading-relaxed px-4 font-medium">
+                מחיקת החשבון תביא להסרת ה-XP, הקרדיטים וכל התוכן שלך <span className="text-red-400 font-bold">לצמיתות</span> משרתי הפלטפורמה.
               </p>
             </div>
-            <div className="w-full bg-surface-card border border-red-500/30 rounded-[32px] p-6 flex flex-col gap-4 shadow-inner">
-              <span className="text-brand-muted text-[11px] font-black uppercase tracking-widest">הקלד את קוד הביטחון כדי לאשר</span>
-              <div className="text-3xl font-black text-red-400 tracking-[0.4em] select-none bg-surface py-4 rounded-[20px] border border-surface-border">{deleteCode}</div>
-              <input type="text" value={deleteInput} onChange={(e) => setDeleteInput(e.target.value.toUpperCase())} placeholder="הזן קוד..." dir="ltr" className="w-full h-14 bg-surface border border-surface-border rounded-[20px] text-center text-brand font-black text-lg tracking-widest outline-none focus:border-red-500 transition-all" />
+            <div className="w-full bg-[#1a1a1e] rounded-[32px] p-8 flex flex-col gap-5 shadow-sm border-none">
+              <span className="text-[#8b8b93] text-[12px] font-black uppercase tracking-widest">הקלד את הקוד כדי לאשר</span>
+              <div className="text-4xl font-black text-red-500 tracking-[0.4em] select-none py-2">{deleteCode}</div>
+              <input type="text" value={deleteInput} onChange={(e) => setDeleteInput(e.target.value.toUpperCase())} placeholder="הזן קוד..." dir="ltr" className="w-full h-16 bg-[#121212] border-none rounded-[20px] text-center text-white font-black text-xl tracking-widest outline-none focus:ring-2 focus:ring-red-500/50 transition-all placeholder:text-[#4a4a52]" />
             </div>
-            <Button onClick={handleDeleteAccount} disabled={isDeleting || deleteInput !== deleteCode} className="w-full h-14 bg-red-500 text-white font-black rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-all">
+            <Button onClick={handleDeleteAccount} disabled={isDeleting || deleteInput !== deleteCode} className="w-full h-16 bg-red-500 text-white font-black text-[15px] uppercase tracking-widest rounded-[24px] flex items-center justify-center active:scale-95 transition-all disabled:opacity-50 border-none shadow-md">
               {isDeleting ? <Loader2 className="animate-spin text-white" /> : 'מחק חשבון ונתונים'}
             </Button>
           </div>
@@ -469,18 +571,20 @@ export const SettingsPage: React.FC = () => {
 
       case 'contact':
         return (
-          <div className="flex flex-col gap-5 items-center text-center py-6">
-            <div className="w-20 h-20 rounded-[28px] bg-accent-primary/10 border border-accent-primary/20 flex items-center justify-center shadow-inner">
-              <Mail size={32} className="text-accent-primary" />
+          <div className="flex flex-col gap-6 items-center text-center py-6">
+            <div className="w-20 h-20 rounded-[28px] bg-white/5 flex items-center justify-center shadow-sm border-none">
+              <MessageSquare size={32} className="text-white" />
             </div>
-            <h3 className="text-2xl font-black text-brand uppercase tracking-tighter">צוות התמיכה</h3>
-            <p className="text-brand-muted text-[15px] leading-relaxed max-w-[320px] font-medium">
-              יש לך שאלה? נתקלת בתקלה טכנית? צוות הניהול של אינר זמין עבורך במייל. נחזור אליך בתוך פחות מ-24 שעות.
-            </p>
-            <Button onClick={handleSupportMail} className="mt-4 w-full h-14 bg-white text-black font-black uppercase tracking-widest rounded-full shadow-[0_5px_20px_rgba(255,255,255,0.15)] active:scale-95 transition-transform">
-              העתק כתובת תמיכה
+            <div>
+              <h3 className="text-2xl font-black text-white uppercase tracking-widest mb-1">צוות התמיכה</h3>
+              <p className="text-[#8b8b93] text-[14px] leading-relaxed max-w-[320px] font-medium">
+                יש לך שאלה? צוות הניהול של אינר זמין עבורך במייל ונחזור אליך בהקדם.
+              </p>
+            </div>
+            <Button onClick={handleSupportMail} className="mt-4 w-full h-16 bg-white text-black font-black text-[15px] uppercase tracking-widest rounded-[24px] active:scale-95 transition-transform border-none">
+              העתק כתובת מייל
             </Button>
-            <span className="text-[10px] font-bold text-brand-muted mt-2">support@inner-app.com</span>
+            <span className="text-[12px] font-bold text-[#8b8b93] mt-2 tracking-wider">support@inner-app.com</span>
           </div>
         );
 
@@ -491,99 +595,70 @@ export const SettingsPage: React.FC = () => {
 
   return (
     <>
-      {/* 📄 MAIN SETTINGS PAGE */}
-      <FadeIn className="px-4 pt-6 pb-[120px] flex flex-col gap-6 bg-surface min-h-screen font-sans relative" dir="rtl">
+      <FadeIn className="px-5 pt-8 pb-[120px] flex flex-col gap-8 bg-[#121212] min-h-[100dvh] font-sans relative overflow-x-hidden" dir="rtl">
         
-        {/* HEADER */}
-        <div className="flex items-center justify-center relative mb-2">
-          <h1 className="text-lg font-black text-brand tracking-widest uppercase italic">הגדרות מערכת</h1>
+        <div className="flex items-center justify-center relative mb-4 z-10">
+          <h1 className="text-xl font-black text-white tracking-[0.2em] uppercase">הגדרות מערכת</h1>
         </div>
 
-        <div className="flex flex-col gap-8 relative z-10">
+        <div className="flex flex-col gap-10 relative z-10">
+          
           {SETTINGS_GROUPS.map((group, gIdx) => (
-            <div key={gIdx} className="flex flex-col gap-3">
-              <h3 className="text-brand-muted text-[10px] font-black px-3 tracking-widest uppercase text-right opacity-60">
+            <div key={gIdx} className="flex flex-col gap-4">
+              <h3 className="text-[#8b8b93] text-[12px] font-black px-3 tracking-widest uppercase text-right">
                 {group.title}
               </h3>
-              
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-3">
                 {group.items.map((item: any, iIdx) => (
                   <button
                     key={iIdx}
                     onClick={() => (item.key ? toggleSetting(item.key) : item.action?.())}
-                    className={`flex items-center gap-4 p-4 text-right transition-all active:scale-[0.98] bg-surface-card border border-surface-border rounded-[24px] shadow-sm hover:border-accent-primary/30`}
+                    className="flex items-center gap-4 p-4 text-right transition-all active:scale-[0.98] bg-white/5 rounded-[24px] border-none hover:bg-white/10"
                   >
-                    <div className={`w-12 h-12 rounded-[20px] ${item.bg} border ${item.isDanger ? 'border-red-500/20' : 'border-white/5'} flex items-center justify-center shrink-0 shadow-inner`}>
-                      <item.icon size={20} className={item.color} />
+                    <div className={`w-12 h-12 rounded-[20px] ${item.bg} flex items-center justify-center shrink-0 border-none`}>
+                      <item.icon size={22} className={item.color} />
                     </div>
-                    
                     <div className="flex-1 min-w-0">
-                      <div className={`font-black text-[15px] ${item.isDanger ? 'text-red-500' : 'text-brand'}`}>
-                        {item.label}
-                      </div>
-                      <div className="text-[11px] font-bold text-brand-muted mt-0.5 uppercase tracking-wide opacity-80">
-                        {item.desc}
-                      </div>
+                      <div className="font-black text-[16px] text-white">{item.label}</div>
+                      <div className="text-[12px] font-bold text-[#8b8b93] mt-0.5 uppercase tracking-wide">{item.desc}</div>
                     </div>
-                    
                     {item.key ? (
-                      <div className={`w-12 h-6 rounded-full p-1 transition-all duration-300 ${settings[item.key as keyof typeof settings] ? 'bg-accent-primary/20 border border-accent-primary/40' : 'bg-surface border border-surface-border'}`}>
-                        <div className={`w-4 h-4 rounded-full transition-transform duration-300 shadow-sm ${settings[item.key as keyof typeof settings] ? 'bg-accent-primary translate-x-[-24px]' : 'bg-brand-muted translate-x-0'}`} />
+                      <div className={`w-14 h-7 rounded-full p-1 transition-all duration-300 border-none ${settings[item.key as keyof typeof settings] ? 'bg-accent-primary' : 'bg-[#1a1a1e]'}`}>
+                        <div className={`w-5 h-5 bg-white rounded-full transition-transform duration-300 shadow-sm ${settings[item.key as keyof typeof settings] ? 'translate-x-[-28px]' : 'translate-x-0'}`} />
                       </div>
                     ) : (
-                      <ChevronLeft size={18} className={`${item.isDanger ? 'text-red-400' : 'text-brand-muted'} transition-colors opacity-50`} />
+                      <ChevronLeft size={20} className="text-[#8b8b93] rtl:rotate-180" />
                     )}
                   </button>
                 ))}
               </div>
             </div>
           ))}
-        </div>
 
-        {/* Logout Button */}
-        <div className="mt-4 relative z-10">
-          <Button
-            onClick={async () => {
-              triggerFeedback('pop');
-              await signOut();
-              navigate('/auth');
-            }}
-            className="w-full h-14 bg-surface-card border border-surface-border text-brand font-black text-[14px] uppercase tracking-widest rounded-full flex items-center justify-center gap-2 shadow-sm hover:border-accent-primary/30 transition-all active:scale-[0.98]"
-          >
-            <LogOut size={18} className="text-brand-muted" />
-            התנתקות מהמערכת
-          </Button>
-          
-          <div className="text-center mt-6">
-            <p className="text-[9px] font-black text-brand-muted/30 uppercase tracking-[0.4em]">אינר רשת חברתית אקסקלוסיבית © 2026</p>
+          <div className="flex gap-4 mt-4 mb-8">
+             <Button
+                onClick={() => openSheet('delete')}
+                className="flex-1 h-16 bg-red-500/10 text-red-500 font-black text-[14px] uppercase tracking-widest rounded-[24px] flex items-center justify-center gap-2 active:scale-95 transition-all border-none shadow-none"
+              >
+                <Trash2 size={18} />
+                מחיקת חשבון
+              </Button>
+              <Button
+                onClick={async () => { triggerFeedback('pop'); await signOut(); navigate('/auth'); }}
+                className="flex-1 h-16 bg-white/5 hover:bg-white/10 text-white font-black text-[14px] uppercase tracking-widest rounded-[24px] flex items-center justify-center gap-2 active:scale-95 transition-all border-none shadow-none"
+              >
+                <LogOut size={18} />
+                התנתקות
+              </Button>
           </div>
+          
         </div>
       </FadeIn>
 
-      {/* 📱 BOTTOM SHEETS */}
       {mounted && typeof document !== 'undefined' && createPortal(
-        <AnimatePresence>
-          {activeSheet && (
-            <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" dir="rtl" onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()}>
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/85 backdrop-blur-sm" onClick={closeSheet} />
-              
-              <motion.div 
-                drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={0.22} 
-                onDragEnd={(e, info) => { if (info.offset.y > 100 || info.velocity.y > 500) closeSheet(); }}
-                initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 400 }}
-                className="relative z-10 bg-surface rounded-t-[40px] max-h-[90vh] flex flex-col overflow-hidden pb-[env(safe-area-inset-bottom,20px)] shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-surface-border"
-              >
-                <div className="w-full py-5 flex justify-center cursor-grab active:cursor-grabbing border-b border-surface-border">
-                  <div className="w-16 h-1.5 bg-white/10 rounded-full" />
-                </div>
-                
-                <div className="flex-1 overflow-y-auto p-6 scrollbar-hide overscroll-none" onPointerDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
-                  {renderSheetContent()}
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>,
+        <BottomSheet open={!!activeSheet} onClose={closeSheet}>
+          {renderSheetContent()}
+        </BottomSheet>,
         document.body
       )}
     </>

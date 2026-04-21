@@ -20,7 +20,6 @@ const cleanToastStyle = {
   boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
 };
 
-// עברית מלאה ומדויקת
 const CATEGORY_TREE = [
   { id: 'all', name: 'הכל' },
   { id: 'venture_capital', name: 'הון סיכון', sub: ['קריפטו', 'נדל"ן', 'חברות הזנק', 'השקעות שונות'] },
@@ -360,7 +359,6 @@ export const ExplorePage: React.FC = () => {
                   </div>
                 </LayoutGroup>
 
-                {/* Sub-categories - מרחפים בלי קו מפריד (border-b) */}
                 <AnimatePresence mode="wait">
                   {currentCatObj && currentCatObj.sub && currentCatObj.sub.length > 0 && (
                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
@@ -408,7 +406,7 @@ export const ExplorePage: React.FC = () => {
                 </div>
               )}
 
-              {/* Popular Circles Grid (MODIFIED FOR FULL IMAGE & CRD TEXT) */}
+              {/* Popular Circles Grid - Full Image Version */}
               <div className="flex flex-col gap-4">
                 <span className="text-[#8b8b93] text-[11px] font-black uppercase tracking-widest px-6 flex items-center gap-1.5">
                   מועדונים חמים <TrendingUp size={14} className="text-[#8b8b93]" />
@@ -419,7 +417,7 @@ export const ExplorePage: React.FC = () => {
                 ) : circles.length === 0 ? (
                   <div className="text-center py-10 opacity-50"><span className="text-[#8b8b93] font-black text-[12px] uppercase tracking-widest">אין פעילות בקטגוריה זו</span></div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-4 px-5 snap-y">
+                  <div className="grid grid-cols-2 gap-4 px-5">
                     {circles.map((circle, idx) => {
                       const reqLevel = circle.min_level || 1;
                       const isLocked = myLevel < reqLevel;
@@ -430,13 +428,12 @@ export const ExplorePage: React.FC = () => {
                           key={circle.id} layout
                           initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: Math.min(idx * 0.05, 0.2) }}
                           onClick={() => { if (isLocked) { triggerFeedback('error'); return; } triggerFeedback('pop'); navigate(`/circle/${circle.slug || circle.id}`); }}
-                          className={`cursor-pointer snap-start transition-transform duration-200 ${isLocked ? 'opacity-70 grayscale-[30%]' : ''}`}
+                          className={`cursor-pointer active:scale-[0.97] transition-transform duration-200 ${isLocked ? 'opacity-70 grayscale-[30%]' : ''}`}
                         >
-                          {/* מבנה חדש: כרטיסייה בגובה קבוע, מפוצלת לתמונה מלאה ולפס טקסט */}
-                          <div className="h-[230px] rounded-[28px] bg-[#1a1a1e] border-none shadow-sm flex flex-col overflow-hidden active:scale-[0.97] transition-all group">
+                          <div className="h-[220px] rounded-[24px] bg-[#1a1a1e] border-none shadow-sm flex flex-col relative overflow-hidden group">
                             
-                            {/* חלק עליון: תמונה מלאה (כ-70% גובה) */}
-                            <div className="relative h-[160px] w-full overflow-hidden bg-[#121212]">
+                            {/* Full Sharp Image */}
+                            <div className="absolute inset-0 z-0 bg-[#121212]">
                               {circle.cover_url ? (
                                 <img src={circle.cover_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" loading="lazy" />
                               ) : (
@@ -444,37 +441,35 @@ export const ExplorePage: React.FC = () => {
                                   {circle.name?.charAt(0)}
                                 </div>
                               )}
-                              
-                              {/* שכבות עליונות (סטטוס/טרנדינג) - נשארות מעל התמונה בפינות */}
-                              <div className="absolute inset-x-0 top-0 z-10 p-3 flex justify-between items-start">
-                                <div className="bg-[#121212]/80 backdrop-blur-md px-3 py-1.5 rounded-[12px] border-none flex items-center gap-1.5 shadow-sm">
-                                  {isLocked ? (
-                                    <><Lock size={12} className="text-rose-500" /><span className="text-white font-black text-[10px] tracking-widest">רמה {reqLevel}</span></>
-                                  ) : circle.is_private ? (
-                                    {/* שינוי טקסט: סכום + CRD */}
-                                    <><Lock size={12} className="text-[#8b8b93]" /><span className="text-white font-black text-[10px] tracking-widest">{joinPrice || 0} CRD</span></>
-                                  ) : (
-                                    <><Unlock size={12} className="text-emerald-500" /><span className="text-white font-black text-[10px] tracking-widest uppercase">חופשי</span></>
-                                  )}
-                                </div>
-                                
-                                {circle.is_trending && (
-                                  <motion.div animate={{ scale: [1, 1.15, 1], opacity: [0.8, 1, 0.8] }} transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }} className="relative z-10 p-1">
-                                    <Flame size={20} className="text-orange-500 drop-shadow-sm" fill="currentColor" />
-                                  </motion.div>
-                                )}
-                              </div>
                             </div>
                             
-                            {/* חלק תחתון: פס טקסט מוצק (למניעת טשטוש התמונה) */}
-                            <div className="flex-1 p-4 px-5 flex flex-col justify-center bg-[#1a1a1e]">
-                              <h3 className="text-white font-black text-[15px] leading-tight truncate">
-                                {circle.name}
-                              </h3>
-                              <div className="flex items-center gap-1.5 mt-1.5">
-                                <span className="text-[11px] font-black text-[#8b8b93] uppercase tracking-widest">{circle.active_now} מחוברים</span>
+                            {/* Top Badges */}
+                            <div className="relative z-10 p-3 flex justify-between items-start">
+                              <div className="bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-[12px] border-none flex items-center gap-1.5 shadow-sm">
+                                {isLocked ? (
+                                  <><Lock size={12} className="text-rose-500" /><span className="text-white font-black text-[10px] tracking-widest">רמה {reqLevel}</span></>
+                                ) : circle.is_private ? (
+                                  <><Lock size={12} className="text-slate-300" /><span className="text-white font-black text-[10px] tracking-widest">{joinPrice || 0} CRD</span></>
+                                ) : (
+                                  <><Unlock size={12} className="text-emerald-400" /><span className="text-white font-black text-[10px] tracking-widest uppercase">חופשי</span></>
+                                )}
+                              </div>
+                              
+                              {circle.is_trending && (
+                                <motion.div animate={{ scale: [1, 1.15, 1], opacity: [0.8, 1, 0.8] }} transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }} className="relative z-10 p-1">
+                                  <Flame size={20} className="text-orange-500 drop-shadow-sm" fill="currentColor" />
+                                </motion.div>
+                              )}
+                            </div>
+                            
+                            {/* Title & Stats - Crisp Dark Gradient strictly at the bottom for readability */}
+                            <div className="relative z-10 mt-auto p-4 pt-12 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end">
+                              <h3 className="text-white font-black text-[16px] leading-tight truncate drop-shadow-md">{circle.name}</h3>
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <span className="text-[11px] font-black text-white/70 uppercase tracking-widest">{circle.active_now} מחוברים</span>
                               </div>
                             </div>
+
                           </div>
                         </motion.div>
                       );
@@ -522,7 +517,7 @@ export const ExplorePage: React.FC = () => {
                 </div>
               )}
 
-              {/* Recommended Users - מרחף ונטול מסגרות */}
+              {/* Recommended Users */}
               <div className="flex flex-col gap-3">
                 <span className="text-[#8b8b93] text-[11px] font-black uppercase tracking-widest px-6">אנשים ששווה להכיר</span>
                 {loadingSuggestions ? (
