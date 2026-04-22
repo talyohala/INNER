@@ -187,6 +187,46 @@ export const HomePage: React.FC = () => {
   const isAnyModalOpen = () => Object.values(stateRef.current).some(Boolean);
   const scrollToTop = () => { window.scrollTo({ top: 0, behavior: 'smooth' }); };
 
+  // ==========================================
+  // מנגנון התראות חסין תקלות מהשורש (Bulletproof)
+  // ==========================================
+  const sendSecureNotification = async (targetUserId: string, notifTitle: string, notifContent: string, notifUrl: string) => {
+    if (!targetUserId || targetUserId === currentUserId) return; // מונע שליחת התראה לעצמך
+
+    const baseNotif = {
+      user_id: targetUserId,
+      title: notifTitle,
+      content: notifContent,
+      action_url: notifUrl,
+      is_read: false
+    };
+
+    // ניסיון 1: מבנה מלא (כולל actor_id ו-type)
+    let { error } = await supabase.from('notifications').insert({ 
+      ...baseNotif, 
+      actor_id: currentUserId, 
+      type: 'activity' 
+    });
+
+    if (error) {
+      // ניסיון 2: מבנה נפוץ חלופי (עם sender_id)
+      const res2 = await supabase.from('notifications').insert({ 
+        ...baseNotif, 
+        sender_id: currentUserId 
+      });
+      
+      if (res2.error) {
+        // ניסיון 3: מבנה מינימלי הכרחי (רק עמודות חובה)
+        const res3 = await supabase.from('notifications').insert(baseNotif);
+        
+        if (res3.error) {
+          console.error("שגיאה קריטית בשליחת התראה ל-Supabase:", res3.error);
+          toast.error(`תקלת שרת בהתראות: ${res3.error.message}`, { style: cleanToastStyle, duration: 4000 });
+        }
+      }
+    }
+  };
+
   const checkUnreadNotifications = async () => {
     try {
       const { data: authData } = await supabase.auth.getUser();
@@ -483,24 +523,19 @@ export const HomePage: React.FC = () => {
       } else {
         triggerFeedback('success');
         
-        try {
-          const targetPost = posts.find(p => p.id === postId) || (fullScreenMedia && fullScreenMedia.find(p => p.id === postId));
-          if (targetPost && targetPost.user_id && targetPost.user_id !== currentUserId) {
-            const sealLabels: Record<string, string> = { fire: 'חותם אש', diamond: 'חותם יהלום', alliance: 'חותם ברית' };
-            const currentLabel = sealLabels[sealType] || 'חותם יוקרה';
-            const senderName = profile?.full_name || profile?.username || 'משתמש';
-            
-            await supabase.from('notifications').insert({
-              user_id: targetPost.user_id,
-              actor_id: currentUserId,
-              title: `${currentLabel} חדש!`,       
-              content: `${senderName} העניק לך ${currentLabel} לפוסט שלך!`,
-              action_url: `/post/${postId}`,
-              is_read: false
-            });
-          }
-        } catch (notifError) {
-          console.error("שגיאה ביצירת התראה: ", notifError);
+        // יצירת ההתראה הבטוחה לחלוטין (Bulletproof Notification)
+        const targetPost = posts.find(p => p.id === postId) || (fullScreenMedia && fullScreenMedia.find(p => p.id === postId));
+        if (targetPost && targetPost.user_id) {
+          const sealLabels: Record<string, string> = { fire: 'חותם אש', diamond: 'חותם יהלום', alliance: 'חותם ברית' };
+          const currentLabel = sealLabels[sealType] || 'חותם יוקרה';
+          const senderName = profile?.full_name || profile?.username || 'משתמש';
+          
+          await sendSecureNotification(
+            targetPost.user_id,
+            `${currentLabel} חדש!`,
+            `${senderName} העניק לך ${currentLabel} לפוסט שלך.`,
+            `/post/${postId}`
+          );
         }
       }
     } catch (err) {
@@ -599,6 +634,14 @@ export const HomePage: React.FC = () => {
           if (fullScreenMedia) setFullScreenMedia((prev) => (prev ? update(prev) : prev));
           if (parentIdToUse) setExpandedThreads((prev) => ({ ...prev, [parentIdToUse]: true }));
           triggerFeedback('coin');
+          
+          // התראה על תגובה חדשה!
+          const senderName = profile?.full_name || profile?.username || 'משתמש';
+          if (replyingTo && replyingTo.user_id) {
+            await sendSecureNotification(replyingTo.user_id, 'תגובה חדשה', `${senderName} הגיב לתגובה שלך.`, `/post/${activePost.id}`);
+          } else if (activePost.user_id) {
+            await sendSecureNotification(activePost.user_id, 'תגובה חדשה', `${senderName} הגיב על הפוסט שלך.`, `/post/${activePost.id}`);
+          }
         }
       }
       setNewComment(''); setReplyingTo(null);
@@ -666,9 +709,6 @@ export const HomePage: React.FC = () => {
   if (loading && posts.length === 0) {
     return <div className="min-h-screen bg-surface flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div>;
   }
-
-  // הפתרון לקריסה: בדיקה בטוחה שה-DOM זמין כדי לצייר עליו את הפופ-אפים
-  const portalContainer = typeof document !== 'undefined' ? (document.getElementById('root') || document.body) : null;
 
   return (
     <>
@@ -1131,7 +1171,7 @@ export const HomePage: React.FC = () => {
       </FadeIn>
 
       {/* OVERLAYS / PORTALS */}
-      {mounted && portalContainer && createPortal(
+      {mounted && typeof document !== 'undefined' && document.body && createPortal(
         <>
           {/* 1. SEAL SELECTOR MODAL */}
           <AnimatePresence>
@@ -1495,7 +1535,8 @@ export const HomePage: React.FC = () => {
               </div>
             )}
           </AnimatePresence>
-        </>
+        </>,
+        document.body
       )}
     </>
   );
