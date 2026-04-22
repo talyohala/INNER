@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Virtuoso } from 'react-virtuoso';
 import { supabase } from '../lib/supabase';
 import { apiFetch } from '../lib/api';
 import { FadeIn, Button } from '../components/ui';
@@ -65,21 +67,20 @@ const Confetti = ({ active }: { active: boolean }) => {
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const { profile } = useAuth();
+  const queryClient = useQueryClient();
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pullStartY = useRef(0);
   const lastScrollY = useRef(0);
 
   const [mounted, setMounted] = useState(false);
-  const [posts, setPosts] = useState<AnyPost[]>(() => {
-    try {
-      const cached = localStorage.getItem('inner_feed_cache');
-      return cached ? JSON.parse(cached) : [];
-    } catch { return []; }
-  });
-
-  const [currentUserId, setCurrentUserId] = useState('');
+  
+  // Local state is kept for mutations to not break your complex update logic
+  const [posts, setPosts] = useState<AnyPost[]>([]);
   const [campaigns, setCampaigns] = useState<any[]>([]);
+  
+  const [currentUserId, setCurrentUserId] = useState('');
   const [claimedCampaigns, setClaimedCampaigns] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -92,7 +93,7 @@ export const HomePage: React.FC = () => {
   }, [currentUserId]);
 
   const [showConfetti, setShowConfetti] = useState(false);
-  const [loading, setLoading] = useState(posts.length === 0);
+  const [loading, setLoading] = useState(true);
   const [newPost, setNewPost] = useState('');
   const [posting, setPosting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -187,42 +188,15 @@ export const HomePage: React.FC = () => {
   const isAnyModalOpen = () => Object.values(stateRef.current).some(Boolean);
   const scrollToTop = () => { window.scrollTo({ top: 0, behavior: 'smooth' }); };
 
-  // ==========================================
-  // מנגנון התראות חסין תקלות מהשורש (Bulletproof)
-  // ==========================================
   const sendSecureNotification = async (targetUserId: string, notifTitle: string, notifContent: string, notifUrl: string) => {
-    if (!targetUserId || targetUserId === currentUserId) return; // מונע שליחת התראה לעצמך
-
-    const baseNotif = {
-      user_id: targetUserId,
-      title: notifTitle,
-      content: notifContent,
-      action_url: notifUrl,
-      is_read: false
-    };
-
-    // ניסיון 1: מבנה מלא (כולל actor_id ו-type)
-    let { error } = await supabase.from('notifications').insert({ 
-      ...baseNotif, 
-      actor_id: currentUserId, 
-      type: 'activity' 
-    });
-
+    if (!targetUserId || targetUserId === currentUserId) return;
+    const baseNotif = { user_id: targetUserId, title: notifTitle, content: notifContent, action_url: notifUrl, is_read: false };
+    let { error } = await supabase.from('notifications').insert({ ...baseNotif, actor_id: currentUserId, type: 'activity' });
     if (error) {
-      // ניסיון 2: מבנה נפוץ חלופי (עם sender_id)
-      const res2 = await supabase.from('notifications').insert({ 
-        ...baseNotif, 
-        sender_id: currentUserId 
-      });
-      
+      const res2 = await supabase.from('notifications').insert({ ...baseNotif, sender_id: currentUserId });
       if (res2.error) {
-        // ניסיון 3: מבנה מינימלי הכרחי (רק עמודות חובה)
         const res3 = await supabase.from('notifications').insert(baseNotif);
-        
-        if (res3.error) {
-          console.error("שגיאה קריטית בשליחת התראה ל-Supabase:", res3.error);
-          toast.error(`תקלת שרת בהתראות: ${res3.error.message}`, { style: cleanToastStyle, duration: 4000 });
-        }
+        if (res3.error) console.error("Notification Error:", res3.error);
       }
     }
   };
@@ -236,13 +210,11 @@ export const HomePage: React.FC = () => {
     } catch { }
   };
 
-  const fetchData = async (isSilentRefresh = false) => {
-    if (!isSilentRefresh && posts.length === 0) setLoading(true);
-    try {
-      const { data: authData } = await supabase.auth.getUser();
-      const uid = authData.user?.id || null;
-      if (uid) setCurrentUserId(uid);
-
+  // מנוע טעינת הנתונים (React Query) - מאובטח, לא חוסם ומקצועי
+  const { data: feedData, isFetching: isQueryFetching, refetch } = useQuery({
+    queryKey: ['smart_feed', currentUserId],
+    queryFn: async () => {
+      const uid = currentUserId || null;
       const [rawPosts, rawMembers, rawCircles, rawCamps] = await Promise.all([
         supabase.rpc('get_smart_feed', { p_user_id: uid, p_limit: 30, p_offset: 0 }).then((r) => r.data || []),
         supabase.from('circle_members').select('*').then((r) => r.data || []),
@@ -254,7 +226,6 @@ export const HomePage: React.FC = () => {
         if (c.expires_at && new Date(c.expires_at) < new Date()) return false;
         return true;
       });
-      setCampaigns(activeCamps);
 
       const myCircleIds = new Set(rawMembers.filter((m: any) => m.user_id === uid).map((m: any) => m.circle_id));
       const recommendedClubs = rawCircles
@@ -284,15 +255,26 @@ export const HomePage: React.FC = () => {
         }
       });
 
-      setPosts(mixedFeed);
-      localStorage.setItem('inner_feed_cache', JSON.stringify(mixedFeed));
-    } catch {
-      if (posts.length === 0) toast('שגיאה בטעינת הפיד', { style: cleanToastStyle });
-    } finally {
+      return { posts: mixedFeed, campaigns: activeCamps };
+    },
+    enabled: !!mounted
+  });
+
+  // סנכרון הסטייט המקומי עם הנתונים שחזרו מהקאש או השרת
+  useEffect(() => {
+    if (feedData) {
+      setPosts(feedData.posts);
+      setCampaigns(feedData.campaigns);
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [feedData]);
+
+  useEffect(() => {
+    setMounted(true);
+    if (profile?.id) setCurrentUserId(profile.id);
+    checkUnreadNotifications();
+  }, [profile]);
 
   const handleClaimCampaign = async (camp: any) => {
     triggerFeedback('pop');
@@ -311,28 +293,18 @@ export const HomePage: React.FC = () => {
     }
 
     if (camp.action_url) {
-      setTimeout(() => {
-        window.open(camp.action_url, '_blank');
-      }, 300);
+      setTimeout(() => window.open(camp.action_url, '_blank'), 300);
     }
   };
 
   const handleQuickRefresh = async () => {
-    if (refreshing) return;
+    if (refreshing || isQueryFetching) return;
     setRefreshing(true);
     setPullY(0);
     triggerFeedback('pop');
     toast('מרענן מערכת...', { style: cleanToastStyle });
-    setTimeout(() => {
-      window.location.reload();
-    }, 400);
+    await refetch();
   };
-
-  useEffect(() => {
-    setMounted(true);
-    fetchData(true);
-    checkUnreadNotifications();
-  }, []);
 
   useEffect(() => {
     const presenceChannel = supabase.channel('global_online');
@@ -378,12 +350,12 @@ export const HomePage: React.FC = () => {
   }, [fullScreenMedia, currentMediaIndex]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (isAnyModalOpen() || refreshing) return;
+    if (isAnyModalOpen() || refreshing || isQueryFetching) return;
     if (window.scrollY <= 5) pullStartY.current = e.touches[0].clientY;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (isAnyModalOpen() || refreshing) return;
+    if (isAnyModalOpen() || refreshing || isQueryFetching) return;
     if (pullStartY.current > 0 && window.scrollY <= 0) {
       const y = e.touches[0].clientY - pullStartY.current;
       if (y > 0) {
@@ -393,7 +365,7 @@ export const HomePage: React.FC = () => {
   };
 
   const handleTouchEnd = async () => {
-    if (isAnyModalOpen() || refreshing) return;
+    if (isAnyModalOpen() || refreshing || isQueryFetching) return;
     if (pullY > 60) {
       handleQuickRefresh();
     } else {
@@ -470,7 +442,7 @@ export const HomePage: React.FC = () => {
       setEditingPost(null);
       setIsDropMode(false);
       triggerFeedback('success');
-      await fetchData(true);
+      await refetch();
     } catch (e: any) {
       console.error(e);
       toast(e.message || 'שגיאה בשמירה', { style: cleanToastStyle });
@@ -522,8 +494,6 @@ export const HomePage: React.FC = () => {
         setPosts((prev) => revert(prev));
       } else {
         triggerFeedback('success');
-        
-        // יצירת ההתראה הבטוחה לחלוטין (Bulletproof Notification)
         const targetPost = posts.find(p => p.id === postId) || (fullScreenMedia && fullScreenMedia.find(p => p.id === postId));
         if (targetPost && targetPost.user_id) {
           const sealLabels: Record<string, string> = { fire: 'חותם אש', diamond: 'חותם יהלום', alliance: 'חותם ברית' };
@@ -555,7 +525,7 @@ export const HomePage: React.FC = () => {
       if (error) throw error;
       toast('תרומתך התקבלה', { style: cleanToastStyle });
       closeOverlay();
-      await fetchData(true);
+      await refetch();
       triggerFeedback('coin');
     } catch (err: any) {
       triggerFeedback('error');
@@ -635,7 +605,6 @@ export const HomePage: React.FC = () => {
           if (parentIdToUse) setExpandedThreads((prev) => ({ ...prev, [parentIdToUse]: true }));
           triggerFeedback('coin');
           
-          // התראה על תגובה חדשה!
           const senderName = profile?.full_name || profile?.username || 'משתמש';
           if (replyingTo && replyingTo.user_id) {
             await sendSecureNotification(replyingTo.user_id, 'תגובה חדשה', `${senderName} הגיב לתגובה שלך.`, `/post/${activePost.id}`);
@@ -706,9 +675,261 @@ export const HomePage: React.FC = () => {
       });
   }, [comments]);
 
-  if (loading && posts.length === 0) {
-    return <div className="min-h-screen bg-surface flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div>;
-  }
+  // רכיב פנימי עבור ה-Virtuoso ששומר על המבנה המדויק של ה-UI שלך
+  const renderPostItem = (index: number, post: any) => {
+    if (post.type === 'club_recommendation') {
+      const price = Number(post.entry_crd_price || post.price || post.crd_price || post.entry_price || 0);
+      const isPremium = price > 0;
+      return (
+        <div key={post._uid || post.id} onClick={() => navigate(`/circle/${post.slug || post.id}`)} className="relative bg-surface-card border border-surface-border hover:border-accent-primary/30 rounded-[24px] overflow-hidden shadow-sm flex flex-col p-6 gap-4 cursor-pointer group active:scale-[0.98] transition-all mb-4">
+          <div className="absolute -top-10 -right-10 w-32 h-32 bg-accent-primary/5 blur-[50px] rounded-full pointer-events-none group-hover:bg-accent-primary/10 transition-colors" />
+          <div className="flex items-center justify-between gap-3 relative z-10">
+            <div className="flex items-center gap-3">
+              <div className="w-14 h-14 rounded-[14px] overflow-hidden bg-surface border border-surface-border flex items-center justify-center shrink-0 shadow-inner">
+                {post.cover_url ? <img src={post.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-6 h-6 text-brand-muted" />}
+              </div>
+              <div className="flex flex-col">
+                <span className="text-accent-primary text-[10px] font-black uppercase tracking-widest mb-0.5 flex items-center gap-1">מועדון מומלץ עבורך</span>
+                <h3 className="text-brand font-black text-[16px] leading-tight line-clamp-1">{post.name}</h3>
+              </div>
+            </div>
+          </div>
+          {post.description && (
+            <p className="text-brand-muted text-[13px] font-medium leading-relaxed line-clamp-2 relative z-10">{post.description}</p>
+          )}
+          <div className="flex items-center justify-between mt-2 pt-4 border-t border-surface-border/50 relative z-10">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 text-brand-muted">
+                <Users size={14} />
+                <span className="text-[12px] font-bold">{post.memberCount || 0} חברים</span>
+              </div>
+              <div className="w-1 h-1 rounded-full bg-surface-border" />
+              {isPremium ? (
+                <div className="flex items-center gap-1 text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-lg border border-amber-400/20 shadow-sm">
+                  <Coins size={12} />
+                  <span className="text-[11px] font-black tracking-widest">{price} CRD</span>
+                </div>
+              ) : (
+                <div className="text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-lg border border-emerald-400/20 text-[11px] font-black tracking-widest shadow-sm">חינם</div>
+              )}
+            </div>
+            <div className="text-brand text-[12px] font-black uppercase tracking-widest group-hover:text-accent-primary transition-colors flex items-center gap-1">
+              סייר במועדון <ChevronLeft size={14} className="rtl:rotate-180" />
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const hasMedia = !!post.media_url;
+    const isVideo = post.media_url?.match(/\.(mp4|webm|mov)$/i);
+    const isCore = post.profiles?.role_label === 'CORE';
+    const isLockedDrop = post.is_reveal_drop && post.reveal_status === 'locked';
+
+    return (
+      <div key={post.id} className="flex flex-col rounded-[24px] bg-surface-card border border-surface-border overflow-hidden shadow-sm mb-4">
+        {hasMedia && (
+          <div className="w-full relative cursor-pointer bg-surface" onClick={() => { if (!isLockedDrop) handleOpenFullscreen(post); }}>
+            {isVideo ? (
+              <video src={post.media_url} autoPlay loop muted playsInline preload="metadata" className={`w-full max-h-[550px] object-cover ${isLockedDrop ? 'blur-xl grayscale' : ''}`} />
+            ) : (
+              <img src={post.media_url} onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Media+Unavailable'; }} className={`w-full max-h-[550px] object-cover ${isLockedDrop ? 'blur-xl grayscale' : ''}`} loading="lazy" decoding="async" />
+            )}
+            {isLockedDrop && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 z-20 gap-3 p-6" onClick={(e) => { e.stopPropagation(); openOverlay(() => setContributeModal(post)); }}>
+                <div className="w-16 h-16 rounded-full bg-surface/80 backdrop-blur-md flex items-center justify-center border border-white/10 shadow-lg mb-2">
+                  <Lock size={28} className="text-white" />
+                </div>
+                <span className="text-white font-black text-lg tracking-widest">דרופ נעול</span>
+                <div className="w-full max-w-[200px] flex flex-col gap-1 mt-2">
+                  <div className="flex justify-between text-[11px] font-black text-white/80 tracking-widest uppercase">
+                    <span>{post.current_crd} נאסף</span>
+                    <span>{post.required_crd} יעד</span>
+                  </div>
+                  <div className="w-full h-2 bg-surface/50 rounded-full overflow-hidden border border-white/10">
+                    <div className="h-full bg-accent-primary" style={{ width: `${Math.min(100, (post.current_crd / post.required_crd) * 100)}%` }} />
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-24 bg-gradient-to-t from-black/60 via-black/20 to-transparent flex flex-col justify-end pointer-events-none z-20">
+              {post.content && (
+                <p onClick={(e) => { e.stopPropagation(); if (isLockedDrop) openOverlay(() => setContributeModal(post)); else openOverlay(() => setActiveDescPost(post)); }} className={`text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] text-[15px] font-medium text-right line-clamp-2 pointer-events-auto cursor-pointer mb-3 ${isLockedDrop ? 'select-none blur-sm opacity-50' : ''}`}>
+                  {post.content}
+                </p>
+              )}
+              {post.user_circles && post.user_circles.length > 0 && !isLockedDrop && (
+                <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">
+                  {(() => {
+                    const sortedCircles = [...post.user_circles].sort((a, b) => {
+                      const aOwner = a.owner_id === post.user_id ? -1 : 1;
+                      const bOwner = b.owner_id === post.user_id ? -1 : 1;
+                      return aOwner - bOwner;
+                    });
+                    const displayCircles = sortedCircles.slice(0, 20);
+                    const hasMore = sortedCircles.length > 20;
+
+                    return (
+                      <>
+                        {displayCircles.map((circle: any) => {
+                          const isOwnerOfThisCircle = circle.owner_id === post.user_id;
+                          return (
+                            <div key={circle.id} onClick={(e) => { e.stopPropagation(); navigate(`/circle/${circle.slug || circle.id}`); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
+                              <div className={`w-8 h-8 rounded-full overflow-hidden shadow-sm bg-surface flex items-center justify-center ${isOwnerOfThisCircle ? 'border-[1.5px] border-accent-primary shadow-[0_0_8px_rgba(var(--color-accent-primary),0.4)]' : 'border border-white/20'}`}>
+                                {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-4 h-4 text-white/70" />}
+                              </div>
+                              <span className="text-[9px] text-white drop-shadow-md font-bold max-w-[55px] truncate text-center uppercase tracking-wider">{circle.name}</span>
+                            </div>
+                          );
+                        })}
+                        {hasMore && (
+                          <div onClick={(e) => { e.stopPropagation(); openOverlay(() => setPostCirclesModal(sortedCircles)); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
+                            <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white backdrop-blur-md">
+                              <ArrowLeft size={14} />
+                            </div>
+                            <span className="text-[9px] text-white drop-shadow-md font-bold text-center uppercase tracking-wider">הכל</span>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+              <div className="flex items-center justify-between gap-2 mt-1 pointer-events-auto">
+                <div className="flex items-center gap-2.5 cursor-pointer group" onClick={(e) => { e.stopPropagation(); navigate(`/profile/${post.user_id}`); }}>
+                  <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden shrink-0 shadow-sm bg-surface flex items-center justify-center">
+                    {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" loading="lazy" /> : <span className="text-white font-black text-lg flex items-center justify-center leading-none">{(post.profiles?.full_name || 'א')[0]}</span>}
+                  </div>
+                  <div className="flex flex-col text-right">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-white font-black text-[14px] drop-shadow-md">{post.profiles?.full_name || 'אנונימי'}</span>
+                      {isCore && <Crown size={12} className="text-accent-primary drop-shadow-md" />}
+                    </div>
+                    <span className="text-white/80 text-[10px] font-bold drop-shadow-md">{new Date(post.created_at).toLocaleDateString('he-IL')}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 flex-row-reverse mr-auto">
+                  {!isLockedDrop && (
+                    <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(post)); }} className="active:scale-90 text-white drop-shadow-md hover:text-white/80 transition-colors">
+                      <MoreVertical size={20} />
+                    </button>
+                  )}
+                  {!isLockedDrop && (
+                    <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(post); setActiveCommentsPostId(post.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', post.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); }); }} className="flex items-center gap-1.5 active:scale-90 text-white drop-shadow-md hover:text-white/80 transition-colors">
+                      <MessageSquare size={20} />
+                      <span className="text-[13px] font-black">{post.comments_count}</span>
+                    </button>
+                  )}
+                  {!isLockedDrop && (
+                    <button onClick={(e) => { e.stopPropagation(); if (post.has_sealed) handleRemoveSeal(post.id); else openOverlay(() => setSealSelectorPost(post)); }} className={`flex items-center gap-1.5 active:scale-90 transition-transform drop-shadow-md ${post.has_sealed ? 'text-orange-500' : 'text-white hover:text-orange-400'}`}>
+                      <Flame size={22} fill={post.has_sealed ? 'currentColor' : 'none'} />
+                      <span className="text-[13px] font-black">{post.seals_count || 0}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!hasMedia && (
+          <div className="w-full relative bg-[#0a0a0a] min-h-[380px] max-h-[550px] flex flex-col justify-between cursor-pointer group rounded-[24px]" onClick={() => { if (isLockedDrop) openOverlay(() => setContributeModal(post)); else openOverlay(() => setActiveDescPost(post)); }}>
+            {isLockedDrop && (
+              <div className="absolute inset-0 bg-surface/80 backdrop-blur-md flex flex-col items-center justify-center z-30 gap-2 rounded-[24px]">
+                <Lock size={24} className="text-brand-muted" />
+                <span className="text-[12px] font-black tracking-widest uppercase">דרופ נעול</span>
+                <div className="w-[150px] bg-surface-card border border-surface-border rounded-full h-1.5 mt-1 overflow-hidden">
+                  <div className="h-full bg-accent-primary" style={{ width: `${Math.min(100, (post.current_crd / post.required_crd) * 100)}%` }} />
+                </div>
+              </div>
+            )}
+            <div className={`p-6 pt-8 pb-32 flex-1 flex flex-col relative z-10 ${isLockedDrop ? 'blur-sm opacity-50' : ''}`}>
+              <p className={`text-white/90 text-[17px] font-medium leading-relaxed text-right whitespace-pre-wrap break-words ${(post.content || '').length > 200 ? 'line-clamp-6' : ''}`}>
+                {post.content}
+              </p>
+              {(post.content || '').length > 200 && (
+                <div className="mt-2 flex items-center gap-1 text-accent-primary text-[12px] font-bold">
+                  קרא הכל <ChevronDown size={14} />
+                </div>
+              )}
+            </div>
+            <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-24 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end pointer-events-none z-20 rounded-b-[24px]">
+              {post.user_circles && post.user_circles.length > 0 && !isLockedDrop && (
+                <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">
+                  {(() => {
+                    const sortedCircles = [...post.user_circles].sort((a, b) => {
+                      const aOwner = a.owner_id === post.user_id ? -1 : 1;
+                      const bOwner = b.owner_id === post.user_id ? -1 : 1;
+                      return aOwner - bOwner;
+                    });
+                    const displayCircles = sortedCircles.slice(0, 20);
+                    const hasMore = sortedCircles.length > 20;
+
+                    return (
+                      <>
+                        {displayCircles.map((circle: any) => {
+                          const isOwnerOfThisCircle = circle.owner_id === post.user_id;
+                          return (
+                            <div key={circle.id} onClick={(e) => { e.stopPropagation(); navigate(`/circle/${circle.slug || circle.id}`); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
+                              <div className={`w-8 h-8 rounded-full overflow-hidden shadow-sm bg-surface flex items-center justify-center ${isOwnerOfThisCircle ? 'border-[1.5px] border-accent-primary shadow-[0_0_8px_rgba(var(--color-accent-primary),0.5)]' : 'border border-white/20'}`}>
+                                {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-4 h-4 text-white/70" />}
+                              </div>
+                              <span className="text-[9px] text-white drop-shadow-md font-bold max-w-[55px] truncate text-center uppercase tracking-wider">{circle.name}</span>
+                            </div>
+                          );
+                        })}
+                        {hasMore && (
+                          <div onClick={(e) => { e.stopPropagation(); openOverlay(() => setPostCirclesModal(sortedCircles)); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
+                            <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white backdrop-blur-md">
+                              <ArrowLeft size={14} />
+                            </div>
+                            <span className="text-[9px] text-white drop-shadow-md font-bold text-center uppercase tracking-wider">הכל</span>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+              <div className="flex items-center justify-between gap-2 mt-1 pointer-events-auto">
+                <div className="flex items-center gap-2.5 cursor-pointer group" onClick={(e) => { e.stopPropagation(); navigate(`/profile/${post.user_id}`); }}>
+                  <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden shrink-0 shadow-sm bg-surface flex items-center justify-center">
+                    {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" loading="lazy" /> : <span className="text-white font-black text-lg flex items-center justify-center leading-none">{(post.profiles?.full_name || 'א')[0]}</span>}
+                  </div>
+                  <div className="flex flex-col text-right">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-white font-black text-[14px] drop-shadow-md">{post.profiles?.full_name || 'אנונימי'}</span>
+                      {isCore && <Crown size={12} className="text-accent-primary drop-shadow-md" />}
+                    </div>
+                    <span className="text-white/80 text-[10px] font-bold drop-shadow-md">{new Date(post.created_at).toLocaleDateString('he-IL')}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 flex-row-reverse mr-auto">
+                  {!isLockedDrop && (
+                    <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(post)); }} className="active:scale-90 text-white drop-shadow-md hover:text-white/80 transition-colors">
+                      <MoreVertical size={20} />
+                    </button>
+                  )}
+                  {!isLockedDrop && (
+                    <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(post); setActiveCommentsPostId(post.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', post.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); }); }} className="flex items-center gap-1.5 active:scale-90 text-white drop-shadow-md hover:text-white/80 transition-colors">
+                      <MessageSquare size={20} />
+                      <span className="text-[13px] font-black">{post.comments_count}</span>
+                    </button>
+                  )}
+                  {!isLockedDrop && (
+                    <button onClick={(e) => { e.stopPropagation(); if (post.has_sealed) handleRemoveSeal(post.id); else openOverlay(() => setSealSelectorPost(post)); }} className={`flex items-center gap-1.5 active:scale-90 transition-transform drop-shadow-md ${post.has_sealed ? 'text-orange-500' : 'text-white hover:text-orange-400'}`}>
+                      <Flame size={22} fill={post.has_sealed ? 'currentColor' : 'none'} />
+                      <span className="text-[13px] font-black">{post.seals_count || 0}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -905,267 +1126,28 @@ export const HomePage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 relative z-10 pb-10">
+          <div className="relative z-10 pb-10">
             {loading && posts.length === 0 ? (
               <div className="flex flex-col gap-4 w-full opacity-60">
                 {[1, 2, 3].map(i => (
                   <div key={i} className="w-full h-48 bg-surface-card border border-surface-border rounded-[24px] animate-pulse"></div>
                 ))}
               </div>
-            ) : posts.map((post) => {
-              if (post.type === 'club_recommendation') {
-                const price = Number(post.entry_crd_price || post.price || post.crd_price || post.entry_price || 0);
-                const isPremium = price > 0;
-                return (
-                  <div key={post._uid} onClick={() => navigate(`/circle/${post.slug || post.id}`)} className="relative bg-surface-card border border-surface-border hover:border-accent-primary/30 rounded-[24px] overflow-hidden shadow-sm flex flex-col p-6 gap-4 cursor-pointer group active:scale-[0.98] transition-all">
-                    <div className="absolute -top-10 -right-10 w-32 h-32 bg-accent-primary/5 blur-[50px] rounded-full pointer-events-none group-hover:bg-accent-primary/10 transition-colors" />
-                    <div className="flex items-center justify-between gap-3 relative z-10">
-                      <div className="flex items-center gap-3">
-                        <div className="w-14 h-14 rounded-[14px] overflow-hidden bg-surface border border-surface-border flex items-center justify-center shrink-0 shadow-inner">
-                          {post.cover_url ? <img src={post.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-6 h-6 text-brand-muted" />}
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-accent-primary text-[10px] font-black uppercase tracking-widest mb-0.5 flex items-center gap-1">מועדון מומלץ עבורך</span>
-                          <h3 className="text-brand font-black text-[16px] leading-tight line-clamp-1">{post.name}</h3>
-                        </div>
-                      </div>
+            ) : (
+              <Virtuoso
+                useWindowScroll
+                data={posts}
+                overscan={500}
+                itemContent={renderPostItem}
+                components={{
+                  List: React.forwardRef(({ style, children }, ref) => (
+                    <div ref={ref as any} style={style} className="flex flex-col">
+                      {children}
                     </div>
-                    {post.description && (
-                      <p className="text-brand-muted text-[13px] font-medium leading-relaxed line-clamp-2 relative z-10">{post.description}</p>
-                    )}
-                    <div className="flex items-center justify-between mt-2 pt-4 border-t border-surface-border/50 relative z-10">
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-1.5 text-brand-muted">
-                          <Users size={14} />
-                          <span className="text-[12px] font-bold">{post.memberCount || 0} חברים</span>
-                        </div>
-                        <div className="w-1 h-1 rounded-full bg-surface-border" />
-                        {isPremium ? (
-                          <div className="flex items-center gap-1 text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-lg border border-amber-400/20 shadow-sm">
-                            <Coins size={12} />
-                            <span className="text-[11px] font-black tracking-widest">{price} CRD</span>
-                          </div>
-                        ) : (
-                          <div className="text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-lg border border-emerald-400/20 text-[11px] font-black tracking-widest shadow-sm">חינם</div>
-                        )}
-                      </div>
-                      <div className="text-brand text-[12px] font-black uppercase tracking-widest group-hover:text-accent-primary transition-colors flex items-center gap-1">
-                        סייר במועדון <ChevronLeft size={14} className="rtl:rotate-180" />
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-
-              const hasMedia = !!post.media_url;
-              const isVideo = post.media_url?.match(/\.(mp4|webm|mov)$/i);
-              const isCore = post.profiles?.role_label === 'CORE';
-              const isLockedDrop = post.is_reveal_drop && post.reveal_status === 'locked';
-
-              return (
-                <div key={post.id} className="flex flex-col rounded-[24px] bg-surface-card border border-surface-border overflow-hidden shadow-sm">
-                  {hasMedia && (
-                    <div className="w-full relative cursor-pointer bg-surface" onClick={() => { if (!isLockedDrop) handleOpenFullscreen(post); }}>
-                      {isVideo ? (
-                        <video src={post.media_url} autoPlay loop muted playsInline preload="metadata" className={`w-full max-h-[550px] object-cover ${isLockedDrop ? 'blur-xl grayscale' : ''}`} />
-                      ) : (
-                        <img src={post.media_url} onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Media+Unavailable'; }} className={`w-full max-h-[550px] object-cover ${isLockedDrop ? 'blur-xl grayscale' : ''}`} loading="lazy" decoding="async" />
-                      )}
-                      {isLockedDrop && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 z-20 gap-3 p-6" onClick={(e) => { e.stopPropagation(); openOverlay(() => setContributeModal(post)); }}>
-                          <div className="w-16 h-16 rounded-full bg-surface/80 backdrop-blur-md flex items-center justify-center border border-white/10 shadow-lg mb-2">
-                            <Lock size={28} className="text-white" />
-                          </div>
-                          <span className="text-white font-black text-lg tracking-widest">דרופ נעול</span>
-                          <div className="w-full max-w-[200px] flex flex-col gap-1 mt-2">
-                            <div className="flex justify-between text-[11px] font-black text-white/80 tracking-widest uppercase">
-                              <span>{post.current_crd} נאסף</span>
-                              <span>{post.required_crd} יעד</span>
-                            </div>
-                            <div className="w-full h-2 bg-surface/50 rounded-full overflow-hidden border border-white/10">
-                              <div className="h-full bg-accent-primary" style={{ width: `${Math.min(100, (post.current_crd / post.required_crd) * 100)}%` }} />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                      <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-24 bg-gradient-to-t from-black/60 via-black/20 to-transparent flex flex-col justify-end pointer-events-none z-20">
-                        {post.content && (
-                          <p onClick={(e) => { e.stopPropagation(); if (isLockedDrop) openOverlay(() => setContributeModal(post)); else openOverlay(() => setActiveDescPost(post)); }} className={`text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] text-[15px] font-medium text-right line-clamp-2 pointer-events-auto cursor-pointer mb-3 ${isLockedDrop ? 'select-none blur-sm opacity-50' : ''}`}>
-                            {post.content}
-                          </p>
-                        )}
-                        {post.user_circles && post.user_circles.length > 0 && !isLockedDrop && (
-                          <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">
-                            {(() => {
-                              const sortedCircles = [...post.user_circles].sort((a, b) => {
-                                const aOwner = a.owner_id === post.user_id ? -1 : 1;
-                                const bOwner = b.owner_id === post.user_id ? -1 : 1;
-                                return aOwner - bOwner;
-                              });
-                              const displayCircles = sortedCircles.slice(0, 20);
-                              const hasMore = sortedCircles.length > 20;
-
-                              return (
-                                <>
-                                  {displayCircles.map((circle: any) => {
-                                    const isOwnerOfThisCircle = circle.owner_id === post.user_id;
-                                    return (
-                                      <div key={circle.id} onClick={(e) => { e.stopPropagation(); navigate(`/circle/${circle.slug || circle.id}`); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
-                                        <div className={`w-8 h-8 rounded-full overflow-hidden shadow-sm bg-surface flex items-center justify-center ${isOwnerOfThisCircle ? 'border-[1.5px] border-accent-primary shadow-[0_0_8px_rgba(var(--color-accent-primary),0.4)]' : 'border border-white/20'}`}>
-                                          {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-4 h-4 text-white/70" />}
-                                        </div>
-                                        <span className="text-[9px] text-white drop-shadow-md font-bold max-w-[55px] truncate text-center uppercase tracking-wider">{circle.name}</span>
-                                      </div>
-                                    );
-                                  })}
-                                  {hasMore && (
-                                    <div onClick={(e) => { e.stopPropagation(); openOverlay(() => setPostCirclesModal(sortedCircles)); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
-                                      <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white backdrop-blur-md">
-                                        <ArrowLeft size={14} />
-                                      </div>
-                                      <span className="text-[9px] text-white drop-shadow-md font-bold text-center uppercase tracking-wider">הכל</span>
-                                    </div>
-                                  )}
-                                </>
-                              );
-                            })()}
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between gap-2 mt-1 pointer-events-auto">
-                          <div className="flex items-center gap-2.5 cursor-pointer group" onClick={(e) => { e.stopPropagation(); navigate(`/profile/${post.user_id}`); }}>
-                            <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden shrink-0 shadow-sm bg-surface flex items-center justify-center">
-                              {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" loading="lazy" /> : <span className="text-white font-black text-lg flex items-center justify-center leading-none">{(post.profiles?.full_name || 'א')[0]}</span>}
-                            </div>
-                            <div className="flex flex-col text-right">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-white font-black text-[14px] drop-shadow-md">{post.profiles?.full_name || 'אנונימי'}</span>
-                                {isCore && <Crown size={12} className="text-accent-primary drop-shadow-md" />}
-                              </div>
-                              <span className="text-white/80 text-[10px] font-bold drop-shadow-md">{new Date(post.created_at).toLocaleDateString('he-IL')}</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-4 flex-row-reverse mr-auto">
-                            {!isLockedDrop && (
-                              <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(post)); }} className="active:scale-90 text-white drop-shadow-md hover:text-white/80 transition-colors">
-                                <MoreVertical size={20} />
-                              </button>
-                            )}
-                            {!isLockedDrop && (
-                              <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(post); setActiveCommentsPostId(post.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', post.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); }); }} className="flex items-center gap-1.5 active:scale-90 text-white drop-shadow-md hover:text-white/80 transition-colors">
-                                <MessageSquare size={20} />
-                                <span className="text-[13px] font-black">{post.comments_count}</span>
-                              </button>
-                            )}
-                            {!isLockedDrop && (
-                              <button onClick={(e) => { e.stopPropagation(); if (post.has_sealed) handleRemoveSeal(post.id); else openOverlay(() => setSealSelectorPost(post)); }} className={`flex items-center gap-1.5 active:scale-90 transition-transform drop-shadow-md ${post.has_sealed ? 'text-orange-500' : 'text-white hover:text-orange-400'}`}>
-                                <Flame size={22} fill={post.has_sealed ? 'currentColor' : 'none'} />
-                                <span className="text-[13px] font-black">{post.seals_count || 0}</span>
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {!hasMedia && (
-                    <div className="w-full relative bg-[#0a0a0a] min-h-[380px] max-h-[550px] flex flex-col justify-between cursor-pointer group rounded-[24px]" onClick={() => { if (isLockedDrop) openOverlay(() => setContributeModal(post)); else openOverlay(() => setActiveDescPost(post)); }}>
-                      {isLockedDrop && (
-                        <div className="absolute inset-0 bg-surface/80 backdrop-blur-md flex flex-col items-center justify-center z-30 gap-2 rounded-[24px]">
-                          <Lock size={24} className="text-brand-muted" />
-                          <span className="text-[12px] font-black tracking-widest uppercase">דרופ נעול</span>
-                          <div className="w-[150px] bg-surface-card border border-surface-border rounded-full h-1.5 mt-1 overflow-hidden">
-                            <div className="h-full bg-accent-primary" style={{ width: `${Math.min(100, (post.current_crd / post.required_crd) * 100)}%` }} />
-                          </div>
-                        </div>
-                      )}
-                      <div className={`p-6 pt-8 pb-32 flex-1 flex flex-col relative z-10 ${isLockedDrop ? 'blur-sm opacity-50' : ''}`}>
-                        <p className={`text-white/90 text-[17px] font-medium leading-relaxed text-right whitespace-pre-wrap break-words ${(post.content || '').length > 200 ? 'line-clamp-6' : ''}`}>
-                          {post.content}
-                        </p>
-                        {(post.content || '').length > 200 && (
-                          <div className="mt-2 flex items-center gap-1 text-accent-primary text-[12px] font-bold">
-                            קרא הכל <ChevronDown size={14} />
-                          </div>
-                        )}
-                      </div>
-                      <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-24 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end pointer-events-none z-20 rounded-b-[24px]">
-                        {post.user_circles && post.user_circles.length > 0 && !isLockedDrop && (
-                          <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">
-                            {(() => {
-                              const sortedCircles = [...post.user_circles].sort((a, b) => {
-                                const aOwner = a.owner_id === post.user_id ? -1 : 1;
-                                const bOwner = b.owner_id === post.user_id ? -1 : 1;
-                                return aOwner - bOwner;
-                              });
-                              const displayCircles = sortedCircles.slice(0, 20);
-                              const hasMore = sortedCircles.length > 20;
-
-                              return (
-                                <>
-                                  {displayCircles.map((circle: any) => {
-                                    const isOwnerOfThisCircle = circle.owner_id === post.user_id;
-                                    return (
-                                      <div key={circle.id} onClick={(e) => { e.stopPropagation(); navigate(`/circle/${circle.slug || circle.id}`); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
-                                        <div className={`w-8 h-8 rounded-full overflow-hidden shadow-sm bg-surface flex items-center justify-center ${isOwnerOfThisCircle ? 'border-[1.5px] border-accent-primary shadow-[0_0_8px_rgba(var(--color-accent-primary),0.5)]' : 'border border-white/20'}`}>
-                                          {circle.cover_url ? <img src={circle.cover_url} className="w-full h-full object-cover" loading="lazy" /> : <Users className="w-4 h-4 text-white/70" />}
-                                        </div>
-                                        <span className="text-[9px] text-white drop-shadow-md font-bold max-w-[55px] truncate text-center uppercase tracking-wider">{circle.name}</span>
-                                      </div>
-                                    );
-                                  })}
-                                  {hasMore && (
-                                    <div onClick={(e) => { e.stopPropagation(); openOverlay(() => setPostCirclesModal(sortedCircles)); }} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform">
-                                      <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white backdrop-blur-md">
-                                        <ArrowLeft size={14} />
-                                      </div>
-                                      <span className="text-[9px] text-white drop-shadow-md font-bold text-center uppercase tracking-wider">הכל</span>
-                                    </div>
-                                  )}
-                                </>
-                              );
-                            })()}
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between gap-2 mt-1 pointer-events-auto">
-                          <div className="flex items-center gap-2.5 cursor-pointer group" onClick={(e) => { e.stopPropagation(); navigate(`/profile/${post.user_id}`); }}>
-                            <div className="w-10 h-10 rounded-full border border-white/20 overflow-hidden shrink-0 shadow-sm bg-surface flex items-center justify-center">
-                              {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" loading="lazy" /> : <span className="text-white font-black text-lg flex items-center justify-center leading-none">{(post.profiles?.full_name || 'א')[0]}</span>}
-                            </div>
-                            <div className="flex flex-col text-right">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-white font-black text-[14px] drop-shadow-md">{post.profiles?.full_name || 'אנונימי'}</span>
-                                {isCore && <Crown size={12} className="text-accent-primary drop-shadow-md" />}
-                              </div>
-                              <span className="text-white/80 text-[10px] font-bold drop-shadow-md">{new Date(post.created_at).toLocaleDateString('he-IL')}</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-4 flex-row-reverse mr-auto">
-                            {!isLockedDrop && (
-                              <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setOptionsMenuPost(post)); }} className="active:scale-90 text-white drop-shadow-md hover:text-white/80 transition-colors">
-                                <MoreVertical size={20} />
-                              </button>
-                            )}
-                            {!isLockedDrop && (
-                              <button onClick={(e) => { e.stopPropagation(); openOverlay(() => { setActivePost(post); setActiveCommentsPostId(post.id); setLoadingComments(true); supabase.from('comments').select('*, profiles(*)').eq('post_id', post.id).order('created_at', { ascending: true }).then((r) => { setComments(r.data || []); setLoadingComments(false); }); }); }} className="flex items-center gap-1.5 active:scale-90 text-white drop-shadow-md hover:text-white/80 transition-colors">
-                                <MessageSquare size={20} />
-                                <span className="text-[13px] font-black">{post.comments_count}</span>
-                              </button>
-                            )}
-                            {!isLockedDrop && (
-                              <button onClick={(e) => { e.stopPropagation(); if (post.has_sealed) handleRemoveSeal(post.id); else openOverlay(() => setSealSelectorPost(post)); }} className={`flex items-center gap-1.5 active:scale-90 transition-transform drop-shadow-md ${post.has_sealed ? 'text-orange-500' : 'text-white hover:text-orange-400'}`}>
-                                <Flame size={22} fill={post.has_sealed ? 'currentColor' : 'none'} />
-                                <span className="text-[13px] font-black">{post.seals_count || 0}</span>
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                  ))
+                }}
+              />
+            )}
           </div>
         </div>
       </FadeIn>

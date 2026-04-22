@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Layout } from './components/Layout';
 import { AuthPage } from './pages/AuthPage';
@@ -19,7 +20,17 @@ import { SettingsPage } from './pages/SettingsPage';
 import { ChatPage } from './pages/ChatPage';
 import { InboxPage } from './pages/InboxPage';
 import { StudioPage } from './pages/StudioPage';
-import { AdminPage } from './pages/AdminPage'; // הייבוא של האדמין
+import { AdminPage } from './pages/AdminPage';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+      staleTime: 1000 * 60 * 2,
+    },
+  },
+});
 
 class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: any}> {
   constructor(props: any) { super(props); this.state = { hasError: false, error: null }; }
@@ -54,39 +65,38 @@ export const App = () => {
 
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <Router>
-          <div className="bg-surface min-h-screen text-brand font-sans selection:bg-accent-primary/20 relative" dir="rtl">
-            <Toaster position="top-center" toastOptions={{ style: { background: '#111', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '100px', fontSize: '13px', fontWeight: 'bold' } }} />
-            <Layout>
-              <Routes>
-                <Route path="/auth" element={<AuthPage />} />
-                <Route path="/" element={<PrivateRoute><HomePage /></PrivateRoute>} />
-                <Route path="/explore" element={<PrivateRoute><ExplorePage /></PrivateRoute>} />
-                <Route path="/radar" element={<PrivateRoute><RadarPage /></PrivateRoute>} />
-                <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
-                <Route path="/profile/:username" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
-                <Route path="/edit-profile" element={<PrivateRoute><EditProfilePage /></PrivateRoute>} />
-                <Route path="/circle/:slug" element={<PrivateRoute><CirclePage /></PrivateRoute>} />
-                <Route path="/create-circle" element={<PrivateRoute><CreateCirclePage /></PrivateRoute>} />
-                <Route path="/circle/:slug/vaults/create" element={<PrivateRoute><CreateVaultPage /></PrivateRoute>} />
-                <Route path="/wallet" element={<PrivateRoute><WalletPage /></PrivateRoute>} />
-                <Route path="/notifications" element={<PrivateRoute><NotificationsPage /></PrivateRoute>} />
-                <Route path="/store" element={<PrivateRoute><BoostStorePage /></PrivateRoute>} />
-                <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
-                <Route path="/inbox" element={<PrivateRoute><InboxPage /></PrivateRoute>} />
-                <Route path="/chat/:userId" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
-                <Route path="/studio" element={<PrivateRoute><StudioPage /></PrivateRoute>} />
-                
-                {/* הראוט של האדמין מסודר ונקי */}
-                <Route path="/admin" element={<PrivateRoute><AdminPage /></PrivateRoute>} />
-                
-                <Route path="*" element={<Navigate to="/" />} />
-              </Routes>
-            </Layout>
-          </div>
-        </Router>
-      </AuthProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <Router>
+            <div className="bg-surface min-h-screen text-brand font-sans selection:bg-accent-primary/20 relative" dir="rtl">
+              <Toaster position="top-center" toastOptions={{ style: { background: '#111', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '100px', fontSize: '13px', fontWeight: 'bold' } }} />
+              <Layout>
+                <Routes>
+                  <Route path="/auth" element={<AuthPage />} />
+                  <Route path="/" element={<PrivateRoute><HomePage /></PrivateRoute>} />
+                  <Route path="/explore" element={<PrivateRoute><ExplorePage /></PrivateRoute>} />
+                  <Route path="/radar" element={<PrivateRoute><RadarPage /></PrivateRoute>} />
+                  <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
+                  <Route path="/profile/:username" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
+                  <Route path="/edit-profile" element={<PrivateRoute><EditProfilePage /></PrivateRoute>} />
+                  <Route path="/circle/:slug" element={<PrivateRoute><CirclePage /></PrivateRoute>} />
+                  <Route path="/create-circle" element={<PrivateRoute><CreateCirclePage /></PrivateRoute>} />
+                  <Route path="/circle/:slug/vaults/create" element={<PrivateRoute><CreateVaultPage /></PrivateRoute>} />
+                  <Route path="/wallet" element={<PrivateRoute><WalletPage /></PrivateRoute>} />
+                  <Route path="/notifications" element={<PrivateRoute><NotificationsPage /></PrivateRoute>} />
+                  <Route path="/store" element={<PrivateRoute><BoostStorePage /></PrivateRoute>} />
+                  <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
+                  <Route path="/inbox" element={<PrivateRoute><InboxPage /></PrivateRoute>} />
+                  <Route path="/chat/:userId" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
+                  <Route path="/studio" element={<PrivateRoute><StudioPage /></PrivateRoute>} />
+                  <Route path="/admin" element={<PrivateRoute><AdminPage /></PrivateRoute>} />
+                  <Route path="*" element={<Navigate to="/" />} />
+                </Routes>
+              </Layout>
+            </div>
+          </Router>
+        </AuthProvider>
+      </QueryClientProvider>
     </ErrorBoundary>
   );
 };
