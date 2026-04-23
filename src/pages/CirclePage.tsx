@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -8,7 +9,8 @@ import { Button } from '../components/ui';
 import { VaultCard } from '../components/VaultCard';
 import {
   Loader2, Lock, ShieldAlert, Flame, Diamond, Handshake,
-  Send, X, Camera, Copy, Edit2, Trash2, Paperclip, ChevronLeft, Plus
+  Send, X, Camera, Copy, Edit2, Trash2, Paperclip, ChevronLeft, Plus,
+  Trophy, Target, Zap, Info, Activity, CheckCircle2, Crown, BarChart3
 } from 'lucide-react';
 import { triggerFeedback } from '../lib/sound';
 import toast from 'react-hot-toast';
@@ -34,7 +36,7 @@ const SEAL_TYPES = [
 
 const formatTime = (dateStr?: string | null) => {
   if (!dateStr) return '';
-  try { return new Date(dateStr).toLocaleString('he-IL', { hour: '2-digit', minute: '2-digit' }); } 
+  try { return new Date(dateStr).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }); } 
   catch { return ''; }
 };
 
@@ -55,6 +57,8 @@ export const CirclePage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
 
+  const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
+  const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'chat' | 'vaults' | 'members'>('chat');
   const [currentUserId, setCurrentUserId] = useState<string>('');
   
@@ -77,18 +81,25 @@ export const CirclePage: React.FC = () => {
   const [capturedMediaType, setCapturedMediaType] = useState<'video' | 'image'>('video');
   const [uploadingStory, setUploadingStory] = useState(false);
 
+  const [onlineCount, setOnlineCount] = useState(1);
+  const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
+
   const storyVideoRef = useRef<HTMLVideoElement>(null);
   const storyStreamRef = useRef<MediaStream | null>(null);
   const storyRecorderRef = useRef<MediaRecorder | null>(null);
   const storyChunksRef = useRef<Blob[]>([]);
 
   useEffect(() => {
+    setPortalNode(document.getElementById('root') || document.body);
+    setMounted(true);
     if (user?.id) setCurrentUserId(user.id);
   }, [user]);
 
+  // מנוע טעינה חסין שגיאות לחלוטין (Two-step query למשתמשים)
   const { data: circleData, isLoading, refetch } = useQuery({
     queryKey: ['circle', slug, currentUserId],
     queryFn: async () => {
+      // 1. חילוץ המועדון
       let circle = null;
       const { data: circleBySlug } = await supabase.from('circles').select('*').eq('slug', slug).maybeSingle();
       circle = circleBySlug;
@@ -98,32 +109,43 @@ export const CirclePage: React.FC = () => {
       }
       if (!circle) throw new Error('מועדון לא נמצא');
 
+      // 2. סטטוס חברות
       let membership = null;
       if (currentUserId && !currentUserId.startsWith('guest_')) {
         const { data: mem } = await supabase.from('circle_members').select('*').eq('circle_id', circle.id).eq('user_id', currentUserId).maybeSingle();
         membership = mem;
       }
 
+      // 3. חילוץ פוסטים
       const { data: posts } = await supabase
         .from('posts')
-        .select('*, profiles(*), post_seals(*)')
+        .select('*, profiles!user_id(*), post_seals(*)')
         .eq('circle_id', circle.id)
         .order('created_at', { ascending: false })
         .limit(60);
 
-      const { data: membersData } = await supabase
-        .from('circle_members')
-        .select(`
-          role, 
-          created_at, 
-          tier, 
-          user_id,
-          profiles (id, full_name, username, avatar_url)
-        `)
-        .eq('circle_id', circle.id);
+      // 4. חילוץ חברי הקהילה בשיטה בטוחה ב-100%
+      const { data: membersData } = await supabase.from('circle_members').select('*').eq('circle_id', circle.id);
+      const userIds = membersData?.map((m: any) => m.user_id) || [];
       
-      const membersList = (membersData || []).sort((a, b) => a.role === 'admin' ? -1 : b.role === 'admin' ? 1 : 0);
+      let profilesData: any[] = [];
+      if (userIds.length > 0) {
+        const { data: pData } = await supabase.from('profiles').select('id, full_name, username, avatar_url, xp, role_label').in('id', userIds);
+        profilesData = pData || [];
+      }
 
+      const membersList = (membersData || []).map((m: any) => {
+        const profileData = profilesData.find((p: any) => p.id === m.user_id);
+        return { ...m, profileData };
+      }).sort((a, b) => {
+        if (a.role === 'admin' && b.role !== 'admin') return -1;
+        if (b.role === 'admin' && a.role !== 'admin') return 1;
+        const axp = a.profileData?.xp || 0;
+        const bxp = b.profileData?.xp || 0;
+        return bxp - axp; // סידור לפי XP
+      });
+
+      // 5. כספות
       const { data: vaultData } = await supabase.from('vaults').select('*').eq('circle_id', circle.id).eq('is_active', true).order('created_at', { ascending: false });
       let unlockedIds: string[] = [];
       if (currentUserId && !currentUserId.startsWith('guest_')) {
@@ -132,7 +154,12 @@ export const CirclePage: React.FC = () => {
       }
       const vaults = (vaultData || []).map((v: any) => ({ ...v, is_unlocked: unlockedIds.includes(v.id) || v.creator_id === currentUserId }));
 
-      const { data: overview } = await supabase.rpc('get_circle_overview', { p_circle_id: circle.id, p_user_id: currentUserId || null });
+      // 6. אוברביו לדשבורד
+      let overview = { stories: [], drop: null, my_stats: null };
+      try {
+        const { data: rpcOverview } = await supabase.rpc('get_circle_overview', { p_circle_id: circle.id, p_user_id: currentUserId || null });
+        if (rpcOverview) overview = rpcOverview;
+      } catch (e) {}
 
       return {
         circle,
@@ -141,25 +168,49 @@ export const CirclePage: React.FC = () => {
         posts: posts || [],
         membersList,
         vaults,
-        overview: overview || { stories: [], drop: null }
+        overview
       };
     },
-    enabled: !!slug,
+    enabled: !!slug && mounted,
     staleTime: 1000 * 60 * 2,
   });
 
+  // סנכרון בזמן אמת מדויק כולל ספירת משתמשים מחוברים אמיתית
   useEffect(() => {
     if (!circleData?.circle?.id) return;
     const cid = circleData.circle.id;
-    const channel = supabase.channel(`circle_updates_${cid}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts', filter: `circle_id=eq.${cid}` }, () => {
-        refetch();
+    
+    // מזהה ייחודי כדי שלא נספור את אותו משתמש פעמיים
+    const presenceKey = currentUserId || `guest_${Math.random().toString(36).substr(2, 9)}`;
+
+    const channel = supabase.channel(`circle_room_${cid}`, {
+      config: { presence: { key: presenceKey } }
+    });
+
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        const uniqueUsers = Object.keys(state).length;
+        setOnlineCount(Math.max(1, uniqueUsers));
+        
+        const typing = new Set<string>();
+        for (const id in state) {
+          for (const presence of state[id] as any[]) {
+            if (presence?.isTyping && id !== currentUserId) typing.add(id);
+          }
+        }
+        setTypingUsers(typing);
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts', filter: `circle_id=eq.${cid}` }, () => refetch())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'post_seals' }, () => refetch())
-      .subscribe();
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({ isTyping: false, online_at: new Date().toISOString() });
+        }
+      });
 
     return () => { supabase.removeChannel(channel); };
-  }, [circleData?.circle?.id, refetch]);
+  }, [circleData?.circle?.id, currentUserId, refetch]);
 
   const sortedPosts = useMemo(() => {
     return [...(circleData?.posts || [])].sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
@@ -173,9 +224,7 @@ export const CirclePage: React.FC = () => {
 
   const handleJoin = async (tier: 'INNER' | 'CORE') => {
     const uid = user?.id || currentUserId;
-    if (!uid || uid.startsWith('guest_')) {
-      return toast.error('יש להתחבר תחילה כדי לבקש גישה', { style: cleanToastStyle });
-    }
+    if (!uid || uid.startsWith('guest_')) return toast.error('יש להתחבר תחילה כדי לבקש גישה', { style: cleanToastStyle });
 
     setJoining(true);
     triggerFeedback('pop');
@@ -301,12 +350,12 @@ export const CirclePage: React.FC = () => {
   };
 
   const handleMessageTouchStart = (e: React.TouchEvent | React.MouseEvent, post: any) => {
-    touchStartY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    let touchStartY = 'touches' in e ? e.touches[0].clientY : e.clientY;
     pressTimerRef.current = setTimeout(() => { triggerFeedback('heavy'); setActionPost(post); }, 450);
   };
   const handleMessageTouchMove = (e: React.TouchEvent | React.MouseEvent) => {
     const currentY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    if (Math.abs(currentY - touchStartY) > 10 && pressTimerRef.current) clearTimeout(pressTimerRef.current);
+    if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
   };
   const handleMessageTouchEnd = () => { if (pressTimerRef.current) clearTimeout(pressTimerRef.current); };
   
@@ -389,20 +438,15 @@ export const CirclePage: React.FC = () => {
   };
 
   const startStoryLongPress = () => {
-    let touchStartY = 0;
-    storyLongPressStartedRef.current = false;
     if (storyHoldTimerRef.current) clearTimeout(storyHoldTimerRef.current);
     storyHoldTimerRef.current = setTimeout(async () => {
-      storyLongPressStartedRef.current = true;
       await openQuickStoryCapture();
     }, 260);
   };
 
   const endStoryLongPress = () => {
     if (storyHoldTimerRef.current) { clearTimeout(storyHoldTimerRef.current); storyHoldTimerRef.current = null; }
-    if (storyLongPressStartedRef.current && storyRecorderRef.current) {
-      if (storyRecorderRef.current.state === 'recording') { try { storyRecorderRef.current.stop(); } catch {} }
-    }
+    if (storyRecorderRef.current && storyRecorderRef.current.state === 'recording') { try { storyRecorderRef.current.stop(); } catch {} }
   };
 
   const uploadCapturedStory = async () => {
@@ -426,8 +470,15 @@ export const CirclePage: React.FC = () => {
     } finally { setUploadingStory(false); }
   };
 
+  if (!mounted || !portalNode) return null;
+
   if (isLoading || !circleData) {
-    return <div className="fixed inset-0 z-[99999999] bg-[#050505] flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div>;
+    return createPortal(
+      <div className="fixed inset-0 z-[90000] bg-[#050505] flex items-center justify-center">
+        <Loader2 className="animate-spin text-accent-primary" size={32} />
+      </div>,
+      portalNode
+    );
   }
 
   const { circle, isMember, membership, membersList, vaults, overview } = circleData;
@@ -438,11 +489,18 @@ export const CirclePage: React.FC = () => {
   const xpToNext = myLevel * 100;
   const xpProgress = Math.min(100, Math.round((myXP / xpToNext) * 100));
 
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[99999999] bg-[#050505] font-sans flex flex-col overflow-hidden text-white" dir="rtl">
+  const topContributors = membersList.filter((m: any) => m.profileData).slice(0, 3);
+  
+  const todayDateStr = new Date().toDateString();
+  const hasPostedToday = sortedPosts.some(p => p.user_id === currentUserId && new Date(p.created_at).toDateString() === todayDateStr);
+  
+  const recentPostsCount = sortedPosts.filter(p => (Date.now() - new Date(p.created_at).getTime()) < 1000 * 60 * 60 * 24).length;
+  const vibeScore = Math.min(100, Math.floor((recentPostsCount * 2) + (onlineCount * 5)));
+
+  return createPortal(
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[90000] bg-[#050505] font-sans flex flex-col overflow-hidden text-white" dir="rtl">
       <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*" />
 
-      {/* FULL SCREEN MEDIA */}
       <AnimatePresence>
         {fullScreenMedia && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9999999] bg-black flex items-center justify-center" onClick={() => setFullScreenMedia(null)}>
@@ -452,7 +510,6 @@ export const CirclePage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* MESSAGE ACTIONS MODAL */}
       <AnimatePresence>
         {actionPost && (
           <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" dir="rtl">
@@ -478,7 +535,6 @@ export const CirclePage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* STORY CAPTURE MODAL */}
       <AnimatePresence>
         {isStoryCaptureOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[999999999] bg-black">
@@ -532,7 +588,7 @@ export const CirclePage: React.FC = () => {
         <p className="text-white/50 text-[12px] font-medium tracking-wide max-w-[280px] leading-relaxed">{circle.description || 'מרחב פרימיום לחברי המועדון'}</p>
         {isMember && (
           <div className="flex items-center gap-4 mt-4">
-            <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-accent-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(var(--color-accent-primary),0.8)]" /> פעילים</span>
+            <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-accent-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(var(--color-accent-primary),0.8)]" /> {onlineCount} מחוברים</span>
             <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase">{membersList.length} חברים</span>
           </div>
         )}
@@ -560,7 +616,18 @@ export const CirclePage: React.FC = () => {
           </div>
 
           {activeTab === 'overview' && (
-            <div className="flex-1 overflow-y-auto px-5 pb-[120px] flex flex-col gap-4 scrollbar-hide">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex-1 overflow-y-auto px-5 pb-[120px] flex flex-col gap-4 scrollbar-hide">
+              
+              {isOwner && (
+                 <div className="bg-accent-primary/10 border border-accent-primary/30 rounded-[32px] p-6 shadow-sm flex items-center justify-between">
+                   <div className="flex flex-col">
+                     <span className="text-accent-primary text-[10px] font-black tracking-widest uppercase flex items-center gap-1.5 mb-1"><BarChart3 size={14} /> נתוני מנהל הקהילה</span>
+                     <span className="text-white font-black text-xl">{circle.members_count || membersList.length} משתמשים</span>
+                     <span className="text-white/60 text-[11px] font-bold mt-1">הכנסות פוטנציאליות: {((circle.join_price || 0) * membersList.length).toLocaleString()} CRD</span>
+                   </div>
+                 </div>
+              )}
+
               <div className="bg-white/[0.03] backdrop-blur-3xl border border-white/5 rounded-[32px] p-6 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-accent-primary/10 blur-[50px] pointer-events-none" />
                 <span className="text-[10px] font-black text-white/30 tracking-[0.2em] uppercase mb-1 block">הסטטוס שלך</span>
@@ -570,9 +637,39 @@ export const CirclePage: React.FC = () => {
                 </div>
                 <div className="w-full h-1 bg-white/5 rounded-full mt-4 overflow-hidden"><div className="h-full bg-accent-primary rounded-full shadow-[0_0_10px_rgba(var(--color-accent-primary),0.8)]" style={{ width: `${xpProgress}%` }} /></div>
               </div>
+
+              {/* Vibe Meter */}
+              <div className="bg-[#1a1a1e] border border-white/5 rounded-[32px] p-6 shadow-sm">
+                 <div className="flex items-center justify-between mb-3">
+                   <span className="text-[11px] font-black text-[#8b8b93] tracking-[0.2em] uppercase flex items-center gap-1.5">
+                     <Activity size={14} className="text-blue-400" /> מדד האנרגיה בקהילה
+                   </span>
+                   <span className="text-blue-400 font-black text-[12px]">{vibeScore}%</span>
+                 </div>
+                 <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+                    <motion.div initial={{ width: 0 }} animate={{ width: `${vibeScore}%` }} transition={{ duration: 1, ease: 'easeOut' }} className="h-full bg-gradient-to-l from-blue-400 to-indigo-500 rounded-full" />
+                 </div>
+              </div>
+
+              {/* Daily Target */}
+              <div className="bg-[#1a1a1e] border border-white/5 rounded-[32px] p-5 flex items-center justify-between shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-[18px] bg-accent-primary/10 flex items-center justify-center border border-accent-primary/20">
+                    {hasPostedToday ? <CheckCircle2 size={20} className="text-emerald-400" /> : <Target size={20} className="text-accent-primary" />}
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-white font-black text-[14px]">משימת היום</span>
+                    <span className="text-[#8b8b93] text-[11px] font-bold">שלח לפחות הודעה אחת לקהילה</span>
+                  </div>
+                </div>
+                <div className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase ${hasPostedToday ? 'bg-emerald-400/20 text-emerald-400 border border-emerald-400/30' : 'bg-white/5 text-[#8b8b93]'}`}>
+                  {hasPostedToday ? '1/1' : '0/1'}
+                </div>
+              </div>
+
               {overview.drop && (
                 <div className="bg-white/[0.02] backdrop-blur-2xl border border-white/5 rounded-[32px] p-6">
-                  <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase mb-1 block">דרופ קהילתי</span>
+                  <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase mb-1 block">דרופ קהילתי חם</span>
                   <h3 className="text-xl font-black text-white mb-4">{overview.drop.title}</h3>
                   <div className="flex justify-between items-end mb-2">
                     <span className="text-[24px] font-black text-accent-primary leading-none">{overview.drop.current_crd || 0}</span>
@@ -585,11 +682,48 @@ export const CirclePage: React.FC = () => {
                   </div>
                 </div>
               )}
-            </div>
+
+              {/* Top Contributors */}
+              {topContributors.length > 0 && (
+                <div className="bg-[#1a1a1e] border border-white/5 rounded-[32px] p-6 shadow-sm flex flex-col gap-4">
+                  <span className="text-[10px] font-black text-[#8b8b93] tracking-[0.2em] uppercase flex items-center gap-2">
+                    <Trophy size={14} className="text-yellow-400" /> מובילי הקהילה
+                  </span>
+                  <div className="flex flex-col gap-3">
+                    {topContributors.map((m: any, idx: number) => (
+                      <div key={m.user_id} className="flex items-center justify-between p-3 bg-white/5 rounded-2xl border border-white/5 cursor-pointer active:scale-95 transition-transform" onClick={() => navigate(`/profile/${m.user_id}`)}>
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-black/50 flex items-center justify-center overflow-hidden border border-white/10">
+                             {m.profileData?.avatar_url ? <img src={m.profileData.avatar_url} className="w-full h-full object-cover" /> : <span className="text-white/40 font-black text-xs">{(m.profileData?.full_name || 'א')[0]}</span>}
+                          </div>
+                          <span className="text-white font-black text-[13px]">{m.profileData?.full_name || 'משתמש'}</span>
+                        </div>
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${idx === 0 ? 'bg-yellow-400/20 text-yellow-400 border border-yellow-400/30' : idx === 1 ? 'bg-slate-300/20 text-slate-300 border border-slate-300/30' : 'bg-amber-600/20 text-amber-500 border border-amber-600/30'}`}>
+                          #{idx + 1}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Space Rules */}
+              <div className="bg-white/5 border border-white/5 rounded-[32px] p-6 shadow-sm">
+                 <span className="text-[10px] font-black text-[#8b8b93] tracking-[0.2em] uppercase flex items-center gap-2 mb-3">
+                    <Info size={14} className="text-blue-400" /> חוקי המרחב
+                  </span>
+                  <ul className="text-[12px] text-white/70 font-medium space-y-2 list-disc list-inside">
+                    <li>אין להוציא מידע או צילומי מסך מהמועדון.</li>
+                    <li>שמרו על שיח מכבד ורמה גבוהה.</li>
+                    <li>תוכן פרסומי דורש אישור מנהל מראש.</li>
+                  </ul>
+              </div>
+
+            </motion.div>
           )}
 
           {activeTab === 'chat' && (
-            <div className="flex-1 relative flex flex-col overflow-hidden">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 relative flex flex-col overflow-hidden">
               <div ref={messagesRef} className="flex-1 overflow-y-auto scrollbar-hide px-4 pt-2 pb-[120px]">
                 <div className="flex flex-col gap-6 min-h-full justify-end pb-4">
                   {sortedPosts.length === 0 ? (
@@ -664,33 +798,34 @@ export const CirclePage: React.FC = () => {
                   </div>
                 </div>
               </div>
-            </div>
+            </motion.div>
           )}
 
           {activeTab === 'vaults' && (
-            <div className="flex-1 p-5 flex flex-col gap-4 overflow-y-auto pb-[120px] scrollbar-hide">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex-1 p-5 flex flex-col gap-4 overflow-y-auto pb-[120px] scrollbar-hide">
               {isLoading ? <div className="flex items-center justify-center py-10"><Loader2 className="animate-spin text-accent-primary" size={24} /></div> : vaults.map((v: any) => <VaultCard key={v.id} vault={v} onUnlockSuccess={refetch} />)}
-            </div>
+            </motion.div>
           )}
 
           {activeTab === 'members' && (
-            <div className="flex-1 p-5 flex flex-col gap-3 overflow-y-auto pb-[120px] scrollbar-hide">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex-1 p-5 flex flex-col gap-3 overflow-y-auto pb-[120px] scrollbar-hide">
               {membersList.map((m: any) => (
-                <div key={m.profiles?.id || m.user_id} onClick={() => navigate(`/profile/${m.profiles?.id || m.user_id}`)} className="flex items-center gap-4 bg-white/5 border border-white/5 p-4 rounded-[24px] cursor-pointer active:scale-95 transition-all">
+                <div key={m.user_id} onClick={() => navigate(`/profile/${m.user_id}`)} className="flex items-center gap-4 bg-white/5 border border-white/5 p-4 rounded-[24px] cursor-pointer active:scale-95 transition-all">
                   <div className="w-10 h-10 rounded-full overflow-hidden bg-black/50 flex items-center justify-center border border-white/5">
-                    {m.profiles?.avatar_url ? <img src={m.profiles.avatar_url} className="w-full h-full object-cover" /> : <span className="text-white/40 font-black text-[14px]">{(m.profiles?.full_name || 'א')[0]}</span>}
+                    {m.profileData?.avatar_url ? <img src={m.profileData.avatar_url} className="w-full h-full object-cover" /> : <span className="text-white/40 font-black text-[14px]">{(m.profileData?.full_name || 'א')[0]}</span>}
                   </div>
                   <div className="flex flex-col text-right flex-1">
-                    <span className="text-white font-black text-[14px] flex items-center gap-1.5">{m.profiles?.full_name || 'משתמש'}{m.role === 'admin' && <ShieldAlert size={14} className="text-accent-primary" />}</span>
+                    <span className="text-white font-black text-[14px] flex items-center gap-1.5">{m.profileData?.full_name || 'משתמש'}{m.role === 'admin' && <ShieldAlert size={14} className="text-accent-primary" />}</span>
                     <span className="text-white/30 text-[10px] font-bold tracking-widest mt-0.5 uppercase">{m.tier || 'MEMBER'}</span>
                   </div>
                   <ChevronLeft size={16} className="text-white/20 rtl:rotate-180" />
                 </div>
               ))}
-            </div>
+            </motion.div>
           )}
         </div>
       )}
-    </motion.div>
+    </motion.div>,
+    portalNode
   );
 };
