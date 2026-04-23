@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
 import { Search, ChevronLeft, Loader2, UserCircle, X, Lock, Unlock, Gift, TrendingUp, Flame, Crown, Hash, MessageSquare } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { FadeIn } from '../components/ui';
@@ -35,29 +36,28 @@ const CATEGORY_TREE = [
 export const ExplorePage: React.FC = () => {
   const navigate = useNavigate();
   const { profile } = useAuth();
+  const myLevel = profile?.level || 1;
 
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeSub, setActiveSub] = useState('');
-  const [circles, setCircles] = useState<any[]>([]);
-  const [suggestedUsers, setSuggestedUsers] = useState<any[]>([]);
-  const [trendingPosts, setTrendingPosts] = useState<any[]>([]);
-  const [activeCampaign, setActiveCampaign] = useState<any>(null);
 
   const [searchCirclesResult, setSearchCirclesResult] = useState<any[]>([]);
   const [searchUsersResult, setSearchUsersResult] = useState<any[]>([]);
   const [searchPostsResult, setSearchPostsResult] = useState<any[]>([]);
-
-  const [recentSearches, setRecentSearches] = useState<string[]>(
-    JSON.parse(localStorage.getItem('inner_recent_searches') || '[]')
-  );
-
-  const [loadingCircles, setLoadingCircles] = useState(true);
   const [loadingSearch, setLoadingSearch] = useState(false);
-  const [loadingSuggestions, setLoadingSuggestions] = useState(true);
-  const [loadingTrending, setLoadingTrending] = useState(true);
 
-  const myLevel = profile?.level || 1;
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+
+  // שחרור Main Thread מ-localStorage ע"י טעינה אסינכרונית
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      try {
+        const cached = localStorage.getItem('inner_recent_searches');
+        if (cached) setRecentSearches(JSON.parse(cached));
+      } catch {}
+    });
+  }, []);
 
   const saveRecentSearch = (term: string) => {
     if (!term.trim()) return;
@@ -74,72 +74,50 @@ export const ExplorePage: React.FC = () => {
     localStorage.setItem('inner_recent_searches', JSON.stringify(updated));
   };
 
-  useEffect(() => {
-    const fetchCampaign = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('campaigns')
-          .select('*')
-          .eq('is_active', true)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+  // מנוע טעינה מאוחד חכם - קמפיינים, אנשים מומלצים ופוסטים חמים בבקשה אחת עם מטמון
+  const { data: overviewData, isLoading: loadingOverview } = useQuery({
+    queryKey: ['explore_overview'],
+    queryFn: async () => {
+      const [campRes, usersRes, postsRes] = await Promise.all([
+        supabase.from('campaigns').select('*').eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('profiles').select('id, full_name, username, avatar_url, bio, role_label').limit(5),
+        supabase.from('posts').select('*, profiles(*)').order('seals_count', { ascending: false }).limit(5)
+      ]);
+      return {
+        campaign: campRes.data || null,
+        suggestedUsers: usersRes.data || [],
+        trendingPosts: postsRes.data || []
+      };
+    },
+    staleTime: 1000 * 60 * 10 // שומר בזיכרון ל-10 דקות כדי לא לטעון סתם שוב
+  });
 
-        if (!error && data) {
-          setActiveCampaign(data);
-        }
-      } catch (err) {
-        console.error("Campaign fetch error:", err);
-      }
-    };
-    fetchCampaign();
-  }, []);
+  // טעינת מועדונים לפי קטגוריה וקאש אוטומטי
+  const { data: circlesData, isFetching: loadingCircles } = useQuery({
+    queryKey: ['explore_circles', activeCategory, activeSub],
+    queryFn: async () => {
+      let query = supabase.from('circles').select('*').order('created_at', { ascending: false });
+      if (activeCategory !== 'all') query = query.eq('category', activeCategory);
+      if (activeSub) query = query.eq('sub_category', activeSub);
 
-  useEffect(() => {
-    const fetchCircles = async () => {
-      try {
-        setLoadingCircles(true);
-        let query = supabase.from('circles').select('*').order('created_at', { ascending: false });
-        if (activeCategory !== 'all') query = query.eq('category', activeCategory);
-        if (activeSub) query = query.eq('sub_category', activeSub);
+      const { data, error } = await query;
+      if (error) throw error;
 
-        const { data, error } = await query;
-        if (error) throw error;
+      return (Array.isArray(data) ? data : []).map((c: any) => ({
+        ...c,
+        active_now: Math.max(1, Math.ceil((c.members_count || 5) * 0.2 + Math.random() * 4)),
+        is_trending: Math.random() > 0.7
+      }));
+    },
+    staleTime: 1000 * 60 * 5 // 5 דקות קאש למעבר מהיר בין קטגוריות
+  });
 
-        const formatted = (Array.isArray(data) ? data : []).map((c: any) => ({
-          ...c,
-          active_now: Math.max(1, Math.ceil((c.members_count || 5) * 0.2 + Math.random() * 4)),
-          is_trending: Math.random() > 0.7
-        }));
-        setCircles(formatted);
-      } catch {} finally { setLoadingCircles(false); }
-    };
-    fetchCircles();
-  }, [activeCategory, activeSub]);
+  const activeCampaign = overviewData?.campaign;
+  const suggestedUsers = overviewData?.suggestedUsers || [];
+  const trendingPosts = overviewData?.trendingPosts || [];
+  const circles = circlesData || [];
 
-  useEffect(() => {
-    const fetchSuggested = async () => {
-      try {
-        const { data, error } = await supabase.from('profiles').select('id, full_name, username, avatar_url, bio, role_label').limit(5);
-        if (!error && data) setSuggestedUsers(data);
-      } catch {} finally { setLoadingSuggestions(false); }
-    };
-    fetchSuggested();
-  }, []);
-
-  useEffect(() => {
-    const fetchTrending = async () => {
-      try {
-        const { data, error } = await supabase.from('posts')
-          .select('*, profiles(*)')
-          .order('seals_count', { ascending: false })
-          .limit(5);
-        if (!error && data) setTrendingPosts(data);
-      } catch {} finally { setLoadingTrending(false); }
-    };
-    fetchTrending();
-  }, []);
-
+  // מנוע החיפוש החי (מנוהל דרך Local State בשילוב Effect debounce)
   useEffect(() => {
     const fetchSearchResults = async () => {
       const term = search.trim();
@@ -479,13 +457,13 @@ export const ExplorePage: React.FC = () => {
               </div>
 
               {/* Trending Posts */}
-              {!loadingTrending && trendingPosts.length > 0 && (
+              {!loadingOverview && trendingPosts.length > 0 && (
                 <div className="flex flex-col gap-3 pt-2">
                   <span className="text-[#8b8b93] text-[11px] font-black uppercase tracking-widest px-6 flex items-center gap-1.5">
                     פעילות חמה <Flame size={14} className="text-orange-500" />
                   </span>
                   <div className="flex gap-4 overflow-x-auto scrollbar-hide px-5 pb-4 snap-x snap-mandatory">
-                    {trendingPosts.map((post) => (
+                    {trendingPosts.map((post: any) => (
                       <div key={post.id} onClick={() => { triggerFeedback('pop'); navigate(`/post/${post.id}`); }} className="w-[260px] snap-center shrink-0 bg-white/5 border-none rounded-[28px] p-5 flex flex-col gap-3 cursor-pointer shadow-sm active:scale-95 transition-transform">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full overflow-hidden bg-[#121212] shrink-0">
@@ -520,11 +498,11 @@ export const ExplorePage: React.FC = () => {
               {/* Recommended Users */}
               <div className="flex flex-col gap-3">
                 <span className="text-[#8b8b93] text-[11px] font-black uppercase tracking-widest px-6">אנשים ששווה להכיר</span>
-                {loadingSuggestions ? (
+                {loadingOverview ? (
                   <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-accent-primary" /></div>
                 ) : (
                   <div className="flex flex-col px-4 gap-2">
-                    {suggestedUsers.map((u) => (
+                    {suggestedUsers.map((u: any) => (
                       <div
                         key={u.id}
                         className="py-3 px-4 flex items-center justify-between cursor-pointer rounded-[20px] hover:bg-white/5 active:scale-[0.98] transition-all"

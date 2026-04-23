@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence, useDragControls, useScroll, useTransform } from 'framer-motion';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { VirtuosoGrid } from 'react-virtuoso';
 import { 
   UserCircle, Loader2, MessageSquare, MoreVertical, MoreHorizontal, Share2, Reply, Trash2, X, Send, Download, 
   Link as LinkIcon, Edit2, Bookmark, MapPin, GraduationCap, ChevronDown, ChevronUp, Briefcase, Calendar, 
@@ -34,6 +36,7 @@ export const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
   const { username: routeId } = useParams<{ username?: string }>();
   const { user, profile: authProfile, loading: authLoading } = useAuth() as any;
+  const queryClient = useQueryClient();
 
   const [mounted, setMounted] = useState(false);
   const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
@@ -47,17 +50,23 @@ export const ProfilePage: React.FC = () => {
 
   const isMyProfile = !routeId || routeId === authProfile?.username || routeId === user?.id;
 
-  const [data, setData] = useState<any>(() => {
-    if (isMyProfile) {
-      try {
-        const cached = localStorage.getItem('inner_profile_cache');
-        return cached ? JSON.parse(cached) : { profile: {}, memberships: [], ownedCircles: [], posts: [], savedPosts: [] };
-      } catch { return { profile: {}, memberships: [], ownedCircles: [], posts: [], savedPosts: [] }; }
-    }
-    return { profile: {}, memberships: [], ownedCircles: [], posts: [], savedPosts: [] };
-  });
+  const [localData, setLocalData] = useState<any>({ profile: {}, memberships: [], ownedCircles: [], posts: [], savedPosts: [] });
+  const [currentUserId, setCurrentUserId] = useState('');
 
-  const [loadingData, setLoadingData] = useState(!data.profile?.id);
+  // טעינת מטמון אסינכרונית שלא תוקעת את המסך
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      try {
+        const cached = localStorage.getItem(`inner_profile_cache_${routeId || 'me'}`);
+        if (cached && !localData.profile?.id) setLocalData(JSON.parse(cached));
+      } catch {}
+    });
+  }, [routeId]);
+
+  useEffect(() => {
+    if (user?.id) setCurrentUserId(user.id);
+  }, [user]);
+
   const [isFollowing, setIsFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
@@ -89,7 +98,6 @@ export const ProfilePage: React.FC = () => {
   const [sealSelectorPost, setSealSelectorPost] = useState<any | null>(null);
   const [postCirclesModal, setPostCirclesModal] = useState<{ circles: any[], userId: string } | null>(null);
 
-  const [currentUserId, setCurrentUserId] = useState('');
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [editingPost, setEditingPost] = useState<any | null>(null);
   const [editPostText, setEditPostText] = useState('');
@@ -133,120 +141,127 @@ export const ProfilePage: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  useEffect(() => {
-    let isMounted = true;
-    const loadProfileData = async () => {
-      try {
-        if (!data.profile?.id) setLoadingData(true);
-        const { data: authData } = await supabase.auth.getUser();
-        const me = authData.user?.id || '';
-        if (me) setCurrentUserId(me);
+  // React Query למשיכת נתוני פרופיל וניהול זכרון נכון
+  const { data: queryData, isFetching: loadingData } = useQuery({
+    queryKey: ['profile', isMyProfile ? 'me' : routeId, currentUserId],
+    queryFn: async () => {
+      const me = currentUserId;
+      let targetId = '';
+      let resultObj: any = { profile: {}, memberships: [], ownedCircles: [], posts: [], savedPosts: [], followersCount: 0, followingCount: 0, isFollowingUser: false };
 
-        let targetId = '';
-        if (isMyProfile) {
-          const headers = me ? { 'x-user-id': me } : {};
-          const result = await apiFetch<any>('/api/profile/collection', { headers }).catch(() => ({ profile: authProfile }));
-          targetId = result.profile?.id || authProfile?.id || me;
+      if (isMyProfile) {
+        const headers = me ? { 'x-user-id': me } : {};
+        const result = await apiFetch<any>('/api/profile/collection', { headers }).catch(() => ({ profile: authProfile }));
+        targetId = result.profile?.id || authProfile?.id || me;
 
-          const [{ data: memberships }, { data: ownedCircles }, { data: myPosts }, { data: freshProfile }] = await Promise.all([
-            supabase.from('circle_members').select('circle:circles(*)').eq('user_id', targetId).neq('role', 'admin'),
-            supabase.from('circles').select('*').eq('owner_id', targetId),
-            supabase.from('posts').select('*, seals:post_seals(id, seal_type, user_id), comments_count:comments(count)').eq('user_id', targetId).order('created_at', { ascending: false }),
-            supabase.from('profiles').select('*').eq('id', targetId).single()
-          ]);
+        const [{ data: memberships }, { data: ownedCircles }, { data: myPosts }, { data: freshProfile }] = await Promise.all([
+          supabase.from('circle_members').select('circle:circles(*)').eq('user_id', targetId).neq('role', 'admin'),
+          supabase.from('circles').select('*').eq('owner_id', targetId),
+          supabase.from('posts').select('*, seals:post_seals(id, seal_type, user_id), comments_count:comments(count)').eq('user_id', targetId).order('created_at', { ascending: false }),
+          supabase.from('profiles').select('*').eq('id', targetId).single()
+        ]);
 
-          const formattedPosts = (myPosts || []).map((p: any) => ({
-            ...p, seals_count: p.seals?.length || 0, has_sealed: !!me && p.seals?.some((s: any) => s.user_id === me),
-            comments_count: p.comments_count?.[0]?.count || 0, profiles: freshProfile || result.profile || authProfile
-          }));
+        const formattedPosts = (myPosts || []).map((p: any) => ({
+          ...p, seals_count: p.seals?.length || 0, has_sealed: !!me && p.seals?.some((s: any) => s.user_id === me),
+          comments_count: p.comments_count?.[0]?.count || 0, profiles: freshProfile || result.profile || authProfile
+        }));
 
-          let mySavedPosts: any[] = [];
+        let mySavedPosts: any[] = [];
+        try {
+          const { data: saved } = await supabase.from('saved_posts').select('post_id, posts(*, seals:post_seals(id, seal_type, user_id), comments_count:comments(count), profiles:user_id(*))').eq('user_id', targetId);
+          mySavedPosts = saved?.map((s: any) => {
+            if(!s.posts) return null;
+            return {
+              ...s.posts, seals_count: s.posts.seals?.length || 0, has_sealed: !!me && s.posts.seals?.some((seal: any) => seal.user_id === me),
+              comments_count: s.posts.comments_count?.[0]?.count || 0
+            };
+          }).filter(Boolean) || [];
+        } catch {}
+
+        resultObj = { profile: freshProfile || result.profile || authProfile, memberships: memberships || result.memberships || [], ownedCircles: ownedCircles || result.ownedCircles || [], posts: formattedPosts, savedPosts: mySavedPosts };
+      } else {
+        const identifier = routeId || '';
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+        let query = supabase.from('profiles').select('*');
+        query = isUuid ? query.eq('id', identifier) : query.eq('username', identifier);
+        const { data: publicProfile } = await query.maybeSingle();
+        if (!publicProfile) throw new Error('Profile not found');
+        targetId = publicProfile.id;
+
+        const [{ data: memberships }, { data: ownedCircles }, { data: userPosts }] = await Promise.all([
+          supabase.from('circle_members').select('circle:circles(*)').eq('user_id', targetId).neq('role', 'admin'),
+          supabase.from('circles').select('*').eq('owner_id', targetId),
+          supabase.from('posts').select('*, seals:post_seals(id, seal_type, user_id), comments_count:comments(count)').eq('user_id', targetId).order('created_at', { ascending: false }),
+        ]);
+
+        const formattedPosts = (userPosts || []).map((p: any) => ({
+          ...p, seals_count: p.seals?.length || 0, has_sealed: !!me && p.seals?.some((s: any) => s.user_id === me),
+          comments_count: p.comments_count?.[0]?.count || 0, profiles: publicProfile
+        }));
+
+        let isFollowingUser = false;
+        if (me) {
           try {
-            const { data: saved } = await supabase.from('saved_posts').select('post_id, posts(*, seals:post_seals(id, seal_type, user_id), comments_count:comments(count), profiles:user_id(*))').eq('user_id', targetId);
-            mySavedPosts = saved?.map((s: any) => {
-              if(!s.posts) return null;
-              return {
-                ...s.posts, seals_count: s.posts.seals?.length || 0, has_sealed: !!me && s.posts.seals?.some((seal: any) => seal.user_id === me),
-                comments_count: s.posts.comments_count?.[0]?.count || 0
-              };
-            }).filter(Boolean) || [];
+            const { data: followData } = await supabase.from('followers').select('*').eq('follower_id', me).eq('following_id', targetId).maybeSingle();
+            if (followData) isFollowingUser = true;
           } catch {}
-
-          if (isMounted) {
-            const freshData = { profile: freshProfile || result.profile || authProfile, memberships: memberships || result.memberships || [], ownedCircles: ownedCircles || result.ownedCircles || [], posts: formattedPosts, savedPosts: mySavedPosts };
-            setData(freshData);
-            localStorage.setItem('inner_profile_cache', JSON.stringify(freshData));
-          }
-        } else {
-          const identifier = routeId || '';
-          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
-          let query = supabase.from('profiles').select('*');
-          query = isUuid ? query.eq('id', identifier) : query.eq('username', identifier);
-          const { data: publicProfile } = await query.maybeSingle();
-          if (!publicProfile) throw new Error('Profile not found');
-          targetId = publicProfile.id;
-
-          const [{ data: memberships }, { data: ownedCircles }, { data: userPosts }] = await Promise.all([
-            supabase.from('circle_members').select('circle:circles(*)').eq('user_id', targetId).neq('role', 'admin'),
-            supabase.from('circles').select('*').eq('owner_id', targetId),
-            supabase.from('posts').select('*, seals:post_seals(id, seal_type, user_id), comments_count:comments(count)').eq('user_id', targetId).order('created_at', { ascending: false }),
-          ]);
-
-          const formattedPosts = (userPosts || []).map((p: any) => ({
-            ...p, seals_count: p.seals?.length || 0, has_sealed: !!me && p.seals?.some((s: any) => s.user_id === me),
-            comments_count: p.comments_count?.[0]?.count || 0, profiles: publicProfile
-          }));
-
-          let isFollowingUser = false;
-          if (me) {
-            try {
-              const { data: followData } = await supabase.from('followers').select('*').eq('follower_id', me).eq('following_id', targetId).maybeSingle();
-              if (followData) isFollowingUser = true;
-            } catch {}
-          }
-
-          if (isMounted) {
-            setData({ profile: publicProfile, memberships: memberships || [], ownedCircles: ownedCircles || [], posts: formattedPosts, savedPosts: [] });
-            setIsFollowing(isFollowingUser);
-          }
         }
-
-        if (targetId && isMounted) {
-          const [{ count: followers }, { count: following }] = await Promise.all([
-            supabase.from('followers').select('*', { count: 'exact', head: true }).eq('following_id', targetId),
-            supabase.from('followers').select('*', { count: 'exact', head: true }).eq('follower_id', targetId),
-          ]);
-          setFollowersCount(followers || 0);
-          setFollowingCount(following || 0);
-        }
-      } catch {
-        if (!data.profile?.id) { toast.error('הפרופיל לא נמצא'); navigate('/'); }
-      } finally {
-        if (isMounted) setLoadingData(false);
+        resultObj = { profile: publicProfile, memberships: memberships || [], ownedCircles: ownedCircles || [], posts: formattedPosts, savedPosts: [], isFollowingUser };
       }
-    };
 
-    if (!authLoading) loadProfileData();
-    return () => { isMounted = false; };
-  }, [user, routeId, isMyProfile, authLoading, navigate, authProfile]);
+      if (targetId) {
+        const [{ count: followers }, { count: following }] = await Promise.all([
+          supabase.from('followers').select('*', { count: 'exact', head: true }).eq('following_id', targetId),
+          supabase.from('followers').select('*', { count: 'exact', head: true }).eq('follower_id', targetId),
+        ]);
+        resultObj.followersCount = followers || 0;
+        resultObj.followingCount = following || 0;
+      }
+      return resultObj;
+    },
+    enabled: !!mounted && (!authLoading),
+  });
 
   useEffect(() => {
-    if (!data.profile?.id) return;
-    const channel = supabase.channel(`profile_sync_${data.profile.id}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${data.profile.id}` }, (payload) => {
-        setData((prev: any) => ({ ...prev, profile: { ...prev.profile, ...payload.new } }));
+    if (queryData) {
+      setLocalData({
+        profile: queryData.profile,
+        memberships: queryData.memberships,
+        ownedCircles: queryData.ownedCircles,
+        posts: queryData.posts,
+        savedPosts: queryData.savedPosts
+      });
+      setFollowersCount(queryData.followersCount);
+      setFollowingCount(queryData.followingCount);
+      if (queryData.isFollowingUser !== undefined) setIsFollowing(queryData.isFollowingUser);
+      
+      localStorage.setItem(`inner_profile_cache_${routeId || 'me'}`, JSON.stringify({
+        profile: queryData.profile,
+        memberships: queryData.memberships,
+        ownedCircles: queryData.ownedCircles,
+        posts: queryData.posts,
+        savedPosts: queryData.savedPosts
+      }));
+    }
+  }, [queryData, routeId]);
+
+  useEffect(() => {
+    if (!localData.profile?.id) return;
+    const channel = supabase.channel(`profile_sync_${localData.profile.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${localData.profile.id}` }, (payload) => {
+        setLocalData((prev: any) => ({ ...prev, profile: { ...prev.profile, ...payload.new } }));
       }).subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [data.profile?.id]);
+  }, [localData.profile?.id]);
 
   const mediaPosts = useMemo(() => {
-    const pool = activeTab === 'saved' && isMyProfile ? data.savedPosts || [] : data.posts || [];
+    const pool = activeTab === 'saved' && isMyProfile ? localData.savedPosts || [] : localData.posts || [];
     return pool.filter((p: any) => p.media_url);
-  }, [data.posts, data.savedPosts, activeTab, isMyProfile]);
+  }, [localData.posts, localData.savedPosts, activeTab, isMyProfile]);
 
   const allMyCircles = useMemo(() => {
-    const owned = data.ownedCircles || [];
-    const joined = data.memberships?.map((m: any) => m?.circle).filter(Boolean) || [];
+    const owned = localData.ownedCircles || [];
+    const joined = localData.memberships?.map((m: any) => m?.circle).filter(Boolean) || [];
     const map = new Map();
     owned.forEach((c: any) => map.set(c.id, { ...c, isOwner: true }));
     joined.forEach((c: any) => { if (!map.has(c.id)) map.set(c.id, { ...c, isOwner: false }); });
@@ -255,7 +270,7 @@ export const ProfilePage: React.FC = () => {
       if (!a.isOwner && b.isOwner) return 1;
       return 0;
     });
-  }, [data.ownedCircles, data.memberships]);
+  }, [localData.ownedCircles, localData.memberships]);
 
   const getRandomMediaBatch = (size = 4) => {
     if (!mediaPosts.length) return [];
@@ -298,11 +313,9 @@ export const ProfilePage: React.FC = () => {
     setFollowLoading(true);
     triggerFeedback('pop');
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      const myId = authData.user?.id;
-      const targetId = data.profile?.id;
-      if (!myId || !targetId) throw new Error('missing');
-      await apiFetch(`/api/profile/${targetId}/follow`, { method: 'POST', headers: { 'x-user-id': myId } });
+      const targetId = localData.profile?.id;
+      if (!currentUserId || !targetId) throw new Error('missing');
+      await apiFetch(`/api/profile/${targetId}/follow`, { method: 'POST', headers: { 'x-user-id': currentUserId } });
       if (isFollowing) { setIsFollowing(false); setFollowersCount((prev) => Math.max(0, prev - 1)); }
       else { setIsFollowing(true); setFollowersCount((prev) => prev + 1); triggerFeedback('success'); }
     } catch { toast.error('שגיאה'); } finally { setFollowLoading(false); }
@@ -314,7 +327,7 @@ export const ProfilePage: React.FC = () => {
     setLoadingUsersList(true);
     setUsersListData([]);
     try {
-      const targetId = data.profile?.id;
+      const targetId = localData.profile?.id;
       let userIds: string[] = [];
       if (type === 'followers') {
         const { data: fData } = await supabase.from('followers').select('follower_id').eq('following_id', targetId);
@@ -333,7 +346,7 @@ export const ProfilePage: React.FC = () => {
   const handleRemoveSeal = async (postId: string) => {
     triggerFeedback('pop');
     const update = (list: any[]) => list.map((p) => p.id === postId ? { ...p, has_sealed: false, seals_count: Math.max(0, (p.seals_count || 0) - 1) } : p);
-    setData((prev: any) => ({ ...prev, posts: update(prev.posts || []), savedPosts: update(prev.savedPosts || []) }));
+    setLocalData((prev: any) => ({ ...prev, posts: update(prev.posts || []), savedPosts: update(prev.savedPosts || []) }));
     if (fullScreenMedia) setFullScreenMedia((prev) => (prev ? update(prev) : prev));
     try { await supabase.from('post_seals').delete().match({ post_id: postId, user_id: currentUserId }); } catch (err) { toast.error('שגיאה בהסרת חותם'); }
   };
@@ -342,7 +355,7 @@ export const ProfilePage: React.FC = () => {
     triggerFeedback('pop');
     closeOverlay();
     const update = (list: any[]) => list.map((p) => p.id === postId ? { ...p, has_sealed: true, seals_count: (p.seals_count || 0) + 1 } : p);
-    setData((prev: any) => ({ ...prev, posts: update(prev.posts || []), savedPosts: update(prev.savedPosts || []) }));
+    setLocalData((prev: any) => ({ ...prev, posts: update(prev.posts || []), savedPosts: update(prev.savedPosts || []) }));
     if (fullScreenMedia) setFullScreenMedia((prev) => (prev ? update(prev) : prev));
     try {
       const { error } = await supabase.from('post_seals').insert({ post_id: postId, user_id: currentUserId, seal_type: sealType });
@@ -350,7 +363,7 @@ export const ProfilePage: React.FC = () => {
         if (error.code === '23505') toast.error('כבר נתת חותם לפוסט זה');
         else throw error;
         const revert = (list: any[]) => list.map((p) => p.id === postId ? { ...p, has_sealed: false, seals_count: Math.max(0, (p.seals_count || 0) - 1) } : p);
-        setData((prev: any) => ({ ...prev, posts: revert(prev.posts || []), savedPosts: revert(prev.savedPosts || []) }));
+        setLocalData((prev: any) => ({ ...prev, posts: revert(prev.posts || []), savedPosts: revert(prev.savedPosts || []) }));
       } else { triggerFeedback('success'); }
     } catch (err) { toast.error('שגיאה בהענקת חותם'); }
   };
@@ -381,7 +394,7 @@ export const ProfilePage: React.FC = () => {
         if (resData) {
           setComments((prev) => [...prev, resData]);
           const update = (list: any[]) => list.map((p) => p.id === activePost.id ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p);
-          setData((prev: any) => ({ ...prev, posts: update(prev.posts || []), savedPosts: update(prev.savedPosts || []) }));
+          setLocalData((prev: any) => ({ ...prev, posts: update(prev.posts || []), savedPosts: update(prev.savedPosts || []) }));
           if (fullScreenMedia) setFullScreenMedia((prev) => (prev ? update(prev) : prev));
           triggerFeedback('coin');
         }
@@ -394,7 +407,7 @@ export const ProfilePage: React.FC = () => {
     triggerFeedback('error');
     setComments((curr) => curr.filter((c) => c && c.id !== commentId && c.parent_id !== commentId));
     const update = (list: any[]) => list.map((p) => p.id === activePost?.id ? { ...p, comments_count: Math.max(0, (p.comments_count || 0) - 1) } : p);
-    setData((prev: any) => ({ ...prev, posts: update(prev.posts || []), savedPosts: update(prev.savedPosts || []) }));
+    setLocalData((prev: any) => ({ ...prev, posts: update(prev.posts || []), savedPosts: update(prev.savedPosts || []) }));
     if (fullScreenMedia) setFullScreenMedia((prev) => (prev ? update(prev) : prev));
     try { await supabase.from('comments').delete().eq('id', commentId); } catch {}
   };
@@ -422,21 +435,21 @@ export const ProfilePage: React.FC = () => {
     triggerFeedback('error');
     if (optionsMenuPost || gridActionModal) closeOverlay();
     if (fullScreenMedia) setFullScreenMedia((curr) => curr?.filter((p) => p.id !== postId) || null);
-    setData((prev: any) => ({ ...prev, posts: (prev.posts || []).filter((p: any) => p.id !== postId), savedPosts: (prev.savedPosts || []).filter((p: any) => p.id !== postId) }));
+    setLocalData((prev: any) => ({ ...prev, posts: (prev.posts || []).filter((p: any) => p.id !== postId), savedPosts: (prev.savedPosts || []).filter((p: any) => p.id !== postId) }));
     await supabase.from('posts').delete().eq('id', postId);
   };
 
   const removeFromSaved = async (postId: string) => {
     triggerFeedback('pop');
     if (gridActionModal) closeOverlay();
-    setData((prev: any) => ({ ...prev, savedPosts: (prev.savedPosts || []).filter((p: any) => p.id !== postId) }));
+    setLocalData((prev: any) => ({ ...prev, savedPosts: (prev.savedPosts || []).filter((p: any) => p.id !== postId) }));
     try { await supabase.from('saved_posts').delete().match({ user_id: currentUserId, post_id: postId }); toast.success('הוסר מהשמורים'); } catch { toast.error('שגיאה בהסרה'); }
   };
 
   const leaveCircle = async (circleId: string) => {
     triggerFeedback('error');
     if (gridActionModal) closeOverlay();
-    setData((prev: any) => ({ ...prev, memberships: (prev.memberships || []).filter((m: any) => m.circle?.id !== circleId) }));
+    setLocalData((prev: any) => ({ ...prev, memberships: (prev.memberships || []).filter((m: any) => m.circle?.id !== circleId) }));
     try { await supabase.from('circle_members').delete().match({ user_id: currentUserId, circle_id: circleId }); toast.success('עזבת את המועדון'); } catch { toast.error('שגיאה בעזיבת המועדון'); }
   };
 
@@ -445,7 +458,7 @@ export const ProfilePage: React.FC = () => {
     try {
       await supabase.from('posts').update({ content: editPostText.trim() }).eq('id', editingPost.id);
       const update = (list: any[]) => list.map((p) => (p.id === editingPost.id ? { ...p, content: editPostText.trim() } : p));
-      setData((prev: any) => ({ ...prev, posts: update(prev.posts || []), savedPosts: update(prev.savedPosts || []) }));
+      setLocalData((prev: any) => ({ ...prev, posts: update(prev.posts || []), savedPosts: update(prev.savedPosts || []) }));
       if (fullScreenMedia) setFullScreenMedia((prev) => (prev ? update(prev) : prev));
       toast.success('הפוסט עודכן'); closeOverlay();
       setTimeout(() => { setShowCreatePost(false); setEditingPost(null); setEditPostText(''); }, 50);
@@ -454,11 +467,11 @@ export const ProfilePage: React.FC = () => {
 
   const stopPropagation = (e: any) => e.stopPropagation();
 
-  if ((authLoading || loadingData) && !data.profile?.id) {
+  if ((authLoading || loadingData) && !localData.profile?.id) {
     return <div className="min-h-screen bg-[#0d0d0f] flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div>;
   }
 
-  const userProfile = isMyProfile ? { ...(authProfile || {}), ...(data?.profile || {}) } : data?.profile || {};
+  const userProfile = isMyProfile ? { ...(authProfile || {}), ...(localData?.profile || {}) } : localData?.profile || {};
   const currentLevel = userProfile.level || 1;
   const currentXP = userProfile.xp || 0;
   const xpToNextLevel = currentLevel * 1000;
@@ -467,8 +480,6 @@ export const ProfilePage: React.FC = () => {
   const streakDays = userProfile.streak_days || 1;
   const streakProgress = Math.min((streakDays % 30) / 30 * 100, 100);
 
-  const userPosts = data.posts || [];
-  const userSavedPosts = data.savedPosts || [];
   const displayLink = userProfile?.social_link ? userProfile.social_link.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '') : '';
 
   const visibleChips = [
@@ -483,6 +494,56 @@ export const ProfilePage: React.FC = () => {
     { key: 'relationship_status', value: userProfile?.relationship_status, icon: <Heart size={12} className="text-white/50" /> },
     { key: 'birth_date', value: userProfile?.birth_date ? new Date(userProfile.birth_date).toLocaleDateString('he-IL') : '', icon: <Calendar size={12} className="text-white/50" /> },
   ].filter((item) => item.value);
+
+  // Virtuoso Render Functions
+  const renderPostItem = (index: number, post: any) => (
+    <div key={post.id} onClick={() => { openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = mediaPosts.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[3/4] bg-[#111] relative cursor-pointer active:opacity-70 group overflow-hidden rounded-sm">
+      {isMyProfile && (
+        <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'post' })); }} className="absolute top-2 left-2 z-20 text-white/80 hover:text-white bg-black/40 backdrop-blur-md rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <MoreHorizontal size={16} />
+        </button>
+      )}
+      {post.media_url ? (
+        post.media_type === 'video' ? <video src={post.media_url} className="w-full h-full object-cover" /> : <img src={post.media_url} className="w-full h-full object-cover" />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center p-2 text-center text-white/40 text-[10px] font-medium leading-relaxed">{post.content}</div>
+      )}
+    </div>
+  );
+
+  const renderCircleItem = (index: number, circle: any) => (
+    <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className={`aspect-[3/4] bg-[#111] relative overflow-hidden cursor-pointer group rounded-sm shadow-sm transition-all ${circle.isOwner ? 'border-[1px] border-accent-primary/60 shadow-[0_0_10px_rgba(var(--color-accent-primary),0.2)]' : ''}`}>
+      {circle.isOwner && (
+        <div className="absolute top-2 right-2 z-20 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] text-[9px] font-black uppercase tracking-widest bg-accent-primary/80 backdrop-blur-md px-1.5 py-0.5 rounded">
+          בניהולי
+        </div>
+      )}
+      <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: circle, type: 'circle' })); }} className="absolute top-2 left-2 z-20 text-white/80 hover:text-white bg-black/40 backdrop-blur-md rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <MoreHorizontal size={16} />
+      </button>
+      {circle.cover_url ? (
+        <img src={circle.cover_url} className="w-full h-full object-cover opacity-80" />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center text-white/30 font-black text-2xl">{circle.name?.charAt(0)}</div>
+      )}
+      <div className="absolute bottom-0 w-full p-2 bg-[#0d0d0f]/80 backdrop-blur-sm text-center border-t border-white/5">
+        <span className="text-white text-[10px] font-bold line-clamp-1">{circle.name}</span>
+      </div>
+    </div>
+  );
+
+  const renderSavedItem = (index: number, post: any) => (
+    <div key={post.id} onClick={() => { const savedMedia = localData.savedPosts.filter((p: any) => p.media_url); openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = savedMedia.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[3/4] bg-[#111] relative overflow-hidden cursor-pointer active:opacity-70 group rounded-sm">
+      <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'saved' })); }} className="absolute top-2 left-2 z-20 text-white/80 hover:text-white bg-black/40 backdrop-blur-md rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <MoreHorizontal size={16} />
+      </button>
+      {post.media_url ? (
+        post.media_type === 'video' ? <video src={post.media_url} className="w-full h-full object-cover" /> : <img src={post.media_url} className="w-full h-full object-cover" />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center p-2 text-center text-white/40 text-[10px] font-medium leading-relaxed">{post.content}</div>
+      )}
+    </div>
+  );
 
   return (
     <FadeIn className="bg-[#0d0d0f] min-h-[100dvh] relative font-sans text-white overflow-x-hidden pb-24" dir="rtl">
@@ -642,7 +703,7 @@ export const ProfilePage: React.FC = () => {
         {!isMyProfile && (
           <div className="flex items-center gap-3 mt-8 w-full max-w-[340px] px-2">
             <button 
-              onClick={() => { triggerFeedback('pop'); setIsFollowing(!isFollowing); }}
+              onClick={handleFollowToggle}
               className={`flex-1 h-14 rounded-full font-black text-[13px] tracking-widest uppercase transition-all active:scale-95 flex items-center justify-center ${
                 isFollowing ? 'bg-white/5 border border-white/10 text-white/50' : 'bg-accent-primary text-white shadow-[0_0_20px_rgba(var(--color-accent-primary),0.4)]'
               }`}
@@ -684,82 +745,72 @@ export const ProfilePage: React.FC = () => {
         })}
       </div>
 
-      {/* 🔳 Edge-to-Edge Grid Content (3 Items Per Row) */}
+      {/* 🔳 Edge-to-Edge Grid Content (3 Items Per Row) Powered by VirtuosoGrid */}
       <div className="w-full mt-0.5 min-h-[50vh]">
         <AnimatePresence mode="wait">
           
           {/* POSTS */}
           {activeTab === 'posts' && (
-            <motion.div key="posts" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-0.5 w-full">
-              {data.posts.length === 0 ? (
+            <motion.div key="posts" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full min-h-[50vh]">
+              {localData.posts.length === 0 ? (
                 <div className="col-span-3 py-16 text-center text-white/30 text-[12px] font-bold uppercase tracking-widest">אין עדיין דגימות מידע</div>
               ) : (
-                data.posts.map((post: any) => (
-                  <div key={post.id} onClick={() => { openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = mediaPosts.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[3/4] bg-[#111] relative cursor-pointer active:opacity-70 group overflow-hidden rounded-sm">
-                    {isMyProfile && (
-                      <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'post' })); }} className="absolute top-2 left-2 z-20 text-white/80 hover:text-white bg-black/40 backdrop-blur-md rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <MoreHorizontal size={16} />
-                      </button>
-                    )}
-                    {post.media_url ? (
-                      post.media_type === 'video' ? <video src={post.media_url} className="w-full h-full object-cover" /> : <img src={post.media_url} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center p-2 text-center text-white/40 text-[10px] font-medium leading-relaxed">{post.content}</div>
-                    )}
-                  </div>
-                ))
+                <VirtuosoGrid
+                  useWindowScroll
+                  data={localData.posts}
+                  components={{
+                    List: React.forwardRef(({ style, children }, ref) => (
+                      <div ref={ref as any} style={style} className="grid grid-cols-3 gap-0.5 w-full">
+                        {children}
+                      </div>
+                    ))
+                  }}
+                  itemContent={renderPostItem}
+                />
               )}
             </motion.div>
           )}
 
           {/* JOINED CIRCLES */}
           {activeTab === 'circles' && (
-            <motion.div key="circles" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-0.5 w-full">
-              {data.memberships.length === 0 ? (
+            <motion.div key="circles" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full min-h-[50vh]">
+              {allMyCircles.length === 0 ? (
                 <div className="col-span-3 py-16 text-center text-white/30 text-[12px] font-bold uppercase tracking-widest">לא חבר במועדונים</div>
               ) : (
-                allMyCircles.map((circle: any) => (
-                  <div key={circle.id} onClick={() => navigate(`/circle/${circle.slug}`)} className={`aspect-[3/4] bg-[#111] relative overflow-hidden cursor-pointer group rounded-sm shadow-sm transition-all ${circle.isOwner ? 'border-[1px] border-accent-primary/60 shadow-[0_0_10px_rgba(var(--color-accent-primary),0.2)]' : ''}`}>
-                    {circle.isOwner && (
-                      <div className="absolute top-2 right-2 z-20 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] text-[9px] font-black uppercase tracking-widest bg-accent-primary/80 backdrop-blur-md px-1.5 py-0.5 rounded">
-                        בניהולי
+                <VirtuosoGrid
+                  useWindowScroll
+                  data={allMyCircles}
+                  components={{
+                    List: React.forwardRef(({ style, children }, ref) => (
+                      <div ref={ref as any} style={style} className="grid grid-cols-3 gap-0.5 w-full">
+                        {children}
                       </div>
-                    )}
-                    <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: circle, type: 'circle' })); }} className="absolute top-2 left-2 z-20 text-white/80 hover:text-white bg-black/40 backdrop-blur-md rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <MoreHorizontal size={16} />
-                    </button>
-                    {circle.cover_url ? (
-                      <img src={circle.cover_url} className="w-full h-full object-cover opacity-80" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-white/30 font-black text-2xl">{circle.name?.charAt(0)}</div>
-                    )}
-                    <div className="absolute bottom-0 w-full p-2 bg-[#0d0d0f]/80 backdrop-blur-sm text-center border-t border-white/5">
-                      <span className="text-white text-[10px] font-bold line-clamp-1">{circle.name}</span>
-                    </div>
-                  </div>
-                ))
+                    ))
+                  }}
+                  itemContent={renderCircleItem}
+                />
               )}
             </motion.div>
           )}
 
           {/* SAVED */}
           {activeTab === 'saved' && isMyProfile && (
-            <motion.div key="saved" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-3 gap-0.5 w-full">
-              {data.savedPosts.length === 0 ? (
+            <motion.div key="saved" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full min-h-[50vh]">
+              {localData.savedPosts.length === 0 ? (
                 <div className="col-span-3 py-16 text-center text-white/30 text-[12px] font-bold uppercase tracking-widest">אין פריטים שמורים</div>
               ) : (
-                data.savedPosts.map((post: any) => (
-                  <div key={post.id} onClick={() => { const savedMedia = data.savedPosts.filter((p: any) => p.media_url); openOverlay(() => { const first = { ...post, _uid: `${post.id}-${Math.random().toString(36).slice(2)}` }; const rest = savedMedia.filter((p: any) => p.id !== post.id).map((p: any) => ({ ...p, _uid: `${p.id}-${Math.random().toString(36).slice(2)}` })); setFullScreenMedia([first, ...rest]); }); }} className="aspect-[3/4] bg-[#111] relative overflow-hidden cursor-pointer active:opacity-70 group rounded-sm">
-                    <button onClick={(e) => { e.stopPropagation(); openOverlay(() => setGridActionModal({ item: post, type: 'saved' })); }} className="absolute top-2 left-2 z-20 text-white/80 hover:text-white bg-black/40 backdrop-blur-md rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <MoreHorizontal size={16} />
-                    </button>
-                    {post.media_url ? (
-                      post.media_type === 'video' ? <video src={post.media_url} className="w-full h-full object-cover" /> : <img src={post.media_url} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center p-2 text-center text-white/40 text-[10px] font-medium leading-relaxed">{post.content}</div>
-                    )}
-                  </div>
-                ))
+                <VirtuosoGrid
+                  useWindowScroll
+                  data={localData.savedPosts}
+                  components={{
+                    List: React.forwardRef(({ style, children }, ref) => (
+                      <div ref={ref as any} style={style} className="grid grid-cols-3 gap-0.5 w-full">
+                        {children}
+                      </div>
+                    ))
+                  }}
+                  itemContent={renderSavedItem}
+                />
               )}
             </motion.div>
           )}
@@ -863,11 +914,12 @@ export const ProfilePage: React.FC = () => {
                 
                 <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-5 scrollbar-hide">
                   {loadingComments ? <Loader2 className="animate-spin mx-auto text-accent-primary mt-10" /> : comments.filter((c) => c && !c.parent_id).map((c) => {
-                    const replies = comments.filter((r) => r && r.parent_id === c.id);
+                    const replies = comments.filter((r) => r && r.parent_id === c.id).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+                    const isThreadExpanded = expandedThreads[c.id];
                     return (
-                      <div key={c.id} className="flex flex-col gap-2">
-                        <div className="flex gap-3">
-                          <div className="w-10 h-10 rounded-full bg-[#111] shrink-0 overflow-hidden cursor-pointer border border-white/10 flex items-center justify-center" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${c.user_id}`), 50); }}>
+                      <div key={c.id} className="flex flex-col gap-2 relative">
+                        <div className="flex gap-3 relative z-10">
+                          <div className="w-10 h-10 min-w-[40px] rounded-full bg-[#111] shrink-0 overflow-hidden cursor-pointer border border-white/10 flex items-center justify-center" onClick={(e) => { e.stopPropagation(); closeOverlay(); setTimeout(() => navigate(`/profile/${c.user_id}`), 50); }}>
                             {c.profiles?.avatar_url ? <img src={c.profiles.avatar_url} className="w-full h-full object-cover" /> : <span className="text-white/40 font-black text-sm">{(c.profiles?.full_name || 'א')[0]}</span>}
                           </div>
                           <div className="flex flex-col flex-1">
@@ -913,7 +965,7 @@ export const ProfilePage: React.FC = () => {
             </div>
           )}
 
-          {/* FULL SCREEN MEDIA (TikTok Style with dark glass icons) */}
+          {/* FULL SCREEN MEDIA */}
           {fullScreenMedia && (
             <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="fixed inset-0 z-[90000] bg-[#0d0d0f]">
               <div className="w-full h-full overflow-y-scroll snap-y snap-mandatory scrollbar-hide" onScroll={handleContainerScroll}>
@@ -928,7 +980,6 @@ export const ProfilePage: React.FC = () => {
                         <img src={vid.media_url} className="w-full h-full object-contain full-media-item" onError={(e) => { e.currentTarget.src = 'https://placehold.co/500x500/111/333?text=Unavailable'; }} />
                       )}
                       
-                      {/* Floating Dark Glass Overlay (Right Side) */}
                       <div className="absolute bottom-32 left-4 flex flex-col gap-6 items-center z-50 pointer-events-auto">
                         <button onClick={(e) => { e.stopPropagation(); if (vid.has_sealed) handleRemoveSeal(vid.id); else openOverlay(() => setSealSelectorPost(vid)); }} className="flex flex-col items-center gap-1 active:scale-90 transition-transform">
                           <Flame size={32} className={vid.has_sealed ? 'text-orange-500' : 'text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]'} fill={vid.has_sealed ? 'currentColor' : 'none'} strokeWidth={1.5} />
@@ -944,7 +995,6 @@ export const ProfilePage: React.FC = () => {
                         <MoreVertical size={28} strokeWidth={2} className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
                       </button>
 
-                      {/* Bottom Info Area */}
                       <div className="absolute bottom-0 left-0 right-0 px-5 pb-8 pt-32 bg-gradient-to-t from-black/60 via-black/20 to-transparent flex flex-col pointer-events-none">
                         {vid.content && (
                           <p className="text-white drop-shadow-md text-[15px] font-medium text-right max-w-[85%] line-clamp-3 pointer-events-auto cursor-pointer mb-4" onClick={(e) => { e.stopPropagation(); openOverlay(() => setActiveDescPost(vid)); }}>
@@ -952,7 +1002,6 @@ export const ProfilePage: React.FC = () => {
                           </p>
                         )}
                         
-                        {/* Circles Horizontal Scroll Area */}
                         {vid.user_circles && vid.user_circles.length > 0 && (
                           <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center mb-3 pointer-events-auto">
                             {(() => {
@@ -1015,7 +1064,7 @@ export const ProfilePage: React.FC = () => {
           <AnimatePresence>
             {activeDescPost && (
               <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" onTouchStart={stopPropagation} onTouchMove={stopPropagation} dir="rtl">
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-0 bg-black/80 backdrop-blur-sm" onClick={closeOverlay} />
                 <motion.div drag="y" dragConstraints={{ top: 0, bottom: 0 }} onDragEnd={(e, info) => { if (info.offset.y > 100) closeOverlay(); }} initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} className="relative z-10 bg-[#0d0d0f] rounded-t-[32px] flex flex-col overflow-hidden pb-10 max-h-[75vh] shadow-[0_-20px_50px_rgba(0,0,0,0.8)] border-t border-white/10 text-center">
                   <div className="w-full py-4 flex justify-center cursor-grab border-b border-white/5"><div className="w-12 h-1 bg-white/10 rounded-full" /></div>
                   <div className="p-6 overflow-y-auto" onPointerDown={stopPropagation} onTouchStart={stopPropagation}>
@@ -1071,7 +1120,7 @@ export const ProfilePage: React.FC = () => {
               </motion.div>
             </div>
           )}
-
+          
         </AnimatePresence>,
         portalNode
       )}
