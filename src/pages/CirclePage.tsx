@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -33,12 +32,6 @@ const SEAL_TYPES = [
   { id: 'alliance', icon: <Handshake size={14} />, label: 'ברית', color: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/30', xp: 100 },
 ];
 
-type OverviewPayload = {
-  pins?: any[]; stories?: any[]; drop?: any | null; events?: any[];
-  activity?: any[]; leaderboard?: any[]; my_stats?: any | null;
-  tasks?: any[]; trust_rules?: any | null;
-};
-
 const formatTime = (dateStr?: string | null) => {
   if (!dateStr) return '';
   try { return new Date(dateStr).toLocaleString('he-IL', { hour: '2-digit', minute: '2-digit' }); } 
@@ -62,7 +55,6 @@ export const CirclePage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
 
-  const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'chat' | 'vaults' | 'members'>('chat');
   const [currentUserId, setCurrentUserId] = useState<string>('');
   
@@ -92,10 +84,8 @@ export const CirclePage: React.FC = () => {
 
   useEffect(() => {
     if (user?.id) setCurrentUserId(user.id);
-    setMounted(true);
   }, [user]);
 
-  // מנוע טעינה חכם באמצעות React Query
   const { data: circleData, isLoading, refetch } = useQuery({
     queryKey: ['circle', slug, currentUserId],
     queryFn: async () => {
@@ -158,13 +148,12 @@ export const CirclePage: React.FC = () => {
     staleTime: 1000 * 60 * 2,
   });
 
-  // סנכרון בזמן אמת של צ'אט הקהילה
   useEffect(() => {
     if (!circleData?.circle?.id) return;
     const cid = circleData.circle.id;
     const channel = supabase.channel(`circle_updates_${cid}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'posts', filter: `circle_id=eq.${cid}` }, () => {
-        refetch(); 
+        refetch();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'post_seals' }, () => refetch())
       .subscribe();
@@ -311,6 +300,29 @@ export const CirclePage: React.FC = () => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const handleMessageTouchStart = (e: React.TouchEvent | React.MouseEvent, post: any) => {
+    touchStartY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    pressTimerRef.current = setTimeout(() => { triggerFeedback('heavy'); setActionPost(post); }, 450);
+  };
+  const handleMessageTouchMove = (e: React.TouchEvent | React.MouseEvent) => {
+    const currentY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    if (Math.abs(currentY - touchStartY) > 10 && pressTimerRef.current) clearTimeout(pressTimerRef.current);
+  };
+  const handleMessageTouchEnd = () => { if (pressTimerRef.current) clearTimeout(pressTimerRef.current); };
+  
+  const handleCopyText = () => { if (actionPost?.content) { navigator.clipboard.writeText(actionPost.content); toast.success('הועתק ללוח', { style: cleanToastStyle }); } setActionPost(null); };
+  
+  const handleDeletePost = async () => {
+    if (!actionPost) return;
+    try {
+      await supabase.from('posts').delete().eq('id', actionPost.id);
+      toast.success('הודעה נמחקה', { style: cleanToastStyle });
+      refetch();
+    } catch { toast.error('שגיאה במחיקה', { style: cleanToastStyle }); } finally { setActionPost(null); }
+  };
+  
+  const handleEditPost = () => { if (!actionPost) return; setNewPost(actionPost.content || ''); setEditingPostId(actionPost.id); setActionPost(null); };
+
   const cleanupStoryCapture = () => {
     if (storyStreamRef.current) {
       storyStreamRef.current.getTracks().forEach((track) => track.stop());
@@ -414,35 +426,8 @@ export const CirclePage: React.FC = () => {
     } finally { setUploadingStory(false); }
   };
 
-  const handleMessageTouchStart = (e: React.TouchEvent | React.MouseEvent, post: any) => {
-    touchStartY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    pressTimerRef.current = setTimeout(() => { triggerFeedback('heavy'); setActionPost(post); }, 450);
-  };
-  const handleMessageTouchMove = (e: React.TouchEvent | React.MouseEvent) => {
-    const currentY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    if (Math.abs(currentY - touchStartY) > 10 && pressTimerRef.current) clearTimeout(pressTimerRef.current);
-  };
-  const handleMessageTouchEnd = () => { if (pressTimerRef.current) clearTimeout(pressTimerRef.current); };
-  
-  const handleCopyText = () => { if (actionPost?.content) { navigator.clipboard.writeText(actionPost.content); toast.success('הועתק ללוח', { style: cleanToastStyle }); } setActionPost(null); };
-  
-  const handleDeletePost = async () => {
-    if (!actionPost) return;
-    try {
-      await supabase.from('posts').delete().eq('id', actionPost.id);
-      toast.success('הודעה נמחקה', { style: cleanToastStyle });
-      refetch();
-    } catch { toast.error('שגיאה במחיקה', { style: cleanToastStyle }); } finally { setActionPost(null); }
-  };
-  
-  const handleEditPost = () => { if (!actionPost) return; setNewPost(actionPost.content || ''); setEditingPostId(actionPost.id); setActionPost(null); };
-
-
-  // כדי להבטיח את הסתרת ה-Bottom Nav וההיררכיה - מחזירים אלמנט React חוקי שמרנדר את הפורטל הראשי
-  if (!mounted || typeof document === 'undefined') return null;
-
   if (isLoading || !circleData) {
-    return createPortal(<div className="fixed inset-0 z-[99999999] bg-[#050505] flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div>, document.body);
+    return <div className="fixed inset-0 z-[99999999] bg-[#050505] flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div>;
   }
 
   const { circle, isMember, membership, membersList, vaults, overview } = circleData;
@@ -454,262 +439,258 @@ export const CirclePage: React.FC = () => {
   const xpProgress = Math.min(100, Math.round((myXP / xpToNext) * 100));
 
   return (
-    <>
-      {createPortal(
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[99999999] bg-[#050505] font-sans flex flex-col overflow-hidden text-white" dir="rtl">
-          <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*" />
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[99999999] bg-[#050505] font-sans flex flex-col overflow-hidden text-white" dir="rtl">
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*" />
 
-          {/* FULL SCREEN MEDIA */}
-          <AnimatePresence>
-            {fullScreenMedia && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9999999] bg-black flex items-center justify-center" onClick={() => setFullScreenMedia(null)}>
-                {fullScreenMedia.type === 'video' ? <video src={fullScreenMedia.url} controls autoPlay className="w-full h-full object-contain" onClick={(e) => e.stopPropagation()} /> : <img src={fullScreenMedia.url} className="w-full h-full object-contain" onClick={(e) => e.stopPropagation()} />}
-                <button onClick={() => setFullScreenMedia(null)} className="absolute top-[calc(env(safe-area-inset-top)+16px)] left-4 p-3 text-white/70 hover:text-white transition-all active:scale-90 z-50 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"><X size={28} /></button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+      {/* FULL SCREEN MEDIA */}
+      <AnimatePresence>
+        {fullScreenMedia && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9999999] bg-black flex items-center justify-center" onClick={() => setFullScreenMedia(null)}>
+            {fullScreenMedia.type === 'video' ? <video src={fullScreenMedia.url} controls autoPlay className="w-full h-full object-contain" onClick={(e) => e.stopPropagation()} /> : <img src={fullScreenMedia.url} className="w-full h-full object-contain" onClick={(e) => e.stopPropagation()} />}
+            <button onClick={() => setFullScreenMedia(null)} className="absolute top-[calc(env(safe-area-inset-top)+16px)] left-4 p-3 text-white/70 hover:text-white transition-all active:scale-90 z-50 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"><X size={28} /></button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-          {/* MESSAGE ACTIONS MODAL */}
-          <AnimatePresence>
-            {actionPost && (
-              <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" dir="rtl">
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setActionPost(null)} />
-                <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="relative bg-[#111] rounded-t-[32px] p-6 pb-[calc(env(safe-area-inset-bottom)+32px)] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-[10000000]">
-                  <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6" />
-                  <div className="flex items-center gap-4 mb-6 pb-6 border-b border-white/10">
-                    <div className="w-12 h-12 rounded-full overflow-hidden bg-white/5 border border-white/10 shrink-0">
-                      {actionPost.profiles?.avatar_url ? <img src={actionPost.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white/40 font-black text-[14px]">{(actionPost.profiles?.full_name || 'א')[0]}</div>}
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-white font-black text-[16px]">{actionPost.profiles?.full_name || 'אנונימי'}</span>
-                      <span className="text-white/40 text-[11px] uppercase tracking-widest">{formatTime(actionPost.created_at)}</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-3">
-                    {actionPost.content && <button onClick={handleCopyText} className="flex items-center gap-4 p-4 rounded-[20px] bg-white/5 hover:bg-white/10 text-white font-black text-[14px] transition-colors active:scale-95"><Copy size={20} className="text-white/50" /> העתק טקסט</button>}
-                    {actionPost.user_id === currentUserId && <button onClick={handleEditPost} className="flex items-center gap-4 p-4 rounded-[20px] bg-white/5 hover:bg-white/10 text-white font-black text-[14px] transition-colors active:scale-95"><Edit2 size={20} className="text-white/50" /> ערוך הודעה</button>}
-                    {(actionPost.user_id === currentUserId || isOwner) && <button onClick={handleDeletePost} className="flex items-center gap-4 p-4 rounded-[20px] bg-red-500/10 hover:bg-red-500/20 text-red-500 font-black text-[14px] transition-colors active:scale-95 border border-red-500/10"><Trash2 size={20} /> מחק הודעה</button>}
-                  </div>
-                </motion.div>
+      {/* MESSAGE ACTIONS MODAL */}
+      <AnimatePresence>
+        {actionPost && (
+          <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" dir="rtl">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setActionPost(null)} />
+            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="relative bg-[#111] rounded-t-[32px] p-6 pb-[calc(env(safe-area-inset-bottom)+32px)] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-[10000000]">
+              <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6" />
+              <div className="flex items-center gap-4 mb-6 pb-6 border-b border-white/10">
+                <div className="w-12 h-12 rounded-full overflow-hidden bg-white/5 border border-white/10 shrink-0">
+                  {actionPost.profiles?.avatar_url ? <img src={actionPost.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white/40 font-black text-[14px]">{(actionPost.profiles?.full_name || 'א')[0]}</div>}
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-white font-black text-[16px]">{actionPost.profiles?.full_name || 'אנונימי'}</span>
+                  <span className="text-white/40 text-[11px] uppercase tracking-widest">{formatTime(actionPost.created_at)}</span>
+                </div>
               </div>
-            )}
-          </AnimatePresence>
-
-          {/* STORY CAPTURE MODAL */}
-          <AnimatePresence>
-            {isStoryCaptureOpen && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[999999999] bg-black">
-                {!capturedStoryBlob ? (
-                  <div className="w-full h-full relative">
-                    <video ref={storyVideoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
-                    <div className="absolute inset-x-0 top-0 p-6 pt-[calc(env(safe-area-inset-top)+18px)] flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent">
-                      <button onClick={() => { cleanupStoryCapture(); setIsStoryCaptureOpen(false); }} className="w-11 h-11 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white active:scale-90 transition-all"><X size={22} /></button>
-                      {isRecordingStory && <div className="px-4 py-2 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 text-[12px] font-black tracking-widest flex items-center gap-2 animate-pulse"><span className="w-2 h-2 rounded-full bg-red-500" /> מקליט עכשיו</div>}
-                    </div>
-                    <div className="absolute inset-x-0 bottom-0 pb-[calc(env(safe-area-inset-bottom)+28px)] px-6 flex justify-center">
-                      {isRecordingStory ? (
-                        <div className="text-center text-white/80 text-[13px] font-black tracking-wide bg-black/50 px-4 py-2 rounded-full backdrop-blur-md">שחרר את הלחיצה כדי לעצור</div>
-                      ) : (
-                        <button onClick={() => { triggerFeedback('pop'); if (storyVideoRef.current) { const canvas = document.createElement('canvas'); canvas.width = storyVideoRef.current.videoWidth; canvas.height = storyVideoRef.current.videoHeight; canvas.getContext('2d')?.drawImage(storyVideoRef.current, 0, 0); canvas.toBlob((b) => { if (b) { setCapturedStoryBlob(b); setCapturedMediaType('image'); } }, 'image/jpeg', 0.9); } }} className="w-20 h-20 rounded-full border-4 border-white bg-white/20 flex items-center justify-center active:scale-95 transition-transform">
-                          <div className="w-16 h-16 rounded-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)]" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="w-full h-full bg-black flex flex-col">
-                    <div className="flex-1 relative">
-                      {capturedMediaType === 'video' ? <video src={URL.createObjectURL(capturedStoryBlob)} autoPlay loop controls playsInline className="w-full h-full object-cover scale-x-[-1]" /> : <img src={URL.createObjectURL(capturedStoryBlob)} className="w-full h-full object-cover scale-x-[-1]" />}
-                      <div className="absolute top-0 left-0 right-0 p-6 pt-[calc(env(safe-area-inset-top)+18px)] bg-gradient-to-b from-black/70 to-transparent">
-                        <div className="text-center text-white font-black text-[18px]">להעלות את זה לסטורי?</div>
-                      </div>
-                    </div>
-                    <div className="p-5 pb-[calc(env(safe-area-inset-bottom)+20px)] flex gap-3 bg-[#050505]">
-                      <button onClick={() => { setCapturedStoryBlob(null); setIsStoryCaptureOpen(false); cleanupStoryCapture(); }} className="flex-1 h-14 rounded-full bg-white/10 text-white font-black active:scale-95 transition-all">לא</button>
-                      <button onClick={uploadCapturedStory} disabled={uploadingStory} className="flex-1 h-14 rounded-full bg-accent-primary text-white font-black active:scale-95 transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(var(--color-accent-primary),0.4)]">
-                        {uploadingStory ? <Loader2 size={18} className="animate-spin" /> : <><Send size={18} className="rtl:-scale-x-100" /> העלה לסטורי</>}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <button onClick={() => navigate(-1)} className="absolute top-[calc(env(safe-area-inset-top)+16px)] right-4 p-2 text-white/80 hover:text-white z-50 transition-all active:scale-90 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"><ChevronLeft size={32} className="rtl:rotate-180" /></button>
-
-          <div className="absolute top-0 left-0 right-0 h-[40vh] pointer-events-none z-0">
-            {circle.cover_url && <img src={circle.cover_url} className="w-full h-full object-cover opacity-30 mix-blend-luminosity" />}
-            <div className="absolute inset-0 bg-gradient-to-b from-[#050505]/40 via-[#050505]/80 to-[#050505]" />
-            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[300px] h-[300px] bg-accent-primary/20 blur-[100px] rounded-full" />
-          </div>
-
-          <div className="relative z-20 pt-[calc(env(safe-area-inset-top)+20px)] px-6 flex flex-col items-center text-center shrink-0">
-            <h1 className="text-3xl font-black text-white tracking-widest drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mb-1">{circle.name}</h1>
-            <p className="text-white/50 text-[12px] font-medium tracking-wide max-w-[280px] leading-relaxed">{circle.description || 'מרחב פרימיום לחברי המועדון'}</p>
-            {isMember && (
-              <div className="flex items-center gap-4 mt-4">
-                <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-accent-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(var(--color-accent-primary),0.8)]" /> פעילים</span>
-                <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase">{membersList.length} חברים</span>
+              <div className="flex flex-col gap-3">
+                {actionPost.content && <button onClick={handleCopyText} className="flex items-center gap-4 p-4 rounded-[20px] bg-white/5 hover:bg-white/10 text-white font-black text-[14px] transition-colors active:scale-95"><Copy size={20} className="text-white/50" /> העתק טקסט</button>}
+                {actionPost.user_id === currentUserId && <button onClick={handleEditPost} className="flex items-center gap-4 p-4 rounded-[20px] bg-white/5 hover:bg-white/10 text-white font-black text-[14px] transition-colors active:scale-95"><Edit2 size={20} className="text-white/50" /> ערוך הודעה</button>}
+                {(actionPost.user_id === currentUserId || isOwner) && <button onClick={handleDeletePost} className="flex items-center gap-4 p-4 rounded-[20px] bg-red-500/10 hover:bg-red-500/20 text-red-500 font-black text-[14px] transition-colors active:scale-95 border border-red-500/10"><Trash2 size={20} /> מחק הודעה</button>}
               </div>
-            )}
+            </motion.div>
           </div>
+        )}
+      </AnimatePresence>
 
-          {!isMember ? (
-            <div className="flex-1 flex flex-col items-center justify-center p-6 relative z-10">
-              <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shadow-[0_0_30px_rgba(0,0,0,0.5)] backdrop-blur-2xl mb-8 relative"><Lock size={32} className="text-white/40" /></div>
-              <Button onClick={() => handleJoin('INNER')} disabled={joining} className="w-full max-w-[300px] h-14 bg-white/10 backdrop-blur-md border border-white/20 text-white font-black rounded-[20px] uppercase tracking-widest text-[13px] hover:bg-white/20 transition-all shadow-[0_10px_40px_rgba(0,0,0,0.3)]">
-                בקשת גישה ({circle.join_price || 0} CRD)
-              </Button>
-            </div>
-          ) : (
-            <div className="flex flex-col flex-1 overflow-hidden relative z-10 mt-6">
-              <div className="flex items-center justify-center gap-8 px-6 mb-6 shrink-0 relative z-20">
-                {[{ id: 'chat', label: 'לייב' }, { id: 'overview', label: 'דשבורד' }, { id: 'vaults', label: 'כספות' }, { id: 'members', label: 'קהילה' }].map((t) => {
-                  const isActive = activeTab === t.id;
-                  return (
-                    <button key={t.id} onClick={() => setActiveTab(t.id as any)} className={`relative text-[12px] font-black uppercase tracking-widest transition-colors flex flex-col items-center pb-2.5 ${isActive ? 'text-white' : 'text-white/30 hover:text-white/60'}`}>
-                      {t.label}
-                      {isActive && <motion.div layoutId="nav-indicator" className="absolute bottom-0 w-8 h-0.5 bg-accent-primary rounded-full shadow-[0_0_8px_rgba(var(--color-accent-primary),0.6)]" />}
+      {/* STORY CAPTURE MODAL */}
+      <AnimatePresence>
+        {isStoryCaptureOpen && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[999999999] bg-black">
+            {!capturedStoryBlob ? (
+              <div className="w-full h-full relative">
+                <video ref={storyVideoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
+                <div className="absolute inset-x-0 top-0 p-6 pt-[calc(env(safe-area-inset-top)+18px)] flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent">
+                  <button onClick={() => { cleanupStoryCapture(); setIsStoryCaptureOpen(false); }} className="w-11 h-11 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white active:scale-90 transition-all"><X size={22} /></button>
+                  {isRecordingStory && <div className="px-4 py-2 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 text-[12px] font-black tracking-widest flex items-center gap-2 animate-pulse"><span className="w-2 h-2 rounded-full bg-red-500" /> מקליט עכשיו</div>}
+                </div>
+                <div className="absolute inset-x-0 bottom-0 pb-[calc(env(safe-area-inset-bottom)+28px)] px-6 flex justify-center">
+                  {isRecordingStory ? (
+                    <div className="text-center text-white/80 text-[13px] font-black tracking-wide bg-black/50 px-4 py-2 rounded-full backdrop-blur-md">שחרר את הלחיצה כדי לעצור</div>
+                  ) : (
+                    <button onClick={() => { triggerFeedback('pop'); if (storyVideoRef.current) { const canvas = document.createElement('canvas'); canvas.width = storyVideoRef.current.videoWidth; canvas.height = storyVideoRef.current.videoHeight; canvas.getContext('2d')?.drawImage(storyVideoRef.current, 0, 0); canvas.toBlob((b) => { if (b) { setCapturedStoryBlob(b); setCapturedMediaType('image'); } }, 'image/jpeg', 0.9); } }} className="w-20 h-20 rounded-full border-4 border-white bg-white/20 flex items-center justify-center active:scale-95 transition-transform">
+                      <div className="w-16 h-16 rounded-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)]" />
                     </button>
-                  );
-                })}
-              </div>
-
-              {activeTab === 'overview' && (
-                <div className="flex-1 overflow-y-auto px-5 pb-[120px] flex flex-col gap-4 scrollbar-hide">
-                  <div className="bg-white/[0.03] backdrop-blur-3xl border border-white/5 rounded-[32px] p-6 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-accent-primary/10 blur-[50px] pointer-events-none" />
-                    <span className="text-[10px] font-black text-white/30 tracking-[0.2em] uppercase mb-1 block">הסטטוס שלך</span>
-                    <div className="flex items-end justify-between">
-                      <div><h2 className="text-3xl font-black text-white tracking-tight">{getLevelName(myLevel)}</h2><span className="text-[12px] font-black text-accent-primary tracking-widest mt-1 block">LEVEL {myLevel}</span></div>
-                      <div className="text-right"><span className="text-[10px] font-black text-white/50 tracking-widest uppercase">XP עד לרמה הבאה</span><div className="text-[16px] font-black text-white">{myXP} / <span className="text-white/30">{xpToNext}</span></div></div>
-                    </div>
-                    <div className="w-full h-1 bg-white/5 rounded-full mt-4 overflow-hidden"><div className="h-full bg-accent-primary rounded-full shadow-[0_0_10px_rgba(var(--color-accent-primary),0.8)]" style={{ width: `${xpProgress}%` }} /></div>
-                  </div>
-                  {overview.drop && (
-                    <div className="bg-white/[0.02] backdrop-blur-2xl border border-white/5 rounded-[32px] p-6">
-                      <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase mb-1 block">דרופ קהילתי</span>
-                      <h3 className="text-xl font-black text-white mb-4">{overview.drop.title}</h3>
-                      <div className="flex justify-between items-end mb-2">
-                        <span className="text-[24px] font-black text-accent-primary leading-none">{overview.drop.current_crd || 0}</span>
-                        <span className="text-[10px] font-black text-white/40 tracking-widest uppercase">מתוך {overview.drop.target_crd || 0}</span>
-                      </div>
-                      <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden mb-5"><div className="h-full bg-accent-primary rounded-full" style={{ width: `${Math.min(100, Math.round(((overview.drop.current_crd || 0) / Math.max(1, overview.drop.target_crd || 1)) * 100))}%` }} /></div>
-                      <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full p-1.5 pl-4">
-                        <button onClick={handleContributeToDrop} disabled={contributingDrop || !dropAmount} className="h-10 px-6 bg-white text-black font-black text-[12px] uppercase tracking-widest rounded-full active:scale-95 transition-transform disabled:opacity-50">{contributingDrop ? '...' : 'תרום CRD'}</button>
-                        <input type="number" value={dropAmount} onChange={(e) => setDropAmount(Number(e.target.value))} className="flex-1 bg-transparent border-none outline-none text-white font-black text-left text-[16px]" placeholder="50" dir="ltr" />
-                      </div>
-                    </div>
                   )}
                 </div>
-              )}
-
-              {activeTab === 'chat' && (
-                <div className="flex-1 relative flex flex-col overflow-hidden">
-                  <div ref={messagesRef} className="flex-1 overflow-y-auto scrollbar-hide px-4 pt-2 pb-[120px]">
-                    <div className="flex flex-col gap-6 min-h-full justify-end pb-4">
-                      {sortedPosts.length === 0 ? (
-                        <div className="text-center py-20 flex flex-col items-center justify-center h-full"><span className="text-white/20 font-black text-[12px] tracking-[0.3em] uppercase">שקט כאן.</span></div>
-                      ) : (
-                        sortedPosts.map((post: any) => (
-                          <div key={post.id} className={`flex flex-col gap-1 w-full select-none ${post.user_id === currentUserId ? 'items-end' : 'items-start'}`}>
-                            {post.user_id !== currentUserId && !post.media_url && (
-                              <div className="flex items-center gap-2 pl-2 mb-1 cursor-pointer active:opacity-70 transition-opacity" onClick={() => navigate(`/profile/${post.user_id}`)}>
-                                <div className="w-8 h-8 rounded-full overflow-hidden bg-white/5 shrink-0 border border-white/10 shadow-sm">
-                                  {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white/40 font-black text-[10px]">{(post.profiles?.full_name || 'א')[0]}</div>}
-                                </div>
-                                <span className="text-white/60 text-[12px] font-black tracking-widest">{post.profiles?.full_name}</span>
-                              </div>
-                            )}
-                            <div className={`relative flex flex-col max-w-[85%] rounded-[24px] ${post.user_id === currentUserId ? 'rounded-br-sm' : 'rounded-bl-sm'} overflow-hidden shadow-sm ${!post.media_url ? post.user_id === currentUserId ? 'bg-accent-primary/20 border border-accent-primary/30 text-white' : 'bg-white/5 border border-white/5 text-white/90' : 'bg-black/20'}`} onTouchStart={(e) => handleMessageTouchStart(e, post)} onTouchMove={handleMessageTouchMove} onTouchEnd={handleMessageTouchEnd} onMouseDown={(e) => handleMessageTouchStart(e, post)} onMouseMove={handleMessageTouchMove} onMouseUp={handleMessageTouchEnd}>
-                              {post.media_url ? (
-                                <div className="relative w-full group min-w-[200px] cursor-pointer" onClick={() => setFullScreenMedia({ url: post.media_url, type: post.media_type })}>
-                                  {post.media_type === 'video' ? <video src={post.media_url} autoPlay muted loop playsInline className="w-full h-auto max-h-[350px] object-cover" /> : <img src={post.media_url} className="w-full h-auto max-h-[350px] object-cover" loading="lazy" />}
-                                  {(post.content || post.user_id !== currentUserId) && (
-                                    <>
-                                      {post.user_id !== currentUserId && <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-b from-black/80 to-transparent pointer-events-none" />}
-                                      {post.content && <div className="absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-none" />}
-                                    </>
-                                  )}
-                                  {post.user_id !== currentUserId && <span className="absolute top-3 left-4 text-white/90 text-[12px] font-black tracking-widest drop-shadow-md z-10 pointer-events-auto cursor-pointer" onClick={(e) => { e.stopPropagation(); navigate(`/profile/${post.user_id}`); }}>{post.profiles?.full_name || 'אנונימי'}</span>}
-                                  {post.content && <div className="absolute bottom-3 left-4 right-4 z-10 pointer-events-none"><span className="text-white text-[14px] leading-relaxed font-medium whitespace-pre-wrap break-words drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">{post.content}</span></div>}
-                                </div>
-                              ) : (
-                                <div className="px-4 py-3"><span className="text-[14px] leading-relaxed font-medium whitespace-pre-wrap break-words">{post.content}</span></div>
-                              )}
-                            </div>
-                            <div className={`flex items-center gap-1.5 px-2 mt-0.5 w-full ${post.user_id === currentUserId ? 'justify-end' : 'justify-start'}`}>
-                              {SEAL_TYPES.map((sealDef) => {
-                                const sealsOfType = post.post_seals?.filter((s: any) => s.seal_type === sealDef.id) || [];
-                                const count = sealsOfType.length;
-                                const hasSealed = sealsOfType.some((s: any) => s.user_id === currentUserId);
-                                return (
-                                  <button key={sealDef.id} onClick={() => handleSealToggle(post.id, sealDef.id, hasSealed)} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-black border transition-all active:scale-95 ${count > 0 ? hasSealed ? sealDef.color : 'text-white/60 bg-white/5 border-white/10' : 'bg-white/5 border-white/5 text-white/30 hover:text-white/60'}`} title={sealDef.label}>
-                                    {sealDef.icon}{count > 0 && <span>{count}</span>}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                  <div className="absolute bottom-0 left-0 right-0 px-4 z-[100] pb-[calc(env(safe-area-inset-bottom)+16px)] bg-gradient-to-t from-[#050505] via-[#050505]/90 to-transparent">
-                    <AnimatePresence>
-                      {selectedFile && (
-                        <motion.div initial={{ opacity: 0, y: 10, height: 0 }} animate={{ opacity: 1, y: 0, height: 'auto' }} exit={{ opacity: 0, y: 10, height: 0 }} className="mb-3">
-                          <div className="relative w-20 h-20 rounded-[16px] overflow-hidden border border-white/10 shadow-2xl bg-black ml-[64px]">
-                            {selectedFile.type.startsWith('video/') ? <video src={URL.createObjectURL(selectedFile)} className="w-full h-full object-cover" /> : <img src={URL.createObjectURL(selectedFile)} className="w-full h-full object-cover" />}
-                            <button onClick={() => setSelectedFile(null)} className="absolute top-1.5 right-1.5 bg-black/60 p-1.5 rounded-full text-white backdrop-blur-md hover:bg-black/80 transition-colors"><X size={10} /></button>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                    <div className="flex items-end gap-3 max-w-[600px] mx-auto">
-                      <div className={`flex-1 backdrop-blur-3xl bg-white/5 border border-white/10 rounded-[28px] min-h-[54px] flex items-center px-2 pr-4 shadow-[0_10px_40px_rgba(0,0,0,0.5)] transition-all ${editingPostId ? 'ring-2 ring-accent-primary border-transparent' : ''}`}>
-                        <input type="text" value={newPost} onChange={(e) => setNewPost(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handlePost(); }} placeholder={editingPostId ? 'ערוך הודעה...' : 'הודעה למעגל...'} className="flex-1 bg-transparent border-none outline-none text-white text-[14px] font-medium placeholder:text-white/30 py-3" />
-                        <div className="flex items-center gap-1.5 shrink-0 ml-1">
-                          {!editingPostId && <button onClick={() => fileInputRef.current?.click()} className="w-9 h-9 flex items-center justify-center rounded-full text-white/30 hover:text-white/70 transition-colors" title="צרף תמונה"><Paperclip size={18} /></button>}
-                          {(newPost.trim() || selectedFile || editingPostId) && (
-                            <button onClick={handlePost} disabled={posting} className="w-10 h-10 rounded-full bg-accent-primary text-white flex items-center justify-center active:scale-90 disabled:opacity-30 transition-all shadow-[0_0_15px_rgba(var(--color-accent-primary),0.5)]">
-                              {posting ? <Loader2 size={16} className="animate-spin text-white" /> : <Send size={16} className="rtl:-scale-x-100 -ml-0.5" />}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+              </div>
+            ) : (
+              <div className="w-full h-full bg-black flex flex-col">
+                <div className="flex-1 relative">
+                  {capturedMediaType === 'video' ? <video src={URL.createObjectURL(capturedStoryBlob)} autoPlay loop controls playsInline className="w-full h-full object-cover scale-x-[-1]" /> : <img src={URL.createObjectURL(capturedStoryBlob)} className="w-full h-full object-cover scale-x-[-1]" />}
+                  <div className="absolute top-0 left-0 right-0 p-6 pt-[calc(env(safe-area-inset-top)+18px)] bg-gradient-to-b from-black/70 to-transparent">
+                    <div className="text-center text-white font-black text-[18px]">להעלות את זה לסטורי?</div>
                   </div>
                 </div>
-              )}
-
-              {activeTab === 'vaults' && (
-                <div className="flex-1 p-5 flex flex-col gap-4 overflow-y-auto pb-[120px] scrollbar-hide">
-                  {isLoading ? <div className="flex items-center justify-center py-10"><Loader2 className="animate-spin text-accent-primary" size={24} /></div> : vaults.map((v: any) => <VaultCard key={v.id} vault={v} onUnlockSuccess={refetch} />)}
+                <div className="p-5 pb-[calc(env(safe-area-inset-bottom)+20px)] flex gap-3 bg-[#050505]">
+                  <button onClick={() => { setCapturedStoryBlob(null); setIsStoryCaptureOpen(false); cleanupStoryCapture(); }} className="flex-1 h-14 rounded-full bg-white/10 text-white font-black active:scale-95 transition-all">לא</button>
+                  <button onClick={uploadCapturedStory} disabled={uploadingStory} className="flex-1 h-14 rounded-full bg-accent-primary text-white font-black active:scale-95 transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(var(--color-accent-primary),0.4)]">
+                    {uploadingStory ? <Loader2 size={18} className="animate-spin" /> : <><Send size={18} className="rtl:-scale-x-100" /> העלה לסטורי</>}
+                  </button>
                 </div>
-              )}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-              {activeTab === 'members' && (
-                <div className="flex-1 p-5 flex flex-col gap-3 overflow-y-auto pb-[120px] scrollbar-hide">
-                  {membersList.map((m: any) => (
-                    <div key={m.profiles?.id || m.user_id} onClick={() => navigate(`/profile/${m.profiles?.id || m.user_id}`)} className="flex items-center gap-4 bg-white/5 border border-white/5 p-4 rounded-[24px] cursor-pointer active:scale-95 transition-all">
-                      <div className="w-10 h-10 rounded-full overflow-hidden bg-black/50 flex items-center justify-center border border-white/5">
-                        {m.profiles?.avatar_url ? <img src={m.profiles.avatar_url} className="w-full h-full object-cover" /> : <span className="text-white/40 font-black text-[14px]">{(m.profiles?.full_name || 'א')[0]}</span>}
-                      </div>
-                      <div className="flex flex-col text-right flex-1">
-                        <span className="text-white font-black text-[14px] flex items-center gap-1.5">{m.profiles?.full_name || 'משתמש'}{m.role === 'admin' && <ShieldAlert size={14} className="text-accent-primary" />}</span>
-                        <span className="text-white/30 text-[10px] font-bold tracking-widest mt-0.5 uppercase">{m.tier || 'MEMBER'}</span>
-                      </div>
-                      <ChevronLeft size={16} className="text-white/20 rtl:rotate-180" />
-                    </div>
-                  ))}
+      <button onClick={() => navigate(-1)} className="absolute top-[calc(env(safe-area-inset-top)+16px)] right-4 p-2 text-white/80 hover:text-white z-50 transition-all active:scale-90 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"><ChevronLeft size={32} className="rtl:rotate-180" /></button>
+
+      <div className="absolute top-0 left-0 right-0 h-[40vh] pointer-events-none z-0">
+        {circle.cover_url && <img src={circle.cover_url} className="w-full h-full object-cover opacity-30 mix-blend-luminosity" />}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#050505]/40 via-[#050505]/80 to-[#050505]" />
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[300px] h-[300px] bg-accent-primary/20 blur-[100px] rounded-full" />
+      </div>
+
+      <div className="relative z-20 pt-[calc(env(safe-area-inset-top)+20px)] px-6 flex flex-col items-center text-center shrink-0">
+        <h1 className="text-3xl font-black text-white tracking-widest drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] mb-1">{circle.name}</h1>
+        <p className="text-white/50 text-[12px] font-medium tracking-wide max-w-[280px] leading-relaxed">{circle.description || 'מרחב פרימיום לחברי המועדון'}</p>
+        {isMember && (
+          <div className="flex items-center gap-4 mt-4">
+            <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-accent-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(var(--color-accent-primary),0.8)]" /> פעילים</span>
+            <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase">{membersList.length} חברים</span>
+          </div>
+        )}
+      </div>
+
+      {!isMember ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-6 relative z-10">
+          <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shadow-[0_0_30px_rgba(0,0,0,0.5)] backdrop-blur-2xl mb-8 relative"><Lock size={32} className="text-white/40" /></div>
+          <Button onClick={() => handleJoin('INNER')} disabled={joining} className="w-full max-w-[300px] h-14 bg-white/10 backdrop-blur-md border border-white/20 text-white font-black rounded-[20px] uppercase tracking-widest text-[13px] hover:bg-white/20 transition-all shadow-[0_10px_40px_rgba(0,0,0,0.3)]">
+            בקשת גישה ({circle.join_price || 0} CRD)
+          </Button>
+        </div>
+      ) : (
+        <div className="flex flex-col flex-1 overflow-hidden relative z-10 mt-6">
+          <div className="flex items-center justify-center gap-8 px-6 mb-6 shrink-0 relative z-20">
+            {[{ id: 'chat', label: 'לייב' }, { id: 'overview', label: 'דשבורד' }, { id: 'vaults', label: 'כספות' }, { id: 'members', label: 'קהילה' }].map((t) => {
+              const isActive = activeTab === t.id;
+              return (
+                <button key={t.id} onClick={() => setActiveTab(t.id as any)} className={`relative text-[12px] font-black uppercase tracking-widest transition-colors flex flex-col items-center pb-2.5 ${isActive ? 'text-white' : 'text-white/30 hover:text-white/60'}`}>
+                  {t.label}
+                  {isActive && <motion.div layoutId="nav-indicator" className="absolute bottom-0 w-8 h-0.5 bg-accent-primary rounded-full shadow-[0_0_8px_rgba(var(--color-accent-primary),0.6)]" />}
+                </button>
+              );
+            })}
+          </div>
+
+          {activeTab === 'overview' && (
+            <div className="flex-1 overflow-y-auto px-5 pb-[120px] flex flex-col gap-4 scrollbar-hide">
+              <div className="bg-white/[0.03] backdrop-blur-3xl border border-white/5 rounded-[32px] p-6 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-accent-primary/10 blur-[50px] pointer-events-none" />
+                <span className="text-[10px] font-black text-white/30 tracking-[0.2em] uppercase mb-1 block">הסטטוס שלך</span>
+                <div className="flex items-end justify-between">
+                  <div><h2 className="text-3xl font-black text-white tracking-tight">{getLevelName(myLevel)}</h2><span className="text-[12px] font-black text-accent-primary tracking-widest mt-1 block">LEVEL {myLevel}</span></div>
+                  <div className="text-right"><span className="text-[10px] font-black text-white/50 tracking-widest uppercase">XP עד לרמה הבאה</span><div className="text-[16px] font-black text-white">{myXP} / <span className="text-white/30">{xpToNext}</span></div></div>
+                </div>
+                <div className="w-full h-1 bg-white/5 rounded-full mt-4 overflow-hidden"><div className="h-full bg-accent-primary rounded-full shadow-[0_0_10px_rgba(var(--color-accent-primary),0.8)]" style={{ width: `${xpProgress}%` }} /></div>
+              </div>
+              {overview.drop && (
+                <div className="bg-white/[0.02] backdrop-blur-2xl border border-white/5 rounded-[32px] p-6">
+                  <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase mb-1 block">דרופ קהילתי</span>
+                  <h3 className="text-xl font-black text-white mb-4">{overview.drop.title}</h3>
+                  <div className="flex justify-between items-end mb-2">
+                    <span className="text-[24px] font-black text-accent-primary leading-none">{overview.drop.current_crd || 0}</span>
+                    <span className="text-[10px] font-black text-white/40 tracking-widest uppercase">מתוך {overview.drop.target_crd || 0}</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden mb-5"><div className="h-full bg-accent-primary rounded-full" style={{ width: `${Math.min(100, Math.round(((overview.drop.current_crd || 0) / Math.max(1, overview.drop.target_crd || 1)) * 100))}%` }} /></div>
+                  <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full p-1.5 pl-4">
+                    <button onClick={handleContributeToDrop} disabled={contributingDrop || !dropAmount} className="h-10 px-6 bg-white text-black font-black text-[12px] uppercase tracking-widest rounded-full active:scale-95 transition-transform disabled:opacity-50">{contributingDrop ? '...' : 'תרום CRD'}</button>
+                    <input type="number" value={dropAmount} onChange={(e) => setDropAmount(Number(e.target.value))} className="flex-1 bg-transparent border-none outline-none text-white font-black text-left text-[16px]" placeholder="50" dir="ltr" />
+                  </div>
                 </div>
               )}
             </div>
           )}
-        </motion.div>
+
+          {activeTab === 'chat' && (
+            <div className="flex-1 relative flex flex-col overflow-hidden">
+              <div ref={messagesRef} className="flex-1 overflow-y-auto scrollbar-hide px-4 pt-2 pb-[120px]">
+                <div className="flex flex-col gap-6 min-h-full justify-end pb-4">
+                  {sortedPosts.length === 0 ? (
+                    <div className="text-center py-20 flex flex-col items-center justify-center h-full"><span className="text-white/20 font-black text-[12px] tracking-[0.3em] uppercase">שקט כאן.</span></div>
+                  ) : (
+                    sortedPosts.map((post: any) => (
+                      <div key={post.id} className={`flex flex-col gap-1 w-full select-none ${post.user_id === currentUserId ? 'items-end' : 'items-start'}`}>
+                        {post.user_id !== currentUserId && !post.media_url && (
+                          <div className="flex items-center gap-2 pl-2 mb-1 cursor-pointer active:opacity-70 transition-opacity" onClick={() => navigate(`/profile/${post.user_id}`)}>
+                            <div className="w-8 h-8 rounded-full overflow-hidden bg-white/5 shrink-0 border border-white/10 shadow-sm">
+                              {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white/40 font-black text-[10px]">{(post.profiles?.full_name || 'א')[0]}</div>}
+                            </div>
+                            <span className="text-white/60 text-[12px] font-black tracking-widest">{post.profiles?.full_name}</span>
+                          </div>
+                        )}
+                        <div className={`relative flex flex-col max-w-[85%] rounded-[24px] ${post.user_id === currentUserId ? 'rounded-br-sm' : 'rounded-bl-sm'} overflow-hidden shadow-sm ${!post.media_url ? post.user_id === currentUserId ? 'bg-accent-primary/20 border border-accent-primary/30 text-white' : 'bg-white/5 border border-white/5 text-white/90' : 'bg-black/20'}`} onTouchStart={(e) => handleMessageTouchStart(e, post)} onTouchMove={handleMessageTouchMove} onTouchEnd={handleMessageTouchEnd} onMouseDown={(e) => handleMessageTouchStart(e, post)} onMouseMove={handleMessageTouchMove} onMouseUp={handleMessageTouchEnd}>
+                          {post.media_url ? (
+                            <div className="relative w-full group min-w-[200px] cursor-pointer" onClick={() => setFullScreenMedia({ url: post.media_url, type: post.media_type })}>
+                              {post.media_type === 'video' ? <video src={post.media_url} autoPlay muted loop playsInline className="w-full h-auto max-h-[350px] object-cover" /> : <img src={post.media_url} className="w-full h-auto max-h-[350px] object-cover" loading="lazy" />}
+                              {(post.content || post.user_id !== currentUserId) && (
+                                <>
+                                  {post.user_id !== currentUserId && <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-b from-black/80 to-transparent pointer-events-none" />}
+                                  {post.content && <div className="absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-none" />}
+                                </>
+                              )}
+                              {post.user_id !== currentUserId && <span className="absolute top-3 left-4 text-white/90 text-[12px] font-black tracking-widest drop-shadow-md z-10 pointer-events-auto cursor-pointer" onClick={(e) => { e.stopPropagation(); navigate(`/profile/${post.user_id}`); }}>{post.profiles?.full_name || 'אנונימי'}</span>}
+                              {post.content && <div className="absolute bottom-3 left-4 right-4 z-10 pointer-events-none"><span className="text-white text-[14px] leading-relaxed font-medium whitespace-pre-wrap break-words drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">{post.content}</span></div>}
+                            </div>
+                          ) : (
+                            <div className="px-4 py-3"><span className="text-[14px] leading-relaxed font-medium whitespace-pre-wrap break-words">{post.content}</span></div>
+                          )}
+                        </div>
+                        <div className={`flex items-center gap-1.5 px-2 mt-0.5 w-full ${post.user_id === currentUserId ? 'justify-end' : 'justify-start'}`}>
+                          {SEAL_TYPES.map((sealDef) => {
+                            const sealsOfType = post.post_seals?.filter((s: any) => s.seal_type === sealDef.id) || [];
+                            const count = sealsOfType.length;
+                            const hasSealed = sealsOfType.some((s: any) => s.user_id === currentUserId);
+                            return (
+                              <button key={sealDef.id} onClick={() => handleSealToggle(post.id, sealDef.id, hasSealed)} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-black border transition-all active:scale-95 ${count > 0 ? hasSealed ? sealDef.color : 'text-white/60 bg-white/5 border-white/10' : 'bg-white/5 border-white/5 text-white/30 hover:text-white/60'}`} title={sealDef.label}>
+                                {sealDef.icon}{count > 0 && <span>{count}</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 px-4 z-[100] pb-[calc(env(safe-area-inset-bottom)+16px)] bg-gradient-to-t from-[#050505] via-[#050505]/90 to-transparent">
+                <AnimatePresence>
+                  {selectedFile && (
+                    <motion.div initial={{ opacity: 0, y: 10, height: 0 }} animate={{ opacity: 1, y: 0, height: 'auto' }} exit={{ opacity: 0, y: 10, height: 0 }} className="mb-3">
+                      <div className="relative w-20 h-20 rounded-[16px] overflow-hidden border border-white/10 shadow-2xl bg-black ml-[64px]">
+                        {selectedFile.type.startsWith('video/') ? <video src={URL.createObjectURL(selectedFile)} className="w-full h-full object-cover" /> : <img src={URL.createObjectURL(selectedFile)} className="w-full h-full object-cover" />}
+                        <button onClick={() => setSelectedFile(null)} className="absolute top-1.5 right-1.5 bg-black/60 p-1.5 rounded-full text-white backdrop-blur-md hover:bg-black/80 transition-colors"><X size={10} /></button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                <div className="flex items-end gap-3 max-w-[600px] mx-auto">
+                  <div className={`flex-1 backdrop-blur-3xl bg-white/5 border border-white/10 rounded-[28px] min-h-[54px] flex items-center px-2 pr-4 shadow-[0_10px_40px_rgba(0,0,0,0.5)] transition-all ${editingPostId ? 'ring-2 ring-accent-primary border-transparent' : ''}`}>
+                    <input type="text" value={newPost} onChange={(e) => setNewPost(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handlePost(); }} placeholder={editingPostId ? 'ערוך הודעה...' : 'הודעה למעגל...'} className="flex-1 bg-transparent border-none outline-none text-white text-[14px] font-medium placeholder:text-white/30 py-3" />
+                    <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                      {!editingPostId && <button onClick={() => fileInputRef.current?.click()} className="w-9 h-9 flex items-center justify-center rounded-full text-white/30 hover:text-white/70 transition-colors" title="צרף תמונה"><Paperclip size={18} /></button>}
+                      {(newPost.trim() || selectedFile || editingPostId) && (
+                        <button onClick={handlePost} disabled={posting} className="w-10 h-10 rounded-full bg-accent-primary text-white flex items-center justify-center active:scale-90 disabled:opacity-30 transition-all shadow-[0_0_15px_rgba(var(--color-accent-primary),0.5)]">
+                          {posting ? <Loader2 size={16} className="animate-spin text-white" /> : <Send size={16} className="rtl:-scale-x-100 -ml-0.5" />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'vaults' && (
+            <div className="flex-1 p-5 flex flex-col gap-4 overflow-y-auto pb-[120px] scrollbar-hide">
+              {isLoading ? <div className="flex items-center justify-center py-10"><Loader2 className="animate-spin text-accent-primary" size={24} /></div> : vaults.map((v: any) => <VaultCard key={v.id} vault={v} onUnlockSuccess={refetch} />)}
+            </div>
+          )}
+
+          {activeTab === 'members' && (
+            <div className="flex-1 p-5 flex flex-col gap-3 overflow-y-auto pb-[120px] scrollbar-hide">
+              {membersList.map((m: any) => (
+                <div key={m.profiles?.id || m.user_id} onClick={() => navigate(`/profile/${m.profiles?.id || m.user_id}`)} className="flex items-center gap-4 bg-white/5 border border-white/5 p-4 rounded-[24px] cursor-pointer active:scale-95 transition-all">
+                  <div className="w-10 h-10 rounded-full overflow-hidden bg-black/50 flex items-center justify-center border border-white/5">
+                    {m.profiles?.avatar_url ? <img src={m.profiles.avatar_url} className="w-full h-full object-cover" /> : <span className="text-white/40 font-black text-[14px]">{(m.profiles?.full_name || 'א')[0]}</span>}
+                  </div>
+                  <div className="flex flex-col text-right flex-1">
+                    <span className="text-white font-black text-[14px] flex items-center gap-1.5">{m.profiles?.full_name || 'משתמש'}{m.role === 'admin' && <ShieldAlert size={14} className="text-accent-primary" />}</span>
+                    <span className="text-white/30 text-[10px] font-bold tracking-widest mt-0.5 uppercase">{m.tier || 'MEMBER'}</span>
+                  </div>
+                  <ChevronLeft size={16} className="text-white/20 rtl:rotate-180" />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
-    </>
+    </motion.div>
   );
 };
