@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { apiFetch } from '../lib/api';
 import { Button } from '../components/ui';
@@ -32,12 +33,6 @@ const SEAL_TYPES = [
   { id: 'alliance', icon: <Handshake size={14} />, label: 'ברית', color: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/30', xp: 100 },
 ];
 
-type OverviewPayload = {
-  pins?: any[]; stories?: any[]; drop?: any | null; events?: any[];
-  activity?: any[]; leaderboard?: any[]; my_stats?: any | null;
-  tasks?: any[]; trust_rules?: any | null;
-};
-
 const formatTime = (dateStr?: string | null) => {
   if (!dateStr) return '';
   try { return new Date(dateStr).toLocaleString('he-IL', { hour: '2-digit', minute: '2-digit' }); } 
@@ -56,31 +51,14 @@ export const CirclePage: React.FC = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
   const { user, profile: myProfile } = useAuth();
+  const queryClient = useQueryClient();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const channelRef = useRef<any>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
 
-  const [mounted, setMounted] = useState(false);
-  
-  // הפיכת טעינת המטמון לאסינכרונית - לא תוקע את ה-Main Thread
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'chat' | 'vaults' | 'members'>('chat');
-
-  const [vaults, setVaults] = useState<any[]>([]);
-  const [loadingVaults, setLoadingVaults] = useState(true);
-  const [membersList, setMembersList] = useState<any[]>([]);
-  
-  const [overview, setOverview] = useState<OverviewPayload>({
-    pins: [], stories: [], drop: null, events: [], activity: [],
-    leaderboard: [], my_stats: null, tasks: [], trust_rules: null,
-  });
-
   const [currentUserId, setCurrentUserId] = useState<string>('');
-  const [onlineCount, setOnlineCount] = useState(1);
-  const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
-
+  
   const [newPost, setNewPost] = useState('');
   const [posting, setPosting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -93,7 +71,6 @@ export const CirclePage: React.FC = () => {
   const [actionPost, setActionPost] = useState<any | null>(null);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const pressTimerRef = useRef<NodeJS.Timeout | null>(null);
-  let touchStartY = 0;
 
   const [isStoryCaptureOpen, setIsStoryCaptureOpen] = useState(false);
   const [isRecordingStory, setIsRecordingStory] = useState(false);
@@ -105,36 +82,91 @@ export const CirclePage: React.FC = () => {
   const storyStreamRef = useRef<MediaStream | null>(null);
   const storyRecorderRef = useRef<MediaRecorder | null>(null);
   const storyChunksRef = useRef<Blob[]>([]);
-  const storyHoldTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const storyLongPressStartedRef = useRef(false);
-  const storyIgnoreClickRef = useRef(false);
 
-  // חילוץ נתונים אסינכרוני בזמן טעינה
   useEffect(() => {
-    Promise.resolve().then(() => {
-      try {
-        const d = localStorage.getItem(`inner_circle_${slug}_cache`);
-        if (d && !data) setData(JSON.parse(d));
-        
-        const v = localStorage.getItem(`inner_vaults_${slug}_cache`);
-        if (v && vaults.length === 0) { setVaults(JSON.parse(v)); setLoadingVaults(false); }
-        
-        const m = localStorage.getItem(`inner_members_${slug}_cache`);
-        if (m && membersList.length === 0) setMembersList(JSON.parse(m));
-        
-        const o = localStorage.getItem(`inner_overview_${slug}_cache`);
-        if (o) setOverview(JSON.parse(o));
-      } catch {}
-    });
-  }, [slug]);
+    if (user?.id) setCurrentUserId(user.id);
+  }, [user]);
+
+  // מנוע טעינה חכם באמצעות React Query
+  const { data: circleData, isLoading, refetch } = useQuery({
+    queryKey: ['circle', slug, currentUserId],
+    queryFn: async () => {
+      // 1. חילוץ המועדון
+      let circle = null;
+      const { data: circleBySlug } = await supabase.from('circles').select('*').eq('slug', slug).maybeSingle();
+      circle = circleBySlug;
+      if (!circle) {
+        const { data: circleById } = await supabase.from('circles').select('*').eq('id', slug).maybeSingle();
+        circle = circleById;
+      }
+      if (!circle) throw new Error('מועדון לא נמצא');
+
+      // 2. סטטוס חברות
+      let membership = null;
+      if (currentUserId && !currentUserId.startsWith('guest_')) {
+        const { data: mem } = await supabase.from('circle_members').select('*').eq('circle_id', circle.id).eq('user_id', currentUserId).maybeSingle();
+        membership = mem;
+      }
+
+      // 3. חילוץ פוסטים - בצורה בטוחה בלי קריסה של Foreign Keys
+      const { data: posts } = await supabase
+        .from('posts')
+        .select('*, profiles(*), post_seals(*)')
+        .eq('circle_id', circle.id)
+        .order('created_at', { ascending: false })
+        .limit(60);
+
+      // 4. חילוץ חברי הקהילה
+      const { data: membersData } = await supabase
+        .from('circle_members')
+        .select('role, created_at, tier, profiles(*)')
+        .eq('circle_id', circle.id);
+      
+      const membersList = (membersData || []).sort((a, b) => a.role === 'admin' ? -1 : b.role === 'admin' ? 1 : 0);
+
+      // 5. חילוץ כספות
+      const { data: vaultData } = await supabase.from('vaults').select('*').eq('circle_id', circle.id).eq('is_active', true).order('created_at', { ascending: false });
+      let unlockedIds: string[] = [];
+      if (currentUserId && !currentUserId.startsWith('guest_')) {
+        const { data: unlocks } = await supabase.from('vault_unlocks').select('vault_id').eq('user_id', currentUserId);
+        unlockedIds = (unlocks || []).map((u: any) => u.vault_id);
+      }
+      const vaults = (vaultData || []).map((v: any) => ({ ...v, is_unlocked: unlockedIds.includes(v.id) || v.creator_id === currentUserId }));
+
+      // 6. חילוץ סטטוס מועדון (דשבורד)
+      const { data: overview } = await supabase.rpc('get_circle_overview', { p_circle_id: circle.id, p_user_id: currentUserId || null });
+
+      return {
+        circle,
+        isMember: !!membership,
+        membership,
+        posts: posts || [],
+        membersList,
+        vaults,
+        overview: overview || { stories: [], drop: null }
+      };
+    },
+    enabled: !!slug,
+    staleTime: 1000 * 60 * 2, // הנתונים טריים לשתי דקות כדי למנוע טעינות כפולות
+  });
+
+  // סנכרון בזמן אמת של צ'אט הקהילה
+  useEffect(() => {
+    if (!circleData?.circle?.id) return;
+    const cid = circleData.circle.id;
+    const channel = supabase.channel(`circle_updates_${cid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts', filter: `circle_id=eq.${cid}` }, () => {
+        refetch(); // רענון אוטומטי חכם ברקע ללא לאגים
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'post_seals' }, () => refetch())
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [circleData?.circle?.id, refetch]);
 
   const sortedPosts = useMemo(() => {
-    return [...(data?.posts || [])].sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-  }, [data?.posts]);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+    return [...(circleData?.posts || [])].sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  }, [circleData?.posts]);
 
   useEffect(() => {
     if (activeTab === 'chat' && messagesRef.current) {
@@ -142,177 +174,6 @@ export const CirclePage: React.FC = () => {
     }
   }, [sortedPosts, activeTab]);
 
-  useEffect(() => {
-    let ch: any;
-
-    const initCircle = async () => {
-      const { data: authData } = await supabase.auth.getUser();
-      const uid = authData.user?.id || `guest_${Date.now()}`;
-      setCurrentUserId(uid);
-
-      const circleId = await fetchCircleData(uid);
-      if (circleId) await fetchOverview(uid, circleId);
-
-      ch = supabase.channel(`circle_${slug}`, { config: { presence: { key: uid } } });
-      channelRef.current = ch;
-
-      ch.on('presence', { event: 'sync' }, () => {
-        const state = ch.presenceState();
-        let count = 0;
-        const typing = new Set<string>();
-
-        for (const id in state) {
-          count += state[id].length;
-          for (const presence of state[id] as any[]) {
-            if (presence?.isTyping && id !== uid) typing.add(id);
-          }
-        }
-
-        setOnlineCount(Math.max(1, count));
-        setTypingUsers(typing);
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, async () => {
-        const refreshedCircleId = await fetchCircleData(uid, true);
-        if (refreshedCircleId) await fetchOverview(uid, refreshedCircleId, true);
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'circle_activity' }, async () => {
-        const circleIdNow = data?.circle?.id;
-        if (circleIdNow) await fetchOverview(uid, circleIdNow, true);
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'circle_drops' }, async () => {
-        const circleIdNow = data?.circle?.id;
-        if (circleIdNow) await fetchOverview(uid, circleIdNow, true);
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'circle_stories' }, async () => {
-        const circleIdNow = data?.circle?.id;
-        if (circleIdNow) await fetchOverview(uid, circleIdNow, true);
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'post_seals' }, async () => {
-        await fetchCircleData(uid, true);
-      })
-      .subscribe(async (status: string) => {
-        if (status === 'SUBSCRIBED') {
-          await ch.track({ isTyping: false });
-        }
-      });
-    };
-
-    initCircle();
-
-    return () => {
-      if (ch) supabase.removeChannel(ch);
-      cleanupStoryCapture();
-    };
-  }, [slug]);
-
-  useEffect(() => {
-    if (activeTab === 'vaults' && data?.circle?.id) {
-      fetchVaults();
-    }
-  }, [activeTab, data?.circle?.id]);
-
-  const fetchCircleData = async (uid: string, silent = false): Promise<string | null> => {
-    if (!silent && !data) setLoading(true);
-
-    try {
-      let circle: any = null;
-
-      const { data: circleBySlug } = await supabase.from('circles').select('*').eq('slug', slug).maybeSingle();
-      circle = circleBySlug;
-
-      if (!circle) {
-        const { data: circleById } = await supabase.from('circles').select('*').eq('id', slug).maybeSingle();
-        circle = circleById;
-      }
-
-      if (!circle) throw new Error('מועדון לא נמצא');
-
-      let isMember = false;
-      let membership = null;
-
-      if (uid && !uid.startsWith('guest_')) {
-        const { data: memberData } = await supabase.from('circle_members').select('*').eq('circle_id', circle.id).eq('user_id', uid).maybeSingle();
-        if (memberData) {
-          isMember = true;
-          membership = memberData;
-        }
-      }
-
-      const { data: posts } = await supabase
-        .from('posts')
-        .select('*, profiles!user_id(*), post_seals(*)')
-        .eq('circle_id', circle.id)
-        .order('created_at', { ascending: false })
-        .limit(60);
-
-      const nextData = { circle, isMember, membership, posts: posts || [] };
-
-      setData(nextData);
-      localStorage.setItem(`inner_circle_${slug}_cache`, JSON.stringify(nextData));
-      fetchMembersList(circle.id);
-
-      return circle.id;
-    } catch {
-      navigate('/');
-      return null;
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  };
-
-  const fetchMembersList = async (circleId: string) => {
-    try {
-      const { data: membersData } = await supabase.from('circle_members').select('role, created_at, tier, profiles(*)').eq('circle_id', circleId);
-      if (membersData) {
-        const sorted = membersData.sort((a, b) => a.role === 'admin' ? -1 : b.role === 'admin' ? 1 : 0);
-        setMembersList(sorted);
-        localStorage.setItem(`inner_members_${slug}_cache`, JSON.stringify(sorted));
-      }
-    } catch {}
-  };
-
-  const fetchOverview = async (uid: string, circleId?: string, silent = false) => {
-    try {
-      const resolvedCircleId = circleId || data?.circle?.id;
-      if (!resolvedCircleId) return;
-
-      const { data: overviewData, error } = await supabase.rpc('get_circle_overview', {
-        p_circle_id: resolvedCircleId,
-        p_user_id: uid && !uid.startsWith('guest_') ? uid : null,
-      });
-
-      if (!error && overviewData) {
-        setOverview(overviewData);
-        if (!silent) localStorage.setItem(`inner_overview_${slug}_cache`, JSON.stringify(overviewData));
-      }
-    } catch {}
-  };
-
-  const fetchVaults = async () => {
-    if (!data?.circle?.id) return;
-    try {
-      const { data: vaultData } = await supabase.from('vaults').select('*').eq('circle_id', data.circle.id).eq('is_active', true).order('created_at', { ascending: false });
-      let unlockedIds: string[] = [];
-
-      if (currentUserId && !currentUserId.startsWith('guest_')) {
-        const { data: unlocks } = await supabase.from('vault_unlocks').select('vault_id').eq('user_id', currentUserId);
-        unlockedIds = (unlocks || []).map((u: any) => u.vault_id);
-      }
-
-      const enrichedVaults = (vaultData || []).map((v: any) => ({
-        ...v,
-        is_unlocked: unlockedIds.includes(v.id) || v.creator_id === currentUserId,
-      }));
-
-      setVaults(enrichedVaults);
-      localStorage.setItem(`inner_vaults_${slug}_cache`, JSON.stringify(enrichedVaults));
-    } catch {
-    } finally {
-      setLoadingVaults(false);
-    }
-  };
-
-  // תוקן מנגנון ההצטרפות והתשלום - שידור ההדר x-user-id הנדרש בשרת
   const handleJoin = async (tier: 'INNER' | 'CORE') => {
     const uid = user?.id || currentUserId;
     if (!uid || uid.startsWith('guest_')) {
@@ -324,17 +185,15 @@ export const CirclePage: React.FC = () => {
     const tid = toast.loading('מעבד בקשה...', { style: cleanToastStyle });
 
     try {
-      const circleSlug = data?.circle?.slug || slug;
-
-      if (data.isMember) {
-        await apiFetch(`/api/circles/${circleSlug}/upgrade`, {
+      if (circleData.isMember) {
+        await apiFetch(`/api/circles/${circleData.circle.slug}/upgrade`, {
           method: 'POST',
           headers: { 'x-user-id': uid },
           body: JSON.stringify({ tier, user_id: uid }),
         });
         toast.success(`שודרגת בהצלחה ל-${tier}!`, { id: tid, style: cleanToastStyle });
       } else {
-        const res = await apiFetch(`/api/circles/${circleSlug}/join`, { 
+        const res = await apiFetch(`/api/circles/${circleData.circle.slug}/join`, { 
           method: 'POST',
           headers: { 'x-user-id': uid }
         });
@@ -343,26 +202,10 @@ export const CirclePage: React.FC = () => {
            toast.success('עזבת את הקהילה', { id: tid, style: cleanToastStyle });
         } else {
            toast.success('ברוך הבא למועדון!', { id: tid, style: cleanToastStyle });
-           try {
-             await supabase.from('circle_activity').insert({
-               circle_id: data.circle.id,
-               actor_user_id: uid,
-               activity_type: 'join_circle',
-               payload: { tier },
-             });
-           } catch {}
         }
       }
-
-      await supabase.rpc('ensure_circle_user_stats', {
-        p_circle_id: data.circle.id,
-        p_user_id: uid,
-      });
-
-      // רענון נתונים כדי להעלים את מסך הנעילה באופן מיידי
-      await fetchCircleData(uid, true);
-      await fetchOverview(uid, data.circle.id, true);
-      
+      // רענון מיידי של הנתונים בעמוד כדי לפתוח את הנעילה
+      await refetch();
     } catch (err: any) {
       toast.error(err?.message || 'שגיאה בהצטרפות. ודא שיש לך מספיק קרדיטים בארנק.', { id: tid, style: cleanToastStyle });
     } finally {
@@ -371,218 +214,95 @@ export const CirclePage: React.FC = () => {
     }
   };
 
+  const handlePost = async () => {
+    if (!newPost.trim() && !selectedFile) return;
+    if (!circleData?.circle?.id || !currentUserId || currentUserId.startsWith('guest_')) {
+      return toast.error('יש להתחבר תחילה', { style: cleanToastStyle });
+    }
+
+    setPosting(true);
+    triggerFeedback('pop');
+
+    try {
+      if (editingPostId) {
+        await supabase.from('posts').update({ content: newPost.trim() }).eq('id', editingPostId);
+        toast.success('הודעה עודכנה', { style: cleanToastStyle });
+        setNewPost(''); setEditingPostId(null);
+      } else {
+        let media_url: string | null = null;
+        let media_type = 'text';
+
+        if (selectedFile) {
+          const { data: uploadData, error } = await supabase.storage.from('feed_images').upload(`chat_${Date.now()}`, selectedFile);
+          if (!error && uploadData) {
+            media_url = supabase.storage.from('feed_images').getPublicUrl(uploadData.path).data.publicUrl;
+            media_type = selectedFile.type.startsWith('video') ? 'video' : 'image';
+          }
+        }
+
+        const { error } = await supabase.from('posts').insert({
+          circle_id: circleData.circle.id,
+          user_id: currentUserId,
+          content: newPost.trim(),
+          media_url,
+          media_type,
+          is_reveal_drop: false,
+          reveal_status: 'revealed',
+          required_crd: 0,
+        });
+
+        if (error) throw error;
+        setNewPost(''); setSelectedFile(null);
+      }
+      // ה-React Query כבר ירענן בזכות ההאזנה שלנו ל-Realtime!
+    } catch {
+      toast.error('שגיאה בשליחה', { style: cleanToastStyle });
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  const handleContributeToDrop = async () => {
+    if (!circleData?.overview?.drop?.id || !dropAmount || Number(dropAmount) <= 0) return;
+    setContributingDrop(true);
+    triggerFeedback('pop');
+
+    try {
+      const { error } = await supabase.rpc('circle_contribute_to_drop', {
+        p_drop_id: circleData.overview.drop.id,
+        p_user_id: currentUserId,
+        p_amount: Number(dropAmount),
+      });
+
+      if (error) throw error;
+      await refetch();
+      setDropAmount(50);
+      toast.success('התרומה התקבלה!', { style: cleanToastStyle });
+    } catch {
+      toast.error('שגיאה בתרומה', { style: cleanToastStyle });
+    } finally {
+      setContributingDrop(false);
+    }
+  };
+
+  const handleSealToggle = async (postId: string, sealType: string, isRemoving: boolean) => {
+    triggerFeedback('pop');
+    try {
+      if (isRemoving) {
+        await supabase.from('post_seals').delete().match({ post_id: postId, user_id: currentUserId, seal_type: sealType });
+      } else {
+        await supabase.from('post_seals').insert({ post_id: postId, user_id: currentUserId, seal_type: sealType });
+      }
+    } catch {}
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) {
       setSelectedFile(file);
       triggerFeedback('pop');
-    } else if (file) {
-      toast.error('אנא בחר קובץ תמונה או וידאו תקין', { style: cleanToastStyle });
     }
     if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  const cleanupStoryCapture = () => {
-    if (storyStreamRef.current) {
-      storyStreamRef.current.getTracks().forEach((track) => track.stop());
-      storyStreamRef.current = null;
-    }
-    if (storyRecorderRef.current && storyRecorderRef.current.state !== 'inactive') {
-      try { storyRecorderRef.current.stop(); } catch {}
-    }
-    storyRecorderRef.current = null;
-    storyChunksRef.current = [];
-    setIsRecordingStory(false);
-  };
-
-  const openSelfieCamera = async () => {
-    if (!currentUserId || currentUserId.startsWith('guest_')) return toast.error('יש להתחבר תחילה', { style: cleanToastStyle });
-    try {
-      setCapturedStoryBlob(null);
-      setCapturedMediaType('image');
-      setIsStoryCaptureOpen(true);
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true });
-      storyStreamRef.current = stream;
-      if (storyVideoRef.current) {
-        storyVideoRef.current.srcObject = stream;
-        try { await storyVideoRef.current.play(); } catch {}
-      }
-    } catch {
-      cleanupStoryCapture();
-      setIsStoryCaptureOpen(false);
-      toast.error('אין גישה למצלמה', { style: cleanToastStyle });
-    }
-  };
-
-  const openQuickStoryCapture = async () => {
-    if (!currentUserId || currentUserId.startsWith('guest_')) return toast.error('יש להתחבר תחילה', { style: cleanToastStyle });
-    try {
-      setCapturedStoryBlob(null);
-      setCapturedMediaType('video');
-      setIsStoryCaptureOpen(true);
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true });
-      storyStreamRef.current = stream;
-      if (storyVideoRef.current) {
-        storyVideoRef.current.srcObject = stream;
-        try { await storyVideoRef.current.play(); } catch {}
-      }
-      storyChunksRef.current = [];
-      const recorder = new MediaRecorder(stream);
-      storyRecorderRef.current = recorder;
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) storyChunksRef.current.push(e.data); };
-      recorder.onstop = () => {
-        const blob = new Blob(storyChunksRef.current, { type: 'video/webm' });
-        setCapturedStoryBlob(blob);
-        setCapturedMediaType('video');
-        setIsRecordingStory(false);
-        cleanupStoryCapture();
-      };
-      recorder.start();
-      setIsRecordingStory(true);
-      triggerFeedback('heavy');
-    } catch {
-      cleanupStoryCapture();
-      setIsStoryCaptureOpen(false);
-      toast.error('אין גישה למצלמה או מיקרופון', { style: cleanToastStyle });
-    }
-  };
-
-  const startStoryLongPress = () => {
-    storyIgnoreClickRef.current = false;
-    storyLongPressStartedRef.current = false;
-    if (storyHoldTimerRef.current) clearTimeout(storyHoldTimerRef.current);
-    storyHoldTimerRef.current = setTimeout(async () => {
-      storyLongPressStartedRef.current = true;
-      storyIgnoreClickRef.current = true;
-      await openQuickStoryCapture();
-    }, 260);
-  };
-
-  const endStoryLongPress = () => {
-    if (storyHoldTimerRef.current) { clearTimeout(storyHoldTimerRef.current); storyHoldTimerRef.current = null; }
-    if (storyLongPressStartedRef.current && storyRecorderRef.current) {
-      if (storyRecorderRef.current.state === 'recording') { try { storyRecorderRef.current.stop(); } catch {} }
-    }
-  };
-
-  const handleCameraButtonClick = () => {
-    if (storyIgnoreClickRef.current) { storyIgnoreClickRef.current = false; return; }
-    openSelfieCamera();
-  };
-
-  const cancelStoryPreview = () => {
-    setCapturedStoryBlob(null);
-    setIsStoryCaptureOpen(false);
-    cleanupStoryCapture();
-  };
-
-  const uploadCapturedStory = async () => {
-    if (!capturedStoryBlob || !data?.circle?.id || !currentUserId || currentUserId.startsWith('guest_')) return toast.error('שגיאה בגישה למשתמש', { style: cleanToastStyle });
-    setUploadingStory(true);
-    triggerFeedback('pop');
-    const tempUrl = URL.createObjectURL(capturedStoryBlob);
-    const tempStory = { id: `temp-${Date.now()}`, media_url: tempUrl, media_type: capturedMediaType, full_name: myProfile?.full_name || 'אני', created_at: new Date().toISOString() };
-    setOverview((prev) => ({ ...prev, stories: [tempStory, ...(prev.stories || [])] }));
-    setIsStoryCaptureOpen(false);
-    try {
-      const file = new File([capturedStoryBlob], `story_${Date.now()}.${capturedMediaType === 'video' ? 'webm' : 'jpg'}`, { type: capturedMediaType === 'video' ? 'video/webm' : 'image/jpeg' });
-      const { data: uploadData, error } = await supabase.storage.from('feed_images').upload(file.name, file);
-      if (error) throw error;
-      const { data: { publicUrl } } = supabase.storage.from('feed_images').getPublicUrl(uploadData.path);
-      const expiresAt = new Date(); expiresAt.setHours(expiresAt.getHours() + 24);
-      await supabase.from('circle_stories').insert({ circle_id: data.circle.id, user_id: currentUserId, media_url: publicUrl, media_type: capturedMediaType, expires_at: expiresAt.toISOString() });
-      supabase.rpc('add_circle_xp', { p_circle_id: data.circle.id, p_user_id: currentUserId, p_amount: 20, p_reason: 'story_upload' }).then();
-      toast.success('הסטורי עלה ל־24 שעות', { style: cleanToastStyle });
-      setCapturedStoryBlob(null);
-      await fetchOverview(currentUserId, data.circle.id, true);
-    } catch {
-      toast.error('שגיאה בהעלאת הסטורי', { style: cleanToastStyle });
-      setOverview((prev) => ({ ...prev, stories: prev.stories?.filter((s: any) => s.id !== tempStory.id) || [] }));
-    } finally { setUploadingStory(false); }
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setNewPost(val);
-    if (channelRef.current) channelRef.current.track({ isTyping: val.length > 0 });
-  };
-
-  const handlePost = async () => {
-    if (!newPost.trim() && !selectedFile) return;
-    if (!data?.circle?.id || !currentUserId || currentUserId.startsWith('guest_')) return toast.error('יש להתחבר תחילה', { style: cleanToastStyle });
-    setPosting(true);
-    triggerFeedback('pop');
-    try {
-      if (editingPostId) {
-        setData((curr: any) => ({ ...curr, posts: curr.posts.map((p: any) => p.id === editingPostId ? { ...p, content: newPost.trim() } : p) }));
-        const { error } = await supabase.from('posts').update({ content: newPost.trim() }).eq('id', editingPostId);
-        if (error) throw error;
-        toast.success('הודעה עודכנה', { style: cleanToastStyle });
-        setNewPost(''); setEditingPostId(null);
-      } else {
-        const tempId = `temp-${Date.now()}`;
-        const tempMediaUrl = selectedFile ? URL.createObjectURL(selectedFile) : null;
-        const tempMediaType = selectedFile?.type.startsWith('video') ? 'video' : 'image';
-        const tempPost = { id: tempId, user_id: currentUserId, content: newPost.trim(), media_url: tempMediaUrl, media_type: tempMediaType, created_at: new Date().toISOString(), profiles: myProfile, post_seals: [] };
-        setData((curr: any) => ({ ...curr, posts: [...(curr.posts || []), tempPost] }));
-        const contentToSend = newPost.trim();
-        const fileToSend = selectedFile;
-        setNewPost(''); setSelectedFile(null);
-        if (channelRef.current) channelRef.current.track({ isTyping: false });
-        let media_url: string | null = null;
-        let media_type = 'text';
-        if (fileToSend) {
-          const { data: uploadData, error } = await supabase.storage.from('feed_images').upload(`chat_${Date.now()}`, fileToSend);
-          if (!error && uploadData) {
-            media_url = supabase.storage.from('feed_images').getPublicUrl(uploadData.path).data.publicUrl;
-            media_type = fileToSend.type.startsWith('video') ? 'video' : 'image';
-          }
-        }
-        const { data: insertedPost, error } = await supabase.from('posts').insert({ circle_id: data.circle.id, user_id: currentUserId, content: contentToSend, media_url, media_type, is_reveal_drop: false, reveal_status: 'revealed', required_crd: 0 }).select('*, profiles!user_id(*), post_seals(*)').single();
-        if (error) throw error;
-        if (insertedPost) {
-          setData((curr: any) => ({ ...curr, posts: curr.posts.map((p: any) => (p.id === tempId ? insertedPost : p)) }));
-          supabase.rpc('add_circle_xp', { p_circle_id: data.circle.id, p_user_id: currentUserId, p_amount: fileToSend ? 20 : 8, p_reason: 'post' }).then();
-        }
-      }
-    } catch { toast.error('שגיאה בשליחה', { style: cleanToastStyle }); } finally { setPosting(false); }
-  };
-
-  const handleContributeToDrop = async () => {
-    if (!overview?.drop?.id || !dropAmount || Number(dropAmount) <= 0) return;
-    setContributingDrop(true);
-    triggerFeedback('pop');
-    try {
-      const { error } = await supabase.rpc('circle_contribute_to_drop', { p_drop_id: overview.drop.id, p_user_id: currentUserId, p_amount: Number(dropAmount) });
-      if (error) throw error;
-      await fetchOverview(currentUserId, data?.circle?.id, true);
-      setDropAmount(50);
-      toast.success('התרומה התקבלה!', { style: cleanToastStyle });
-    } catch { toast.error('שגיאה בתרומה', { style: cleanToastStyle }); } finally { setContributingDrop(false); }
-  };
-
-  const handleSealToggle = async (postId: string, sealType: string, isRemoving: boolean) => {
-    triggerFeedback('pop');
-    setData((curr: any) => {
-      const newPosts = curr.posts.map((p: any) => {
-        if (p.id !== postId) return p;
-        let newSeals = [...(p.post_seals || [])];
-        if (isRemoving) newSeals = newSeals.filter((s: any) => !(s.user_id === currentUserId && s.seal_type === sealType));
-        else newSeals.push({ post_id: postId, user_id: currentUserId, seal_type: sealType });
-        return { ...p, post_seals: newSeals };
-      });
-      return { ...curr, posts: newPosts };
-    });
-    try {
-      if (isRemoving) await supabase.from('post_seals').delete().match({ post_id: postId, user_id: currentUserId, seal_type: sealType });
-      else {
-        const { error } = await supabase.from('post_seals').insert({ post_id: postId, user_id: currentUserId, seal_type: sealType });
-        if (!error) {
-          const xpAmount = SEAL_TYPES.find((s) => s.id === sealType)?.xp || 10;
-          supabase.rpc('add_circle_xp', { p_circle_id: data.circle.id, p_user_id: currentUserId, p_amount: xpAmount, p_reason: 'gave_seal' }).then();
-        }
-      }
-    } catch {}
   };
 
   const handleMessageTouchStart = (e: React.TouchEvent | React.MouseEvent, post: any) => {
@@ -594,21 +314,25 @@ export const CirclePage: React.FC = () => {
     if (Math.abs(currentY - touchStartY) > 10 && pressTimerRef.current) clearTimeout(pressTimerRef.current);
   };
   const handleMessageTouchEnd = () => { if (pressTimerRef.current) clearTimeout(pressTimerRef.current); };
+  
   const handleCopyText = () => { if (actionPost?.content) { navigator.clipboard.writeText(actionPost.content); toast.success('הועתק ללוח', { style: cleanToastStyle }); } setActionPost(null); };
+  
   const handleDeletePost = async () => {
     if (!actionPost) return;
     try {
-      setData((curr: any) => ({ ...curr, posts: curr.posts.filter((p: any) => p.id !== actionPost.id) }));
-      const { error } = await supabase.from('posts').delete().eq('id', actionPost.id);
-      if (error) throw error;
+      await supabase.from('posts').delete().eq('id', actionPost.id);
       toast.success('הודעה נמחקה', { style: cleanToastStyle });
+      refetch();
     } catch { toast.error('שגיאה במחיקה', { style: cleanToastStyle }); } finally { setActionPost(null); }
   };
+  
   const handleEditPost = () => { if (!actionPost) return; setNewPost(actionPost.content || ''); setEditingPostId(actionPost.id); setActionPost(null); };
 
-  if (loading || !data) return <div className="fixed inset-0 z-[999999] bg-[#050505] flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div>;
+  if (isLoading || !circleData) {
+    return <div className="fixed inset-0 z-[999999] bg-[#050505] flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div>;
+  }
 
-  const { circle, isMember, membership } = data;
+  const { circle, isMember, membership, membersList, vaults, overview } = circleData;
   const isOwner = circle.creator_id === currentUserId || membership?.role === 'admin';
   const myStats = overview?.my_stats || null;
   const myLevel = myStats?.level || 1;
@@ -616,52 +340,11 @@ export const CirclePage: React.FC = () => {
   const xpToNext = myLevel * 100;
   const xpProgress = Math.min(100, Math.round((myXP / xpToNext) * 100));
 
-  if (!mounted || typeof document === 'undefined') return null;
-
-  return createPortal(
+  return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[99999999] bg-[#050505] font-sans flex flex-col overflow-hidden text-white" dir="rtl">
       <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,video/*" />
 
-      <AnimatePresence>
-        {isStoryCaptureOpen && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[999999999] bg-black">
-            {!capturedStoryBlob ? (
-              <div className="w-full h-full relative">
-                <video ref={storyVideoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
-                <div className="absolute inset-x-0 top-0 p-6 pt-[calc(env(safe-area-inset-top)+18px)] flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent">
-                  <button onClick={() => { cleanupStoryCapture(); setIsStoryCaptureOpen(false); }} className="w-11 h-11 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white active:scale-90 transition-all"><X size={22} /></button>
-                  {isRecordingStory && <div className="px-4 py-2 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 text-[12px] font-black tracking-widest flex items-center gap-2 animate-pulse"><span className="w-2 h-2 rounded-full bg-red-500" /> מקליט עכשיו</div>}
-                </div>
-                <div className="absolute inset-x-0 bottom-0 pb-[calc(env(safe-area-inset-bottom)+28px)] px-6 flex justify-center">
-                  {isRecordingStory ? (
-                    <div className="text-center text-white/80 text-[13px] font-black tracking-wide bg-black/50 px-4 py-2 rounded-full backdrop-blur-md">שחרר את הלחיצה כדי לעצור</div>
-                  ) : (
-                    <button onClick={() => { triggerFeedback('pop'); if (storyVideoRef.current) { const canvas = document.createElement('canvas'); canvas.width = storyVideoRef.current.videoWidth; canvas.height = storyVideoRef.current.videoHeight; canvas.getContext('2d')?.drawImage(storyVideoRef.current, 0, 0); canvas.toBlob((b) => { if (b) { setCapturedStoryBlob(b); setCapturedMediaType('image'); } }, 'image/jpeg', 0.9); } }} className="w-20 h-20 rounded-full border-4 border-white bg-white/20 flex items-center justify-center active:scale-95 transition-transform">
-                      <div className="w-16 h-16 rounded-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)]" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="w-full h-full bg-black flex flex-col">
-                <div className="flex-1 relative">
-                  {capturedMediaType === 'video' ? <video src={URL.createObjectURL(capturedStoryBlob)} autoPlay loop controls playsInline className="w-full h-full object-cover scale-x-[-1]" /> : <img src={URL.createObjectURL(capturedStoryBlob)} className="w-full h-full object-cover scale-x-[-1]" />}
-                  <div className="absolute top-0 left-0 right-0 p-6 pt-[calc(env(safe-area-inset-top)+18px)] bg-gradient-to-b from-black/70 to-transparent">
-                    <div className="text-center text-white font-black text-[18px]">להעלות את זה לסטורי?</div>
-                  </div>
-                </div>
-                <div className="p-5 pb-[calc(env(safe-area-inset-bottom)+20px)] flex gap-3 bg-[#050505]">
-                  <button onClick={cancelStoryPreview} className="flex-1 h-14 rounded-full bg-white/10 text-white font-black active:scale-95 transition-all">לא</button>
-                  <button onClick={uploadCapturedStory} disabled={uploadingStory} className="flex-1 h-14 rounded-full bg-accent-primary text-white font-black active:scale-95 transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(var(--color-accent-primary),0.4)]">
-                    {uploadingStory ? <Loader2 size={18} className="animate-spin" /> : <><Send size={18} className="rtl:-scale-x-100" /> העלה לסטורי</>}
-                  </button>
-                </div>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
+      {/* FULL SCREEN MEDIA */}
       <AnimatePresence>
         {fullScreenMedia && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9999999] bg-black flex items-center justify-center" onClick={() => setFullScreenMedia(null)}>
@@ -671,6 +354,7 @@ export const CirclePage: React.FC = () => {
         )}
       </AnimatePresence>
 
+      {/* MESSAGE ACTIONS MODAL */}
       <AnimatePresence>
         {actionPost && (
           <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" dir="rtl">
@@ -709,7 +393,7 @@ export const CirclePage: React.FC = () => {
         <p className="text-white/50 text-[12px] font-medium tracking-wide max-w-[280px] leading-relaxed">{circle.description || 'מרחב פרימיום לחברי המועדון'}</p>
         {isMember && (
           <div className="flex items-center gap-4 mt-4">
-            <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-accent-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(var(--color-accent-primary),0.8)]" /> {onlineCount} אונליין</span>
+            <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-accent-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(var(--color-accent-primary),0.8)]" /> פעילים</span>
             <span className="text-[10px] font-black text-white/40 tracking-[0.2em] uppercase">{membersList.length} חברים</span>
           </div>
         )}
@@ -767,26 +451,6 @@ export const CirclePage: React.FC = () => {
 
           {activeTab === 'chat' && (
             <div className="flex-1 relative flex flex-col overflow-hidden">
-              {!!overview.stories?.length && (
-                <div className="shrink-0 px-5 pt-1 pb-4">
-                  <div className="flex gap-4 overflow-x-auto scrollbar-hide">
-                    <div className="flex flex-col items-center gap-2 shrink-0 cursor-pointer active:scale-95 transition-transform" onClick={openSelfieCamera}>
-                      <div className="w-[74px] h-[74px] rounded-full bg-white/5 flex items-center justify-center text-white/60 border border-white/10 hover:bg-white/10 hover:text-white"><Plus size={24} /></div>
-                      <span className="text-[10px] font-black text-white/50 tracking-wider text-center mt-1">רגע חדש</span>
-                    </div>
-                    {overview.stories.map((story: any) => (
-                      <div key={story.id} className="flex flex-col items-center gap-2 shrink-0 cursor-pointer active:scale-95 transition-transform" onClick={() => setFullScreenMedia({ url: story.media_url, type: story.media_type })}>
-                        <div className="w-[74px] h-[74px] rounded-full p-[3px] bg-gradient-to-tr from-accent-primary via-white/30 to-transparent shadow-[0_0_25px_rgba(var(--color-accent-primary),0.18)]">
-                          <div className="w-full h-full rounded-full overflow-hidden border-[3px] border-[#050505] bg-white/5">
-                            {story.media_type === 'video' ? <video src={story.media_url} className="w-full h-full object-cover" /> : <img src={story.media_url} className="w-full h-full object-cover" />}
-                          </div>
-                        </div>
-                        <span className="text-[10px] font-black text-white/70 tracking-wider truncate max-w-[74px] text-center mt-1">{story.full_name?.split(' ')[0]}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
               <div ref={messagesRef} className="flex-1 overflow-y-auto scrollbar-hide px-4 pt-2 pb-[120px]">
                 <div className="flex flex-col gap-6 min-h-full justify-end pb-4">
                   {sortedPosts.length === 0 ? (
@@ -834,7 +498,6 @@ export const CirclePage: React.FC = () => {
                       </div>
                     ))
                   )}
-                  {typingUsers.size > 0 && <div className="px-2 text-white/30 text-[11px] font-black tracking-wider">מישהו מקליד...</div>}
                 </div>
               </div>
               <div className="absolute bottom-0 left-0 right-0 px-4 z-[100] pb-[calc(env(safe-area-inset-bottom)+16px)] bg-gradient-to-t from-[#050505] via-[#050505]/90 to-transparent">
@@ -849,11 +512,8 @@ export const CirclePage: React.FC = () => {
                   )}
                 </AnimatePresence>
                 <div className="flex items-end gap-3 max-w-[600px] mx-auto">
-                  {!newPost.trim() && !selectedFile && !editingPostId && (
-                    <button onClick={handleCameraButtonClick} onTouchStart={startStoryLongPress} onTouchEnd={endStoryLongPress} onTouchCancel={endStoryLongPress} onMouseDown={startStoryLongPress} onMouseUp={endStoryLongPress} onMouseLeave={endStoryLongPress} className="shrink-0 w-[54px] h-[54px] rounded-full bg-accent-primary text-white flex items-center justify-center shadow-[0_5px_20px_rgba(var(--color-accent-primary),0.4)] transition-all hover:bg-accent-primary/90 active:scale-95" title="סטורי"><Camera size={24} /></button>
-                  )}
                   <div className={`flex-1 backdrop-blur-3xl bg-white/5 border border-white/10 rounded-[28px] min-h-[54px] flex items-center px-2 pr-4 shadow-[0_10px_40px_rgba(0,0,0,0.5)] transition-all ${editingPostId ? 'ring-2 ring-accent-primary border-transparent' : ''}`}>
-                    <input type="text" value={newPost} onChange={handleInputChange} onKeyDown={(e) => { if (e.key === 'Enter') handlePost(); }} placeholder={editingPostId ? 'ערוך הודעה...' : 'הודעה למעגל...'} className="flex-1 bg-transparent border-none outline-none text-white text-[14px] font-medium placeholder:text-white/30 py-3" />
+                    <input type="text" value={newPost} onChange={(e) => setNewPost(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handlePost(); }} placeholder={editingPostId ? 'ערוך הודעה...' : 'הודעה למעגל...'} className="flex-1 bg-transparent border-none outline-none text-white text-[14px] font-medium placeholder:text-white/30 py-3" />
                     <div className="flex items-center gap-1.5 shrink-0 ml-1">
                       {!editingPostId && <button onClick={() => fileInputRef.current?.click()} className="w-9 h-9 flex items-center justify-center rounded-full text-white/30 hover:text-white/70 transition-colors" title="צרף תמונה"><Paperclip size={18} /></button>}
                       {(newPost.trim() || selectedFile || editingPostId) && (
@@ -869,7 +529,7 @@ export const CirclePage: React.FC = () => {
           )}
 
           {activeTab === 'vaults' && (
-            <div className="flex-1 p-5 flex flex-col gap-4 overflow-y-auto pb-[120px] scrollbar-hide" onClick={(e) => { const target = e.target as HTMLElement; if (target.tagName === 'IMG' || target.tagName === 'VIDEO') { const src = (target as any).src || (target as any).currentSrc; if (src) { e.preventDefault(); e.stopPropagation(); setFullScreenMedia({ url: src, type: target.tagName.toLowerCase() }); } } }}>
+            <div className="flex-1 p-5 flex flex-col gap-4 overflow-y-auto pb-[120px] scrollbar-hide">
               {loadingVaults ? <div className="flex items-center justify-center py-10"><Loader2 className="animate-spin text-accent-primary" size={24} /></div> : vaults.map((v) => <VaultCard key={v.id} vault={v} onUnlockSuccess={fetchVaults} />)}
             </div>
           )}
