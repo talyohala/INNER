@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -56,6 +55,7 @@ export const CirclePage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
 
+  const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'chat' | 'vaults' | 'members'>('chat');
   const [currentUserId, setCurrentUserId] = useState<string>('');
   
@@ -87,11 +87,9 @@ export const CirclePage: React.FC = () => {
     if (user?.id) setCurrentUserId(user.id);
   }, [user]);
 
-  // מנוע טעינה חכם באמצעות React Query
   const { data: circleData, isLoading, refetch } = useQuery({
     queryKey: ['circle', slug, currentUserId],
     queryFn: async () => {
-      // 1. חילוץ המועדון
       let circle = null;
       const { data: circleBySlug } = await supabase.from('circles').select('*').eq('slug', slug).maybeSingle();
       circle = circleBySlug;
@@ -101,14 +99,12 @@ export const CirclePage: React.FC = () => {
       }
       if (!circle) throw new Error('מועדון לא נמצא');
 
-      // 2. סטטוס חברות
       let membership = null;
       if (currentUserId && !currentUserId.startsWith('guest_')) {
         const { data: mem } = await supabase.from('circle_members').select('*').eq('circle_id', circle.id).eq('user_id', currentUserId).maybeSingle();
         membership = mem;
       }
 
-      // 3. חילוץ פוסטים - בצורה בטוחה בלי קריסה של Foreign Keys
       const { data: posts } = await supabase
         .from('posts')
         .select('*, profiles(*), post_seals(*)')
@@ -116,15 +112,19 @@ export const CirclePage: React.FC = () => {
         .order('created_at', { ascending: false })
         .limit(60);
 
-      // 4. חילוץ חברי הקהילה
       const { data: membersData } = await supabase
         .from('circle_members')
-        .select('role, created_at, tier, profiles(*)')
+        .select(`
+          role, 
+          created_at, 
+          tier, 
+          user_id,
+          profiles (id, full_name, username, avatar_url)
+        `)
         .eq('circle_id', circle.id);
       
       const membersList = (membersData || []).sort((a, b) => a.role === 'admin' ? -1 : b.role === 'admin' ? 1 : 0);
 
-      // 5. חילוץ כספות
       const { data: vaultData } = await supabase.from('vaults').select('*').eq('circle_id', circle.id).eq('is_active', true).order('created_at', { ascending: false });
       let unlockedIds: string[] = [];
       if (currentUserId && !currentUserId.startsWith('guest_')) {
@@ -133,7 +133,6 @@ export const CirclePage: React.FC = () => {
       }
       const vaults = (vaultData || []).map((v: any) => ({ ...v, is_unlocked: unlockedIds.includes(v.id) || v.creator_id === currentUserId }));
 
-      // 6. חילוץ סטטוס מועדון (דשבורד)
       const { data: overview } = await supabase.rpc('get_circle_overview', { p_circle_id: circle.id, p_user_id: currentUserId || null });
 
       return {
@@ -147,16 +146,15 @@ export const CirclePage: React.FC = () => {
       };
     },
     enabled: !!slug,
-    staleTime: 1000 * 60 * 2, // הנתונים טריים לשתי דקות כדי למנוע טעינות כפולות
+    staleTime: 1000 * 60 * 2,
   });
 
-  // סנכרון בזמן אמת של צ'אט הקהילה
   useEffect(() => {
     if (!circleData?.circle?.id) return;
     const cid = circleData.circle.id;
     const channel = supabase.channel(`circle_updates_${cid}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'posts', filter: `circle_id=eq.${cid}` }, () => {
-        refetch(); // רענון אוטומטי חכם ברקע ללא לאגים
+        refetch();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'post_seals' }, () => refetch())
       .subscribe();
@@ -174,6 +172,10 @@ export const CirclePage: React.FC = () => {
     }
   }, [sortedPosts, activeTab]);
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const handleJoin = async (tier: 'INNER' | 'CORE') => {
     const uid = user?.id || currentUserId;
     if (!uid || uid.startsWith('guest_')) {
@@ -185,7 +187,7 @@ export const CirclePage: React.FC = () => {
     const tid = toast.loading('מעבד בקשה...', { style: cleanToastStyle });
 
     try {
-      if (circleData.isMember) {
+      if (circleData?.isMember) {
         await apiFetch(`/api/circles/${circleData.circle.slug}/upgrade`, {
           method: 'POST',
           headers: { 'x-user-id': uid },
@@ -193,7 +195,7 @@ export const CirclePage: React.FC = () => {
         });
         toast.success(`שודרגת בהצלחה ל-${tier}!`, { id: tid, style: cleanToastStyle });
       } else {
-        const res = await apiFetch(`/api/circles/${circleData.circle.slug}/join`, { 
+        const res = await apiFetch(`/api/circles/${circleData?.circle.slug}/join`, { 
           method: 'POST',
           headers: { 'x-user-id': uid }
         });
@@ -204,7 +206,6 @@ export const CirclePage: React.FC = () => {
            toast.success('ברוך הבא למועדון!', { id: tid, style: cleanToastStyle });
         }
       }
-      // רענון מיידי של הנתונים בעמוד כדי לפתוח את הנעילה
       await refetch();
     } catch (err: any) {
       toast.error(err?.message || 'שגיאה בהצטרפות. ודא שיש לך מספיק קרדיטים בארנק.', { id: tid, style: cleanToastStyle });
@@ -254,7 +255,6 @@ export const CirclePage: React.FC = () => {
         if (error) throw error;
         setNewPost(''); setSelectedFile(null);
       }
-      // ה-React Query כבר ירענן בזכות ההאזנה שלנו ל-Realtime!
     } catch {
       toast.error('שגיאה בשליחה', { style: cleanToastStyle });
     } finally {
@@ -328,6 +328,113 @@ export const CirclePage: React.FC = () => {
   
   const handleEditPost = () => { if (!actionPost) return; setNewPost(actionPost.content || ''); setEditingPostId(actionPost.id); setActionPost(null); };
 
+  const cleanupStoryCapture = () => {
+    if (storyStreamRef.current) {
+      storyStreamRef.current.getTracks().forEach((track) => track.stop());
+      storyStreamRef.current = null;
+    }
+    if (storyRecorderRef.current && storyRecorderRef.current.state !== 'inactive') {
+      try { storyRecorderRef.current.stop(); } catch {}
+    }
+    storyRecorderRef.current = null;
+    storyChunksRef.current = [];
+    setIsRecordingStory(false);
+  };
+
+  const openSelfieCamera = async () => {
+    if (!currentUserId || currentUserId.startsWith('guest_')) return toast.error('יש להתחבר תחילה', { style: cleanToastStyle });
+    try {
+      setCapturedStoryBlob(null);
+      setCapturedMediaType('image');
+      setIsStoryCaptureOpen(true);
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true });
+      storyStreamRef.current = stream;
+      if (storyVideoRef.current) {
+        storyVideoRef.current.srcObject = stream;
+        try { await storyVideoRef.current.play(); } catch {}
+      }
+    } catch {
+      cleanupStoryCapture();
+      setIsStoryCaptureOpen(false);
+      toast.error('אין גישה למצלמה', { style: cleanToastStyle });
+    }
+  };
+
+  const openQuickStoryCapture = async () => {
+    if (!currentUserId || currentUserId.startsWith('guest_')) return toast.error('יש להתחבר תחילה', { style: cleanToastStyle });
+    try {
+      setCapturedStoryBlob(null);
+      setCapturedMediaType('video');
+      setIsStoryCaptureOpen(true);
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true });
+      storyStreamRef.current = stream;
+      if (storyVideoRef.current) {
+        storyVideoRef.current.srcObject = stream;
+        try { await storyVideoRef.current.play(); } catch {}
+      }
+      storyChunksRef.current = [];
+      const recorder = new MediaRecorder(stream);
+      storyRecorderRef.current = recorder;
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) storyChunksRef.current.push(e.data); };
+      recorder.onstop = () => {
+        const blob = new Blob(storyChunksRef.current, { type: 'video/webm' });
+        setCapturedStoryBlob(blob);
+        setCapturedMediaType('video');
+        setIsRecordingStory(false);
+        cleanupStoryCapture();
+      };
+      recorder.start();
+      setIsRecordingStory(true);
+      triggerFeedback('heavy');
+    } catch {
+      cleanupStoryCapture();
+      setIsStoryCaptureOpen(false);
+      toast.error('אין גישה למצלמה או מיקרופון', { style: cleanToastStyle });
+    }
+  };
+
+  const startStoryLongPress = () => {
+    let touchStartY = 0;
+    storyIgnoreClickRef.current = false;
+    storyLongPressStartedRef.current = false;
+    if (storyHoldTimerRef.current) clearTimeout(storyHoldTimerRef.current);
+    storyHoldTimerRef.current = setTimeout(async () => {
+      storyLongPressStartedRef.current = true;
+      storyIgnoreClickRef.current = true;
+      await openQuickStoryCapture();
+    }, 260);
+  };
+
+  const endStoryLongPress = () => {
+    if (storyHoldTimerRef.current) { clearTimeout(storyHoldTimerRef.current); storyHoldTimerRef.current = null; }
+    if (storyLongPressStartedRef.current && storyRecorderRef.current) {
+      if (storyRecorderRef.current.state === 'recording') { try { storyRecorderRef.current.stop(); } catch {} }
+    }
+  };
+
+  const uploadCapturedStory = async () => {
+    if (!capturedStoryBlob || !circleData?.circle?.id || !currentUserId || currentUserId.startsWith('guest_')) return toast.error('שגיאה בגישה למשתמש', { style: cleanToastStyle });
+    setUploadingStory(true);
+    triggerFeedback('pop');
+    
+    setIsStoryCaptureOpen(false);
+    try {
+      const file = new File([capturedStoryBlob], `story_${Date.now()}.${capturedMediaType === 'video' ? 'webm' : 'jpg'}`, { type: capturedMediaType === 'video' ? 'video/webm' : 'image/jpeg' });
+      const { data: uploadData, error } = await supabase.storage.from('feed_images').upload(file.name, file);
+      if (error) throw error;
+      const { data: { publicUrl } } = supabase.storage.from('feed_images').getPublicUrl(uploadData.path);
+      const expiresAt = new Date(); expiresAt.setHours(expiresAt.getHours() + 24);
+      await supabase.from('circle_stories').insert({ circle_id: circleData.circle.id, user_id: currentUserId, media_url: publicUrl, media_type: capturedMediaType, expires_at: expiresAt.toISOString() });
+      toast.success('הסטורי עלה ל־24 שעות', { style: cleanToastStyle });
+      setCapturedStoryBlob(null);
+      await refetch();
+    } catch {
+      toast.error('שגיאה בהעלאת הסטורי', { style: cleanToastStyle });
+    } finally { setUploadingStory(false); }
+  };
+
+  if (!mounted || typeof document === 'undefined') return null;
+
   if (isLoading || !circleData) {
     return <div className="fixed inset-0 z-[999999] bg-[#050505] flex items-center justify-center"><Loader2 className="animate-spin text-accent-primary" size={32} /></div>;
   }
@@ -359,7 +466,7 @@ export const CirclePage: React.FC = () => {
         {actionPost && (
           <div className="fixed inset-0 z-[9999999] flex flex-col justify-end" dir="rtl">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setActionPost(null)} />
-            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="relative bg-[#111] rounded-t-[32px] p-6 pb-[calc(env(safe-area-inset-bottom)+32px)] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="relative bg-[#111] rounded-t-[32px] p-6 pb-[calc(env(safe-area-inset-bottom)+32px)] border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] z-[10000000]">
               <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6" />
               <div className="flex items-center gap-4 mb-6 pb-6 border-b border-white/10">
                 <div className="w-12 h-12 rounded-full overflow-hidden bg-white/5 border border-white/10 shrink-0">
@@ -377,6 +484,47 @@ export const CirclePage: React.FC = () => {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* STORY CAPTURE MODAL */}
+      <AnimatePresence>
+        {isStoryCaptureOpen && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[999999999] bg-black">
+            {!capturedStoryBlob ? (
+              <div className="w-full h-full relative">
+                <video ref={storyVideoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
+                <div className="absolute inset-x-0 top-0 p-6 pt-[calc(env(safe-area-inset-top)+18px)] flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent">
+                  <button onClick={() => { cleanupStoryCapture(); setIsStoryCaptureOpen(false); }} className="w-11 h-11 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white active:scale-90 transition-all"><X size={22} /></button>
+                  {isRecordingStory && <div className="px-4 py-2 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 text-[12px] font-black tracking-widest flex items-center gap-2 animate-pulse"><span className="w-2 h-2 rounded-full bg-red-500" /> מקליט עכשיו</div>}
+                </div>
+                <div className="absolute inset-x-0 bottom-0 pb-[calc(env(safe-area-inset-bottom)+28px)] px-6 flex justify-center">
+                  {isRecordingStory ? (
+                    <div className="text-center text-white/80 text-[13px] font-black tracking-wide bg-black/50 px-4 py-2 rounded-full backdrop-blur-md">שחרר את הלחיצה כדי לעצור</div>
+                  ) : (
+                    <button onClick={() => { triggerFeedback('pop'); if (storyVideoRef.current) { const canvas = document.createElement('canvas'); canvas.width = storyVideoRef.current.videoWidth; canvas.height = storyVideoRef.current.videoHeight; canvas.getContext('2d')?.drawImage(storyVideoRef.current, 0, 0); canvas.toBlob((b) => { if (b) { setCapturedStoryBlob(b); setCapturedMediaType('image'); } }, 'image/jpeg', 0.9); } }} className="w-20 h-20 rounded-full border-4 border-white bg-white/20 flex items-center justify-center active:scale-95 transition-transform">
+                      <div className="w-16 h-16 rounded-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)]" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="w-full h-full bg-black flex flex-col">
+                <div className="flex-1 relative">
+                  {capturedMediaType === 'video' ? <video src={URL.createObjectURL(capturedStoryBlob)} autoPlay loop controls playsInline className="w-full h-full object-cover scale-x-[-1]" /> : <img src={URL.createObjectURL(capturedStoryBlob)} className="w-full h-full object-cover scale-x-[-1]" />}
+                  <div className="absolute top-0 left-0 right-0 p-6 pt-[calc(env(safe-area-inset-top)+18px)] bg-gradient-to-b from-black/70 to-transparent">
+                    <div className="text-center text-white font-black text-[18px]">להעלות את זה לסטורי?</div>
+                  </div>
+                </div>
+                <div className="p-5 pb-[calc(env(safe-area-inset-bottom)+20px)] flex gap-3 bg-[#050505]">
+                  <button onClick={() => { setCapturedStoryBlob(null); setIsStoryCaptureOpen(false); cleanupStoryCapture(); }} className="flex-1 h-14 rounded-full bg-white/10 text-white font-black active:scale-95 transition-all">לא</button>
+                  <button onClick={uploadCapturedStory} disabled={uploadingStory} className="flex-1 h-14 rounded-full bg-accent-primary text-white font-black active:scale-95 transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(var(--color-accent-primary),0.4)]">
+                    {uploadingStory ? <Loader2 size={18} className="animate-spin" /> : <><Send size={18} className="rtl:-scale-x-100" /> העלה לסטורי</>}
+                  </button>
+                </div>
+              </div>
+            )}
+          </motion.div>
         )}
       </AnimatePresence>
 
@@ -412,9 +560,9 @@ export const CirclePage: React.FC = () => {
             {[{ id: 'chat', label: 'לייב' }, { id: 'overview', label: 'דשבורד' }, { id: 'vaults', label: 'כספות' }, { id: 'members', label: 'קהילה' }].map((t) => {
               const isActive = activeTab === t.id;
               return (
-                <button key={t.id} onClick={() => setActiveTab(t.id as any)} className={`relative text-[12px] font-black uppercase tracking-widest transition-colors ${isActive ? 'text-white' : 'text-white/30 hover:text-white/60'}`}>
+                <button key={t.id} onClick={() => setActiveTab(t.id as any)} className={`relative text-[12px] font-black uppercase tracking-widest transition-colors flex flex-col items-center pb-2.5 ${isActive ? 'text-white' : 'text-white/30 hover:text-white/60'}`}>
                   {t.label}
-                  {isActive && <motion.div layoutId="nav-indicator" className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-accent-primary shadow-[0_0_10px_rgba(var(--color-accent-primary),1)]" />}
+                  {isActive && <motion.div layoutId="nav-indicator" className="absolute bottom-0 w-8 h-0.5 bg-accent-primary rounded-full shadow-[0_0_8px_rgba(var(--color-accent-primary),0.6)]" />}
                 </button>
               );
             })}
@@ -530,19 +678,19 @@ export const CirclePage: React.FC = () => {
 
           {activeTab === 'vaults' && (
             <div className="flex-1 p-5 flex flex-col gap-4 overflow-y-auto pb-[120px] scrollbar-hide">
-              {loadingVaults ? <div className="flex items-center justify-center py-10"><Loader2 className="animate-spin text-accent-primary" size={24} /></div> : vaults.map((v) => <VaultCard key={v.id} vault={v} onUnlockSuccess={fetchVaults} />)}
+              {isLoading ? <div className="flex items-center justify-center py-10"><Loader2 className="animate-spin text-accent-primary" size={24} /></div> : vaults.map((v: any) => <VaultCard key={v.id} vault={v} onUnlockSuccess={refetch} />)}
             </div>
           )}
 
           {activeTab === 'members' && (
             <div className="flex-1 p-5 flex flex-col gap-3 overflow-y-auto pb-[120px] scrollbar-hide">
-              {membersList.map((m) => (
-                <div key={m.profiles?.id} onClick={() => navigate(`/profile/${m.profiles?.id}`)} className="flex items-center gap-4 bg-white/5 border border-white/5 p-4 rounded-[24px] cursor-pointer active:scale-95 transition-all">
+              {membersList.map((m: any) => (
+                <div key={m.profiles?.id || m.user_id} onClick={() => navigate(`/profile/${m.profiles?.id || m.user_id}`)} className="flex items-center gap-4 bg-white/5 border border-white/5 p-4 rounded-[24px] cursor-pointer active:scale-95 transition-all">
                   <div className="w-10 h-10 rounded-full overflow-hidden bg-black/50 flex items-center justify-center border border-white/5">
                     {m.profiles?.avatar_url ? <img src={m.profiles.avatar_url} className="w-full h-full object-cover" /> : <span className="text-white/40 font-black text-[14px]">{(m.profiles?.full_name || 'א')[0]}</span>}
                   </div>
                   <div className="flex flex-col text-right flex-1">
-                    <span className="text-white font-black text-[14px] flex items-center gap-1.5">{m.profiles?.full_name}{m.role === 'admin' && <ShieldAlert size={14} className="text-accent-primary" />}</span>
+                    <span className="text-white font-black text-[14px] flex items-center gap-1.5">{m.profiles?.full_name || 'משתמש'}{m.role === 'admin' && <ShieldAlert size={14} className="text-accent-primary" />}</span>
                     <span className="text-white/30 text-[10px] font-bold tracking-widest mt-0.5 uppercase">{m.tier || 'MEMBER'}</span>
                   </div>
                   <ChevronLeft size={16} className="text-white/20 rtl:rotate-180" />
@@ -552,7 +700,6 @@ export const CirclePage: React.FC = () => {
           )}
         </div>
       )}
-    </motion.div>,
-    document.body
+    </motion.div>
   );
 };
